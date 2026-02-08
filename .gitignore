@@ -1,0 +1,17 @@
+# OS / editor junk
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Python (for later)
+__pycache__/
+*.pyc
+*.pyo
+.env
+.venv/
+
+# Runtime artifacts (future)
+runtime/logs/
+runtime/tmp/
+runtime/artifacts/
