@@ -1,0 +1,328 @@
+SYNAPSE GUILD — SNAPSHOTS (CANON)
+Version: v1.1
+Last Updated: 2026-02-02
+Status: Governance Law (changes require Governance Control Sync)
+
+Maintainer: Hands (Peter) with Brains (Ash)
+Audience:
+- New Synapse Guild members (human)
+- Any AI session participating in execution, governance, or rehydration
+- External collaborators adopting the Synapse Guild Operating System
+
+================================================================================
+0) PURPOSE OF THIS DOCUMENT
+================================================================================
+
+This document defines what SNAPSHOTS are, why they exist, and how they are used.
+
+After reading this document, the phrase “Write a Snapshot” must be sufficient
+instruction for any compliant operator (human or AI).
+
+Snapshots are the **ground‑truth memory system** of the Synapse Guild.
+They preserve reality over time without relying on chat history or human recall.
+
+This is governance law.
+
+================================================================================
+1) CORE DEFINITION (CANON)
+================================================================================
+
+1.1 Snapshot — definition
+A Snapshot is a factual, point‑in‑time record of what is true at a specific moment.
+
+A Snapshot answers one question:
+
+> “What is now true, and how did we get here?”
+
+One‑sentence definition:
+A Snapshot is an immutable record of reality captured at a specific moment in time.
+
+================================================================================
+2) WHAT PROBLEM SNAPSHOTS SOLVE
+================================================================================
+
+Snapshots exist because:
+
+- Memory drifts.
+- Chats end.
+- Humans forget details.
+- Systems evolve incrementally.
+
+Without Snapshots:
+- history gets rewritten unintentionally
+- decisions lose context
+- execution becomes non‑auditable
+- continuity breaks across days, weeks, or months
+
+Snapshots prevent **historical drift**.
+
+================================================================================
+3) WHAT SNAPSHOTS ARE — AND ARE NOT
+================================================================================
+
+3.1 What Snapshots ARE
+Snapshots are:
+- factual
+- time‑bound
+- immutable
+- evidence‑based
+
+3.2 What Snapshots are NOT
+Snapshots are NOT:
+- plans
+- intentions
+- promises
+- speculative notes
+- rewritten after the fact
+
+If something is not true yet, it does not belong in a Snapshot.
+
+================================================================================
+4) THE THREE SNAPSHOT TYPES (CANON)
+================================================================================
+
+There are exactly **three** Snapshot types.
+
+Each exists for a different purpose.
+They must not be conflated.
+
+--------------------------------------------------------------------------------
+4.1 CONTROL SYNC SNAPSHOT
+--------------------------------------------------------------------------------
+
+Purpose:
+Capture **binding decisions** made during a Control Sync.
+
+Used when:
+- scope was defined or changed
+- Guild Orders were created or updated
+- Quests were created
+- Execution Packs or canon documents were generated
+- authoritative decisions were made
+
+What it records:
+- decisions made
+- what is now binding
+- references to new or updated artifacts
+
+What it does NOT record:
+- exploratory discussion
+- brainstorming
+- undecided ideas
+
+Think of it as:
+“Here is what came out of the meeting that now counts.”
+
+--------------------------------------------------------------------------------
+4.2 END‑OF‑DAY (EOD) SNAPSHOT
+--------------------------------------------------------------------------------
+
+Purpose:
+Capture **what actually happened during execution**.
+
+Used when:
+- work was done
+- Quests progressed or completed
+- files or code changed
+- blockers or failures were discovered
+
+What it records:
+- what was worked on
+- what was completed
+- what is now true in the system
+- what remains incomplete
+- any problems uncovered
+
+What it does NOT record:
+- future plans
+- decisions that were not made
+- speculation
+
+Think of it as:
+“If everything stopped now, this is the state we would resume from.”
+
+--------------------------------------------------------------------------------
+4.3 GENERAL SNAPSHOT
+--------------------------------------------------------------------------------
+
+Purpose:
+Capture **any important moment** that does not fit cleanly into the other two types.
+
+Used when:
+- a Control Sync was mostly discussion or alignment
+- context was rehydrated after time away
+- insight or understanding emerged
+- governance or philosophy was clarified
+- an important moment occurred mid‑day
+
+What it records:
+- context
+- understanding
+- rationale
+- observations worth preserving
+
+What it does NOT record:
+- binding decisions (unless explicitly stated)
+- execution logs
+
+Think of it as:
+“This moment mattered. Future‑us should know it happened.”
+
+================================================================================
+5) SNAPSHOTS AND CONTROL SYNCS
+================================================================================
+
+Control Syncs are moments.
+Snapshots are records.
+
+A Control Sync itself is ephemeral.
+Its outcomes are not.
+
+Rules:
+- Binding decisions from a Control Sync must be captured in a Control Sync Snapshot.
+- Alignment‑only Control Syncs may produce a General Snapshot.
+- Not every Control Sync requires a Snapshot, but most should.
+
+================================================================================
+6) SNAPSHOTS AND DAILIES
+================================================================================
+
+Snapshots are a mandatory component of the Dailies loop.
+
+In Dailies:
+- Work is executed.
+- Reality changes.
+- A Snapshot records that change.
+
+Rule:
+Execution without Snapshots leads to drift.
+
+================================================================================
+7) SNAPSHOTS AND CONTINUITY LOCKS
+================================================================================
+
+Snapshots and Continuity Locks serve different roles.
+
+- Snapshots preserve **history**.
+- Continuity Locks preserve **current state**.
+
+Snapshots accumulate.
+Continuity Locks replace one another.
+
+A Continuity Lock may reference Snapshots.
+Snapshots must never be rewritten to match a Continuity Lock.
+
+================================================================================
+8) FORMAT, STORAGE, AND NAMING (CANON)
+================================================================================
+
+Snapshots are usually single text files stored inside the SUBJECT data folder:
+
+<Subject>_Data/Snapshots/
+  General/
+  Control Sync/
+  End of Day/
+
+Canonical rule:
+- Snapshots belong to the Subject, not to Governance.
+- Governance defines the law; Subject_Data stores the artifacts.
+
+----------------------------------------
+8.1 STORAGE LOCATIONS (CANON)
+----------------------------------------
+- General Snapshots:
+  <Subject>_Data/Snapshots/General/
+
+- Control Sync Snapshots:
+  <Subject>_Data/Snapshots/Control Sync/
+
+- End of Day Snapshots:
+  <Subject>_Data/Snapshots/End of Day/
+
+----------------------------------------
+8.2 NAMING CONVENTION (CANON)
+----------------------------------------
+Snapshot filenames MUST make type + subject + date obvious.
+
+Canonical pattern:
+<Subject>_<SnapshotType>_Snapshot_YYYY-MM-DD__<Topic>.txt
+
+Where <SnapshotType> is one of:
+- Control_Sync
+- End_of_Day
+- General
+
+Topic is optional but recommended. If omitted, drop the "__<Topic>" suffix.
+
+Examples:
+- STUART_Control_Sync_Snapshot_2026-02-02__v1_scope.txt
+- STUART_End_of_Day_Snapshot_2026-02-02__quests_1-3.txt
+- STUART_General_Snapshot_2026-02-02__architecture_note.txt
+
+----------------------------------------
+8.3 REHYDRATION ORDER (LOCK)
+----------------------------------------
+When resuming a Subject, the ordering is locked:
+
+1) Review the latest Control Sync Snapshot
+  (intent / scope / decisions)
+
+2) Review the latest End of Day Snapshot
+  (execution reality / outcomes / blockers)
+
+This prevents intent-reality inversion during rehydration.
+
+================================================================================
+9) QUALITY BAR (WHAT MAKES A GOOD SNAPSHOT)
+================================================================================
+
+A good Snapshot:
+- is honest
+- is explicit
+- separates fact from interpretation
+- can be trusted months later
+
+A bad Snapshot:
+- mixes intent with reality
+- omits important outcomes
+- rewrites history
+- relies on memory instead of evidence
+
+Snapshots must be boring and reliable.
+
+--------------------------------------------------------------------------------
+9.1 MINIMUM STRUCTURE (TEMPLATES ARE MINIMUMS, NOT LIMITS)
+--------------------------------------------------------------------------------
+Snapshots must capture enough truth that tomorrow’s Control Sync can resume without guessing.
+
+Canonical minimum snapshot templates live here:
+- Guild Docs/SYNAPSE_GUILD__SNAPSHOT_TEMPLATES.txt
+
+Rule:
+- Templates define minimum sections.
+- If additional information is relevant (bugs, failures, blockers, weird behavior, decisions), it MUST be captured even if not listed.
+
+Mandatory reminder for End-of-Day Snapshots:
+- If anything failed or remained incomplete, the snapshot MUST record what happened and WHY (blocking reason + errors + next action).
+
+================================================================================
+10) CANONICAL COMMANDS
+================================================================================
+
+Once this law is accepted, the following phrases are valid:
+
+- “Write a Snapshot.”
+Meaning:
+Record the current reality truthfully.
+
+- “This needs a Snapshot.”
+Meaning:
+What just happened must be preserved as historical truth.
+
+- “Reference this Snapshot.”
+Meaning:
+Use it as evidence of what occurred.
+
+================================================================================
+END OF DOCUMENT
+================================================================================

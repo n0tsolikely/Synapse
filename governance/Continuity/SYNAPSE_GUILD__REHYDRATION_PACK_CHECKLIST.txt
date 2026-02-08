@@ -1,0 +1,115 @@
+SYNAPSE GUILD — REHYDRATION PACK (CHECKLIST)
+Version: v1.3
+Last Updated: 2026-02-02
+Status: Reference (governance-aligned, non-executable)
+
+================================================================================
+WHAT IS A REHYDRATION PACK?
+================================================================================
+
+A **Rehydration Pack** is the minimum complete bundle of artifacts required to resume
+work in a new session (human or AI) **without drift, re-litigation, or loss of context**.
+
+It is not a single document.
+It is a **bundle**.
+
+Purpose:
+> “Resume work as if the previous session never ended.”
+
+================================================================================
+REHYDRATION PACK — REQUIRED CONTENTS
+================================================================================
+
+Include these unless they are explicitly unnecessary for the current work:
+
+- **Continuity Lock**  
+  Captures the current authoritative state (what is binding, deferred, read-first, next step).
+
+- **Bootstrap Prompt**  
+  Instructs the next AI session how to ingest artifacts and how to behave (role, stance, first action).
+
+- **Buffs (Session Ignition Key)**
+  The canonical session startup documents used to prevent drift and reduce rehydration overhead:
+  - Execution Protocol
+  - Data Directory Map
+  - Session Start Check
+
+
+
+- **Control Sync Checklist**
+  The deterministic start-of-session checklist:
+  - Processes/SYNAPSE_GUILD__CONTROL_SYNC_CHECKLIST.txt
+
+- **Snapshot Templates** (minimum structure, not rigid)
+  - Guild Docs/SYNAPSE_GUILD__SNAPSHOT_TEMPLATES.txt
+- **Latest Snapshots**  
+  Ground-truth history relevant to the work:
+  - Control Sync Snapshot(s)
+  - End-of-Day (EOD) Snapshot(s)
+  - General Snapshot(s), if applicable
+
+- **Active Guild Orders** (if a Raid is ongoing)  
+  Defines current scope and objectives.
+
+- **Accepted Quests**  
+  Current commitments eligible for execution.
+  (Quest acceptance is gated by Quest Validation rules.)
+  - Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt
+
+- **Relevant Codex / Canonical Vision**  
+  System law and high-level intent execution must respect.
+
+- **Updated repository, project zip, or data folder**  
+  The actual working state of the system.
+
+================================================================================
+OPTIONAL / CONTEXTUAL CONTENTS (EXPLICIT)
+================================================================================
+
+Include these when applicable:
+
+- **(Optional) Execution Pack**  
+  Required when execution is constrained by anti-drift rules
+  (long Control Sync, complex or delayed execution).
+
+- **(Optional) Other supporting documents**  
+  Any additional artifacts required to understand or execute correctly
+  (research notes, diagrams, temporary specs, one-off references).
+
+================================================================================
+WHAT A REHYDRATION PACK IS NOT
+================================================================================
+
+A Rehydration Pack is NOT:
+- a summary
+- a snapshot itself
+- a replacement for canon docs
+- a permanent artifact
+
+Once execution resumes and progresses, the Rehydration Pack is typically:
+- updated,
+- superseded,
+- or archived.
+
+================================================================================
+WHERE IT LIVES
+================================================================================
+
+Canonical location:
+- `<Subject>_Data/Latest Rehydration Pack/`
+
+Archival practice (optional):
+- Old or superseded packs may be moved into `<Subject>_Data/Archive/` to retain history.
+
+Rule:
+- Rehydration Packs are subject-state artifacts. They do not live in Governance.
+================================================================================
+FINAL RULE
+================================================================================
+
+If resuming work causes confusion, drift, or re-litigation,
+the Rehydration Pack is incomplete.
+
+================================================================================
+END OF DOCUMENT
+================================================================================

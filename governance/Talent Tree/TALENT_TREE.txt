@@ -1,0 +1,26 @@
+TALENT TREE — SYNAPSE GUILD (v0.1)
+Purpose: This is the authoritative, human-readable statement of CURRENT unlocked system capabilities.
+Rule: Update only when a Talent Point is spent (usually when a Quest is completed).
+
+How to use:
+- Add new TALENT entries at the bottom.
+- Do not delete old TALENT entries.
+- If a talent must be reversed, use RESPEC_RULES and record it explicitly.
+
+────────────────────────────────────────────────────────
+TALENT FORMAT
+────────────────────────────────────────────────────────
+TALENT ID:
+Name:
+Unlocked On:
+Source Quest:
+Scope: (Ashby / Stuart / System / Other)
+
+Description:
+(What capability now exists?)
+
+Implications:
+(What future work must respect now?)
+
+Notes:
+(optional)

@@ -1,0 +1,77 @@
+SYNAPSE OS — CONSENT GATE (CANON)
+Version: v1.0
+Last Updated: 2026-02-02
+Status: Governance Law
+
+Purpose:
+Hands should NOT be forced to understand technical details to approve work.
+Hands only approves BLAST RADIUS and RISK. Everything else is handled by quests,
+audits, and verification.
+
+This gate introduces a single universal rule:
+- R0/R1 may execute without Hands confirmation.
+- R2 must never execute unless Hands explicitly greenlights it.
+
+Definitions:
+- Risk levels are defined in: Processes/SYNAPSE_GUILD__RISK_RUBRIC.txt
+- A Confirmation Artifact is a small file created inside the working tree.
+- The Consent Gate is enforced by Truth Gate + Quest Validation.
+
+================================================================================
+CORE LAW
+================================================================================
+1) DEFAULT
+   - If a quest does not declare Risk, treat it as R0.
+
+2) R0 / R1
+   - Auto-execute.
+   - No special confirmation needed.
+   - Must still follow Execution Audits + Verification.
+
+3) R2
+   - HARD STOP until confirmation exists.
+   - The quest may be drafted and may perform SAFE prep work only:
+     - analysis
+     - dry-run commands
+     - patch proposals
+     - adding tests
+     - generating a plan
+   - The quest may NOT execute the risky step(s) until confirmed.
+
+4) HOW HANDS CONFIRMS (MINIMUM)
+   - Create a Confirmation Artifact file with a single line:
+     CONFIRM: YES
+   - No essays. No code review required.
+   - If Hands wants more detail, the quest/audits provide it.
+
+================================================================================
+CONFIRMATION ARTIFACT FORMAT
+================================================================================
+Canonical location (relative to project root):
+  confirmations/
+
+Canonical filename:
+  CONFIRM_R2__<quest_id>__YYYY-MM-DD__<slug>.txt
+
+Canonical content:
+  CONFIRM: YES
+
+Optional (allowed) extra lines:
+  CONFIRM: YES
+  BY: Hands
+  AT: 2026-02-02 23:59
+
+================================================================================
+ENFORCEMENT HOOKS
+================================================================================
+Quest Template:
+- Quest Board/QUEST_TEMPLATE.txt includes Risk and an R2 Confirmation pointer.
+
+Quest Validation (rule extension):
+- If Risk = R2, the quest is not eligible for ACCEPTED execution unless the
+  confirmation artifact path is present AND the file exists.
+
+Execution Audits:
+- The confirm file path should be recorded in 01_PREQUEST.md when relevant.
+
+END OF DOCUMENT

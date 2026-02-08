@@ -1,0 +1,73 @@
+SYNAPSE GUILD — SUBJECT MODEL (UNIVERSAL)
+Version: v1.1
+Last Updated: 2026-02-02
+Status: Governance Law (changes require Governance Control Sync)
+
+Maintainer: Hands (Peter) with Brains (Ash)
+Audience:
+- Any operator (human or AI) applying Synapse Governance to ANY domain
+
+================================================================================
+0) PURPOSE
+================================================================================
+Synapse Governance is universal because it operates on SUBJECTS, not software.
+This document defines the minimal Subject model used by the Guild.
+
+================================================================================
+1) DEFINITIONS
+================================================================================
+
+1.1 SUBJECT
+A SUBJECT is any bounded body of work that evolves over time.
+Examples (non-exhaustive): Ashby, Stuart, a novel, a game, an essay, a website, homework.
+
+1.2 <Subject>_ENGINE
+The Engine is the thing itself (the product).
+- Code: the source repo / app
+- Book: the manuscript text (chapters)
+- Game: game source + scripts/levels
+- Essay: the draft document
+
+1.3 <Subject>_DATA
+The Data bundle is supporting continuity + state for the subject.
+It can contain: snapshots, continuity locks, research/notes, decisions, guild orders,
+
+Subject_Data skeleton lock:
+- The minimum required directory skeleton for <Subject>_Data is locked.
+- See: The Guild/Terminology/Locks/LOCK__SUBJECT_DATA_SKELETON.md
+quests, logs, references, lore bibles, etc.
+
+1.4 CODEX (PER SUBJECT)
+Codex is constitutional law for the subject:
+- invariants
+- definitions
+- constraints
+- non-goals
+- architectural/creative rules that must not drift
+
+================================================================================
+2) UNIVERSAL DIRECTORY RULES
+================================================================================
+
+2.1 Governance stays universal
+Synapse Governance (this folder) defines universal rules, lifecycles, naming law, and rituals.
+
+It MUST NOT hard-code a subject’s unique internal structure.
+However, it MAY define a universal minimum Subject_Data skeleton that applies to all subjects.
+
+Canonical reference:
+- Processes/SYNAPSE_GUILD__SUBJECT_INITIALIZATION_AND_INCUBATION.txt
+
+2.2 Subject-specific trees live in <Subject>_Data
+Each subject may add its own internal structure inside its own Data bundle,
+on top of the universal skeleton.
+
+Recommended location (inside the subject bundle):
+- <Subject>_Data/Blueprint/Subject_Structure.md  (or equivalent)
+
+2.3 Examples are allowed, defaults are not
+Ashby/Stuart may be referenced as examples, but no rule may assume those subjects.
+
+================================================================================
+END OF DOCUMENT
+================================================================================

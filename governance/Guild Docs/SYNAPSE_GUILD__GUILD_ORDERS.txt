@@ -1,0 +1,290 @@
+SYNAPSE GUILD — GUILD ORDERS (CANON)
+Version: v1.1
+Last Updated: 2026-02-02
+Status: Governance Law (changes require Governance Control Sync)
+
+Maintainer: Hands (Peter) with Brains (Ash)
+Audience:
+- New Synapse Guild members (human)
+- Any AI session participating in planning or execution
+- External collaborators adopting the Synapse Guild Operating System
+
+================================================================================
+0) PURPOSE OF THIS DOCUMENT
+================================================================================
+
+This document defines what GUILD ORDERS are, why they exist, and how they are used.
+
+After reading this document, the phrase “Create Guild Orders” must be sufficient
+instruction for any compliant operator (human or AI).
+
+Guild Orders are a core governance primitive of the Synapse Guild Operating System.
+They define WHAT we are committing to build, not HOW we will build it.
+
+This is governance law.
+
+================================================================================
+1) CORE DEFINITION (CANON)
+================================================================================
+
+1.1 Guild Orders — definition
+Guild Orders are a scope-defining governance artifact that declares the intended
+objectives, constraints, and definition of success for a body of work.
+
+Guild Orders answer one question:
+
+> “What are we building in this phase, and how will we know it is done?”
+
+One-sentence definition:
+Guild Orders define the authoritative scope and intent of a build effort.
+
+================================================================================
+2) WHAT PROBLEM GUILD ORDERS SOLVE
+================================================================================
+
+Guild Orders exist because:
+
+- Complex systems cannot be built safely without a shared definition of scope.
+- Without a declared scope, work drifts into improvisation and contradiction.
+- Teams (human or AI) need a stable reference for what “success” means.
+- Decisions made in conversation must be elevated into durable intent.
+
+Without Guild Orders:
+- work becomes reactive
+- priorities shift silently
+- “nice ideas” sneak into critical paths
+- completion is ambiguous
+
+Guild Orders prevent scope drift.
+
+================================================================================
+3) WHAT GUILD ORDERS ARE — AND ARE NOT
+================================================================================
+
+3.1 What Guild Orders ARE
+Guild Orders are:
+- an intent declaration
+- a scope boundary
+- a success definition
+- a coordination artifact
+
+3.2 What Guild Orders are NOT
+Guild Orders are NOT:
+- a task list
+- a step-by-step plan
+- a process description
+- a quest backlog
+- an execution script
+- an Execution Pack
+
+Guild Orders do not prescribe HOW work is done.
+They declare WHAT must be accomplished.
+
+================================================================================
+4) STRUCTURE: RAIDS AND DUNGEONS (CANON)
+================================================================================
+
+4.1 Raids
+A RAID is the execution state of a Guild Orders document.
+
+Raid states:
+- ACTIVE — Guild Orders are currently being executed
+- PAUSED — execution is intentionally halted
+- COMPLETED — all objectives are satisfied
+
+A Raid is not a section inside the document.
+A Raid is the act of executing the Guild Orders.
+
+4.2 Dungeons
+Within Guild Orders, scope is divided into DUNGEONS.
+
+A Dungeon is:
+- a major slice of scope
+- a self-contained objective area
+- independently executable if dependencies allow
+
+Dungeons:
+- do NOT imply sequence
+- do NOT imply priority unless explicitly stated
+- may be raided in any dependency-safe order
+
+This replaces “phases,” “steps,” or numbered GO sections.
+
+================================================================================
+5) VARIABILITY AND NON-TEMPLATED NATURE
+================================================================================
+
+Guild Orders are intentionally non-templated.
+
+Reason:
+The shape of Guild Orders must match the nature of the work.
+
+Examples:
+- A structural refactor may have Dungeons focused on filesystem hygiene.
+- A product build may have Dungeons focused on features or subsystems.
+- A research-heavy effort may have exploratory Dungeons alongside build Dungeons.
+
+Uniformity is not a goal.
+Clarity is the goal.
+
+A Guild Orders document may include:
+- definitions of done
+- build laws / constraints
+- non-goals
+- risk notes
+- dependency notes
+
+But it must not become a procedural checklist.
+
+================================================================================
+6) RELATIONSHIP TO OTHER ARTIFACTS
+================================================================================
+
+6.1 Where Guild Orders live (state by location)
+Guild Orders live in Subject Data under:
+- <Subject>_Data/Guild Orders/ACTIVE/
+- <Subject>_Data/Guild Orders/PAUSED/
+- <Subject>_Data/Guild Orders/COMPLETED/
+
+State is defined by location:
+- If a Raid file is in ACTIVE, it is the current live plan being executed.
+- If a Raid file is in PAUSED, it is intentionally stopped and must not be executed until resumed.
+- If a Raid file is in COMPLETED, it is done (all dungeons + quests complete + verified).
+
+Multi-raid rule:
+- Multiple raids may exist at once.
+- Multiple raids may be ACTIVE at once, but scope for a given day/session is chosen in Control Sync.
+
+6.2 Completion rule (ACTIVE/PAUSED → COMPLETED)
+A Raid is complete when its dungeons and quests are complete AND verified.
+When a Raid completes:
+- move the Raid file into <Subject>_Data/Guild Orders/COMPLETED/
+- record the move in the End-of-Day Snapshot.
+
+Guild Orders sit between vision and execution.
+
+Canonical relationships:
+
+- Codex / Canonical Vision:
+  Define what the system is and why it exists.
+
+- Guild Orders:
+  Define what is being built now and what “done” means.
+
+- Execution Packs:
+  Constrain how Guild Orders are executed when drift risk is high.
+
+- Quests:
+  Atomic commitments created under Guild Orders.
+
+- Dailies Loop:
+  Day-to-day execution rhythm.
+
+- Snapshots:
+  Record what happened while executing Guild Orders.
+
+Guild Orders define scope.
+They do not replace or override these other artifacts.
+
+================================================================================
+7) WHEN TO CREATE GUILD ORDERS
+================================================================================
+
+You SHOULD create Guild Orders when:
+- beginning a major build effort
+- starting a new version or milestone
+- committing to a non-trivial objective
+- coordinating work across days, chats, or agents
+
+You SHOULD NOT create Guild Orders for:
+- trivial fixes
+- one-off experiments
+- isolated tasks that do not affect broader scope
+
+Guild Orders are for commitment, not brainstorming.
+
+================================================================================
+8) HOW GUILD ORDERS ARE USED IN PRACTICE
+================================================================================
+
+Typical lifecycle:
+
+1) Control Sync
+- Decisions are made.
+- Scope is agreed upon.
+
+2) Guild Orders are authored
+- Objectives and Dungeons are written.
+- Definition of done is clarified.
+
+3) A Raid begins
+- Guild Orders move to ACTIVE.
+- Dungeons are selected for execution.
+
+4) Quests are created
+- Atomic work is derived from Dungeons.
+- Quests are Accepted intentionally.
+
+5) Execution proceeds via Dailies
+- Scope → implement → test → snapshot → stop.
+
+6) Completion
+- All Dungeons are satisfied.
+- Raid is marked COMPLETED.
+- Final snapshot records outcomes.
+
+================================================================================
+9) ADDING OR MODIFYING SCOPE
+================================================================================
+
+Guild Orders may evolve, but changes are governed.
+
+Rules:
+- Scope changes require a Control Sync.
+- New Dungeons may be added if intent expands.
+- Existing Dungeons may be clarified or split.
+- Silent scope changes are forbidden.
+
+Guild Orders are living documents, but not casual ones.
+
+================================================================================
+10) QUALITY BAR (WHAT MAKES GOOD GUILD ORDERS)
+================================================================================
+
+Good Guild Orders:
+- make scope explicit
+- make success measurable
+- prevent random work
+- give context to every Quest
+
+Bad Guild Orders:
+- read like a to-do list
+- lack a definition of done
+- mix execution steps into intent
+- allow “drive-by” additions without review
+
+================================================================================
+11) CANONICAL COMMANDS
+================================================================================
+
+Once this law is accepted, the following phrases are valid:
+
+- “Create Guild Orders.”
+Meaning:
+Define the authoritative scope and objectives for a build effort.
+
+- “Start a Raid.”
+Meaning:
+Begin executing the Guild Orders.
+
+- “Pause the Raid.”
+Meaning:
+Intentionally halt execution without discarding intent.
+
+- “Complete the Raid.”
+Meaning:
+All Dungeons are satisfied; record final snapshot.
+
+================================================================================
+END OF DOCUMENT
+================================================================================

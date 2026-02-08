@@ -1,0 +1,238 @@
+SYNAPSE GUILD — QUEST BOARD (CANON)
+Version: v1.1
+Last Updated: 2026-02-02
+Status: Governance Law (changes require Governance Control Sync)
+
+Maintainer: Hands (Peter) with Brains (Ash)
+Audience:
+- New Synapse Guild members (human)
+- Any AI session managing execution state
+- External collaborators adopting the Synapse Guild Operating System
+
+================================================================================
+0) PURPOSE OF THIS DOCUMENT
+================================================================================
+
+This document defines what the QUEST BOARD is, why it exists, and how it is used.
+
+After reading this document, the phrase “Check the Quest Board” must be sufficient
+instruction for any compliant operator (human or AI).
+
+The Quest Board is the **commitment surface** of the Synapse Guild.
+It is where intent becomes visible, enforceable commitment.
+
+This is governance law.
+
+================================================================================
+1) CORE DEFINITION (CANON)
+================================================================================
+
+1.1 Quest Board — definition
+The Quest Board is the authoritative, file-system–backed state machine that represents
+the lifecycle of Quests from proposal to completion or abandonment.
+
+One-sentence definition:
+The Quest Board shows what work is proposed, committed, completed, or intentionally dropped.
+
+================================================================================
+2) WHAT PROBLEM THE QUEST BOARD SOLVES
+================================================================================
+
+The Quest Board exists because:
+
+- Commitments must be visible.
+- State must be unambiguous.
+- “Active” work cannot live in people’s heads.
+- Execution requires a single source of truth.
+
+Without a Quest Board:
+- commitments are implicit
+- work overlaps
+- priorities blur
+- execution becomes chaotic
+
+The Quest Board prevents **commitment ambiguity**.
+
+================================================================================
+3) STRUCTURE: STATE = LOCATION
+================================================================================
+
+The Quest Board is implemented as folders.
+State is defined by **where a Quest file lives**, not by metadata inside the file.
+
+Canonical states (locations):
+
+- BOARD (on the board):
+  <Subject>_Data/Quest Board/
+  (Quest files live directly in the Quest Board root)
+
+- ACCEPTED (committed for execution):
+  <Subject>_Data/Quest Board/Accepted/
+
+- COMPLETED (finished + verified):
+  <Subject>_Data/Quest Board/Completed/
+
+- ABANDONED (intentionally dropped):
+  <Subject>_Data/Quest Board/Abandoned/
+
+Moving a Quest file between folders **is the state transition**.
+
+There is no separate “status field” to keep in sync.
+The filesystem is the truth.
+
+================================================================================
+4) ONE QUEST = ONE FILE
+================================================================================
+
+Rules:
+- Each Quest is exactly one file.
+- That file represents the entire commitment.
+- There is no master “active quests” list.
+
+Reason:
+- Files are easy to move.
+- History is preserved naturally.
+- State transitions are explicit and auditable.
+
+If a Quest does not deserve its own file, it is not a Quest yet.
+
+================================================================================
+5) QUEST BOARD AND CONTROL SYNCS
+================================================================================
+
+Control Syncs decide commitment.
+
+Rules:
+- Quests may be created during a Control Sync.
+- Quests become real only when ACCEPTED during a Control Sync.
+- Acceptance Validity Gate:
+  - Before moving a Quest to ACCEPTED, it MUST pass Quest Validation.
+    See: Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt
+  - The Quest must conform to the canonical Quest Template (Quest Board/QUEST_TEMPLATE.txt).
+  - The Quest must have an audit bundle folder created and recorded in the quest file.
+  - If invalid, normalize the quest file BEFORE acceptance (preserve original content under Notes).
+- ACCEPTED implies intent to execute.
+
+After a Control Sync:
+- Newly accepted Quests must be moved to ACCEPTED.
+- This action should be recorded in a Snapshot when relevant.
+
+================================================================================
+6) QUEST BOARD AND DAILIES
+================================================================================
+
+Dailies execute from the Quest Board.
+
+Rules:
+- Daily scope is chosen from ACCEPTED Quests only.
+- BOARD Quests are not executed.
+- COMPLETED Quests are not re-opened without respec or new Quest.
+
+The Quest Board is the execution input.
+Dailies are the execution loop.
+
+================================================================================
+7) QUEST BOARD AND SNAPSHOTS
+================================================================================
+
+Snapshots record changes to the Quest Board.
+
+Examples:
+- Quests accepted → Control Sync Snapshot
+- Quests completed → End-of-Day Snapshot
+- Quests abandoned → General or EOD Snapshot
+
+The Quest Board shows current state.
+Snapshots preserve history.
+
+===========================================
+7.1 EXECUTION AUDITS (BOARD ENFORCEMENT)
+===========================================
+
+The Quest Board reflects authoritative execution state.
+State without proof is not allowed.
+
+Canonical rule:
+- A Quest file must not move to COMPLETED unless its execution is provable via Execution Audits.
+
+Execution Audits (mandatory phases):
+1) Pre-Quest Alignment Audit
+2) Execution Audit
+3) Verification Audit
+4) Post-Quest Outcome Note
+
+Storage law:
+- Execution Audits live in:
+  <Subject>_Data/Audits/Execution/
+- Canonical structure is an audit bundle folder per quest:
+  <Subject>_Data/Audits/Execution/QUEST_###__YYYY-MM-DD__<short_slug>/
+
+Quest file requirement:
+- Each ACCEPTED Quest file MUST record its audit bundle folder path
+  (see Quest Board/QUEST_TEMPLATE.txt).
+
+Multi-day / retries rule:
+- If a Quest spans multiple Dailies, it remains in ACCEPTED until it is actually verified.
+- The audit bundle path remains canonical.
+- Audits are append-only: new attempts get timestamped sections INSIDE the same audit phase files.
+- Do not create a second audit bundle.
+Invalid state transition:
+- Moving a Quest to Completed/ without audits is forbidden.
+
+See:
+- Processes/SYNAPSE_GUILD__EXECUTION_AUDITS.txt
+
+================================================================================
+8) WHY THERE IS NO TEMPLATE FOR THE BOARD
+================================================================================
+
+The Quest Board itself has no template.
+
+Reason:
+- It is a surface, not a document.
+- Its structure is invariant.
+- Its contents change constantly.
+
+Only Quests (the files) use a template.
+
+================================================================================
+9) QUALITY BAR (WHAT MAKES A HEALTHY QUEST BOARD)
+================================================================================
+
+A healthy Quest Board:
+- shows few ACCEPTED Quests at once
+- reflects reality honestly
+- has completed work moving forward
+- has abandoned work marked explicitly
+
+An unhealthy Quest Board:
+- has many ACCEPTED Quests with no progress
+- uses BOARD as a dumping ground
+- hides abandonment
+- relies on memory instead of state
+
+================================================================================
+10) CANONICAL COMMANDS
+================================================================================
+
+Once this law is accepted, the following phrases are valid:
+
+- “Check the Quest Board.”
+Meaning:
+Inspect current commitments and state.
+
+- “Accept this Quest.”
+Meaning:
+Move the Quest file to ACCEPTED and commit to execution.
+
+- “Complete this Quest.”
+Meaning:
+Move the Quest file to COMPLETED after verification.
+
+- “Abandon this Quest.”
+Meaning:
+Move the Quest file to ABANDONED intentionally.
+
+================================================================================
+END OF DOCUMENT
+================================================================================

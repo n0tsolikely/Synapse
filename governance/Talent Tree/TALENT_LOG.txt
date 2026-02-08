@@ -1,0 +1,10 @@
+TALENT LOG — SYNAPSE GUILD (append-only)
+Purpose: Progression history. Records when Talent Points were earned and what they were spent on.
+Rule: Never delete entries. Corrections are appended.
+
+Entry format:
+YYYY-MM-DD
+Quest Completed:
+Talent Point Awarded: YES
+Talent Spent On: (TALENT ID — Name)
+Notes: (optional)

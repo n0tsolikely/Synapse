@@ -1,0 +1,210 @@
+SYNAPSE OS — EXECUTION AUDITS (CANON)
+Version: v1.1
+Last Updated: 2026-02-02
+Status: Governance Law (changes require Governance Control Sync)
+
+Audience:
+- Any AI session executing Quests under Synapse OS
+- Any human operator (Hands) reviewing or resuming execution
+- Any collaborator requiring provable execution truth
+
+================================================================================
+0) PURPOSE
+================================================================================
+Execution Audits exist to preserve provable execution truth.
+
+They ensure work can be:
+- understood,
+- verified,
+- resumed,
+- challenged,
+- or continued
+
+without relying on memory, assumption, or narrative confidence.
+
+Execution Audits are receipts that bridge:
+intention → action → evidence → truth.
+
+They prevent:
+- false completion,
+- silent failure,
+- repeated work,
+- unverifiable claims,
+- and “we already did this” ambiguity.
+
+================================================================================
+1) SCOPE (WHEN THIS LAW APPLIES)
+================================================================================
+This law applies whenever:
+- A Quest is accepted for execution.
+- Files/code/config/system state may be modified.
+- Verification is attempted.
+- A Quest status changes (Completed / Incomplete / Abandoned).
+
+This law governs execution-phase auditing only.
+It does NOT govern:
+- Control Sync Snapshots,
+- End-of-Day Snapshots,
+- Discoveries / Incubation notes,
+- Codex content itself.
+
+================================================================================
+2) REQUIRED AUDIT PHASES (NON-OPTIONAL)
+================================================================================
+For every Quest that enters execution, the following phases MUST exist.
+
+No phase may be skipped or assumed.
+
+2.1 PRE-QUEST ALIGNMENT AUDIT (MANDATORY)
+Trigger:
+- Immediately after a Quest is accepted and BEFORE execution begins.
+
+Purpose:
+- Prove execution is aligned with Codex/Map, World State, and Locks.
+
+Must include:
+- Quest ID + title
+- links to Dungeon/Raid/Guild Order (if applicable)
+- Codex sections consulted (explicit references)
+- Locks / constraints acknowledged (explicit references)
+- Definition of success (what must be true)
+- Risks / edge cases / uncertainty
+- Confirmation that World State permits execution (Codex Freeze marker exists: `<Subject>_Data/Codex/CODEX_FREEZE.md`)
+
+Hard prohibition:
+- No file modifications before this exists.
+
+2.2 EXECUTION AUDIT (MANDATORY)
+Trigger:
+- During execution, as work is performed.
+
+Purpose:
+- Record what actually happened (not intent).
+
+Must include:
+- Files touched (paths)
+- Nature of changes (diffs or explicit description)
+- Commands/tools invoked (with outputs when relevant)
+- Intermediate outcomes (partial success, unexpected behavior)
+- Deviations from plan (if any)
+
+2.3 VERIFICATION AUDIT (MANDATORY)
+Trigger:
+- After execution attempt and BEFORE changing Quest status.
+
+Purpose:
+- Truth-gate the claim that execution succeeded or failed.
+
+Must include:
+- Verification steps performed
+- Tests/checks/validations executed
+- Results of each step
+- Determination: success or failure
+- If failure: exact failure mode + where + why it blocks completion
+
+Rules:
+- “Looks correct” is not verification.
+- No verification defaults to failure.
+
+2.4 POST-QUEST OUTCOME NOTE (MANDATORY)
+Trigger:
+- When the Quest leaves execution state.
+
+Purpose:
+- Make the outcome resumable without guesswork.
+
+Must include:
+- Final status: COMPLETED / INCOMPLETE / ABANDONED
+- If INCOMPLETE: blocker + what was attempted + why continuation failed
+- If ABANDONED: justification + follow-up required (yes/no)
+- Recommended next actions
+
+================================================================================
+================================================================================
+3) STORAGE LAW (WHERE EXECUTION AUDITS LIVE)
+================================================================================
+Execution Audits live in the Subject Data folder (never in Engine, never in Governance):
+
+<Subject>_Data/Audits/Execution/
+
+Canonical structure: **one audit bundle folder per quest**.
+
+Example:
+<Subject>_Data/Audits/Execution/
+  QUEST_014__2026-02-02__<short_slug>/
+    00_SUMMARY.md
+    01_PREQUEST.md
+    02_EXECUTION.md
+    03_VERIFY.md
+    04_OUTCOME.md
+    10_DIFF.patch                  (optional)
+    11_COMMAND_OUTPUT__*.txt       (optional)
+    12_TEST_OUTPUT__*.txt          (optional)
+    20_ARTIFACT_LOCATIONS.txt      (optional)
+
+Minimum required bundle contents:
+- 00_SUMMARY.md   (MANDATORY, human-readable; the audit must not be an unreadable wall of receipts)
+- 01_PREQUEST.md  (MANDATORY)
+- 02_EXECUTION.md (MANDATORY)
+- 03_VERIFY.md    (MANDATORY)
+- 04_OUTCOME.md   (MANDATORY)
+
+Notes:
+- Additional receipts are encouraged when useful (diffs, logs, outputs).
+- If an output is too large for a single audit file, write it as a separate receipt file and reference it.
+
+Legacy compatibility:
+- Older subjects may use date-folder trees like: <Subject>_Data/Audits/Execution/YYYY/YYYY-MM/
+- This is allowed as legacy, but the audit bundle structure above is canonical going forward.
+
+
+================================================================================
+3.1) MULTI-DAY QUESTS & RETRIES (SAME BUNDLE, APPEND-ONLY LAW)
+================================================================================
+If a Quest spans multiple Dailies (or requires retries):
+- The Quest remains in <Subject>_Data/Quest Board/Accepted/ until it is truly verified and complete.
+- The audit bundle folder path is canonical. DO NOT create a second bundle for the same quest.
+- Instead, append a new time-stamped attempt block inside the SAME audit phase files.
+
+Append format (deterministic):
+- Add a heading like:
+  ## YYYY-MM-DD — Attempt N
+- Under it, record:
+  - what changed since the last attempt
+  - what was re-verified
+  - the new result (PASS/FAIL)
+
+Outcome Note rule:
+- It may start as INCOMPLETE.
+- When the Quest is later completed, append a final “Completion Proof” block:
+  - reference the PASS verification attempt
+  - reference the artifact(s) produced
+
+Hard prohibition:
+- A Quest may not move to Completed unless the latest verification attempt is explicitly PASS.
+4) RELATIONSHIP TO SNAPSHOTS
+================================================================================
+Execution Audits are granular proof.
+Snapshots are continuity summaries.
+
+- Control Sync Snapshot = decisions/intent
+- End-of-Day Snapshot = outcomes/blockers
+
+Snapshots MUST reference Execution Audits when claiming execution.
+Snapshots do not replace audits.
+
+================================================================================
+5) RELATIONSHIP TO TRUTH + DISCLOSURE
+================================================================================
+Truth Gate enforces: “No claim without proof.”
+Execution Audits are the primary proof artifacts.
+
+If required audits are missing:
+- Quest state may not advance
+- Completion is forbidden
+- Disclosure Gate must notify Hands
+- Execution pauses until compliance is restored
+
+================================================================================
+END
+================================================================================

@@ -1,0 +1,295 @@
+# SYNAPSE OS — LARGE ARTIFACT COMPOSITION (CHUNKING)
+*(Canonical Governance Law)*
+
+Version: v1.1  
+Last Updated: 2026-02-02
+Status: Governance Law  
+Applies To: Codex Writing, TOC Generation, Large Specifications, Large Code Artifacts  
+Audience: Any AI or human executing work under Synapse OS
+
+================================================================================
+0) PURPOSE
+================================================================================
+
+Chunking exists to prevent **structural failure in large artifact generation**.
+
+It exists because large outputs cause predictable, repeatable failure modes:
+
+- truncation due to output limits
+- silent summarization near the tail
+- degraded detail in later sections
+- rewrite loops caused by partial completion
+- duplication or omission when splitting manually
+- loss of determinism across sessions
+
+Chunking is not “splitting output.”
+
+Chunking is a **deterministic composition pipeline** that guarantees:
+- completeness
+- non-summarization
+- resumability
+- verifiability
+- structural integrity
+
+Chunking is mandatory when risk is present.
+
+================================================================================
+1) WHEN CHUNKING IS REQUIRED (ACTIVATION RULES)
+================================================================================
+
+Chunking MUST be used when ANY of the following are true:
+
+1.1 Size Risk
+- The artifact is expected to exceed safe single-output limits.
+
+1.2 Verbatim Accuracy Requirement
+- The artifact must be explicit and detailed.
+Examples:
+- Codex sections
+- governance laws
+- specifications
+- code modules
+- system designs
+
+If summarization risk is non-trivial, chunking is required even if size is uncertain.
+
+1.3 Drift Risk
+- The system detects that later sections may degrade in quality or completeness.
+
+1.4 Session / Continuity Risk
+- The environment may reset.
+- The artifact must survive interruptions without rework.
+
+1.5 Hands Directive
+- The user explicitly instructs to chunk.
+
+Rule of thumb:
+> If unsure, engage the chunking protocol.
+
+================================================================================
+2) CORE COMPOSITION ORDER (NON-NEGOTIABLE)
+================================================================================
+
+Chunking MUST follow this order exactly:
+
+1) COMPOSE parts
+2) STITCH parts
+3) VERIFY integrity
+4) INSTALL final artifact
+5) CLEANUP staging artifacts
+
+Skipping, reordering, or merging steps is a protocol violation.
+
+================================================================================
+3) STAGING RULES (WHERE PARTS LIVE)
+================================================================================
+
+Parts are **temporary scaffolding**.
+
+They MUST NOT pollute canonical locations.
+
+Default staging location: <WorkspaceRoot>/compose/<Subject>/<ArtifactName>/
+
+
+Contents:
+- part-001
+- part-002
+- ...
+- MANIFEST.md
+
+Hard prohibitions:
+- Do NOT store parts in `<Subject>_Engine/`
+- Do NOT store parts in `<Subject>_Data/`
+- Do NOT treat parts as deliverables
+
+Exception:
+- Only if Hands explicitly requests draft preservation (e.g., book drafts)
+- Even then, drafts remain non-canon until installed
+
+================================================================================
+4) CHUNK BOUNDARY LAW (STRUCTURAL INTEGRITY)
+================================================================================
+
+Chunk boundaries MUST be semantic.
+
+Never split inside atomic constructs, including:
+- mid-word
+- mid-sentence
+- mid-paragraph
+- mid-code block
+- mid-docstring
+- mid-brace / bracket / parenthesis
+- mid-indented block
+- mid-logical unit
+
+Each chunk must end at a **safe structural seam**.
+
+No artificial wrap-ups.
+No “mini conclusions” unless the artifact genuinely ends there.
+
+================================================================================
+5) PART FORMAT + SENTINEL SYSTEM
+================================================================================
+
+Each part MUST end with a sentinel marker.
+
+Sentinels MUST be syntax-safe.
+
+Examples:
+- Code: `# --- PART 003 END ---`
+- Markdown/HTML: `<!-- PART 003 END -->`
+- Plain text: `[PART 003 END]`
+
+Sentinels prove:
+- the part fully rendered
+- the tail exists
+- no silent truncation occurred
+
+================================================================================
+6) MANIFEST (STITCH CONTRACT)
+================================================================================
+
+Each chunked artifact MUST include a `MANIFEST.md` containing:
+
+- Subject name
+- Artifact name
+- Target canonical install path
+- Ordered list of parts
+- Separator rules between parts
+- Sentinel convention
+- Boundary strategy (“semantic seams only”)
+
+The manifest is the authoritative build recipe.
+
+If a manifest is missing, the artifact is invalid.
+
+================================================================================
+7) STITCHING LAW (DETERMINISTIC + IDEMPOTENT)
+================================================================================
+
+Stitching MUST:
+
+- rebuild the artifact from parts in manifest order
+- clear the target file before writing
+- never append onto existing content blindly
+
+Rules:
+- Re-stitching produces the same output every time
+- No duplicate content
+- No partial merges
+
+Single Deliverable Rule:
+- If the artifact is intended to be one file, the final output MUST be one file
+- Parts NEVER ship unless explicitly ordered
+
+================================================================================
+8) VERIFICATION (MANDATORY BEFORE CLAIMING DONE)
+================================================================================
+
+After stitching, verification is REQUIRED.
+
+Verification MUST include:
+
+8.1 Size Check
+- Record final file size (bytes or lines)
+
+8.2 Tail Check
+- Inspect the final section
+- Confirm the artifact ends cleanly
+- Confirm no truncation
+
+8.3 Sentinel Check
+- Confirm all part sentinels exist
+- Confirm correct ordering
+
+8.4 Seam Verification
+- Inspect boundaries between parts
+- Confirm no duplication or gaps
+
+8.5 Structured Artifact Checks (when applicable)
+- Code: syntax check / compile
+- Specs: section completeness
+- Governance: no summarization
+
+If verification fails:
+- fix only the failing region
+- re-stitch
+- re-verify
+
+Rewriting earlier parts is forbidden unless Hands orders it.
+
+================================================================================
+9) RECEIPT INTEGRATION (PHASE-AWARE)
+================================================================================
+
+Chunking is a **high-risk operation** and MUST leave receipts.
+
+Which artifact carries the receipt depends on *what phase you are in*:
+
+A) During **Quest Execution** (post-Codex)
+- Record chunking details inside the Quest’s Execution Audits (PreQuest/Execution/Verify/Outcome as appropriate).
+- Minimum receipts:
+  - staging directory creation (if filesystem available)
+  - each part written (path + size)
+  - stitching action (target path + size)
+  - verification steps performed (tail/seams/sentinels/tests)
+  - install action (destination path)
+  - cleanup or archival decision
+
+B) During **Incubation / TOC / Codex Writing** (Fog of War)
+- Record chunking usage in the relevant **Control Sync Snapshot(s)** (because this is not Quest execution).
+- Minimum receipts:
+  - what artifact was composed (TOC / section / full stitch)
+  - how it was chunked (part count, sentinel convention)
+  - what was verified (tail/seams/sentinels)
+  - where the installed final artifact lives in `<Subject>_Data/`
+
+C) During **Governance Pack maintenance**
+- Record chunking usage in the Governance Control Sync snapshot for Synapse OS (outside this pack).
+
+Chunking without receipts violates Truth Gate.
+
+================================================================================
+10) LOOP INTEGRATION (WHERE CHUNKING APPLIES)
+================================================================================
+
+Chunking is REQUIRED during:
+
+- TOC generation (if large)
+- Codex section writing
+- governance document creation
+- large code or specification generation
+- large text
+
+Chunking MUST be referenced by:
+- The Loop (composition stages)
+- Codex writing rules
+- Execution Audit Law (audit integration)
+
+================================================================================
+11) FAILURE POLICY (NO REWRITE LOOPS)
+================================================================================
+
+If chunking fails:
+- do NOT restart from scratch
+- do NOT rewrite completed parts
+- surgically repair the failure
+- preserve existing verified work
+
+Rewrite loops are explicitly forbidden.
+
+================================================================================
+12) NON-NEGOTIABLE PRINCIPLE
+================================================================================
+
+Chunking exists to guarantee:
+
+> Complete artifacts, written as if they already exist,  
+> without truncation, summarization, or invention.
+
+If an artifact cannot be verified as complete,
+it is not complete.
+
+================================================================================
+END OF DOCUMENT
+================================================================================

@@ -1,0 +1,120 @@
+SYNAPSE GUILD — BUFFS (CANON)
+Version: v1.1
+Last Updated: 2026-02-02
+Status: Governance Law (changes require Governance Control Sync)
+
+Maintainer: Hands (Peter) with Brains (Ash)
+Audience:
+- Any AI session starting fresh
+- Any Synapse Guild member resuming work after a break
+
+================================================================================
+0) PURPOSE OF THIS DOCUMENT
+================================================================================
+
+This document defines what BUFFS are, why they exist, and how they are used.
+
+After reading this document, the phrase “Buff up before a Raid” must be sufficient
+instruction for any compliant operator (human or AI).
+
+Buffs exist to solve one problem:
+
+> How do we start a new session with maximum rigor and minimum prompting,
+> without re-explaining the Operating System every time?
+
+Buffs are governance law.
+
+================================================================================
+1) CORE DEFINITION (CANON)
+================================================================================
+
+1.1 Buffs — definition
+Buffs are canonical “session startup” documents that preload the operator with:
+- execution protocol (how to behave)
+- directory/authority map (where truth lives)
+- deterministic session start check (what to verify before acting)
+
+Buff Design Principle
+Buffs are intentionally operator-facing documents.
+They may be verbose, redundant, path-specific, and environment-specific.
+Buffs encode how to work today, not timeless law.
+Governance defines the rules; Buffs define the operational posture.
+
+One-sentence definition:
+Buffs are the Guild’s ignition system: read them at session start to prevent drift.
+
+================================================================================
+2) WHERE BUFFS LIVE (CANONICAL LOCATION)
+================================================================================
+
+Buffs live inside the current SUBJECT’s data bundle:
+
+<Subject>_Data/Buffs/
+
+Notes:
+- Do NOT hard-code Workspace Root here. The environment may be /mnt/data, /home/claude,
+  local disk, etc.
+- The rule is location RELATIVE TO the subject bundle.
+
+Governance vs Subject Buffs:
+- The Governance pack defines the Buff system (this document).
+- The active Buffs for a project live in <Subject>_Data/Buffs/.
+- The Latest Rehydration Pack may include copies of Buffs for convenience, but those are reference-only.
+  Canonical Buffs remain in <Subject>_Data/Buffs/.
+
+Metadata rule:
+- If a Buff document is edited, it must update its Version + Last Updated header.
+
+================================================================================
+3) CANONICAL BUFF SET (REQUIRED)
+================================================================================
+
+Each Subject MUST have the following three Buff documents in its Buffs folder:
+
+1) <SUBJECT>_EXECUTION_PROTOCOL.txt
+- Governs how work is executed (authority stack, quest state machine, audits, truth gate).
+
+2) <SUBJECT>_DATA_DIRECTORY_MAP.txt
+- Governs where truth lives (canonical vs reference paths, review tiers, edit rules).
+
+3) <SUBJECT>_SESSION_START_CHECK.txt
+- Governs the deterministic ignition key (what to verify before starting any Raid work).
+- Includes explicit confirmation of Continuity Lock + Bootstrap Prompt when provided.
+
+These three files together are “Buff up.”
+
+================================================================================
+4) WHEN TO BUFF
+================================================================================
+
+You MUST buff:
+- at the start of any new chat/session
+- before beginning any Raid work
+- any time there is doubt about where the canonical truth lives
+- after any long break
+
+If the operator feels even slightly lost:
+Buff again. Then proceed.
+
+================================================================================
+5) STARTUP ORDER (RECOMMENDED)
+================================================================================
+
+1) Buff up (read Buffs)
+2) Read Continuity Lock (if present)
+3) Read Bootstrap Prompt (if present)
+4) Read Active Guild Orders
+5) Read Accepted Quests
+6) Execute one quest at a time with pre/post-flight audits
+
+================================================================================
+6) SELF-AUDIT (THIS DOCUMENT)
+================================================================================
+
+Checklist:
+[ ] Canonical location declared (<Subject>_Data/Buffs/)
+[ ] Canonical set of three Buffs declared
+[ ] “Always buff before a Raid” is explicit
+[ ] No hard-coded Workspace Root paths
+
+END OF DOCUMENT

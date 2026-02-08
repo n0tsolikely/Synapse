@@ -1,0 +1,72 @@
+SYNAPSE OS — RISK RUBRIC (CANON)
+Version: v1.0
+Last Updated: 2026-02-02
+Status: Governance Law
+
+Purpose:
+This rubric classifies work by blast radius and reversibility so Hands does NOT
+need to approve every quest, while still preventing big, messy, or destructive
+changes from being executed implicitly.
+
+Rule:
+Every quest may optionally declare Risk: (R0 / R1 / R2).
+If omitted, Risk defaults to R0.
+
+================================================================================
+R0 — SAFE / REVERSIBLE (DEFAULT)
+================================================================================
+Definition:
+- Small, local edits with low blast radius.
+- Easy to revert by normal means (git revert / file restore) and unlikely to
+  corrupt canonical artifacts.
+
+Common examples:
+- Bug fix in 1–3 files
+- Add a small helper function
+- Add or tweak tests
+- Clarify docs (non-canonical lock files)
+
+Consent:
+- Auto-execute (no Hands confirmation required).
+
+================================================================================
+R1 — BROAD BUT REVERSIBLE
+================================================================================
+Definition:
+- Touches many files or refactors internals, but remains reversible.
+- No destructive operations.
+- Canonical artifacts remain backwards compatible.
+
+Common examples:
+- Refactor a module into smaller modules
+- Rename functions across multiple files
+- Update interfaces with compatibility shims
+- Medium diff (many hunks) but no tree moves
+
+Consent:
+- Auto-execute.
+- Must include verification plan (tests/smoke) in the quest.
+- Must include rollback note in audits (how to revert).
+
+================================================================================
+R2 — HIGH-RISK / STRUCTURAL / DESTRUCTIVE
+================================================================================
+Definition:
+- Structural changes that explode the diff, or destructive operations.
+- Any change that can corrupt governance continuity or invalidate prior receipts.
+
+Automatic R2 triggers (treat as R2 even if not declared):
+- Deleting files or folders
+- Moving/renaming directories
+- Rewriting orchestrator/core spine files
+- Changing snapshot/lock formats (schema changes)
+- Destructive migrations / irreversible data transforms
+- Any action that touches external systems (runtime/prod/vendor)
+- Expected blast radius > 10 files OR any tree restructure
+
+Consent:
+- HARD STOP.
+- Requires a Confirmation Artifact containing: CONFIRM: YES
+- See: Processes/SYNAPSE_GUILD__CONSENT_GATE.txt
+
+END OF DOCUMENT

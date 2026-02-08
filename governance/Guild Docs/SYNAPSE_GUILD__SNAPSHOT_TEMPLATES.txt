@@ -1,0 +1,173 @@
+SYNAPSE OS — SNAPSHOT TEMPLATES (CANON)
+Version: v1.0
+Last Updated: 2026-02-02
+Status: Governance Law (changes require Governance Control Sync)
+
+Maintainer: Hands (Peter) with Brains (Ash)
+Audience:
+- Any AI session writing snapshots under Synapse OS
+- Any human operator (Hands) reviewing and resuming work
+- External collaborators adopting the Synapse Guild Operating System
+
+================================================================================
+0) PRIME LAW (TEMPLATES ARE MINIMUMS, NOT LIMITS)
+================================================================================
+These templates define a MINIMUM structure for snapshots so they remain readable,
+resumable, and honest across days.
+
+CRITICAL:
+- Templates MUST NOT box the system in.
+- If extra information is relevant (bugs, failures, weird behavior, decisions),
+  it MUST be captured even if it is not listed explicitly below.
+- The templates are scaffolding: “include at least these sections” + “append anything else needed.”
+
+================================================================================
+1) CONTROL SYNC SNAPSHOT — MINIMUM STRUCTURE
+================================================================================
+File location:
+- <Subject>_Data/Snapshots/Control Sync/
+
+Naming:
+- <Subject>_Control_Sync_Snapshot_YYYY-MM-DD__<Topic>.txt
+
+Minimum required sections:
+
+A) Header
+- Subject:
+- Date:
+- Topic (optional):
+- World State (Fog of War / Fog Lifted):
+- Codex Freeze status (if relevant):
+  - If Fog Lifted: confirm CODEX_FREEZE marker exists.
+  - If Fog of War: explicitly state “execution forbidden”.
+
+B) Snapshot Review (Start-of-Day / Session Resume)
+Record what was reviewed at the beginning of this Control Sync:
+- Latest Control Sync Snapshot reviewed (filename)
+- Latest End-of-Day Snapshot reviewed (filename)
+- Relevant General Snapshots reviewed (filenames)
+If anything is missing, record that explicitly.
+
+C) Current Reality (State Surface)
+- Active Guild Orders / Raids:
+- Paused Guild Orders / Raids:
+- Quest Board state summary:
+  - on-board quests:
+  - accepted quests:
+  - blockers:
+- Known risks / unknowns:
+
+D) Decisions Made (Binding)
+- Bullet list of decisions that become true because of this Control Sync.
+- If a decision changes a prior decision, name the prior decision and the change.
+
+E) Session Scope (What we are committing to do now)
+- Which quests (by ID) will be accepted today/session:
+- Any explicitly deferred work (and why):
+- Any side-quests expected (bugs, cleanup, refactors):
+
+F) Notes / Captures (Important)
+- Capture relevant discussion notes that matter for continuity.
+- If Hands says “save this note to Docs”, record:
+  - the doc path that was created/updated (or must be created),
+  - and what the note contains at a high level.
+
+G) Exit Condition (Optional)
+- What ends this Control Sync?
+- What must be true before execution begins?
+
+================================================================================
+2) END-OF-DAY SNAPSHOT — MINIMUM STRUCTURE
+================================================================================
+File location:
+- <Subject>_Data/Snapshots/End of Day/
+
+Naming:
+- <Subject>_End_of_Day_Snapshot_YYYY-MM-DD__<Topic>.txt
+
+Minimum required sections:
+
+A) Header
+- Subject:
+- Date:
+- World State:
+- Codex Freeze status (if relevant):
+
+B) What happened today (Narrative gist)
+A concise but honest narrative:
+- what was attempted
+- what changed
+- what succeeded
+- what failed
+This is NOT a full audit log — it is the “what happened” summary.
+
+C) Completed work (with proof pointers)
+For each completed quest:
+- Quest ID + Title
+- Audit Bundle folder path (see Execution Audits law)
+- High-level outcome (“what is now true”)
+
+D) Incomplete / Failed work (mandatory when relevant)
+If anything did not finish or failed, record:
+- what failed or remained incomplete
+- WHY (blocking reason)
+- error messages / failure modes (copy relevant excerpts)
+- what was attempted
+- what needs to happen next
+This section is mandatory if the day produced blockers.
+
+E) Bugs / Weirdness / Discoveries encountered
+Record bugs, unexpected behavior, or discovered risks.
+If new side-quests were created:
+- list the quest IDs
+
+F) Verification performed
+Record the verification performed today:
+- tests run (or checks)
+- key results
+- any verification gaps that remain
+
+G) Talent Tree updates (mandatory when relevant)
+If any capability was unlocked/expanded today:
+- list the Talent Tree update(s) that were logged
+- reference the Talent Tree log file(s)
+
+H) Raid / Guild Orders status changes
+- Any raid moved ACTIVE → PAUSED (and why)
+- Any raid moved ACTIVE/PAUSED → COMPLETED (and why)
+
+I) Continuity + Resume Instructions
+- What should tomorrow’s Control Sync start with?
+- Any special resume notes
+- Confirm Latest Rehydration Pack updated (if applicable)
+
+================================================================================
+3) GENERAL SNAPSHOT — MINIMUM STRUCTURE
+================================================================================
+General Snapshots capture durable notes that don’t belong to a specific Control Sync or EOD.
+
+File location:
+- <Subject>_Data/Snapshots/General/
+
+Naming:
+- <Subject>_General_Snapshot_YYYY-MM-DD__<Topic>.txt
+
+Minimum required sections:
+- Header (Subject, Date, Topic)
+- What this snapshot is for
+- The content (facts, decisions, design notes, etc.)
+- References to Codex/Docs/Quests if relevant
+
+================================================================================
+4) NON-NEGOTIABLE QUALITY BAR
+================================================================================
+Snapshots must be:
+- honest (no “we did X” if we didn’t)
+- resumable (a competent operator can pick up tomorrow)
+- explicit about blockers and failures
+- written so that intent does not overwrite reality
+
+Snapshots summarize.
+Execution Audits prove.
+
+END OF DOCUMENT

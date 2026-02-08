@@ -1,0 +1,113 @@
+QUEST TEMPLATE — SYNAPSE OS
+Version: v1.1
+Last Updated: 2026-02-02
+Status: Canon Template (must comply with Quest Validation Rules)
+
+(duplicate this file for each new quest)
+
+NOTE:
+- Quest state is defined by WHERE THIS FILE LIVES (Quest Board folder), not by metadata.
+- Do not “change status” in text. Move the file between folders.
+
+================================================================================
+IDENTITY
+================================================================================
+Quest ID:
+# Unique identifier (e.g. QUEST_015 or SIDE-QUEST_003)
+
+Title:
+# Short, clear name describing the quest.
+
+Subject:
+# The bounded body of work (Ashby / Stuart / Book / Game / etc)
+
+Origin:
+# Where this quest came from (Control Sync date, discovery during execution, etc.)
+
+Priority: (P0 / P1 / P2)
+# P0 = blocking/foundational
+# P1 = important
+# P2 = nice-to-have
+
+Links:
+# References to related materials (Codex sections, Guild Orders, related quests, etc.)
+
+================================================================================
+RISK + CONSENT GATE (OPTIONAL, BUT REQUIRED FOR R2)
+================================================================================
+Risk: (R0 / R1 / R2)
+# R0 = safe/reversible (default if omitted)
+# R1 = broad but reversible (touches many files / refactor with rollback)
+# R2 = high-risk (structural/destructive/big diff) — requires Hands confirmation
+# See: Processes/SYNAPSE_GUILD__CONSENT_GATE.txt
+
+R2 Confirmation Artifact (required if Risk = R2):
+# confirmations/CONFIRM_R2__<quest_id>__YYYY-MM-DD__<slug>.txt
+# (file must exist and contain CONFIRM: YES)
+
+================================================================================
+STATE (BY LOCATION)
+================================================================================
+Quest Board folder state:
+- BOARD (Quest file lives directly in <Subject>_Data/Quest Board/)
+- ACCEPTED (Quest file lives in <Subject>_Data/Quest Board/Accepted/)
+- COMPLETED (Quest file lives in <Subject>_Data/Quest Board/Completed/)
+- ABANDONED (Quest file lives in <Subject>_Data/Quest Board/Abandoned/)
+
+================================================================================
+EXECUTION AUDIT BUNDLE (FILLED WHEN ACCEPTED)
+================================================================================
+Execution Audits are mandatory when executing a Quest.
+See: Processes/SYNAPSE_GUILD__EXECUTION_AUDITS.txt
+
+Validation gate:
+- A Quest may NOT be accepted unless it passes quest validation.
+See: Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt
+
+Audit Bundle Folder Path (required once ACCEPTED):
+# <Subject>_Data/Audits/Execution/QUEST_###__YYYY-MM-DD__<short_slug>/
+
+Required files inside the bundle (canonical minimum):
+# 00_SUMMARY.md
+# 01_PREQUEST.md
+# 02_EXECUTION.md
+# 03_VERIFY.md
+# 04_OUTCOME.md
+
+MULTI-DAY / RETRY RULE:
+# If this Quest spans multiple Dailies (or requires retries), the audit bundle path above remains canonical.
+# Do NOT create a second audit bundle. Append new timestamped attempt entries inside the existing phase files.
+================================================================================
+DESCRIPTION
+================================================================================
+# Brief, concrete description of what this quest is and why it matters.
+
+================================================================================
+SCOPE / OBJECTIVE
+================================================================================
+# What must be true for this quest to be considered done? (success conditions)
+
+================================================================================
+OUT OF SCOPE
+================================================================================
+# Explicitly list what this quest does NOT include (prevents scope creep).
+
+================================================================================
+DEPENDENCIES
+================================================================================
+# Prerequisites required before this can be completed (quests, assets, decisions).
+
+================================================================================
+EXECUTION NOTES (OPTIONAL)
+================================================================================
+# Implementation notes, constraints, reminders, or discovered caveats.
+
+================================================================================
+VERIFICATION NOTES (OPTIONAL)
+================================================================================
+# Tests / checks to run, expected outputs, smoke test plan.
+
+================================================================================
+TALENT POINTS (OPTIONAL)
+================================================================================
+# If completion unlocks capability, note it here (to be logged in Talent Tree).

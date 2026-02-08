@@ -1,0 +1,127 @@
+# **SYNAPSE OS / SYNAPSE GUILD — QUICK START (v1.3)**
+
+*A fast, deterministic orientation for humans and AIs.*
+
+Last Updated: 2026-02-02
+
+---
+
+## 0) Vocabulary (so you don’t mix concepts)
+
+- **Synapse Guild** = the *body* (the team / operators).
+- **Synapse OS** = the *operating system for work* (human + AI).
+- **Governance Pack (this folder)** = the portable “engine pack” you drop into an AI session so it follows Synapse OS law.
+- **Subject** = the thing you’re building (app, book, game, business process, etc.).
+
+---
+
+## 1) What this pack is meant to do
+
+When an AI is governed by Synapse OS, it must:
+
+- **run Control Sync first** (alignment before action, using the Control Sync Checklist)
+- **execute via Dailies** (a repeatable loop)
+- **obey Truth Gate + Disclosure Gate** (no claim without proof; no silent uncertainty)
+- **use Execution Audits** for every executed Quest (audit bundle: Summary / PreQuest / Execution / Verify / Outcome)
+- **chunk safely** when artifacts are large (Compose → Stitch → Verify → Install → Cleanup)
+- **preserve continuity** across chats (Continuity Lock + Bootstrap Prompt)
+- **review prior snapshots first** on a new day (latest Control Sync → latest End-of-Day → relevant General)
+- **write snapshots for continuity** (including blockers/failures and WHY; see Snapshot Templates)
+
+If you only remember one thing:
+
+> Synapse OS exists to turn “ideas” into “built reality” without drift or bullshit.
+
+---
+
+## 2) The two start paths (choose correctly)
+
+### Path A — Continuing Subject (most common)
+You already have a Subject in flight.
+
+**Signal:** you have one or more of:
+- `<Subject>_Data/` (Quest Board, Snapshots, Codex, etc.)
+- `<Subject>_Engine/` (code / manuscript / the actual build)
+- an active Quest Board and/or active Guild Orders
+
+**Action:** skip Incubation and begin at **Control Sync**.
+
+### Path B — New Subject (true beginning)
+You have an idea but **no Codex** and no project pack yet.
+
+**Signal:** no Subject_Data exists yet (or it exists but is empty and no Codex exists).
+
+**Action:** run **Subject Initialization + Incubation** under Fog of War until you can form and freeze a Codex.
+
+---
+
+## 3) The lifecycle in one page
+
+Authoritative spine: `Processes/SYNAPSE_GUILD__THE_LOOP.txt`
+
+### 3.1 Incubation (pre-Codex)
+- Create `<Subject>_Data/` skeleton immediately.
+- Capture decisions as **Discoveries** (pre-Codex truth units).
+- Actively detect emerging **conceptual groupings** (features, modes, workflows, UX, constraints, integrations, etc.).
+- Run a **final completeness sweep** (domain-appropriate “stress test”) to eliminate holes.
+- Generate a **TOC**.
+- Write the **Codex** section-by-section (TOC-first).
+- Perform **Codex Freeze** (Fog Lifted) *only when Hands says it’s ready*.
+
+### 3.2 Build kickoff (post-Codex)
+- Hands chooses build scope (v1 / v2, demo slice, etc.).
+- Generate **Guild Orders** → break into **Dungeons** → break into **Quests**.
+- Populate the **Quest Board**.
+
+### 3.3 Dailies (execution loop)
+Every work day runs:
+1) Control Sync
+2) Decide Scope
+3) Implement
+4) Test / Verify
+5) Snapshot
+6) Stop
+7) Repeat next day
+
+And for every executed Quest:
+- PreQuest Alignment Audit
+- Execution Audit
+- Verification Audit
+- Outcome Note
+
+---
+
+## 4) Non-negotiables (the rules that make this real)
+
+### Truth Gate + Disclosure Gate
+- No “done” without receipts.
+- If uncertainty affects next steps, you must proactively tell Hands.
+
+See: `Processes/SYNAPSE_GUILD__TRUTH_GATE.txt`
+
+### Execution Audits
+- Execution without audits is invalid.
+- Completion claims require Verification.
+
+See: `Processes/SYNAPSE_GUILD__EXECUTION_AUDITS.txt`
+
+### Large Artifact Composition (Chunking)
+- If size or verbatim precision is risky, chunk using the pipeline.
+
+See: `Processes/SYNAPSE_GUILD__LARGE_ARTIFACT_COMPOSITION.txt`
+
+---
+
+## 5) If you’re an AI: your first move
+
+1) Read `README.txt` and `INDEX.txt`.
+2) Determine whether you are in **Path A** or **Path B**.
+3) Start a **Control Sync** (always).
+4) Do not execute anything until Hands explicitly authorizes leaving Control Sync.
+
+---
+
+## 6) If you’re lost
+
+Follow Drift Recovery in:
+- `The Guild/SYNAPSE_GUILD_CANONICAL_MANUAL.txt`

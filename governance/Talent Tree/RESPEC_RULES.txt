@@ -1,0 +1,20 @@
+RESPEC RULES — SYNAPSE GUILD
+Purpose: Respec is the ceremonial, explicit process for reversing or changing a previously spent Talent Point.
+Rule: Respec is rare. It must be intentional, logged, and consequence-aware.
+
+Requirements:
+1) Must be done during a Control Sync.
+2) Must state:
+   - Talent removed/changed (TALENT ID)
+   - Reason
+   - Consequences (what breaks, what changes)
+   - Migration plan (if needed)
+3) Must be logged in TALENT LOG as a respec event (append-only).
+
+Respec event format (append-only, log into TALENT LOG):
+YYYY-MM-DD
+Respec:
+Talent Changed:
+Reason:
+Consequences:
+Plan:

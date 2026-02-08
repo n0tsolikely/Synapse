@@ -1,0 +1,14 @@
+SYNAPSE OS — R2 CONFIRMATION ARTIFACT (TEMPLATE)
+
+Instructions:
+- Copy this file into: confirmations/
+- Rename to: CONFIRM_R2__<quest_id>__YYYY-MM-DD__<slug>.txt
+- Leave the first line exactly as-is when you approve.
+
+CONFIRM: YES
+
+# Optional metadata (allowed):
+# BY: Hands
+# AT: 2026-02-02 23:59
+
+END

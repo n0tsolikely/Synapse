@@ -1,0 +1,255 @@
+SYNAPSE GUILD — BOOTSTRAP PROMPT (CANON)
+Version: v1.1
+Last Updated: 2026-02-02
+Status: Governance Law (changes require Governance Control Sync)
+
+Maintainer: Hands (Peter) with Brains (Ash)
+Audience:
+- Any AI session starting fresh without prior chat history
+- Synapse Guild members authoring rehydration flows
+- External collaborators adopting the Synapse Guild Operating System
+
+================================================================================
+0) PURPOSE OF THIS DOCUMENT
+================================================================================
+
+This document defines what a BOOTSTRAP PROMPT is, why it exists, and how it is used.
+
+After reading this document, the phrase “Provide a Bootstrap Prompt” must be sufficient
+instruction for any compliant operator (human or AI).
+
+A Bootstrap Prompt exists to solve one problem:
+
+> Once all artifacts are loaded, how does a brand-new AI session know
+> how to behave, what role it is in, and what to do next?
+
+A Continuity Lock defines WHAT IS TRUE.
+A Bootstrap Prompt defines HOW TO PROCEED.
+
+This is governance law.
+
+================================================================================
+1) CORE DEFINITION (CANON)
+================================================================================
+
+1.1 Bootstrap Prompt — definition
+A Bootstrap Prompt is a behavioral initialization artifact that instructs a new AI
+session how to interpret, prioritize, and act upon the loaded artifacts at the start
+of a session.
+
+A Bootstrap Prompt establishes:
+- role
+- stance
+- constraints
+- allowed actions
+- starting behavior
+
+One-sentence definition:
+A Bootstrap Prompt activates a new session by instructing the AI how to behave and
+what to do now that all relevant artifacts are present.
+
+================================================================================
+2) WHAT PROBLEM IT SOLVES (WHY IT EXISTS)
+================================================================================
+
+Bootstrap Prompts exist because:
+
+- AI sessions start with no memory of prior chats.
+- Artifacts alone do not imply behavior.
+- Different phases require different stances (design vs execution vs governance).
+- Without guidance, AI will:
+  - ask unnecessary questions
+  - redesign settled decisions
+  - propose scope when it should execute
+  - execute when it should pause
+
+A Bootstrap Prompt prevents behavioral drift at session start.
+
+================================================================================
+3) WHAT A BOOTSTRAP PROMPT IS — AND IS NOT
+================================================================================
+
+3.1 What it IS
+A Bootstrap Prompt is:
+- a role initializer
+- a stance setter
+- a behavior constraint
+- a start instruction
+
+3.2 What it is NOT
+A Bootstrap Prompt is NOT:
+- a state record
+- a decision log
+- a summary
+- a Continuity Lock
+- an Execution Pack
+
+It does not define what is true.
+It defines how to act given what is true.
+
+================================================================================
+4) WHAT A BOOTSTRAP PROMPT CONTROLS
+================================================================================
+
+A valid Bootstrap Prompt may explicitly define:
+
+4.1 Role
+- What role the AI is operating in (e.g., Brains, executor, reviewer)
+- Whether it may decide, propose, or only execute
+
+4.2 Mode
+- Governance (Control Sync)
+- Planning
+- Execution
+- Review / audit
+
+4.3 Boundaries
+- What must NOT be redesigned
+- What artifacts are authoritative
+- What assumptions must not be questioned
+
+4.4 Permissions
+- Whether the AI may ask clarifying questions
+- Whether it may propose scope
+- Whether it must wait for instruction
+- Whether it may generate artifacts immediately
+
+4.5 Priority and read order
+- Which documents must be read first
+- Which documents override others in conflict
+
+4.6 First action
+- What the AI should do immediately after rehydration
+  (e.g., propose daily scope, generate files, wait)
+
+
+BUFFS INTEGRATION (Session startup law):
+- If a project provides Buffs (Execution Protocol, Directory Map, Session Start Check), the Bootstrap Prompt SHOULD instruct the AI to read them first.
+- Buffs reduce rehydration overhead while preserving strict governance.
+
+================================================================================
+5) RELATIONSHIP TO CONTINUITY LOCKS
+================================================================================
+
+Bootstrap Prompts and Continuity Locks are complementary but distinct.
+
+Continuity Lock:
+- Declares state
+- Declares binding decisions
+- Declares resume point
+
+Bootstrap Prompt:
+- Declares behavior
+- Declares stance
+- Declares starting action
+
+Rule:
+A Continuity Lock answers “What is true?”
+A Bootstrap Prompt answers “What do I do with this truth now?”
+
+In most rehydration flows, both are used together.
+
+================================================================================
+6) WHEN TO CREATE A BOOTSTRAP PROMPT
+================================================================================
+
+You SHOULD create a Bootstrap Prompt when:
+- starting a new chat with loaded artifacts
+- resuming work after a break
+- switching phases (design → execution)
+- handing work to a different AI or model
+- you need to prevent early-session drift
+
+You MAY omit a Bootstrap Prompt when:
+- behavior does not need to change
+- the session is exploratory only
+- no execution or decisions will follow
+
+================================================================================
+7) HOW A BOOTSTRAP PROMPT IS USED IN A NEW SESSION
+================================================================================
+
+Typical rehydration flow:
+
+1) Start a new AI session
+2) Upload or provide all required artifacts
+2.1) If Buffs are present, read the Buffs first (session ignition):
+  - Execution Protocol
+  - Data Directory Map
+  - Session Start Check
+3) Provide the Continuity Lock (if applicable)
+4) Provide the Bootstrap Prompt
+5) Allow the AI to act according to the prompt
+
+Rule:
+The Bootstrap Prompt is processed after artifacts are available.
+It assumes documents exist; it does not replace them.
+
+================================================================================
+8) FORMAT AND STRUCTURE (INTENTIONAL FLEXIBILITY)
+================================================================================
+
+A Bootstrap Prompt is usually a single block of text.
+
+It may be:
+- short and directive
+- longer and explicit
+- embedded as the first user message
+- stored as a standalone text file
+
+There is no rigid template.
+However, a good Bootstrap Prompt is:
+- explicit
+- unambiguous
+- concise relative to its authority
+
+================================================================================
+9) COMMON FAILURE MODES (AND HOW TO AVOID THEM)
+================================================================================
+
+Failure: Vague behavior instructions
+Fix: Explicitly state what the AI may and may not do.
+
+Failure: Mixing state with behavior
+Fix: Keep state in the Continuity Lock; behavior in the Bootstrap Prompt.
+
+Failure: Letting the AI “decide what to do”
+Fix: Always include a clear first action or waiting instruction.
+
+================================================================================
+10) CANONICAL COMMANDS
+================================================================================
+
+Once this law is accepted, the following phrases are valid:
+
+- “Provide a Bootstrap Prompt.”
+Meaning:
+Instruct the AI how to behave and what to do now that artifacts are loaded.
+
+- “Rehydrate using this Bootstrap Prompt.”
+Meaning:
+Adopt the specified role, stance, and starting action.
+
+- “Update the Bootstrap Prompt.”
+Meaning:
+Behavior or phase has changed; replace the prior prompt.
+
+================================================================================
+11) QUALITY BAR (WHAT MAKES A GOOD BOOTSTRAP PROMPT)
+================================================================================
+
+A good Bootstrap Prompt:
+- prevents re-litigation
+- prevents early drift
+- starts work immediately or correctly pauses
+- makes the first response predictable
+
+A bad Bootstrap Prompt:
+- is vague
+- asks the AI to infer intent
+- mixes decisions and behavior
+- causes the AI to ask unnecessary questions
+
+================================================================================
+END OF DOCUMENT
+================================================================================

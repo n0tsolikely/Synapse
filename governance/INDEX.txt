@@ -1,0 +1,68 @@
+SYNAPSE OS — INDEX (ROUTING MAP)
+Version: v1.1
+Last Updated: 2026-02-02
+
+This file is a fast map for routing. Read README.txt first.
+
+IF YOU NEED...
+-----------
+Start using Synapse OS in a fresh AI session
+→ The Guild/SYNAPSE_GUILD__QUICK_START.txt
+→ The Guild/SYNAPSE_GUILD_CANONICAL_MANUAL.txt
+
+Understand the full end-to-end lifecycle (beginning → completion)
+→ Processes/SYNAPSE_GUILD__THE_LOOP.txt
+
+Start a new Subject from nothing (no Codex yet)
+→ Processes/SYNAPSE_GUILD__SUBJECT_INITIALIZATION_AND_INCUBATION.txt
+
+Already have a continuing Subject (Subject_Data + Codex exists)
+→ Processes/SYNAPSE_GUILD__CONTROL_SYNC.txt
+→ Processes/SYNAPSE_GUILD__CONTROL_SYNC_CHECKLIST.txt
+→ Processes/SYNAPSE_GUILD__DAILIES.txt
+
+Truth / proof / mandatory disclosure rules
+→ Processes/SYNAPSE_GUILD__TRUTH_GATE.txt
+→ The Guild/Terminology/Locks/LOCK__TRUTH_GATE.md
+→ The Guild/Terminology/Locks/LOCK__DISCLOSURE_GATE.md
+
+Execution audits (PreQuest/Execution/Verify/Outcome)
+→ Processes/SYNAPSE_GUILD__EXECUTION_AUDITS.txt
+
+Risk tiers + when Hands must explicitly greenlight (Consent Gate)
+→ Processes/SYNAPSE_GUILD__RISK_RUBRIC.txt
+→ Processes/SYNAPSE_GUILD__CONSENT_GATE.txt
+R2 confirmation artifact template (one-line approval)
+→ Quest Board/CONFIRM_R2_TEMPLATE.txt
+
+Chunking / large artifact composition (compose→stitch→verify)
+→ Processes/SYNAPSE_GUILD__LARGE_ARTIFACT_COMPOSITION.txt
+
+How Control Sync works (alignment session)
+→ Processes/SYNAPSE_GUILD__CONTROL_SYNC.txt
+
+How Snapshots work (Control Sync vs EOD vs General)
+Snapshot templates (minimum structure; not rigid)
+→ Guild Docs/SYNAPSE_GUILD__SNAPSHOT_TEMPLATES.txt
+→ Guild Docs/SYNAPSE_GUILD__SNAPSHOTS.txt
+
+Codex / Map definition and Codex Freeze (Fog Lifted)
+→ Guild Docs/SYNAPSE_GUILD__CODEX.txt
+→ The Guild/Terminology/Locks/LOCK__CODEX_FREEZE_FOG_LIFTED.md
+Subject Data skeleton lock (universal <Subject>_Data structure)
+→ The Guild/Terminology/Locks/LOCK__SUBJECT_DATA_SKELETON.md
+
+Guild Orders → Raids → Dungeons → Quests
+→ Guild Docs/SYNAPSE_GUILD__GUILD_ORDERS.txt
+→ Quest Board/SYNAPSE_GUILD__QUEST_BOARD.txt
+Quest validation gate (prevents quest header corruption / invalid acceptance)
+→ Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt
+→ Quest Board/SYNAPSE_GUILD__QUESTS.txt
+
+Continuity / Rehydration artifacts (bootstrap + lock + checklist)
+→ Continuity/SYNAPSE_GUILD__BOOTSTRAP_PROMPT.txt
+→ Continuity/SYNAPSE_GUILD__CONTINUITY_LOCK.txt
+→ Continuity/SYNAPSE_GUILD__REHYDRATION_PACK_CHECKLIST.txt
+
+Terminology (terms and locks)
+→ The Guild/Terminology/

@@ -1,0 +1,134 @@
+# SYNAPSE_STATE.yaml
+# Purpose:
+# Deterministic rehydration + routing file.
+# Mirrors the REQUIRED READ ORDER exactly (including continuity activation),
+# while resolving "latest" artifacts dynamically.
+
+schema_version: 2
+
+# =============================================================================
+# CANONICAL ROOTS
+# =============================================================================
+governance_pack:
+  root: "Synapse_OS_Governance/Synapse_OS_Governance"
+
+subject_data:
+  roots:
+    - "Ashby_Data/Ashby_Data"
+
+  active_subject: "auto"
+  infer_active_subject:
+    from_active_guild_orders: true
+    if_ambiguous: "ask_hands"
+
+  ignore_dir_name_contains:
+    - "(IGNORE)"
+    - "__MACOSX"
+
+# =============================================================================
+# REQUIRED READ ORDER (SESSION-LEVEL, DO NOT SKIP)
+# =============================================================================
+required_read_order:
+  - governance: "README.txt"
+  - governance: "INDEX.txt"
+
+  - subject: "latest_rehydration_pack.bootstrap_prompt"
+  - subject: "buffs"
+  - subject: "latest_rehydration_pack.continuity_lock"
+  - governance: "Continuity/SYNAPSE_GUILD__REHYDRATION_PACK_CHECKLIST.txt"
+
+  - governance: "The Guild/SYNAPSE_GUILD_CANONICAL_MANUAL.txt"
+  - governance: "The Guild/SYNAPSE_GUILD__QUICK_START.txt"
+
+  - governance: "Processes/SYNAPSE_GUILD__THE_LOOP.txt"
+
+  - governance: "Processes/SYNAPSE_GUILD__TRUTH_GATE.txt"
+  - governance: "Processes/SYNAPSE_GUILD__EXECUTION_AUDITS.txt"
+  - governance: "Processes/SYNAPSE_GUILD__LARGE_ARTIFACT_COMPOSITION.txt"
+
+  - governance: "Processes/SYNAPSE_GUILD__CONTROL_SYNC.txt"
+  - governance: "Processes/SYNAPSE_GUILD__CONTROL_SYNC_CHECKLIST.txt"
+  - governance: "Processes/SYNAPSE_GUILD__DAILIES.txt"
+
+  - governance: "Guild Docs/SYNAPSE_GUILD__CODEX.txt"
+  - governance: "Guild Docs/SYNAPSE_GUILD__GUILD_ORDERS.txt"
+  - governance: "Guild Docs/SYNAPSE_GUILD__SNAPSHOTS.txt"
+  - governance: "Guild Docs/SYNAPSE_GUILD__SNAPSHOT_TEMPLATES.txt"
+
+  - governance: "Quest Board/SYNAPSE_GUILD__QUEST_BOARD.txt"
+  - governance: "Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt"
+  - governance: "Quest Board/SYNAPSE_GUILD__QUESTS.txt"
+
+  - locks: "The Guild/Terminology/Locks/LOCK__CODEX_FREEZE_FOG_LIFTED.md"
+  - locks: "The Guild/Terminology/Locks/LOCK__SUBJECT_DATA_SKELETON.md"
+
+# =============================================================================
+# RESOLUTION RULES
+# =============================================================================
+rehydration:
+  latest_rehydration_pack:
+    dir: "Latest Rehydration Pack"
+
+    bootstrap_prompt:
+      filename_contains_any: ["BOOTSTRAP_PROMPT", "BOOTSRAP_PROMPT"]
+      date_regex: "(\\d{4}-\\d{2}-\\d{2})"
+      pick: "latest_by_date"
+
+    continuity_lock:
+      filename_contains_any: ["CONTINUITY_LOCK"]
+      date_regex: "(\\d{4}-\\d{2}-\\d{2})"
+      pick: "latest_by_date"
+
+  buffs:
+    dir: "Buffs"
+    required_files:
+      - "{BUFF_PREFIX}_EXECUTION_PROTOCOL.txt"
+      - "{BUFF_PREFIX}_DATA_DIRECTORY_MAP.txt"
+      - "{BUFF_PREFIX}_SESSION_START_CHECK.txt"
+    buff_prefix: "ASHBY"
+
+  snapshots:
+    root_dir: "Snapshots"
+    date_regex: "(\\d{4}-\\d{2}-\\d{2})"
+    exclude_if_no_date: true
+    exclude_name_contains: ["TEMPLATE"]
+
+    control_sync:
+      dir: "Control Sync"
+      subject_prefix: "{ACTIVE_SUBJECT}_"
+      pick: "latest_date_include_all"
+      read_order: "lexicographic"
+
+    end_of_day:
+      dir: "End of Day"
+      subject_prefix: "{ACTIVE_SUBJECT}_"
+      pick: "latest_date_include_all"
+      read_order: "lexicographic"
+
+    general:
+      dir: "General"
+      include_if:
+        - "same_day_as_session_day"
+        - "newer_than_session_day"
+      session_day: "max(control_sync_day, end_of_day_day)"
+      pick: "selected_date_include_all"
+      read_order: "lexicographic"
+
+  guild_orders:
+    root_dir: "Guild Orders"
+    active_dir: "ACTIVE"
+    paused_dir: "PAUSED"
+    completed_dir: "COMPLETED"
+    active_set_pick: "all_files"
+
+  quest_board:
+    dir: "Quest Board"
+    accepted_dir: "Accepted"
+    completed_dir: "Completed"
+    abandoned_dir: "Abandoned"
+    open_quests_pick: "root_files_only"
+
+  audits:
+    root_dir: "Audits"
+    execution_dir: "Execution"
+    legacy_execution_subdir: "Execution/LEGACY__QUEST_DIFF_AUDIT_FILES"

@@ -1,0 +1,133 @@
+# SYNAPSE GUILD — CODEX (v1.2)
+
+Last Updated: 2026-02-02
+
+================================================================================
+0) DEFINITION
+================================================================================
+
+The Codex is the authoritative map of a Subject.
+It describes *what exists*, *how it behaves*, and *what must be built*.
+
+Aliases (routing, non-optional):
+- **Codex = Map**
+- **TOC = Legend**
+
+The Codex is written so that an AI (or a human) can execute work **without guessing**.
+
+================================================================================
+1) RELATIONSHIP TO WORLD STATE (FOG OF WAR)
+================================================================================
+
+By default, new Subjects start in **Fog of War**.
+
+While Fog of War is active:
+- Exploration and ideation are allowed.
+- Discoveries are captured (pre-Codex truth units).
+- The Codex may be drafted.
+- **Execution is forbidden by default** (no Quests, no Raids).
+
+Fog is lifted only by **Codex Freeze**:
+- Hands explicitly declares the Codex frozen, and
+- the marker file exists:
+  - `<Subject>_Data/Codex/CODEX_FREEZE.md`
+
+A TOC alone does not authorize execution.
+A draft Codex alone does not authorize execution.
+Only Codex Freeze does.
+
+================================================================================
+2) WHAT THE CODEX CONTAINS
+================================================================================
+
+A complete Codex typically contains:
+- Purpose and scope
+- User experience model / interaction model
+- Constraints (security, privacy, latency, offline/online, etc.)
+- Capabilities / features (with clear definitions)
+- Workflows
+- Integrations
+- Data model
+- System architecture (if a program)
+- Operational procedures (if relevant)
+- Non-goals and explicit exclusions (sparingly; prefer Assumption Guards)
+
+The Codex must explicitly distinguish:
+- what is mandatory
+- what is optional
+- what is deferred
+
+================================================================================
+
+2.1 Codex is NOT an execution plan (purity rule)
+- The Codex describes what the subject is, as if it already exists.
+- The Codex must not contain operational execution artifacts such as:
+  - Guild Orders / Raids
+  - Quests / Quest Board content
+  - Dailies procedures
+  - Audit logs
+  - Snapshots
+
+Those belong in Subject Data:
+- <Subject>_Data/Guild Orders/
+- <Subject>_Data/Quest Board/
+- <Subject>_Data/Audits/
+- <Subject>_Data/Snapshots/
+3) STRUCTURE AND STORAGE (SUBJECT DATA)
+================================================================================
+
+Codex artifacts live in the Subject’s Data pack.
+Canonical folder shape is defined in:
+- `Processes/SYNAPSE_GUILD__SUBJECT_INITIALIZATION_AND_INCUBATION.txt`
+
+Minimum expected Codex artifacts:
+- `Codex/TOC.md` (the Legend)
+- `Codex/Sections/` (each section as its own file)
+- `Codex/<Subject>_Codex_Full.txt` (stitched full Codex)
+- `Codex/CODEX_FREEZE.md` (exists only when Fog is lifted)
+
+================================================================================
+4) CODEx QUALITY BAR
+================================================================================
+
+The Codex must be written “as if the system already exists.”
+
+That means:
+- No hand-waving (“we’ll do it later”) inside canonical sections.
+- No undefined placeholders.
+- No “magic.”
+
+If something is not fully decided yet:
+- keep it in Incubation as Discoveries
+- do not freeze the Codex
+
+================================================================================
+5) HOW THE CODEX IS BUILT
+================================================================================
+
+Codex formation is governed by The Loop:
+- Incubation → TOC → Sections → Stitch → Freeze
+
+Key rule:
+The TOC must be created *from discovered and captured decisions*, not from guesses.
+
+When the Codex is large, use:
+- `Processes/SYNAPSE_GUILD__LARGE_ARTIFACT_COMPOSITION.txt`
+
+================================================================================
+6) CODEX UPDATES
+================================================================================
+
+Codex changes are allowed, but must be deliberate.
+
+Rules:
+- Changes occur during a Control Sync for the Subject.
+- The Control Sync Snapshot must record:
+  - what changed
+  - why it changed
+  - what downstream work is affected
+- If the Codex is already frozen and a change is structural:
+  - Hands must explicitly re-authorize (freeze again)
+  - and update `CODEX_FREEZE.md` accordingly.
+
+================================================================================

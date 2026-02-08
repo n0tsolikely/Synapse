@@ -1,0 +1,542 @@
+SYNAPSE GUILD — CANONICAL OPERATING MANUAL (v1.4)
+Last Updated: 2026-02-02
+
+Maintainer: Hands (Peter) with Brains (Ash)
+Audience:
+- New Synapse Guild members (human)
+- Drift recovery (returning after time away)
+- Any AI session that must rehydrate and operate under Guild law
+
+Status:
+This document is governance law for the Synapse Guild Operating System.
+Changes require a Governance Control Sync.
+
+> **Terminology Authority Notice**  
+> All Synapse OS terminology is defined in `The Guild/Terminology/`.  
+> Where a term has an authoritative lock (`Terminology/Locks/`), the lock definition overrides all other descriptions.  
+> The Canonical Manual must not redefine locked terminology.
+
+
+================================================================================
+0) PURPOSE OF THIS MANUAL
+================================================================================
+
+Synapse Guild work has one unavoidable reality:
+
+- People forget.
+- Projects sprawl.
+- AI sessions drift and reset.
+- Great ideas die when execution loses structure.
+
+This manual exists to make the Operating System explicit so:
+- the Guild can scale without losing coherence,
+- decisions can be audited and reloaded without archaeology,
+- execution can remain creative without becoming chaotic,
+- continuity can persist across days, chats, and years.
+
+If you feel lost:
+- read Section 14 (Drift Recovery) and follow it exactly.
+
+IMPORTANT DISTINCTION:
+Synapse Guild is the body (the team / organization).
+The Operating System is how the body moves.
+
+This manual is about the Operating System.
+
+================================================================================
+1) WHAT THE SYNAPSE GUILD IS (SHORT, ON PURPOSE)
+================================================================================
+
+Synapse Guild is an organization — a guild/team — that builds systems together.
+It is the shared identity, the shared language, and the shared body.
+
+Synapse Guild exists to build things, explore ideas, and ship systems with intention.
+
+The Operating System exists because the body needs rules:
+- so work stays coherent across time,
+- so decisions do not get re-litigated forever,
+- so execution can proceed without drift.
+
+If you want the longer onboarding explanation, read the Quick Start:
+- “The Guild/SYNAPSE_GUILD__QUICK_START.txt”
+
+A separate “What the Synapse Guild Is” canonical doc can exist later.
+This manual keeps the “Guild as body” section intentionally short.
+
+================================================================================
+2) ORG MODEL: BODY-PART ROLES (THE “SYNAPSE BODY”)
+================================================================================
+
+We use a body metaphor so responsibilities remain intuitive and scalable.
+
+Every member has:
+1) A functional role (engineer, integrator, designer, etc.)
+2) A body-part role (Brains, Hands, Eyes, etc.) describing their contribution
+
+Core roles (current):
+
+Brains:
+- Architect/strategist.
+- Designs systems, challenges assumptions, defines structure.
+- Pushes for correctness, clarity, and anti-drift.
+- Produces drafts of canon docs and execution artifacts.
+
+Hands:
+- Executor/owner.
+- Implements, approves final calls, maintains artifact library and folder hygiene.
+- Decides what becomes law and what does not.
+
+Authority rule (non-negotiable):
+- Hands has final authority on:
+  - accepting/rejecting quests
+  - respec decisions
+  - releases
+  - “what becomes law”
+- Brains proposes, pressures, challenges, structures, and designs—but does not unilaterally decide.
+
+Scaling rule:
+As the guild grows, a body-part role can subdivide (Hands → fingers → joints → cells).
+The metaphor keeps scale legible without adding bureaucracy.
+
+================================================================================
+3) THE ARTIFACT MODEL (THE TWO WORLDS)
+================================================================================
+
+Everything Synapse Guild does is captured in artifacts.
+Artifacts fall into two worlds:
+
+A) Governance artifacts (how we operate)
+These define the Synapse Guild Operating System and apply across all projects.
+
+Examples:
+- Control Sync law
+- Dailies law
+- Snapshots law
+- Quest Board law
+- Quests law
+- Talent Tree law
+- Continuity Locks and Bootstrap Prompts
+- Execution Pack doctrine
+- Buffs (session startup ignition docs: protocol + map + start check)
+
+B) Project artifacts (what we’re building)
+These define a specific system/module.
+
+Examples:
+- Codex (full spec/law)
+- Canonical Vision (compressed spec)
+- Guild Orders (scope and Dungeons)
+- Project snapshots (Control Sync / EOD for that project)
+- Rehydration packs for that project
+- Code (repo / engine)
+
+Classification rule:
+- If it changes how the Guild operates across projects → GOVERNANCE.
+- If it changes what a specific system does → PROJECT.
+
+Storage note:
+- Governance is a standalone pack meant to be dropped into any session.
+- You MAY store a reference copy inside a subject’s data area for convenience, but it is inert.
+- Canonical governance remains the Governance pack; canonical subject state remains in Subject_Data.
+
+================================================================================
+4) THE OPERATING SYSTEM: THE PILLARS
+================================================================================
+
+The Operating System is a set of primitives that interlock.
+Each primitive has its own canon doc (authoritative law).
+This manual is the “how it all fits together” overview.
+
+Core pillars:
+
+- Subject Initialization + Incubation: begin state when no Codex exists yet (Fog of War; capture and structure until Codex is ready)
+- Control Sync: alignment snapshot that decides scope and constraints (run the Control Sync Checklist).
+- Codex (Map): full system law/spec (TOC-first; post-Fog authoritative structure)
+- Codex Freeze (Fog Lifted): gate that permits execution once Codex is ready
+- Canonical Vision: compressed, human-readable spec (optional but recommended)
+- Guild Orders: timeless scope commitment, organized into Dungeons
+- Raid: executing a Guild Orders document (the act + the state)
+- Quests: atomic executable commitments (one file each)
+- Quest Board: filesystem-backed quest state machine (state = folder)
+- Dailies: the 7-step execution loop that creates clean continuity
+- Snapshots: ground truth records (Control Sync / EOD / General)
+- Truth Gate + Disclosure Gate: “no claim without proof” + mandatory operator notification
+- Execution Audits: mandatory proof bundles per quest (Summary / PreQuest / Execution / Verify / Outcome).
+- Large Artifact Composition: deterministic chunking pipeline (compose → stitch → verify → install → cleanup)
+- Execution Packs: drift-proof execution constraints for a specific execution period
+- Continuity Lock: state seal for crossing chat boundaries
+- Bootstrap Prompt: new-session entrypoint instruction set
+- Buffs: session startup ignition docs (protocol + map + start check)
+- Rehydration Pack: the physical folder/package used to restart correctly
+- Talent Tree: identity ledger of unlocked capabilities (+ respec ceremony)
+
+
+================================================================================
+5) THE BUILD PIPELINE (IDEA → COMMITMENT → REALITY)
+================================================================================
+
+This is how raw ideas turn into shipped capability without drift.
+
+Authoritative spine:
+- Processes/SYNAPSE_GUILD__THE_LOOP.txt
+
+Branch rule:
+- If the Subject already exists (Subject_Data + Codex/Map), skip Incubation and begin at Control Sync.
+- If no Subject exists yet, run Subject Initialization + Incubation first.
+
+STEP 0 — Raw ideas
+Raw thoughts do not become commitments automatically.
+They live in To Do until they crystallize.
+
+STEP 1 — Control Sync (alignment + decisions)
+Control Syncs are where important things become explicit.
+Major artifacts are created and ratified here.
+
+STEP 2 — Spec layer (Codex + Vision)
+For real systems/modules, you spec first:
+- Codex establishes law and structure.
+- Vision compresses the spec for fast orientation.
+
+STEP 3 — Scope layer (Guild Orders)
+Guild Orders define the execution campaign for a build phase.
+They are not a checklist. They define what “done” means.
+
+STEP 4 — Decomposition (Dungeons → Quests)
+Dungeons are major slices.
+
+────────────────────────────────────────────────────────
+QUEST vs SIDE-QUEST (NAMING + AUTHORITY)
+────────────────────────────────────────────────────────
+Definitions:
+- QUEST_### : A quest explicitly derived from an ACTIVE Guild Orders document (part of the current Raid plan).
+- SIDE-QUEST_### : A quest created ad-hoc during work sessions or Control Syncs to address discovered bugs,
+  unblock progress, or capture non-planned work. Side-Quests are NOT part of Guild Orders by default.
+
+Rules:
+- Both QUEST and SIDE-QUEST follow the same lifecycle and evidence rules:
+  BOARD → ACCEPTED → COMPLETED / ABANDONED, with audits required for completion.
+- SIDE-QUEST must be clearly labeled in BOTH:
+  - filename prefix: "SIDE-QUEST_"
+  - quest ID inside the quest document: "SIDE-QUEST_###"
+- SIDE-QUEST must NOT be referenced as fulfilling Guild Orders unless later promoted/merged intentionally.
+
+Delegation:
+- Operational enforcement details (snapshot timing, execution gating, protocol triggers)
+  are defined in Data-layer BUFFS and may evolve independently of this governance.
+
+
+Quests are atomic executable units.
+A single Dungeon often decomposes into multiple Quests.
+
+STEP 5 — Execution (Dailies)
+Dailies turn Accepted Quests into verified reality.
+
+STEP 6 — Truth record (Snapshots)
+Snapshots preserve what happened and what is now true.
+
+STEP 7 — Identity update (Talent Tree, when appropriate)
+If a new capability was unlocked, the Talent Tree is updated.
+Not all work yields Talent.
+
+STEP 8 — Archive (audit, not deletion)
+Executed packs and old states are archived, not deleted.
+
+================================================================================
+6) SPEC LAYER (CODEX + CANONICAL VISION)
+================================================================================
+
+Codex:
+- Full spec / law for a system or module.
+- Written as if the system already exists.
+- Begins with a Table of Contents (TOC-first, non-negotiable).
+- Intended to change as little as possible once locked.
+
+Canonical Vision:
+- A compressed, human-readable summary derived from the Codex.
+- The “read this fast to understand what we’re building” doc.
+
+Authoritative canon:
+- Guild Docs/SYNAPSE_GUILD__CODEX.txt
+
+================================================================================
+7) EXECUTION PLAN LAYER (GUILD ORDERS, RAIDS, DUNGEONS)
+================================================================================
+
+Guild Orders:
+- Timeless objective/scope doc for a build phase.
+- Defines “definition of done,” constraints, and Dungeons.
+- Not a day-by-day checklist.
+- Can include anything relevant to scope, even if not step-ordered.
+
+Raid:
+- The execution of a Guild Orders document (the act + state).
+- “Raid” is not a section inside the doc.
+- A Raid can be active, paused, or completed.
+
+Dungeons:
+- The sections inside Guild Orders.
+- Major slices of work.
+- Executed in any dependency-safe order.
+- Typically decompose into multiple Quests.
+
+Authoritative canon:
+- Guild Docs/SYNAPSE_GUILD__GUILD_ORDERS.txt
+
+================================================================================
+8) COMMITMENT LAYER (QUESTS + QUEST BOARD)
+================================================================================
+
+Quests:
+- Atomic executable commitments (one file per Quest).
+- Must be scoped, finishable, and verifiable.
+- Not all Quests award Talent Points (capability-only).
+
+Quest Board:
+- The commitment surface.
+- Implemented as folders, where state = location:
+  - BOARD
+  - ACCEPTED
+  - COMPLETED
+  - ABANDONED
+- Moving the file is the state transition. No hidden status fields.
+
+Authoritative canon:
+- Quest Board/SYNAPSE_GUILD__QUESTS.txt
+- Quest Board/SYNAPSE_GUILD__QUEST_BOARD.txt
+- Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt
+
+================================================================================
+9) DAILY EXECUTION LAYER (DAILIES — 7 STEPS)
+================================================================================
+
+Dailies are the mandatory execution loop.
+They create clean continuity even when work time is small.
+
+The 7 steps (always, in order):
+1) Control Sync
+2) Decide Scope
+3) Implement
+4) Test / Verify
+5) Snapshot
+6) Stop
+7) Repeat next day (restart at step 1 using recorded truth)
+
+Control Sync snapshot rule:
+- If binding decisions are made during the Control Sync step, record a Control Sync Snapshot.
+- If it’s mostly alignment/chat, record a General Snapshot (optional but often useful).
+
+Authoritative canon:
+- Processes/SYNAPSE_GUILD__DAILIES.txt
+- Processes/SYNAPSE_GUILD__CONTROL_SYNC.txt
+- Processes/SYNAPSE_GUILD__CONTROL_SYNC_CHECKLIST.txt
+
+================================================================================
+10) TRUTH LAYER (SNAPSHOTS)
+================================================================================
+
+Snapshots preserve reality.
+They are not plans. They are not promises.
+
+Three types (and only three):
+
+A) Control Sync Snapshot
+- Records binding decisions and their consequences.
+
+B) End-of-Day (EOD) Snapshot
+- Records executed work, verification, and current state.
+
+C) General Snapshot
+- Records important moments that don’t fit A or B (alignment, insight, governance, mid-day state captures).
+
+Authoritative canon:
+- Guild Docs/SYNAPSE_GUILD__SNAPSHOTS.txt
+- Guild Docs/SYNAPSE_GUILD__SNAPSHOT_TEMPLATES.txt
+
+================================================================================
+11) CONTINUITY LAYER (REHYDRATION PACKS + CHAT HANDOFF)
+================================================================================
+
+Chats end. Memory is not guaranteed.
+Continuity is preserved with a rehydration pack.
+
+Rehydration Pack (definition):
+A physical folder/package used to restart correctly in a new chat/session.
+
+Typical contents:
+- Continuity Lock
+- Bootstrap Prompt
+- latest relevant Snapshots
+- current Guild Orders (if a Raid is active)
+- relevant Accepted Quests (or the whole Board if selecting acceptance)
+- relevant Codex/Vision/Execution Pack (if in-spec or building)
+- project zip / repo link if needed
+
+Continuity Lock (definition):
+A state seal: what is binding, what is deferred, what must be loaded first, and what is next.
+
+Bootstrap Prompt (definition):
+The first instruction in a new session: how to ingest the pack and begin operating correctly.
+
+Authoritative canon:
+- Continuity/SYNAPSE_GUILD__CONTINUITY_LOCK.txt
+- Continuity/SYNAPSE_GUILD__BOOTSTRAP_PROMPT.txt
+
+================================================================================
+12) ANTI-DRIFT EXECUTION LAYER (EXECUTION PACKS)
+================================================================================
+
+Execution Packs exist to prevent “we talked for two hours, then forgot what to do.”
+
+Execution Pack (definition):
+A bounded packet of execution constraints created after a Control Sync so a future session
+can execute the decisions without re-litigating and without drifting.
+
+Execution Packs are:
+- specific to a particular execution period
+- archived when executed
+- not universal templates (they are tailored packs)
+
+Authoritative canon:
+- Continuity/SYNAPSE_GUILD__EXECUTION_PACKS.txt
+
+================================================================================
+13) IDENTITY LAYER (TALENT TREE + RESPEC)
+================================================================================
+
+Talent Tree exists to answer:
+- “What can the system do now?”
+- “What constraints are now binding going forward?”
+
+Talent Tree is not a backlog.
+It is the identity ledger of unlocked capabilities.
+
+Critical correction (locked):
+- Not all Quests award Talent Points.
+- Talent is awarded only when capability is introduced or meaningfully expanded.
+- The Quest must explicitly state whether it awards a Talent Point.
+
+The Talent system is maintained as three canonical files:
+- TALENT_TREE.txt   : authoritative capability list (append-only in practice)
+- TALENT_LOG.txt    : append-only history of points earned/spent
+- RESPEC_RULES.txt  : respec ceremony rules
+
+Respec:
+- Rare and ceremonial.
+- Requires a Control Sync.
+- Must state: what changed, why, consequences, and migration plan.
+- Logged append-only.
+
+Authoritative canon:
+- Talent Tree/SYNAPSE_GUILD__TALENT_TREE.txt
+
+================================================================================
+14) TO DO VS DOCS VS REHYDRATION PACKS VS ARCHIVE (FILE HYGIENE)
+================================================================================
+
+This is about reducing confusion and preventing artifact sprawl.
+
+TO DO (the To-Do file):
+- Scrap bucket for rough ideas and reminders.
+- Not commitments.
+- Items must be brought into a Control Sync to become Quests or Guild Orders.
+
+DOCS (the Docs folder):
+- Loose reference material, drafts, notes, research, random docs.
+- Anything important that doesn’t have a named home yet goes here temporarily.
+- **Active rehydration pack** belongs in `<Subject>_Data/Latest Rehydration Pack/`.
+- Archived rehydration packs should live in `<Subject>_Data/Archive/` (recommended).
+
+REHYDRATION PACKS:
+- A folder that contains Continuity Lock + Bootstrap Prompt + supporting artifacts.
+- Canonical location: `<Subject>_Data/Latest Rehydration Pack/`.
+- Often used when a long Control Sync is near chat limits or when pausing a complex effort.
+
+ARCHIVE (the Archive folder):
+- Old artifacts that remain valuable as audit trail:
+  - executed Execution Packs
+  - old Rehydration Packs
+  - retired/obsolete drafts
+  - previous Guild Orders versions
+- Archive is not deletion. It is historical storage.
+
+Rule:
+Do not let the Quest Board become “To Do v2.”
+Refine first, quest second.
+
+================================================================================
+15) DRIFT RECOVERY (WHAT TO DO WHEN YOU FEEL LOST)
+================================================================================
+
+If you feel lost, do not improvise.
+Follow this recovery path:
+
+0) Buff up (read the Buffs) if available:
+   - Execution Protocol
+   - Data Directory Map
+   - Session Start Check
+1) Read the latest Continuity Lock (if one exists).
+2) Read the latest Control Sync Snapshot relevant to the current work.
+3) Read the latest EOD Snapshot relevant to the current work.
+4) Check the Quest Board:
+   - what is ACCEPTED?
+   - what is still on BOARD?
+5) Check the active Guild Orders (if a Raid is active).
+6) Check the Talent Tree if you are unsure what capabilities exist.
+7) Start a Control Sync and re-align scope before touching execution.
+
+Rule:
+If you cannot name what is binding and what is next, you are in drift.
+Stop and Control Sync.
+
+
+
+================================================================================
+16) CORE CANON MAP (FILE POINTERS)
+================================================================================
+
+This section exists so an operator (human or AI) can instantly locate the authoritative rules.
+
+Entry Points
+- `README.txt` (go/no-go, required read order)
+- `INDEX.txt` (map of this pack)
+- `The Guild/SYNAPSE_GUILD__QUICK_START.txt` (fast onboarding)
+- `The Guild/SYNAPSE_GUILD_CANONICAL_MANUAL.txt` (this doc)
+
+Core Processes (how work flows end-to-end)
+- `Processes/SYNAPSE_GUILD__SUBJECT_INITIALIZATION_AND_INCUBATION.txt` (new subject → codex formation)
+- `Processes/SYNAPSE_GUILD__THE_LOOP.txt` (end-to-end pipeline)
+- `Processes/SYNAPSE_GUILD__CONTROL_SYNC.txt` (alignment phase)
+- `Processes/SYNAPSE_GUILD__DAILIES.txt` (execution cycle)
+- `Processes/SYNAPSE_GUILD__TRUTH_GATE.txt` (no claims without receipts)
+- `Processes/SYNAPSE_GUILD__EXECUTION_AUDITS.txt` (quest-level audits)
+- `Processes/SYNAPSE_GUILD__LARGE_ARTIFACT_COMPOSITION.txt` (chunking protocol)
+
+Continuity
+- `Continuity/SYNAPSE_GUILD__CONTINUITY_LOCK.txt` (rehydration anchor)
+- `Continuity/SYNAPSE_GUILD__BOOTSTRAP_PROMPT.txt` (start-of-chat bootstrap)
+- `Continuity/SYNAPSE_GUILD__EXECUTION_PACKS.txt` (portable packs + packaging)
+
+Guild Docs (core constructs)
+- `Guild Docs/SYNAPSE_GUILD__CODEX.txt`
+- `Guild Docs/SYNAPSE_GUILD__GUILD_ORDERS.txt`
+- `Guild Docs/SYNAPSE_GUILD__SNAPSHOTS.txt`
+- `Guild Docs/SYNAPSE_GUILD__SNAPSHOT_TEMPLATES.txt` (minimum snapshot structure)
+
+Quest System
+- `Quest Board/SYNAPSE_GUILD__QUEST_BOARD.txt`
+- `Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt` (quest format gate)
+- `Quest Board/SYNAPSE_GUILD__QUESTS.txt`
+- `Quest Board/QUEST_TEMPLATE.txt`
+- `Quest Board/QUEST_TEMPLATE.txt`
+
+Talent
+- `Talent Tree/SYNAPSE_GUILD__TALENT_TREE.txt`
+
+Terminology
+- `The Guild/Terminology/Locks/` (authoritative)
+- `The Guild/Terminology/Terms/` (routing)
+
+
+================================================================================
+END OF DOCUMENT
+================================================================================
