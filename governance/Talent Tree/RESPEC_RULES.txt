@@ -1,20 +1,65 @@
 RESPEC RULES — SYNAPSE GUILD
-Purpose: Respec is the ceremonial, explicit process for reversing or changing a previously spent Talent Point.
-Rule: Respec is rare. It must be intentional, logged, and consequence-aware.
+Version: v1.1
+Last Updated: 2026-02-08
 
-Requirements:
-1) Must be done during a Control Sync.
-2) Must state:
-   - Talent removed/changed (TALENT ID)
-   - Reason
-   - Consequences (what breaks, what changes)
-   - Migration plan (if needed)
-3) Must be logged in TALENT LOG as a respec event (append-only).
+Purpose
+Respec is the explicit process for reversing or changing a previously spent Talent Point.
 
-Respec event format (append-only, log into TALENT LOG):
+Core Law
+- Respec is rare. It MUST be intentional, logged, and consequence-aware.
+- A Respec is a BINDING decision and MUST occur during an OPEN Control Sync.
+- A Respec is REAL only if it exists as subject-state artifacts written to disk.
+  - Chat-only decisions are PROPOSED until the files exist.
+- If the current execution surface cannot write/update the required files, the Respec MUST be labeled:
+  - PROPOSED (NOT EXECUTED)
+  and MUST NOT be treated as performed.
+
+Canonical Location (subject-state)
+<Subject>_Data/Talent Tree/
+- TALENT_TREE.txt  (current talent ledger)
+- TALENT_LOG.txt   (append-only history)
+
+Note
+- The Governance Pack “Talent Tree/” directory is a template reference.
+- The live Talent Tree for a real subject is the one inside <Subject>_Data.
+
+Requirements (must be stated during Control Sync)
+1) Talent Removed/Changed (TALENT ID)
+2) Talent Added/Replaced (TALENT ID or NONE)
+3) Reason
+4) Consequences
+   - What capabilities are lost/gained
+   - What existing processes, quests, or plans become invalid or require updates
+5) Migration Plan (if needed)
+   - The concrete steps required to align the project with the new talent state
+   - If work is required, it MUST be captured as Quests (BOARD → ACCEPTED via Control Sync)
+
+Artifact Requirements (must be executed on disk)
+A) Update TALENT_TREE.txt
+   - Remove / modify the talent entry
+   - Add replacement if any
+   - Ensure point totals remain consistent (no negative balance, no double-spend)
+
+B) Append to TALENT_LOG.txt (append-only)
+   - Use the Respec Event Format below
+
+C) Snapshot Requirement
+   - The Control Sync that authorizes a Respec MUST end with exactly one Snapshot artifact file.
+   - That Snapshot MUST include the Respec decision AND the artifact paths updated.
+
+Respec Event Format (append-only, in TALENT_LOG.txt)
 YYYY-MM-DD
 Respec:
-Talent Changed:
+Subject:
+Talent Removed/Changed:
+Talent Added/Replaced:
 Reason:
 Consequences:
-Plan:
+Migration Plan:
+Artifacts Updated:
+- <path>
+Proof/Receipts:
+- <receipt path or note>
+
+Constraints
+- Do not rewrite history. If a Respec is wrong, perform a new Respec that reverses it; log both.

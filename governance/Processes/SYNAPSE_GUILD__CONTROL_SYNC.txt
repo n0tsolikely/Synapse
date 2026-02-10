@@ -1,6 +1,6 @@
 SYNAPSE GUILD — CONTROL SYNC (CANON)
-Version: v1.2
-Last Updated: 2026-02-02
+Version: v1.3
+Last Updated: 2026-02-06
 Status: Governance Law (changes require Governance Control Sync)
 
 Maintainer: Hands (Peter) with Brains (Ash)
@@ -15,10 +15,10 @@ Audience:
 
 This document defines what a CONTROL SYNC is, why it exists, and how it is used.
 
-After reading this document, the phrase “Hold a Control Sync” must be sufficient
-instruction for any compliant operator (human or AI).
+After reading this document, the phrase “Control Sync” MUST be sufficient instruction
+for any compliant operator (human or AI) to enter Control Sync mode.
 
-A Control Sync is the primary decision‑making and alignment ritual of the Synapse Guild.
+A Control Sync is the primary decision‑making + alignment ritual of the Synapse Guild.
 
 This is governance law.
 
@@ -37,6 +37,16 @@ A Control Sync answers one core question:
 One‑sentence definition:
 A Control Sync is the authoritative forum where Synapse Guild decisions are made,
 validated, or reaffirmed.
+
+1.2 Control Sync is a MODE (stateful), not a message
+A Control Sync is considered ACTIVE until Hands explicitly ends it.
+
+- Switching into writing/editing mode does NOT end a Control Sync.
+- Creating or editing artifacts may occur inside an active Control Sync.
+
+Hard rule:
+Brains MUST NOT assume the Control Sync has ended due to silence, topic drift,
+or the start of drafting.
 
 ================================================================================
 2) WHY CONTROL SYNCS EXIST
@@ -79,49 +89,118 @@ A Control Sync is NOT:
 
 A Control Sync may produce artifacts, but it is not the artifacts.
 
+--------------------------------------------------------------------------------
+3.3 CONTROL SYNC ACTIVATION (TRIGGERS)
+--------------------------------------------------------------------------------
 
-================================================================================
-3.3) CONTROL SYNC PERSISTENCE (HANDS-OWNED)
-================================================================================
-
-A Control Sync remains active until HANDS explicitly ends it.
-
-- Switching into patch/edit mode does NOT end a Control Sync.
-- Editing governance, codex, guild orders, quests, or other artifacts may occur inside
-  an active Control Sync without ending it.
-
-Rule:
-Brains MUST NOT assume the Control Sync has ended just because writing/editing begins.
-
-================================================================================
-3.4) CONTROL SYNC ACTIVATION + REQUIRED OUTPUT (AI/HUMAN)
-================================================================================
-
-A Control Sync is considered engaged when Hands uses any clear phrasing indicating
-start of sync, including but not limited to:
+A Control Sync MUST be considered engaged when Hands uses any clear phrasing
+indicating a sync is starting, including but not limited to:
+- "Control Sync"
+- "Hold a Control Sync"
 - "Control Sync start"
 - "Control Sync engage"
 - "Begin Control Sync"
 - equivalent natural-language phrasing
 
-Upon activation, Brains MUST:
-1) Capture metadata: date, start time, participants, scope/subject.
-2) State the current continuity anchor (latest authoritative snapshot/lock).
-3) Rehydrate current state:
-  - where we left off
-  - unfinished work
-  - known issues/bugs/blockers
-  - key ongoing discussions/decisions
-  - why things may not have been finished
-4) If Guild Orders are referenced during startup rehydration, list ONLY TITLES and
-  label Active vs Paused (no auto-generation, no rewriting).
-5) STOP and WAIT after the Control Sync summary until Hands directs next steps.
+If the phrasing is ambiguous (e.g., quoting the term), Brains MUST ask:
+"Is that a Control Sync start?" and WAIT.
+
+--------------------------------------------------------------------------------
+3.4 CONTROL SYNC START SEQUENCE (AI/HUMAN)
+--------------------------------------------------------------------------------
+
+Upon activation, Brains MUST perform the following in order.
+This is the minimum deterministic entry protocol.
+
+STEP A — Identify Subject + Mode (Continuing vs New)
+- If the current Subject is already known and <Subject>_Data exists:
+  - declare the Subject name
+  - declare canonical paths (Subject_Data + Subject_Engine if applicable)
+- If the Subject is NOT known OR Subject_Data cannot be found:
+  - Brains MUST stop and ask Hands the minimum entry questions:
+    1) What is the Subject name/key?
+    2) Is this a NEW Subject or a CONTINUING Subject?
+    3) If continuing: where is <Subject>_Data located?
+    4) If there is an engine/codebase: where is <Subject>_Engine located?
+
+Hard rule:
+- If the Subject cannot be identified, Brains MUST NOT proceed into execution.
+- If Hands indicates "New Subject": route to
+  Processes/SYNAPSE_GUILD__SUBJECT_INITIALIZATION_AND_INCUBATION.txt
+
+STEP B — Capture Control Sync metadata
+Brains MUST capture and state:
+- date
+- start time
+- participants
+- Subject
+- reason for sync (rehydration / planning / decisions / governance)
+
+STEP C — State the current continuity anchor
+Brains MUST state what the current authoritative anchor is, using what exists:
+- Latest Continuity Lock / Bootstrap Prompt (if subject-state exists)
+- Latest Snapshots (Control Sync → End-of-Day → relevant General)
+
+If artifacts are missing:
+- state the missing artifacts explicitly
+- do NOT invent them
+
+STEP D — Rehydrate current state (minimum)
+Brains MUST summarize:
+- where we left off
+- unfinished work
+- known issues/bugs/blockers
+- key ongoing discussions/decisions
+- why things may not have been finished
+
+If Guild Orders/Raids are referenced during rehydration:
+- list ONLY TITLES
+- label Active vs Paused
+- do NOT auto-generate, rewrite, or decompose
+
+STEP E — Run deterministic minimum checks (when execution is possible)
+If the Control Sync may lead into execution (Dailies / Quests / engine edits),
+Brains MUST run:
+- Processes/SYNAPSE_GUILD__CONTROL_SYNC_CHECKLIST.txt
+
+This is the ignition key that prevents:
+- missing-state execution
+- Fog of War violations
+- unvalidated quest acceptance
+
+STEP F — STOP + WAIT (Hands authority)
+After completing the start sequence, Brains MUST STOP and WAIT.
+
+Brains may offer a short set of next-step options, but MUST NOT advance without Hands.
 
 Strict prohibitions unless Hands explicitly commands otherwise:
 - DO NOT auto-generate new Guild Orders
 - DO NOT auto-start a Raid
 - DO NOT auto-break into Quests
-- DO NOT auto-advance the Dailies loop
+- DO NOT auto-advance into Dailies execution
+
+--------------------------------------------------------------------------------
+3.5 CONTROL SYNC CLOSEOUT (ENDING)
+--------------------------------------------------------------------------------
+
+A Control Sync remains active until Hands explicitly ends it.
+
+Valid end phrases include (non-exhaustive):
+- "End Control Sync"
+- "Close Control Sync"
+- "Control Sync done"
+- "We are done with Control Sync"
+
+On explicit end, Brains MUST:
+1) Confirm scope/decisions that are now binding (or explicitly deferred).
+2) Ensure a Snapshot is written when required by Snapshot law + checklist.
+   - If binding decisions were made: Control Sync Snapshot
+   - If alignment/context only: General Snapshot (recommended)
+   - Dailies ignition (session start) requires a Control Sync Snapshot.
+3) Restate what the next system phase is (e.g., proceed to Scope Selection / Dailies).
+
+Hard rule:
+Brains MUST NOT treat Control Sync as ended until the closeout is complete.
 
 ================================================================================
 4) TYPES OF CONTROL SYNCS
@@ -138,7 +217,7 @@ Common types include:
 - Surface what has changed or been forgotten.
 - No major decisions required.
 
-These are often logged as **General Snapshots**.
+Often captured as a General Snapshot.
 
 4.2 Exploratory / Ideation Control Sync
 - Discuss new ideas or directions.
@@ -156,14 +235,14 @@ Outputs may be notes or a General Snapshot.
   - Quests
 - Lock scope and intent.
 
-These typically produce a **Control Sync Snapshot**.
+Typically produces a Control Sync Snapshot.
 
 4.4 Governance Control Sync
 - Modify the operating system itself.
 - Update canon documents.
 - Introduce or retire rituals.
 
-These must produce a **General Snapshot** and may require updates to canon.
+Must produce a Snapshot (Control Sync Snapshot if binding; General if alignment-only).
 
 ================================================================================
 5) WHAT HAPPENS INSIDE A CONTROL SYNC
@@ -183,25 +262,18 @@ A Control Sync may include any of the following activities:
   - Canon documents
 - Deciding daily or near‑term scope
 
-There is no required script.
+There is no required conversational script.
 The constraint is intentionality, not structure.
 
 --------------------------------------------------------------------------------
 MANDATORY MINIMUM CHECKS (CANON)
 --------------------------------------------------------------------------------
-Control Sync has no required conversational script — but it DOES have mandatory minimum checks.
+
+Control Sync has no required conversational script — but it DOES have mandatory
+minimum checks.
 
 At the start of any Control Sync that may lead into execution, Brains MUST run:
 - Processes/SYNAPSE_GUILD__CONTROL_SYNC_CHECKLIST.txt
-
-This includes (at minimum):
-- canonical directory confirmation
-- start-of-day snapshot review (latest Control Sync → latest End-of-Day → relevant General)
-- World State gate (Fog of War vs Fog Lifted)
-- Codex Freeze confirmation if executing
-- Quest Validation before accepting any Quest
-
-These checks preserve continuity and prevent false execution.
 
 ================================================================================
 6) DECISIONS AND AUTHORITY
@@ -212,7 +284,7 @@ All binding decisions must originate from a Control Sync.
 Rules:
 - If a decision matters later, it must be made or confirmed in a Control Sync.
 - If a decision is made, it must be recorded in a snapshot.
-- If a decision is deferred, that deferral should be explicit.
+- If a decision is deferred, that deferral must be explicit.
 
 Control Syncs are where authority is exercised deliberately, not implicitly.
 
@@ -228,7 +300,7 @@ Control Syncs are the birthplace of many artifacts, including:
 - Canon documents (governance law)
 - Continuity Locks (state sealing for chat boundaries)
 
-Not every Control Sync produces artifacts.
+Not every Control Sync produces every artifact.
 But every artifact that matters should trace back to a Control Sync.
 
 ================================================================================
@@ -243,7 +315,7 @@ After a Control Sync:
 
 Snapshot types commonly associated:
 - Control Sync Snapshot — when binding decisions were made.
-- General Snapshot — when the meeting captured context or insight without formal decisions.
+- General Snapshot — when the sync captured context without binding decisions.
 
 The snapshot is the record.
 The Control Sync is the moment.
@@ -255,7 +327,7 @@ The Control Sync is the moment.
 Control Syncs are part of the Dailies loop, but they are not limited to daily use.
 
 In Dailies:
-- Control Sync aligns the day.
+- Control Sync aligns the day/session.
 - Scope may be chosen.
 - Execution follows.
 
@@ -289,6 +361,10 @@ The goal is clarity, not ceremony.
 
 Once this law is accepted, the following phrases are valid:
 
+- “Control Sync.”
+Meaning:
+Enter Control Sync mode immediately.
+
 - “Hold a Control Sync.”
 Meaning:
 Convene a deliberate meeting to align, decide, or rehydrate context.
@@ -300,6 +376,10 @@ The issue is important enough to warrant explicit discussion and decision.
 - “Record this as a Control Sync Snapshot.”
 Meaning:
 The outcomes of the meeting must be captured as binding record.
+
+- “End Control Sync.”
+Meaning:
+Run closeout (including required snapshot), then permit progression into the next phase.
 
 ================================================================================
 END OF DOCUMENT

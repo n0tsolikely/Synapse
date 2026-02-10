@@ -1,361 +1,335 @@
 # SYNAPSE OS — THE LOOP
 *(Idea → Codex → Execution → Completion → Repeat)*
-Version: v1.1
-Last Updated: 2026-02-02
+Version: v1.3
+Last Updated: 2026-02-06
 Status: Governance Law (changes require Governance Control Sync)
 
 
-This document defines the **entire operational lifecycle** of Synapse OS.
-It describes how an idea becomes a Codex, how a Codex becomes execution,
-and how execution proceeds without drift until completion.
+This document defines Synapse OS as a deterministic **pipeline with nested loops**.
 
-Synapse OS is an **Operating System for work** (Human + AI).
-The Loop is the mechanism that makes it deterministic, auditable, and repeatable.
+- **Outer pipeline loop (project lifecycle):**
+  Idea → Incubation → TOC → Codex → Codex Freeze → Build (Guild Orders → Dungeons → Quests) → Completion/Iterate
 
----
+- **Inner execution loops (build-time):**
+  - **Dailies Loop (per session/day):** Control Sync → Scope Commitment → Implement (Quest Mini-Loop) → System Verification (when applicable) → Snapshot → Stop/Resume
+  - **Quest Mini-Loop (per accepted quest):** Pre-Quest Alignment → Execute → Verify → Outcome → Filesystem State Transition
 
-## 0. CORE PRINCIPLES (ALWAYS TRUE)
-
-- No execution without a Codex.
-- No claims without proof.
-- No execution without audits. No conceptual progress without capture (snapshots + incubation ledger).
-- No drift between sessions.
-
-If any of these are violated, the system must stop and disclose.
+If any gate is unmet, execution is **ILLEGAL** and the system MUST stop and disclose.
 
 ---
 
-## 1. THE BEGINNING — INCUBATION (NO CODEX EXISTS)
+## 0. NON-NEGOTIABLE INVARIANTS (ALWAYS TRUE)
+
+### 0.1 Authority Order (anti-drift)
+- Conversation is **input**.
+- Files, locks, and state artifacts are **authority**.
+- If conversation conflicts with state, state wins.
+
+### 0.2 World State Gate (execution legality)
+- **Fog of War:** no execution. Only incubation / TOC / Codex work is allowed.
+- **Fog Lifted:** execution is permitted only after Codex Freeze is valid.
+
+Machine-check:
+- Fog Lifted requires: `<Subject>_Data/Codex/CODEX_FREEZE.md`
+
+### 0.3 Truth + Disclosure Gates (claim legality)
+- No claims without proof (Truth Gate).
+- If proof cannot be produced, Disclosure Gate MUST trigger and the action is BLOCKED.
+
+### 0.4 Canonical Boundaries (no parallel state)
+- One canonical working tree.
+- One canonical `<Subject>_Data/`.
+- One canonical `<Subject>_Engine/`.
+
+If multiple competing copies exist, the system MUST HALT until Hands selects canon.
+
+---
+
+## 1. INCUBATION (NO CODEX; FOG OF WAR)
 
 The Loop always begins with **an idea**.
 
 At this point:
 - there is no Codex
-- there is no Engine
+- there may be no Engine
 - nothing is executable
 - everything is exploratory
 
 This is the **Incubation Phase**.
 
 ### 1.1 Entering Incubation
-
 The system enters Incubation when:
-- the user says they want to start something new
-- the user begins describing an idea or project
-- no Codex exists for the subject
+- Hands wants to start something new, OR
+- Hands is describing an idea and no Codex exists for the subject.
 
 Incubation is the default state when a Codex does not exist.
 
----
-
-### 1.2 Subject Creation (Immediate)
-
-As soon as an idea exists, the system must:
+### 1.2 Subject Creation (immediate)
+As soon as a subject exists, the system MUST:
 - identify the subject (name + key)
-- immediately create a `<Subject>_Data` folder
+- create the subject’s `<Subject>_Data/` skeleton (canonical)
 
-This happens even if the only known thing is the subject’s name.
+Purpose:
+- preserve continuity
+- prevent loss across chat boundaries
 
-The purpose of the data folder at this stage is **memory**.
-Nothing should ever be lost because a chat ended.
+### 1.3 Incubation Behavior (build forbidden)
+During Incubation, the system MUST:
+- prompt for clarification and expansion
+- capture requirements, constraints, risks, and decisions as they emerge
 
----
+During Incubation, the system MUST NOT:
+- modify `<Subject>_Engine/` (execution)
+- claim implementation progress
 
-### 1.3 What Happens During Incubation
+### 1.4 Continuous Capture (no loss rule)
+As ideas and decisions emerge, the system MUST write them into subject-state artifacts.
 
-During Incubation:
-- the user explains their idea in their own words
-- the AI prompts for clarification and expansion
-- questions are asked about:
-  - how it works
-  - how it’s used
-  - constraints
-  - tradeoffs
-  - security
-  - access
-  - scale
-  - future use cases
+These incubation artifacts:
+- are allowed to change
+- are allowed to contradict earlier artifacts
+- are not enforceable law
 
-The AI’s job here is **not to build**.
-Its job is to **fully understand**.
+Their job is memory and traceability, not correctness.
 
-Execution is forbidden.
+### 1.5 Structural Awareness (make TOC possible without guessing)
+As incubation continues, the system MUST notice structure forming and cluster information accordingly.
 
----
+The structure is domain-agnostic. Examples:
+- software: workflows, permissions, integrations
+- books: characters, world rules, arcs, chapters
+- games: mechanics, progression loops, systems
+- essays: claims, evidence, counterarguments
 
-### 1.4 Continuous Capture (No Loss Rule)
+Rule:
+- the system MUST avoid parallel conflicting versions of the same concept.
+- if conflicts exist, they MUST be called out explicitly and resolved by Hands.
 
-As ideas and decisions emerge, the system must **write them down**.
+### 1.6 Periodic Crystallization (continuity anchors)
+To prevent long-session blur, the system MUST periodically crystallize:
+- what is decided
+- what is open
+- what changed since last crystallization
 
-This includes:
-- requirements
-- decisions
-- constraints
-- assumptions
-- risks
-- integrations
-- workflows
-- scope boundaries
-- future considerations
-
-These are saved into incubation artifacts inside `<Subject>_Data`.
-
-These artifacts are:
-- non-canon
-- allowed to change
-- allowed to contradict earlier ideas
-
-Their only purpose is to ensure that understanding is never lost.
-
----
-
-### 1.5 Structural Awareness (Critical)
-
-As incubation continues, the system must **notice structure forming**.
-
-This structure is **domain-agnostic**.
-
-For example:
-- a software system may form areas like workflows, permissions, integrations
-- a book may form characters, world rules, arcs, chapters
-- a game may form mechanics, systems, progression loops
-- an essay may form claims, evidence, counterarguments
-
-The system must:
-- group related ideas together over time
-- update existing groups when decisions change
-- avoid creating parallel conflicting versions of the same concept
-
-The goal is not to force structure —
-the goal is to **let structure emerge and remain coherent**.
-
-This ensures that a Table of Contents can later be created **without guessing**.
-
----
-
-### 1.6 Periodic Crystallization
-
-Long discussions can lose detail.
-
-To prevent this, the system must periodically crystallize understanding by writing:
-- what has been decided
-- what remains open
-- how the idea is currently shaped
-- what changed since the last crystallization
-
-Crystallization is:
-- not a Codex
+Crystallizations are:
+- not Codex
 - not enforceable
-- only a continuity anchor
+- continuity anchors only
 
-Crystallizations occur:
-- after long discussion
-- after major decision changes
+Crystallize at minimum:
 - before a session ends
+- after major decision changes
 - when explicitly requested
 
-Control Sync snapshots during Incubation are **conceptual snapshots**,
-not execution summaries.
+### 1.7 Stress Testing (optional; Fog of War safe)
+At any point during Incubation, Hands MAY request a stress test.
+
+Definition:
+- a stress test is a structured thought experiment that runs the subject end-to-end (or long-horizon) to discover missing laws, edge cases, contradictions, or unasked questions.
+
+Rules:
+- stress testing is allowed only in Fog of War (Incubation). It does not authorize execution.
+- any discovered gaps MUST be captured into incubation artifacts.
+- if critical gaps are found, Incubation continues.
 
 ---
 
-### 1.7 Stress Testing (Optional but Recommended)
+## 2. FROM IDEA TO MAP — TABLE OF CONTENTS (TOC)
 
-At any point during Incubation, the user may request a stress test.
+Incubation ends only when Hands explicitly directs TOC/Codex creation.
 
-A stress test is a thought experiment where:
-- the system imagines the project fully complete
-- long-term use is considered
-- missing pieces and edge cases are discovered
-
-Any findings from stress testing are captured back into incubation artifacts.
-
-If gaps are found, Incubation continues.
-
----
-
-## 2. FROM IDEA TO MAP — TABLE OF CONTENTS
-
-When the user decides the idea is fully explored, they may say:
+Hands intent examples:
 - “Make the TOC”
 - “Write the Codex”
 - “Freeze the map”
 
-At this point, Incubation ends.
+### 2.1 Mandatory Gate: Final Completeness Stress Test (pre-TOC)
+Before creating the TOC, the system MUST run a final completeness stress test.
 
-MANDATORY GATE: Final Completeness Stress Test (Pre-TOC)
-Before creating the TOC, the system MUST run a final completeness stress test to ensure there are zero critical holes.
-- For software/programs: do a long-horizon use-case thought experiment (e.g., 10-year stress test).
-- For books/stories/games: run the entire narrative/system end-to-end and check for missing laws, gaps, or unanswered questions.
-- For any Subject: list discovered gaps, turn them into incubation artifacts (ledger/cluster/crystals), and continue Incubation.
+Purpose:
+- discover critical holes before the map becomes authoritative
 
-Only after the final stress test yields no critical gaps may the system proceed to TOC creation.
+Stress test mode depends on subject type:
+- software/programs: long-horizon use-case thought experiment
+- books/stories/games: end-to-end narrative/system simulation
+- any subject: list remaining gaps explicitly
 
----
+If critical gaps are found:
+- the system MUST capture them
+- Incubation continues
 
-### 2.1 Creating the Table of Contents
+Only when there are no critical gaps may the system proceed to TOC creation.
 
-The system uses:
+### 2.2 Creating the TOC (the map)
+The system derives the TOC from:
 - incubation artifacts
 - crystallizations
-- emerging structure
+- the emerged structure
 
-to derive a **full end-to-end Table of Contents**.
+Rules:
+- the TOC represents the system **as if it already exists**
+- the TOC MUST be complete enough to write the Codex without guessing
+- truncation is forbidden (chunking rules apply)
 
-The TOC represents the system **as if it already exists**.
-
-If the TOC is large:
-- it may be written in multiple outputs
-- truncation is forbidden
-- chunking rules apply
-
-The TOC becomes the authoritative map for the Codex.
+Output:
+- a TOC artifact that becomes the authoritative map for Codex writing
 
 ---
 
-## 3. CODEX WRITING (THE MAP IS BUILT)
+## 3. CODEX WRITING (MAP → LAW)
 
-With the TOC in place, the system begins writing the Codex.
+With the TOC in place, the system writes the Codex.
 
-The Codex must be written:
-- section by section
-- subsection by subsection
-- fully detailed
-- with zero ambiguity
+Rules:
+- Codex is written section-by-section and subsection-by-subsection.
+- Codex text MUST be unambiguous.
+- Codex MUST be consistent with the TOC numbering and titles.
 
----
-
-### 3.1 Self-Audit Before Every Section
-
-Before writing a section, the system must:
+### 3.1 Self-Audit Gate (before every section)
+Before writing a section, the system MUST:
 - re-read the TOC
 - re-read relevant incubation material
 - confirm scope and numbering
 
----
+### 3.2 Section Writing + Audit Gate (after every section)
+After writing a section, the system MUST audit for:
+- alignment with the TOC
+- omission (missing required detail)
+- hallucinated detail
+- truncation / accidental summarization
 
-### 3.2 Writing Sections
-
-Each section is written as its own file.
-
-After writing:
-- the system audits for:
-  - alignment with the TOC
-  - hallucination
-  - truncation
-  - over-summarization
-
-If summarization or truncation is detected:
-- the section is split
+If truncation or summarization is detected:
+- the section MUST be split
 - written in multiple parts
-- each part is audited
-- the final result must be complete
+- stitched
+- re-audited
 
-This is mandatory.
-
----
-
-### 3.3 Codex Continuity Across Sessions
-
+### 3.3 Codex Continuity Across Sessions (no drift)
 If a session ends mid-Codex:
-- a continuity lock / bootstrap is written
-- it records:
+- the system MUST update the subject’s continuity artifacts (Latest Rehydration Pack)
+- it MUST record:
   - where the system left off
   - what sections are complete
   - what comes next
-- it is stored in `<Subject>_Data/Latest Rehydration Pack/` (or equivalent)
 
-This ensures the next session resumes **without drift**.
+### 3.4 Codex Completion Gate (stitch + review)
+Codex Freeze must not occur on an incomplete Codex.
 
----
+When all TOC sections are written, the system MUST:
+- stitch the Codex into a single canonical artifact (or a single canonical stitched view)
+- audit the stitched Codex for completeness and internal consistency
+- resolve any discovered gaps before freezing
 
-### 3.4 Codex Completion
-
-When all sections are written:
-- the system stitches them into a single full Codex document
-- the Codex is reviewed for completeness
-
-The Codex now represents the **complete, unambiguous system**.
+Only after completion audit passes may Hands freeze the Codex.
 
 ---
 
 ## 4. CODEX FREEZE (EXECUTION AUTHORIZED)
 
-The Codex must be explicitly frozen by Hands.
+Codex Freeze is the execution gate.
+It transitions World State from Fog of War to Fog Lifted.
 
-This is the **execution gate**. It transitions World State from Fog of War to Fog Lifted.
+Codex Freeze is valid only when:
+- Hands explicitly declares the Codex frozen, AND
+- the marker file exists: `<Subject>_Data/Codex/CODEX_FREEZE.md`
 
-Codex Freeze is only valid when:
-- Hands explicitly declares the Codex frozen
-- the marker file is written: `<Subject>_Data/Codex/CODEX_FREEZE.md`
-
-Without that marker:
+Without the marker:
 - World State remains Fog of War
-- no execution is allowed
-
-Once frozen:
-- the system may proceed to build.
-
-## 5. BUILD KICKOFF (CONTROL SYNC)
-
-Before building begins:
-- a Control Sync is held
-- the Codex is reviewed
-- the user decides build scope:
-  - full system
-  - or a versioned subset (e.g. v1)
-
-Based on scope:
-- Guild Orders are created
-- Guild Orders are broken into Dungeons
-- Dungeons are broken into Quests
-
-Quests are placed on the Quest Board.
-
-If `<Subject>_Engine/` does not exist yet (new subject):
-- create it now (empty stub)
-- execution work occurs in this Engine from this point forward
+- execution is illegal
 
 ---
 
-## 6. THE DAILIES LOOP (EXECUTION)
+## 5. BUILD KICKOFF (CONTROL SYNC → GUILD ORDERS)
 
-Execution proceeds in **Dailies** and repeats until the current Guild Orders are complete.
+Before build execution begins, the system MUST run a Control Sync.
 
-The canonical Daily loop is defined in:
+Control Sync outcomes (minimum):
+- rehydrate (review snapshots + current state)
+- confirm World State (Fog of War vs Fog Lifted)
+- decide build intent and scope
+
+Scope choices:
+- full build, OR
+- a versioned subset (e.g., “v1” / “one chapter” / “a vertical slice”)
+
+That scope becomes the **Guild Orders**.
+
+Decomposition topology (must be respected):
+- Guild Orders contain **Dungeons** (major phases)
+- Dungeons decompose into **Quests** (atomic executable work)
+- Quests are placed onto the Quest Board and may be accepted for execution
+
+If `<Subject>_Engine/` does not exist yet:
+- create it as a stub
+- all execution work occurs in the Engine from this point forward
+
+---
+
+## 6. EXECUTION (DAILIES; QUEST MINI-LOOP)
+
+Dailies are the execution-phase loop used when:
+- a subject exists
+- `<Subject>_Data/` is in play
+- `<Subject>_Engine/` exists (or is created at kickoff)
+- World State permits execution (Fog Lifted)
+
+### 6.1 Dailies Topology (per session/day)
+A Daily MUST follow this structure:
+
+1) Control Sync (alignment + rehydration)
+2) Scope Commitment (which quests are accepted for this session)
+3) Implement (Quest Mini-Loop for each accepted quest)
+4) System Verification (when applicable)
+5) Snapshot (end-of-day continuity)
+6) Stop (until next session)
+7) Resume (next session begins again at Control Sync)
+
+The canonical daily execution protocol is defined in:
 - `Processes/SYNAPSE_GUILD__DAILIES.txt`
 
-At a high level, Dailies enforce:
-- Control Sync first (alignment + scope), including mandatory snapshot review
-  (see: Processes/SYNAPSE_GUILD__CONTROL_SYNC_CHECKLIST.txt)
-- Quest acceptance BEFORE execution, gated by Quest Validation + audit bundle anchoring
-- per-quest Execution Audits as an audit bundle (Summary + PreQuest + Execution + Verify + Outcome)
-- verification PASS required for quest completion (Truth Gate enforced)
-- Talent Tree updates when durable capabilities change
-- Guild Orders/Raids lifecycle updates (ACTIVE/PAUSED/COMPLETED) when milestones are truly done
-- End-of-Day snapshot for continuity (including blockers, failures, and next actions)
-If World State is Fog of War (no Codex Freeze marker), Dailies may only plan.
+### 6.2 Quest Mini-Loop (per accepted quest)
+For each accepted quest, the system MUST execute the audit-driven mini-loop:
+- Pre-Quest Alignment Audit
+- Execute smallest correct changes
+- Execution Audit
+- Verification + Outcome
+- Filesystem state transition (Board move)
+
+This is governed by:
+- `Processes/SYNAPSE_GUILD__EXECUTION_AUDITS.txt`
+- `Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt`
+
+Rule:
+- Only quests in `Accepted/` may be executed.
+
+If World State is Fog of War:
+- Dailies may run only as conceptual planning.
+- No Engine modifications.
+- No quest execution.
+
+---
 
 ## 7. COMPLETION AND ITERATION
 
 When all quests for the current Guild Orders are complete:
-- the system returns to Control Sync
-- new Guild Orders may be created from the Codex
-- Move the Guild Order / Raid document from:
-  <Subject>_Data/Guild Orders/ACTIVE/  →  <Subject>_Data/Guild Orders/COMPLETED/
-- Record this move in the End-of-Day snapshot.
+- return to Control Sync
+- decide next scope (new Guild Orders), OR declare completion
+
+State evidence:
+- move the Guild Orders/Raid document from ACTIVE → COMPLETED
+- record this transition in the End-of-Day snapshot
 
 This continues until the subject is finished.
 
-If the subject is complete:
+When the subject is complete:
 - a final snapshot is written
-- the system declares completion with evidence
+- completion is declared with evidence (not narration)
 
 ---
 
-## 8. WHAT MAKES THIS WORK
+## 8. WHY THIS WORKS
 
-This loop ensures:
+This loop enforces:
 - no execution without understanding
 - no understanding without capture
 - no progress without proof

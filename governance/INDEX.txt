@@ -1,68 +1,181 @@
 SYNAPSE OS — INDEX (ROUTING MAP)
-Version: v1.1
-Last Updated: 2026-02-02
+Version: v1.7
+Last Updated: 2026-02-09
 
-This file is a fast map for routing. Read README.txt first.
+This file is a deterministic routing map.
+It does NOT grant execution authority.
 
-IF YOU NEED...
------------
-Start using Synapse OS in a fresh AI session
-→ The Guild/SYNAPSE_GUILD__QUICK_START.txt
+Hard rules:
+- You MUST read README.txt first.
+- REQUIRED READ ORDER is defined in README.txt and mirrored in SYNAPSE_STATE.yaml → required_read_order.
+- If required_read_order is incomplete, you are NOT rehydrated and execution is INVALID.
+- If a routed file/artifact cannot be proven present or accessible:
+  - Disclosure Gate MUST trigger
+  - you MUST HALT (no improvisation)
+
+================================================================================
+A) ROUTING START (SESSION REHYDRATION)
+================================================================================
+Entry law / jurisdiction + required read order (authoritative):
+→ README.txt
+
+Deterministic mirror for required_read_order + resolver for “latest” subject artifacts:
+→ SYNAPSE_STATE.yaml
+
+Core constitutional docs (also in required_read_order):
 → The Guild/SYNAPSE_GUILD_CANONICAL_MANUAL.txt
+→ The Guild/SYNAPSE_GUILD__QUICK_START.txt
 
-Understand the full end-to-end lifecycle (beginning → completion)
+================================================================================
+B) OUTER PIPELINE (IDEA → CODEX → EXECUTION → COMPLETION)
+================================================================================
+The Loop (end-to-end lifecycle; outer pipeline):
 → Processes/SYNAPSE_GUILD__THE_LOOP.txt
 
-Start a new Subject from nothing (no Codex yet)
+================================================================================
+C) NEW SUBJECT (FOG OF WAR; NO CODEX FREEZE)
+================================================================================
+Subject initialization + incubation (create <Subject>_Data):
 → Processes/SYNAPSE_GUILD__SUBJECT_INITIALIZATION_AND_INCUBATION.txt
 
-Already have a continuing Subject (Subject_Data + Codex exists)
-→ Processes/SYNAPSE_GUILD__CONTROL_SYNC.txt
-→ Processes/SYNAPSE_GUILD__CONTROL_SYNC_CHECKLIST.txt
-→ Processes/SYNAPSE_GUILD__DAILIES.txt
+Codex / Map rules (TOC → sections → stitch → freeze):
+→ Guild Docs/SYNAPSE_GUILD__CODEX.txt
 
-Truth / proof / mandatory disclosure rules
-→ Processes/SYNAPSE_GUILD__TRUTH_GATE.txt
-→ The Guild/Terminology/Locks/LOCK__TRUTH_GATE.md
-→ The Guild/Terminology/Locks/LOCK__DISCLOSURE_GATE.md
-
-Execution audits (PreQuest/Execution/Verify/Outcome)
-→ Processes/SYNAPSE_GUILD__EXECUTION_AUDITS.txt
-
-Risk tiers + when Hands must explicitly greenlight (Consent Gate)
-→ Processes/SYNAPSE_GUILD__RISK_RUBRIC.txt
-→ Processes/SYNAPSE_GUILD__CONSENT_GATE.txt
-R2 confirmation artifact template (one-line approval)
-→ Quest Board/CONFIRM_R2_TEMPLATE.txt
-
-Chunking / large artifact composition (compose→stitch→verify)
+Large artifact chunking (TOC + Codex sections; compose→stitch→verify):
 → Processes/SYNAPSE_GUILD__LARGE_ARTIFACT_COMPOSITION.txt
 
-How Control Sync works (alignment session)
-→ Processes/SYNAPSE_GUILD__CONTROL_SYNC.txt
-
-How Snapshots work (Control Sync vs EOD vs General)
-Snapshot templates (minimum structure; not rigid)
-→ Guild Docs/SYNAPSE_GUILD__SNAPSHOT_TEMPLATES.txt
+Snapshots during incubation / conceptual continuity:
 → Guild Docs/SYNAPSE_GUILD__SNAPSHOTS.txt
+→ Guild Docs/SYNAPSE_GUILD__SNAPSHOT_TEMPLATES.txt
 
-Codex / Map definition and Codex Freeze (Fog Lifted)
-→ Guild Docs/SYNAPSE_GUILD__CODEX.txt
-→ The Guild/Terminology/Locks/LOCK__CODEX_FREEZE_FOG_LIFTED.md
-Subject Data skeleton lock (universal <Subject>_Data structure)
-→ The Guild/Terminology/Locks/LOCK__SUBJECT_DATA_SKELETON.md
+================================================================================
+D) EXECUTION AUTHORIZED (FOG LIFTED; CODEX FREEZE EXISTS)
+================================================================================
+Alignment + scope (MUST happen before building):
+→ Processes/SYNAPSE_GUILD__CONTROL_SYNC.txt
+→ Processes/SYNAPSE_GUILD__CONTROL_SYNC_CHECKLIST.txt
 
-Guild Orders → Raids → Dungeons → Quests
-→ Guild Docs/SYNAPSE_GUILD__GUILD_ORDERS.txt
+Inner execution loop (quests; deterministic daily execution cadence):
+→ Processes/SYNAPSE_GUILD__DAILIES.txt
+
+Quest audits (PreQuest/Execution/Verify/Outcome; proof required):
+→ Processes/SYNAPSE_GUILD__EXECUTION_AUDITS.txt
+
+Verification ladder (testing levels + feasibility + PASS/FAIL/BLOCKED):
+→ Processes/SYNAPSE_GUILD__VERIFICATION_LADDER.txt
+
+Quest system (board, validation gate, quest law + template):
 → Quest Board/SYNAPSE_GUILD__QUEST_BOARD.txt
-Quest validation gate (prevents quest header corruption / invalid acceptance)
 → Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt
 → Quest Board/SYNAPSE_GUILD__QUESTS.txt
+→ Quest Board/QUEST_TEMPLATE.txt
 
-Continuity / Rehydration artifacts (bootstrap + lock + checklist)
+Guild Orders pipeline (Guild Orders executed as a Raid; Guild Orders contain Dungeons; Dungeons decompose into Quests):
+→ Guild Docs/SYNAPSE_GUILD__GUILD_ORDERS.txt
+
+================================================================================
+E) TRUTH, DISCLOSURE, RISK, CONSENT
+================================================================================
+Truth Gate (claims require proof):
+→ Processes/SYNAPSE_GUILD__TRUTH_GATE.txt
+→ The Guild/Terminology/Locks/LOCK__TRUTH_GATE.md
+
+Disclosure Gate (mandatory operator notification when blocked/uncertain):
+→ The Guild/Terminology/Locks/LOCK__DISCLOSURE_GATE.md
+
+Risk rubric + Consent Gate:
+→ Processes/SYNAPSE_GUILD__RISK_RUBRIC.txt
+→ Processes/SYNAPSE_GUILD__CONSENT_GATE.txt
+R2 confirmation artifact template:
+→ Quest Board/CONFIRM_R2_TEMPLATE.txt
+
+================================================================================
+F) CANONICAL BOUNDARIES (PREVENT PARALLEL STATES)
+================================================================================
+Subject model (universal definitions: Subject / Engine / Data / Codex):
+→ The Guild/SYNAPSE_GUILD__SUBJECT_MODEL.txt
+
+Canonical Working Tree (no parallel trees):
+→ The Guild/Terminology/Locks/LOCK__CANONICAL_WORKING_TREE.md
+
+Engine vs Data separation:
+→ The Guild/Terminology/Locks/LOCK__ENGINE_VS_DATA.md
+
+Subject Data skeleton (universal <Subject>_Data structure):
+→ The Guild/Terminology/Locks/LOCK__SUBJECT_DATA_SKELETON.md
+
+================================================================================
+G) WORLD STATE (FOG OF WAR vs FOG LIFTED)
+================================================================================
+Fog of War (default; execution forbidden):
+→ The Guild/Terminology/Locks/LOCK__FOG_OF_WAR.md
+
+Codex Freeze (Fog Lifted; execution authorized):
+→ The Guild/Terminology/Locks/LOCK__CODEX_FREEZE_FOG_LIFTED.md
+
+================================================================================
+H) CONTINUITY / REHYDRATION
+================================================================================
+Active subject artifacts (required for real work; resolved by SYNAPSE_STATE.yaml):
+- <Subject>_Data/Latest Rehydration Pack/  (Bootstrap Prompt + Continuity Lock)
+- <Subject>_Data/Buffs/                   (Execution protocol + map + start check)
+  Buffs required files:
+  - <SUBJECT>_EXECUTION_PROTOCOL.txt
+  - <SUBJECT>_DATA_DIRECTORY_MAP.txt
+  - <SUBJECT>_SESSION_START_CHECK.txt
+
+Governance definitions / templates (this pack; NOT a substitute for subject-state):
 → Continuity/SYNAPSE_GUILD__BOOTSTRAP_PROMPT.txt
+→ Continuity/SYNAPSE_GUILD__BUFFS.txt
 → Continuity/SYNAPSE_GUILD__CONTINUITY_LOCK.txt
 → Continuity/SYNAPSE_GUILD__REHYDRATION_PACK_CHECKLIST.txt
+→ Continuity/SYNAPSE_GUILD__EXECUTION_PACKS.txt
 
-Terminology (terms and locks)
-→ The Guild/Terminology/
+================================================================================
+I) TERMINOLOGY (MEANING ANCHORS)
+================================================================================
+Terminology index:
+→ The Guild/Terminology/README.md
+
+Key terms (anchors; use when drafting Codex / Guild Orders / Quests):
+→ The Guild/Terminology/Terms/World_State.md
+→ The Guild/Terminology/Terms/TOC.md
+→ The Guild/Terminology/Terms/Codex.md
+→ The Guild/Terminology/Terms/Guild_Orders.md
+→ The Guild/Terminology/Terms/Raid.md
+→ The Guild/Terminology/Terms/Dungeon.md
+→ The Guild/Terminology/Terms/Quest.md
+
+Additional key terms (common in governed software builds):
+→ The Guild/Terminology/Terms/Door.md
+→ The Guild/Terminology/Terms/Smoke_Test.md
+→ The Guild/Terminology/Terms/God_Artifact.md
+→ The Guild/Terminology/Terms/Verification_Ladder.md
+→ The Guild/Terminology/Terms/Build_Manual.md
+
+Terms directory:
+→ The Guild/Terminology/Terms/
+
+Locks directory (overrides all non-lock text):
+→ The Guild/Terminology/Locks/
+
+Architecture hygiene locks (capability separation + layering):
+→ The Guild/Terminology/Locks/LOCK__NO_GOD_ARTIFACTS.md
+→ The Guild/Terminology/Locks/LOCK__LAYER_RESPONSIBILITIES.md
+
+================================================================================
+J) SNAPSHOTS (CONTINUITY RECEIPTS)
+================================================================================
+Snapshots (what exists + when it must be created):
+→ Guild Docs/SYNAPSE_GUILD__SNAPSHOTS.txt
+→ Guild Docs/SYNAPSE_GUILD__SNAPSHOT_TEMPLATES.txt
+→ The Guild/Terminology/Locks/LOCK__SNAPSHOTS.md
+
+================================================================================
+K) TALENT TREE (CAPABILITY LEDGER)
+================================================================================
+Talent Tree (capability ledger + respec rules):
+→ Talent Tree/SYNAPSE_GUILD__TALENT_TREE.txt
+→ Talent Tree/TALENT_TREE.txt
+→ Talent Tree/TALENT_LOG.txt
+→ Talent Tree/RESPEC_RULES.txt

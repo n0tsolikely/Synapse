@@ -1,9 +1,9 @@
 SYNAPSE GUILD — TALENT TREE (CANON)
-Version: v1.0
-Last Updated: 2026-02-02
+Version: v1.1
+Last Updated: 2026-02-08
 Status: Governance Law (changes require Governance Control Sync)
 
-Maintainer: Hands (Peter) with Brains (Ash)
+Maintainer: Hands with Brains
 Audience:
 - New Synapse Guild members (human)
 - Any AI session participating in planning, execution, or rehydration
@@ -15,13 +15,46 @@ Audience:
 
 This document defines what the TALENT TREE is, why it exists, and how it is used.
 
-After reading this document, the phrase “Update the Talent Tree” must be sufficient
-instruction for any compliant operator (human or AI).
+After reading this document, the phrase “Update the Talent Tree” MUST be
+sufficient instruction for any compliant operator (human or AI).
 
 The Talent Tree is not a task list, not a backlog, and not a reward system.
-It is the **identity ledger** of the system.
+It is the identity ledger of the system.
 
 This is governance law.
+
+--------------------------------------------------------------------------------
+0.1 Authority + scope (Governance vs Subject)
+--------------------------------------------------------------------------------
+
+This document is part of the Governance Pack.
+
+The Talent Tree itself is SUBJECT STATE.
+
+For any Subject, the active Talent Tree artifacts live at:
+
+  <Subject>_Data/Talent Tree/
+
+The Governance Pack contains:
+- this law (how to operate the Talent Tree)
+- the templates for the three canonical Talent artifacts
+
+Operators MUST NOT treat the Governance Pack copies of TALENT_TREE.txt,
+TALENT_LOG.txt, or RESPEC_RULES.txt as the “live” Talent Tree for a Subject.
+They are templates.
+
+--------------------------------------------------------------------------------
+0.2 Artifact reality (anti-drift)
+--------------------------------------------------------------------------------
+
+A Talent exists only if it exists as an entry inside:
+
+  <Subject>_Data/Talent Tree/TALENT_TREE.txt
+
+Chat does not update the Talent Tree.
+
+If an operator cannot write or verify files in the current execution surface,
+any Talent updates MUST be labeled as PROPOSED (see Truth Gate + Mode Awareness).
 
 ================================================================================
 1) CORE DEFINITION (CANON)
@@ -31,12 +64,12 @@ This is governance law.
 The Talent Tree is the authoritative, human-readable ledger of the system’s
 currently unlocked capabilities.
 
-Each Talent represents a capability that now exists and must be respected
+Each Talent represents a capability that now exists and MUST be respected
 by all future work unless explicitly reversed via respec.
 
 One-sentence definition:
 The Talent Tree records what the system can now do, and therefore what future
-work must assume is true.
+work MUST assume is true.
 
 ================================================================================
 2) WHAT PROBLEM THE TALENT TREE SOLVES
@@ -55,7 +88,7 @@ Without a Talent Tree:
 - scope resets silently
 - long-term identity becomes fuzzy
 
-The Talent Tree prevents **identity drift**.
+The Talent Tree prevents identity drift.
 
 ================================================================================
 3) WHAT THE TALENT TREE IS — AND IS NOT
@@ -66,7 +99,7 @@ The Talent Tree is:
 - an identity ledger
 - an authoritative statement of current capability
 - forward-looking (it constrains future work)
-- append-only in practice
+- append-only (corrections are appended, not rewritten)
 
 3.2 What the Talent Tree is NOT
 The Talent Tree is NOT:
@@ -77,17 +110,30 @@ The Talent Tree is NOT:
 - a reward or gamification system
 - a replacement for Guild Orders
 
-Talents describe **what is now true**, not what we plan to do next.
+Talents describe what is now true, not what we plan to do next.
 
 ================================================================================
 4) STRUCTURE: THE THREE CANONICAL FILES
 ================================================================================
 
-The Talent system consists of exactly three files.
+The Talent system consists of exactly three subject-state files.
 
-This is intentional.
+Canonical location (per Subject):
 
-4.1 TALENT_TREE.txt — Current identity
+  <Subject>_Data/Talent Tree/
+
+Files:
+- TALENT_TREE.txt
+- TALENT_LOG.txt
+- RESPEC_RULES.txt
+
+No additional files are created for individual Talents.
+Identity must remain readable at a glance.
+
+--------------------------------------------------------------------------------
+4.1 TALENT_TREE.txt — Current identity (subject-state)
+--------------------------------------------------------------------------------
+
 Purpose:
 - Human-readable statement of unlocked capabilities.
 - Represents the current identity of the system.
@@ -95,18 +141,25 @@ Purpose:
 Rules:
 - Append new Talent entries at the bottom.
 - Do not delete old entries.
-- Each Talent entry must be explicit about its implications.
+- Corrections are appended, not rewritten.
+- Each Talent entry MUST be explicit about its implications.
 
-4.2 TALENT_LOG.txt — Audit history
+--------------------------------------------------------------------------------
+4.2 TALENT_LOG.txt — Audit history (subject-state)
+--------------------------------------------------------------------------------
+
 Purpose:
 - Append-only history of Talent Points earned and spent.
-- Records which Quest caused which Talent to be added.
+- Records which Quest caused which Talent to be added (or respec’d).
 
 Rules:
 - Never delete entries.
 - Corrections are appended, not rewritten.
 
-4.3 RESPEC_RULES.txt — Governance escape hatch
+--------------------------------------------------------------------------------
+4.3 RESPEC_RULES.txt — Governance escape hatch (subject-state)
+--------------------------------------------------------------------------------
+
 Purpose:
 - Defines the ceremonial process for reversing or changing a Talent.
 
@@ -115,8 +168,20 @@ Rules:
 - Must occur during a Control Sync.
 - Must be logged explicitly in TALENT_LOG.
 
-No additional files are created for individual Talents.
-Identity must remain readable at a glance.
+--------------------------------------------------------------------------------
+4.4 Initialization rule (missing files)
+--------------------------------------------------------------------------------
+
+If any of the three canonical files are missing from:
+
+  <Subject>_Data/Talent Tree/
+
+the Talent Tree is considered UNINITIALIZED for that Subject.
+
+Operator response:
+- Create the missing files by copying the templates from the Governance Pack
+  (this folder).
+- Record the initialization in the next Snapshot.
 
 ================================================================================
 5) TALENTS AND QUESTS (CRITICAL RELATIONSHIP)
@@ -144,7 +209,7 @@ Quests that typically do NOT award Talent Points:
 - renaming or reorganizing files
 - maintenance tasks
 
-The Quest must explicitly state whether it awards a Talent Point.
+The Quest MUST explicitly state whether it awards a Talent Point.
 No assumption is allowed.
 
 ================================================================================
@@ -154,16 +219,16 @@ No assumption is allowed.
 Talents are forward constraints.
 
 Once a Talent exists:
-- future Guild Orders must respect it
-- future Quests must assume it exists
-- future Execution Packs must not violate it
+- future Guild Orders MUST respect it
+- future Quests MUST assume it exists
+- future Execution Packs MUST NOT violate it
 
 Example:
 If a Talent states “Artifacts are immutable,”
 then no future work may silently overwrite artifacts.
 
 This is why Talents are powerful.
-They encode **non-negotiable reality**.
+They encode non-negotiable reality.
 
 ================================================================================
 7) UPDATING THE TALENT TREE (WHEN AND HOW)
@@ -171,27 +236,30 @@ They encode **non-negotiable reality**.
 
 7.1 When to update the Talent Tree
 Update the Talent Tree only when:
-- a Talent Point is awarded
-- a new capability is confirmed complete
-- the Quest completion criteria are met and verified
+- a Talent Point is awarded AND
+- the new capability is confirmed COMPLETE AND
+- the Quest completion criteria are met AND VERIFIED
 
 Do NOT update the Talent Tree:
 - mid-Quest
 - based on intent or plans
 - for work that does not change capability
 
-7.2 How the update happens
+If verification did not occur, the Talent update is illegal.
+
+7.2 How the update happens (deterministic)
 Typical flow:
-1) Quest is completed and verified.
-2) Quest awards a Talent Point (explicit in Quest file).
-3) A new Talent entry is appended to TALENT_TREE.txt.
-4) TALENT_LOG.txt records the event.
+1) Quest is completed and verified (Truth Gate compliant receipts exist).
+2) Quest awards a Talent Point (explicit YES in the Quest artifact).
+3) Append a new Talent entry to <Subject>_Data/Talent Tree/TALENT_TREE.txt.
+4) Append a log entry to <Subject>_Data/Talent Tree/TALENT_LOG.txt.
+5) Mention the Talent update in the End-of-Day Snapshot.
 
 ================================================================================
 8) TALENT FORMAT (CANONICAL)
 ================================================================================
 
-Each Talent entry must include:
+Each Talent entry MUST include:
 
 - TALENT ID
 - Name
@@ -215,12 +283,12 @@ Respec exists so the system can change without rewriting history.
 Rules (from RESPEC_RULES.txt):
 - Respec is rare.
 - Respec requires a Control Sync.
-- Respec must state:
+- Respec MUST state:
   - what Talent changed
   - why
   - consequences
   - migration plan
-- Respec must be logged in TALENT_LOG.
+- Respec MUST be logged in TALENT_LOG.
 
 Respec is intentionally painful.
 That pain prevents casual history edits.
@@ -229,7 +297,7 @@ That pain prevents casual history edits.
 10) TALENT TREE VS OTHER ARTIFACTS
 ================================================================================
 
-Canonical placement:
+Canonical placement (conceptual):
 
 - Guild Orders:
   Define what we intend to build.
@@ -276,7 +344,7 @@ A completed Quest introduced or expanded a capability.
 
 - “Update the Talent Tree.”
 Meaning:
-Append a new Talent entry describing the unlocked capability.
+Append a new Talent entry describing the unlocked capability AND log it.
 
 - “Respec this Talent.”
 Meaning:

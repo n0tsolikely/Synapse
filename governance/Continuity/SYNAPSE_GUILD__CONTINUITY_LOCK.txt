@@ -1,6 +1,6 @@
 SYNAPSE GUILD — CONTINUITY LOCK (CANON)
-Version: v1.2
-Last Updated: 2026-02-02
+Version: v1.4
+Last Updated: 2026-02-07
 Status: Governance Law (changes require Governance Control Sync)
 
 Maintainer: Hands (Peter) with Brains (Ash)
@@ -15,41 +15,47 @@ Audience:
 
 This document defines what a CONTINUITY LOCK is, why it exists, and how it is used.
 
-After reading this document, the phrase “Create a Continuity Lock” must be sufficient
+After reading this document, the phrase “Create a Continuity Lock” MUST be sufficient
 instruction for any compliant operator (human or AI).
 
 A Continuity Lock exists to solve one problem:
 
-> How do we continue a complex conversation and its consequences when the chat itself
+> How do we continue a complex project and its consequences when the chat itself
 > cannot be carried forward?
 
-Chats end. Memory is unreliable. Context decays. Decisions get re-argued.
+Chats end. Memory decays. Context drifts. Decisions get re-argued.
 Continuity Locks prevent that.
 
-This is governance law.
+Governance note (anti-confusion):
+- This file defines Continuity Lock law and quality bar.
+- Active Continuity Locks are subject-state artifacts stored in <Subject>_Data (NOT in this pack).
 
 ================================================================================
 1) CORE DEFINITION (CANON)
 ================================================================================
 
 1.1 Continuity Lock — definition
-A Continuity Lock is a state-sealing governance artifact that preserves continuity
-across chats by explicitly declaring what is true, binding, relevant, and next,
-without relying on chat history.
-
-A Continuity Lock allows a new session to continue an old session’s direction
-as if the history were present, even when it is not.
+A Continuity Lock is a state-sealing governance artifact that preserves continuity across sessions
+by explicitly declaring what is true, binding, irrelevant, and next, WITHOUT relying on chat history.
 
 One-sentence definition:
-A Continuity Lock preserves project continuity without chat history by sealing
-state, decisions, scope, and the resume point.
+A Continuity Lock preserves project continuity without chat history by sealing state, decisions,
+scope boundaries, and the resume point.
+
+1.2 Authority
+- A Continuity Lock is authoritative state.
+- Conversation is input only.
+- If the Lock and conversation conflict, the Lock wins.
+
+Truth Gate note:
+- A Continuity Lock “exists” only if the file exists on disk in the canonical Subject_Data.
+- A Continuity Lock written only in chat is NON-AUTHORITATIVE.
 
 ================================================================================
 2) WHAT PROBLEM IT SOLVES (WHY IT EXISTS)
 ================================================================================
 
 Continuity Locks exist because:
-
 - AI chat sessions have finite length.
 - Chat history is not guaranteed to persist or be readable.
 - Humans and AI forget *why* decisions were made.
@@ -72,7 +78,7 @@ A Continuity Lock is:
 - a state declaration
 - a boundary marker
 - a resume instruction
-- a compression of meaning, not of conversation
+- a compression of consequence (not a compression of conversation)
 
 3.2 What it is NOT
 A Continuity Lock is NOT:
@@ -83,65 +89,70 @@ A Continuity Lock is NOT:
 - an execution plan
 - a Bootstrap Prompt
 
-It does not preserve *conversation*.
-It preserves *consequence*.
+It does not preserve conversation.
+It preserves consequence.
 
 ================================================================================
-4) WHAT A CONTINUITY LOCK FREEZES
+4) REQUIRED CONTENTS (VALIDITY REQUIREMENTS)
 ================================================================================
 
-A valid Continuity Lock must explicitly state:
+A valid Continuity Lock MUST explicitly state the following.
+If any required section is missing or ambiguous, continuity is degraded and rehydration is INVALID
+until repaired.
 
-4.1 Current state
+4.1 Subject identity
+- Subject key / name (the exact canonical identifier)
+
+4.2 World state
+- Fog of War or Fog Lifted
+- If Fog Lifted, the Lock MUST acknowledge Codex Freeze exists (CODEX_FREEZE.md)
+
+4.3 Current phase
 - Where we are right now
-- What phase or activity we are in (e.g., Control Sync complete; execution pending)
+- Example: “Control Sync complete; execution pending”
 
-4.2 Binding decisions
-- Decisions that are now law
-- Constraints that must not be revisited casually
+4.4 Binding decisions (LAW)
+- Decisions that are now binding
+- Constraints that MUST NOT be re-litigated casually
 
-4.3 Non-binding or deferred items
-- Ideas explored but rejected
-- Ideas deferred intentionally
-- Topics that are no longer relevant
+4.5 Non-binding / deferred / rejected items
+- Explicitly list:
+  - rejected ideas (NO)
+  - deferred ideas (NOT NOW)
+  - open questions (UNKNOWN)
 
-4.4 Active vs inactive work
-- What is in progress
-- What has not started
+4.6 Active scope and commitments
+- What is active now
+- What is paused
 - What is complete
 
-4.5 Required reading for the next session
-- Which snapshots, packs, or documents must be read first
+4.7 Required reading for the next session
+- Which snapshots / packs / documents MUST be read first
 
-4.6 Resume point
-- The exact next action or question the next session should address
-
-If any of the above is missing, continuity will degrade.
-
-================================================================================
-5) IMPLICIT HISTORY VS EXPLICIT STATE
-================================================================================
-
-A key principle:
-
-A Continuity Lock does not carry history forward.
-It carries the *implications* of that history forward.
-
-Learning, discussion, and exploration during a chat are allowed to decay
-unless they are promoted into one of the following:
-- a binding decision
-- a constraint
-- a note about rejection or deferral
-- a next-step instruction
+4.8 Resume point (the next deterministic action)
+- The exact next action or question the next session MUST address
 
 Rule:
-If it matters later, it must be written into the Continuity Lock or a Snapshot.
+If it matters later, it MUST be written into the Continuity Lock or a Snapshot.
+
+================================================================================
+5) EXPLICIT STATE VS IMPLICIT HISTORY
+================================================================================
+
+A Continuity Lock does not carry history forward.
+It carries the implications of that history forward.
+
+Discussion and exploration are allowed to decay unless they are promoted into one of:
+- a binding decision
+- a constraint
+- a rejection or deferral record
+- a resume instruction
 
 ================================================================================
 6) RELATIONSHIP TO SNAPSHOTS
 ================================================================================
 
-Continuity Locks and Snapshots are complementary but distinct.
+Continuity Locks and Snapshots are complementary.
 
 Snapshots:
 - record what happened
@@ -155,10 +166,11 @@ Continuity Locks:
 
 Typical pattern:
 - Control Sync Snapshot records decisions and reasoning
-- Continuity Lock distills those into a state seal for the next session
+- Continuity Lock seals the binding consequence + resume point
 
-A Continuity Lock may reference Snapshots.
-It does not replace them.
+A Continuity Lock MAY reference Snapshots by explicit path.
+If referenced, the Lock MUST list the Snapshot filename(s) and storage location(s).
+It does NOT replace them.
 
 ================================================================================
 7) RELATIONSHIP TO EXECUTION PACKS
@@ -169,18 +181,19 @@ Execution Packs and Continuity Locks solve different problems.
 Execution Packs:
 - constrain how work is executed
 - prevent implementation drift
-- may span multiple files and steps
 
 Continuity Locks:
 - constrain interpretation
 - prevent decision drift
-- define what execution context applies
 
-A Continuity Lock may state:
+A Continuity Lock MAY state:
 - “An Execution Pack exists and is binding”
-- “Execution Pack X must be read before proceeding”
+- “Execution Pack X MUST be read before proceeding”
 
-But the Lock itself does not contain execution instructions.
+Reference rule:
+- If the Lock references an Execution Pack, it MUST name the pack and its canonical location (path).
+
+But the Lock itself MUST NOT contain step-by-step execution instructions.
 
 ================================================================================
 8) RELATIONSHIP TO BOOTSTRAP PROMPTS
@@ -198,60 +211,91 @@ Bootstrap Prompt answers:
 - “What role is it in?”
 - “What should it do first?”
 
-A Continuity Lock is content and state.
-A Bootstrap Prompt is behavior and stance.
+Rehydration ordering clarification:
+- A Bootstrap Prompt MAY be read first to establish stance and protocol.
+- A Continuity Lock MUST be applied before planning, quest acceptance, or execution.
+- If Bootstrap Prompt and Continuity Lock conflict on state, the Continuity Lock wins.
 
 ================================================================================
-9) WHEN TO CREATE A CONTINUITY LOCK
+9) WHEN A CONTINUITY LOCK IS REQUIRED
 ================================================================================
 
-You SHOULD create a Continuity Lock when:
-- a chat is nearing its limit
-- a Control Sync has concluded
-- work will resume later
+A Continuity Lock MUST exist whenever a session intends to resume deterministically.
+
+A Continuity Lock MUST be created/updated when any of the following are true:
+- a Control Sync concluded (especially if binding decisions were made)
 - execution depends on preserved context
-- a mode or direction must not change
+- a mode or direction MUST NOT change
+- work will resume later (default for continuing subjects)
+- a session is nearing its limit AND the next session must continue without re-litigation
 
-You MAY skip a Continuity Lock only when:
-- the work is trivial
-- nothing binding was decided
-- no continuity is required
+Omission rule (strict):
+- If Hands explicitly declares “No continuity required,” a Continuity Lock may be omitted.
+- If a Continuity Lock is omitted, the next session MUST NOT claim deterministic rehydration.
 
-================================================================================
-10) HOW A CONTINUITY LOCK IS USED IN A NEW SESSION
-================================================================================
-
-Typical rehydration flow:
-
-1) Start a new chat/session
-2) Upload supporting artifacts as needed (snapshots, packs, repos)
-3) Provide the Continuity Lock
-4) Provide a Bootstrap Prompt (if behavior must be initialized)
-5) Proceed from the resume point declared in the Lock
-
-Rule:
-The Continuity Lock is read first.
-It defines reality.
+Operational consequence:
+- If a continuing Subject is missing a Latest Continuity Lock, the Rehydration Pack is INCOMPLETE.
 
 ================================================================================
-11) FORMAT AND STORAGE (RECOMMENDED, NOT RIGID)
+10) STORAGE + NAMING (DETERMINISTIC)
 ================================================================================
-
-A Continuity Lock is typically a single text document.
-
-Recommended naming:
-CONTINUITY_LOCK__<SCOPE>__<TOPIC>__YYYY-MM-DD.txt
-
-Recommended storage:
-- `<Subject>_Data/Latest Rehydration Pack/` (active / current)
-- `<Subject>_Data/Archive/` (archived, optional)
 
 Rule: The Governance Pack stays stateless.
 Do not store subject-specific locks inside the Governance Pack.
 
-When a new Continuity Lock supersedes an old one:
-- archive the old lock
-- activate the new lock
+Canonical active location:
+- <Subject>_Data/Latest Rehydration Pack/
+
+Archive location (default):
+- Archive/ is part of the Subject Data Skeleton (see LOCK__SUBJECT_DATA_SKELETON.md).
+- <Subject>_Data/Archive/
+
+Naming requirements (to support deterministic “latest” resolution):
+- Filename MUST contain: CONTINUITY_LOCK
+- Filename MUST include a date token: YYYY-MM-DD
+
+Ambiguity rule:
+- If multiple candidate “latest” locks exist and cannot be deterministically resolved, STOP.
+  Trigger Disclosure Gate and repair naming/state.
+
+Supersession rule:
+- When a new Continuity Lock supersedes an old one:
+  - archive the old lock
+  - activate the new lock
+
+================================================================================
+11) MINIMUM FORMAT (NOT OPTIONAL)
+================================================================================
+
+A Continuity Lock MUST contain these headings (verbatim or clearly equivalent):
+
+- SUBJECT:
+- DATE:
+- WORLD STATE:
+- CURRENT PHASE:
+- BINDING DECISIONS (LAW):
+- DEFERRED / REJECTED:
+- ACTIVE SCOPE / COMMITMENTS:
+- REQUIRED READ FIRST:
+- RESUME POINT:
+
+Quality note:
+- “BINDING DECISIONS” MUST be explicit and written as law (no hedging language).
+
+Minimum content requirements (by heading):
+- SUBJECT: Subject key/name. MUST match the <Subject>_Data root folder name.
+- DATE: YYYY-MM-DD.
+- WORLD STATE: FOG OF WAR or FOG LIFTED.
+  - If FOG LIFTED, the Lock MUST reference the Codex Freeze marker (CODEX_FREEZE.md) as the legal basis.
+- CURRENT PHASE: One sentence naming the current pipeline phase (per THE_LOOP) and what changed since last lock.
+- BINDING DECISIONS (LAW): Bullet list of MUST/MUST NOT statements. No hedging.
+- DEFERRED / REJECTED: Explicit list. If none, write NONE.
+- ACTIVE SCOPE / COMMITMENTS: What is actively in-flight.
+  - If a Raid/Guild Orders are active: name them.
+  - If any Quests are ACCEPTED: list Quest IDs (or filenames) explicitly.
+- REQUIRED READ FIRST: Exact artifacts the next session MUST read before any planning/execution (paths or names).
+- RESUME POINT: The first artifact to open + the next action to take.
+  - If Quests are ACCEPTED, specify the next Quest to execute.
 
 ================================================================================
 12) QUALITY BAR (WHAT MAKES A GOOD LOCK)
@@ -280,7 +324,10 @@ Failure: Carrying everything forward “just in case”
 Fix: Explicitly mark what is deferred or irrelevant.
 
 Failure: No clear resume point
-Fix: End the lock with “Next step: …”
+Fix: End the lock with “RESUME POINT: …”
+
+Failure: Multiple competing “latest” locks
+Fix: Archive old locks and enforce deterministic naming.
 
 ================================================================================
 14) CANONICAL COMMANDS

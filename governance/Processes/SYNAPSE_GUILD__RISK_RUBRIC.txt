@@ -1,16 +1,28 @@
 SYNAPSE OS — RISK RUBRIC (CANON)
-Version: v1.0
-Last Updated: 2026-02-02
+Version: v1.2
+Last Updated: 2026-02-09
 Status: Governance Law
 
 Purpose:
-This rubric classifies work by blast radius and reversibility so Hands does NOT
-need to approve every quest, while still preventing big, messy, or destructive
+Classify work by blast radius and reversibility so Hands does NOT need to approve
+_every_ quest, while still preventing big, messy, destructive, or irreversible
 changes from being executed implicitly.
 
-Rule:
-Every quest may optionally declare Risk: (R0 / R1 / R2).
-If omitted, Risk defaults to R0.
+Rule Surface:
+- A Quest MAY declare Risk: (R0 / R1 / R2).
+- If Risk is omitted, treat the Quest as R0 UNLESS an Automatic Trigger escalates it.
+- If correct tier selection is uncertain, you MUST escalate upward (R0→R1→R2).
+  (Ambiguity never down-classifies work.)
+
+Deterministic Decision Procedure (mandatory):
+1) If any Automatic R2 Trigger applies → Risk = R2.
+2) Else if any Automatic R1 Trigger applies → Risk = R1.
+3) Else → Risk = R0.
+
+Enforcement:
+- R0/R1: may execute without Hands confirmation (still requires Audits + Truth Gate).
+- R2: MUST NOT execute without Hands confirmation via Consent Gate.
+  See: Processes/SYNAPSE_GUILD__CONSENT_GATE.txt
 
 ================================================================================
 R0 — SAFE / REVERSIBLE (DEFAULT)
@@ -18,13 +30,15 @@ R0 — SAFE / REVERSIBLE (DEFAULT)
 Definition:
 - Small, local edits with low blast radius.
 - Easy to revert by normal means (git revert / file restore) and unlikely to
-  corrupt canonical artifacts.
+  corrupt canonical artifacts or continuity.
+- No destructive operations.
+- No external side effects.
 
 Common examples:
 - Bug fix in 1–3 files
 - Add a small helper function
 - Add or tweak tests
-- Clarify docs (non-canonical lock files)
+- Clarify docs (non-lock narrative docs)
 
 Consent:
 - Auto-execute (no Hands confirmation required).
@@ -33,40 +47,65 @@ Consent:
 R1 — BROAD BUT REVERSIBLE
 ================================================================================
 Definition:
-- Touches many files or refactors internals, but remains reversible.
+- Touches multiple files and/or refactors internals, but remains reversible.
 - No destructive operations.
-- Canonical artifacts remain backwards compatible.
+- No schema changes to continuity/locks/quest formats.
+- Canonical artifacts remain backwards compatible (or are upgraded mechanically).
 
-Common examples:
-- Refactor a module into smaller modules
-- Rename functions across multiple files
-- Update interfaces with compatibility shims
-- Medium diff (many hunks) but no tree moves
+Automatic R1 triggers (treat as R1 even if not declared):
+- Expected blast radius of 4–10 files changed (edits only; no directory moves).
+- Refactor across multiple modules/files that preserves behavior.
+- Renaming symbols/functions across multiple files without moving directories.
+- Interface changes that require coordinated updates but remain reversible.
 
 Consent:
-- Auto-execute.
-- Must include verification plan (tests/smoke) in the quest.
-- Must include rollback note in audits (how to revert).
+- Auto-execute (no Hands confirmation required).
+
+R1 requirements (must appear in the Quest/Audits):
+- Verification Plan (what will be run/checked to prove success).
+- Rollback Note (how to revert if verification fails).
 
 ================================================================================
 R2 — HIGH-RISK / STRUCTURAL / DESTRUCTIVE
 ================================================================================
 Definition:
 - Structural changes that explode the diff, or destructive operations.
-- Any change that can corrupt governance continuity or invalidate prior receipts.
+- Any change that can corrupt continuity, invalidate prior receipts, or cause
+  irreversible side effects.
 
 Automatic R2 triggers (treat as R2 even if not declared):
-- Deleting files or folders
-- Moving/renaming directories
-- Rewriting orchestrator/core spine files
-- Changing snapshot/lock formats (schema changes)
-- Destructive migrations / irreversible data transforms
-- Any action that touches external systems (runtime/prod/vendor)
-- Expected blast radius > 10 files OR any tree restructure
+- Deleting files or folders.
+- Moving/renaming directories.
+- Moving/renaming files across directories (tree restructure).
+- Any schema/format change to:
+  - Snapshots
+  - Locks
+  - Quest templates / quest validation / audit bundle structure
+  - Continuity artifacts
+- Destructive migrations / irreversible data transforms.
+- Any action that touches external systems (runtime/prod/vendor) or produces
+  irreversible side effects outside the local working tree, including:
+  - any network egress to non-localhost (HTTP, git, package registries, model downloads)
+  - any use of real API tokens/OAuth credentials to call vendor/prod endpoints
+  - any model download or large asset fetch from external registries (e.g., HuggingFace)
+  - localhost-only calls (127.0.0.1/localhost) do NOT count as external systems
+- Expected blast radius > 10 files OR any tree restructure.
+- Any time Risk tier is ambiguous between R1 and R2.
 
 Consent:
 - HARD STOP.
-- Requires a Confirmation Artifact containing: CONFIRM: YES
+- Requires Hands confirmation via a Confirmation Artifact containing:
+  CONFIRM: YES
 - See: Processes/SYNAPSE_GUILD__CONSENT_GATE.txt
+
+Allowed before confirmation (SAFE prep only):
+- analysis
+- patch proposals (diff-only)
+- adding tests
+- dry-run commands that have no external side effects (executed + receipted)
+
+Forbidden before confirmation:
+- executing destructive/structural/irreversible steps
+- running changes with external side effects
 
 END OF DOCUMENT

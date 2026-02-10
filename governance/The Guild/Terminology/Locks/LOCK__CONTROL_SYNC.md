@@ -1,32 +1,61 @@
-# LOCK — Control Sync
-**Locked:** 2026-01-31 19:20:21 (America/Montreal assumed)
+# LOCK — Control Sync (Mode + Gates + Closeout)
+**Locked:** 2026-02-08 01:40:00 (America/Toronto assumed)
 
 ## Canon meaning
-A Control Sync is a structured alignment session to:
-- rehydrate state
-- review continuity artifacts
-- make decisions
-- declare scope
+A **Control Sync** is the Synapse Guild’s alignment + decision forum.
+It is a **mode** (stateful), not a casual message.
 
-A Control Sync persists until explicitly ended by the authority role.
+A Control Sync is ACTIVE only when Hands explicitly starts it, and remains ACTIVE until Hands explicitly ends it.
+Topic drift, silence, or drafting does not end it.
+
+The phrase **“Control Sync”** from Hands MUST be treated as sufficient instruction to start a Control Sync.
+
+## Activation (start)
+A Control Sync MUST be considered started when Hands uses clear start language, including:
+- “Control Sync”
+- “Begin Control Sync” / “Start Control Sync”
+- equivalent natural-language phrasing
+
+If the phrase is ambiguous (quoted, hypothetical, or unclear), Brains MUST ask:
+> “Is that a Control Sync start?”
+…then WAIT.
 
 ## Control Sync is NOT
 - a trigger for execution by default
-- a guarantee that any Quest was completed
-- a place to silently advance workflow states
+- permission to silently advance workflow state
+- proof that any Quest was completed
 
-## Required Control Sync outputs
-- Date/time, participants (roles), and scope (which Subject/module)
-- Continuity anchors reviewed (what you looked at)
-- Decisions made (and decisions deferred)
-- Current objectives / Guild Orders references (titles if needed)
-- Risks/blockers and next intended actions
+Truth Gate still governs all claims.
 
-## Prohibitions unless explicitly directed
-- Do not auto-generate new Guild Orders
-- Do not auto-start Raids
-- Do not auto-break into Quests
-- Do not claim execution occurred without receipts
+## During an ACTIVE Control Sync
+Allowed:
+- rehydrate state (Snapshots, Continuity Lock, Bootstrap Prompt, Buffs)
+- identify Subject + mode (continuing vs new)
+- surface reality, clarify constraints, and make decisions
+- draft artifacts as **PROPOSED** (until they exist on disk)
 
-## End rule
-Ending a Control Sync produces a Control Sync Snapshot automatically.
+Prohibited unless Hands explicitly directs AND receipts exist:
+- claiming execution occurred
+- silently advancing workflow states (Quest acceptance/completion/abandonment)
+- starting a Raid / accepting Quests outside the legal world state
+
+## Gate: where binding decisions may occur
+Any binding decision MUST occur inside an ACTIVE Control Sync, including:
+- scope commitment (what will be done)
+- Quest acceptance
+- consent for R2 work
+- starting/pausing/resuming a Raid
+
+Outside Control Sync, these actions are INVALID.
+
+## End rule (closeout is artifact-based)
+A Control Sync closes only when:
+1) Hands explicitly ends it, AND
+2) exactly one Control Sync-closeout Snapshot artifact exists on disk (per **LOCK__SNAPSHOTS**)
+
+If the required Snapshot cannot be written/proven:
+- Disclosure Gate MUST trigger
+- the Control Sync remains OPEN
+- execution authority MUST NOT advance
+
+Chat is not closeout.

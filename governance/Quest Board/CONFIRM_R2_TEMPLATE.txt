@@ -1,14 +1,36 @@
 SYNAPSE OS — R2 CONFIRMATION ARTIFACT (TEMPLATE)
+Version: v1.2
+Last Updated: 2026-02-09
+Status: Template (used by Consent Gate)
 
-Instructions:
-- Copy this file into: confirmations/
-- Rename to: CONFIRM_R2__<quest_id>__YYYY-MM-DD__<slug>.txt
-- Leave the first line exactly as-is when you approve.
+Purpose:
+This file is Hands' consent artifact for executing an R2 action.
+Chat acknowledgements ("yes", "ok", "go ahead") are NOT consent.
+
+Canonical placement (relative to <Subject>_Data/):
+confirmations/
+
+Canonical filename:
+CONFIRM_R2__<quest_id>__YYYY-MM-DD__<slug>.txt
+
+Minimum valid content (required):
+- This file MUST contain a line that is exactly:
+  CONFIRM: YES
+
+DO NOT:
+- replace the CONFIRM line with a sentence
+- add extra words to the CONFIRM line
+- rely on chat to grant consent
 
 CONFIRM: YES
 
-# Optional metadata (allowed):
+# Optional metadata (allowed; ignored by the gate):
 # BY: Hands
-# AT: 2026-02-02 23:59
+# AT: YYYY-MM-DD HH:MM
+
+# Optional scope toggles (allowed; if present, Brains must honor them):
+# ALLOW_NETWORK_EGRESS: YES|NO
+# ALLOW_REAL_TOKENS: YES|NO
+# ALLOW_MODEL_DOWNLOADS: YES|NO
 
 END

@@ -1,133 +1,245 @@
-# SYNAPSE GUILD — CODEX (v1.2)
+# SYNAPSE GUILD — CODEX (v1.3)
 
-Last Updated: 2026-02-02
+Last Updated: 2026-02-06
 
 ================================================================================
 0) DEFINITION
 ================================================================================
 
 The Codex is the authoritative map of a Subject.
-It describes *what exists*, *how it behaves*, and *what must be built*.
+It describes what exists, how it behaves, where it lives, and what is allowed.
 
 Aliases (routing, non-optional):
-- **Codex = Map**
-- **TOC = Legend**
+- Codex = Map
+- TOC = Legend
 
-The Codex is written so that an AI (or a human) can execute work **without guessing**.
+Purpose:
+- Eliminate ambiguity before execution.
+- Freeze an agreed structure + constraints so implementation becomes deterministic.
+
+Non-negotiable rule:
+- Conversation is INPUT ONLY.
+- The Codex (and other Subject_Data artifacts) are AUTHORITY.
 
 ================================================================================
-1) RELATIONSHIP TO WORLD STATE (FOG OF WAR)
+1) WORLD STATE (FOG OF WAR → FOG LIFTED)
 ================================================================================
 
-By default, new Subjects start in **Fog of War**.
+Default state for new Subjects is Fog of War.
 
 While Fog of War is active:
 - Exploration and ideation are allowed.
 - Discoveries are captured (pre-Codex truth units).
-- The Codex may be drafted.
-- **Execution is forbidden by default** (no Quests, no Raids).
+- The TOC and Codex may be drafted.
+- Execution is forbidden (no Quests, no Raids).
 
-Fog is lifted only by **Codex Freeze**:
-- Hands explicitly declares the Codex frozen, and
-- the marker file exists:
-  - `<Subject>_Data/Codex/CODEX_FREEZE.md`
+Fog is lifted ONLY by Codex Freeze.
+Gate condition (must both be true):
+1) Hands explicitly declares the Codex frozen, AND
+2) the marker file exists:
+   - <Subject>_Data/Codex/CODEX_FREEZE.md
+
+If the marker file does not exist, the system MUST assume World State remains Fog of War.
 
 A TOC alone does not authorize execution.
 A draft Codex alone does not authorize execution.
 Only Codex Freeze does.
 
 ================================================================================
-2) WHAT THE CODEX CONTAINS
-================================================================================
-
-A complete Codex typically contains:
-- Purpose and scope
-- User experience model / interaction model
-- Constraints (security, privacy, latency, offline/online, etc.)
-- Capabilities / features (with clear definitions)
-- Workflows
-- Integrations
-- Data model
-- System architecture (if a program)
-- Operational procedures (if relevant)
-- Non-goals and explicit exclusions (sparingly; prefer Assumption Guards)
-
-The Codex must explicitly distinguish:
-- what is mandatory
-- what is optional
-- what is deferred
-
-================================================================================
-
-2.1 Codex is NOT an execution plan (purity rule)
-- The Codex describes what the subject is, as if it already exists.
-- The Codex must not contain operational execution artifacts such as:
-  - Guild Orders / Raids
-  - Quests / Quest Board content
-  - Dailies procedures
-  - Audit logs
-  - Snapshots
-
-Those belong in Subject Data:
-- <Subject>_Data/Guild Orders/
-- <Subject>_Data/Quest Board/
-- <Subject>_Data/Audits/
-- <Subject>_Data/Snapshots/
-3) STRUCTURE AND STORAGE (SUBJECT DATA)
+2) CODEX ARTIFACTS (STRUCTURE + STORAGE)
 ================================================================================
 
 Codex artifacts live in the Subject’s Data pack.
 Canonical folder shape is defined in:
-- `Processes/SYNAPSE_GUILD__SUBJECT_INITIALIZATION_AND_INCUBATION.txt`
+- Processes/SYNAPSE_GUILD__SUBJECT_INITIALIZATION_AND_INCUBATION.txt
 
 Minimum expected Codex artifacts:
-- `Codex/TOC.md` (the Legend)
-- `Codex/Sections/` (each section as its own file)
-- `Codex/<Subject>_Codex_Full.txt` (stitched full Codex)
-- `Codex/CODEX_FREEZE.md` (exists only when Fog is lifted)
+- <Subject>_Data/Codex/TOC.md
+  - During incubation, TOC_DRAFT.md is permitted.
+- <Subject>_Data/Codex/Sections/
+  - one subsection per file
+  - section file names MUST be numbered to mirror TOC numbering
+- <Subject>_Data/Codex/<Subject>_Codex_Full.txt
+  - deterministic stitch of TOC + all section files
+- <Subject>_Data/Codex/CODEX_FREEZE.md
+  - exists only after Hands declares Codex Freeze
+
+Section numbering law:
+- TOC numbering is the canonical reference ID.
+- A section file’s numbering MUST match its TOC entry numbering.
+- If numbering changes, it is a structural change (must be recorded in Control Sync Snapshot).
 
 ================================================================================
-4) CODEx QUALITY BAR
+3) WHAT THE CODEX CONTAINS
+================================================================================
+
+A complete Codex MUST cover the Subject end-to-end (domain-appropriate).
+At minimum, the Codex MUST contain:
+- Purpose + scope (what it is)
+- Constraints (what it must obey)
+- Concepts and definitions (shared meanings)
+- Capabilities / features (what it does)
+- Workflows (how it behaves)
+- Boundaries (what it is NOT)
+
+Domain additions (examples):
+- programs: data model, interfaces, architecture, operational procedures
+- books: tone, POV, character rules, world rules, plot structure, style constraints
+- games: mechanics, progression, economy rules, content structure
+
+The Codex MUST explicitly distinguish:
+- MUST / required
+- MAY / optional
+- DEFERRED (explicitly deferred; not hand-waved)
+
+================================================================================
+4) CODEX PURITY RULE (NOT AN EXECUTION PLAN)
+================================================================================
+
+The Codex describes what the Subject IS, as if it already exists.
+
+The Codex MUST NOT contain operational execution artifacts such as:
+- Guild Orders / Raids
+- Quests / Quest Board content
+- Dailies procedures
+- Audit logs
+- Snapshots
+
+Those belong in Subject Data (examples):
+- <Subject>_Data/Guild Orders/
+- <Subject>_Data/Quest Board/
+- <Subject>_Data/Audits/
+- <Subject>_Data/Snapshots/
+
+================================================================================
+5) CODEX QUALITY BAR (NO GUESSING)
 ================================================================================
 
 The Codex must be written “as if the system already exists.”
 
-That means:
-- No hand-waving (“we’ll do it later”) inside canonical sections.
-- No undefined placeholders.
-- No “magic.”
+Hard prohibitions:
+- No undefined placeholders (e.g., TBD, ???).
+- No hand-waving (“we’ll do it later”) inside canonical Codex sections.
+- No magic or implicit behavior.
 
-If something is not fully decided yet:
+If something is not decided:
 - keep it in Incubation as Discoveries
-- do not freeze the Codex
+- do NOT freeze the Codex
+
+Definition law:
+- Any term used as a rule anchor MUST be defined in the Codex (or explicitly referenced to a Codex definition section).
 
 ================================================================================
-5) HOW THE CODEX IS BUILT
+6) HOW THE CODEX IS BUILT (DETERMINISTIC PIPELINE)
 ================================================================================
 
 Codex formation is governed by The Loop:
 - Incubation → TOC → Sections → Stitch → Freeze
 
 Key rule:
-The TOC must be created *from discovered and captured decisions*, not from guesses.
+- The TOC MUST be derived from discovered and captured decisions, not guesses.
 
 When the Codex is large, use:
-- `Processes/SYNAPSE_GUILD__LARGE_ARTIFACT_COMPOSITION.txt`
+- Processes/SYNAPSE_GUILD__LARGE_ARTIFACT_COMPOSITION.txt
+
+--------------------------------------------------------------------------------
+6.1 The TOC (Legend) build rule
+--------------------------------------------------------------------------------
+
+The TOC is the navigational contract for Codex construction.
+
+TOC MUST:
+- have stable numbering
+- have clear, non-overlapping scopes per entry
+- be complete enough that “write section X” is unambiguous
+
+TOC MUST NOT:
+- imply execution readiness
+- imply completeness of decisions
+
+--------------------------------------------------------------------------------
+6.2 Section-by-section build loop (inner loop)
+--------------------------------------------------------------------------------
+
+Codex sections MUST be written one-by-one.
+Each section file is the atomic unit of Codex construction.
+
+For each TOC entry:
+1) WRITE the section file
+   - must match TOC numbering + title
+   - must fully cover the entry’s scope
+   - must define rules and constraints without hand-waving
+2) SECTION AUDIT (mandatory)
+   - verify numbering matches TOC
+   - verify section stays within its scope (no leakage)
+   - verify no placeholders / undefined anchors
+   - verify terms used as anchors are defined (or explicitly reference a definition section)
+3) PROGRESS MARK
+   - progress is proven by the presence of the section file matching the TOC entry
+
+If the section audit fails:
+- fix the section
+- re-audit
+- do not advance to the next TOC entry
+
+Receipt placement (Fog of War):
+- If the system is generating Codex artifacts during incubation, receipts belong in the Control Sync Snapshot(s)
+  (this is not Quest execution).
+
+--------------------------------------------------------------------------------
+6.3 Stitch + verification (Codex Full)
+--------------------------------------------------------------------------------
+
+After all section files exist:
+- deterministically stitch TOC + sections into <Subject>_Codex_Full.txt
+
+Verification is mandatory before any claim of completion:
+- completeness check: every TOC entry has a matching section file
+- tail check: the full Codex ends cleanly
+- seam check: no duplicates / no gaps
+
+(Use the Large Artifact Composition protocol when applicable.)
+
+--------------------------------------------------------------------------------
+6.4 Codex Freeze (Fog Lifted)
+--------------------------------------------------------------------------------
+
+Codex Freeze is illegal until:
+- the TOC exists
+- all required sections exist
+- the full stitch exists
+- stitch verification is performed
+
+Freeze procedure:
+1) Hands explicitly declares the Codex frozen
+2) write: <Subject>_Data/Codex/CODEX_FREEZE.md
+   - include date/time
+   - include Hands approval
+
+If CODEX_FREEZE.md does not exist, execution remains forbidden.
 
 ================================================================================
-6) CODEX UPDATES
+7) CODEX UPDATES (CONTROLLED CHANGE)
 ================================================================================
 
-Codex changes are allowed, but must be deliberate.
+Codex changes are allowed, but MUST be deliberate.
 
 Rules:
-- Changes occur during a Control Sync for the Subject.
-- The Control Sync Snapshot must record:
+- Codex changes occur during a Control Sync for the Subject.
+- The Control Sync Snapshot MUST record:
   - what changed
   - why it changed
   - what downstream work is affected
-- If the Codex is already frozen and a change is structural:
-  - Hands must explicitly re-authorize (freeze again)
-  - and update `CODEX_FREEZE.md` accordingly.
+
+If the Codex is already frozen and the change affects structure, constraints, or meaning:
+- Hands must explicitly re-authorize
+- update CODEX_FREEZE.md accordingly
 
 ================================================================================
+8) USING THE CODEX (REFERENCES)
+================================================================================
+
+Guild Orders, Dungeons, and Quests MUST reference the Codex by TOC/section numbering.
+
+Rule:
+- If work cannot be traced back to a Codex section (or an explicitly deferred decision), it is not execution-ready.

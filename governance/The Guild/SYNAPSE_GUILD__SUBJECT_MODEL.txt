@@ -1,6 +1,6 @@
 SYNAPSE GUILD — SUBJECT MODEL (UNIVERSAL)
-Version: v1.1
-Last Updated: 2026-02-02
+Version: v1.4
+Last Updated: 2026-02-09
 Status: Governance Law (changes require Governance Control Sync)
 
 Maintainer: Hands (Peter) with Brains (Ash)
@@ -10,8 +10,11 @@ Audience:
 ================================================================================
 0) PURPOSE
 ================================================================================
-Synapse Governance is universal because it operates on SUBJECTS, not software.
+Synapse Governance is universal because it governs SUBJECTS (bounded bodies of work), not software.
 This document defines the minimal Subject model used by the Guild.
+
+This model is NOT optional:
+- If you cannot map the current work into this Subject model, you MUST NOT execute.
 
 ================================================================================
 1) DEFINITIONS
@@ -19,54 +22,128 @@ This document defines the minimal Subject model used by the Guild.
 
 1.1 SUBJECT
 A SUBJECT is any bounded body of work that evolves over time.
+
+A Subject MUST have a stable Subject Key (slug) used for directory naming.
+- Subject Key is confirmed by Hands during Subject Initialization.
+- Subject Key MUST NOT drift once a Subject exists.
+
 Examples (non-exhaustive): Ashby, Stuart, a novel, a game, an essay, a website, homework.
 
-1.2 <Subject>_ENGINE
-The Engine is the thing itself (the product).
+1.2 <Subject>_Engine
+The Engine is the thing itself (the product / deliverable).
+
+The Engine holds production assets (the output being built), not governance state.
+Examples:
 - Code: the source repo / app
 - Book: the manuscript text (chapters)
 - Game: game source + scripts/levels
 - Essay: the draft document
 
-1.3 <Subject>_DATA
-The Data bundle is supporting continuity + state for the subject.
-It can contain: snapshots, continuity locks, research/notes, decisions, guild orders,
+Boundary law:
+- The Engine MUST NOT contain Subject state artifacts (Codex, Quest Board, Snapshots, Continuity Locks, etc.).
+- See: The Guild/Terminology/Locks/LOCK__ENGINE_VS_DATA.md
 
-Subject_Data skeleton lock:
+1.3 <Subject>_Data
+The Data bundle is the Subject's continuity + state (authoritative memory).
+
+Artifact law:
+- If an artifact is not present in <Subject>_Data, it does not exist for Synapse purposes.
+
+Data commonly contains:
+- Codex + TOC
+- Guild Orders / Raids / Dungeons
+- Quest Board + Quest audit bundles
+- Snapshots (Control Sync + EOD + General)
+- Continuity artifacts (Bootstrap Prompt / Continuity Lock / Buffs / Execution Packs)
+- Research / notes / references / lore bibles / logs
+
+Subject Data skeleton lock:
+- REQUIRED: `<Subject>_Data/SUBJECT_STATE.yaml` (subject-local pointer registry; see LOCK__SUBJECT_DATA_SKELETON.md)
+
 - The minimum required directory skeleton for <Subject>_Data is locked.
 - See: The Guild/Terminology/Locks/LOCK__SUBJECT_DATA_SKELETON.md
-quests, logs, references, lore bibles, etc.
 
-1.4 CODEX (PER SUBJECT)
-Codex is constitutional law for the subject:
+1.4 GOVERNANCE PACK
+The Governance Pack defines universal law, lifecycles, terminology, locks, and procedures.
+It is NOT Subject state.
+
+Governance Pack rules:
+- Governance MUST remain universal (no subject-specific hard-coding).
+- Governance MAY define a universal minimum <Subject>_Data skeleton.
+- Governance changes are governed by Governance Control Sync and Governance Editing Law.
+
+1.5 CODEX (PER SUBJECT)
+The Codex is constitutional law for the Subject:
 - invariants
 - definitions
 - constraints
 - non-goals
 - architectural/creative rules that must not drift
 
+Canonical location:
+- <Subject>_Data/Codex/
+
+World state gate:
+- Before CODEX_FREEZE.md exists: Fog of War (execution forbidden).
+- After CODEX_FREEZE.md exists: Fog Lifted (execution allowed).
+- See: The Guild/Terminology/Locks/LOCK__FOG_OF_WAR.md
+- See: The Guild/Terminology/Locks/LOCK__CODEX_FREEZE_FOG_LIFTED.md
+
+1.6 BUILD MANUAL (OPTIONAL, PER SUBJECT)
+A Build Manual is an optional construction guide for a Subject.
+
+It defines HOW to make the Codex true (sequencing, build strategy, verification expectations).
+It MUST NOT redefine Codex laws.
+
+Alignment rule:
+- If a Build Manual exists, it is checked in Dailies System Verification (Step 5).
+- If no Build Manual exists, this check is skipped.
+
+Recommended location:
+- <Subject>_Data/Build_Manual/
+
+Reference term:
+- The Guild/Terminology/Terms/Build_Manual.md
+
+1.7 DOORS (ENTRYPOINTS)
+A Door is an external entrypoint into the Subject: a boundary where outside input enters and causes the system to act.
+
+Examples (software): CLI commands, API routes, web app entrypoints, bot handlers.
+
+Operational rule:
+- If the Subject has Doors, they SHOULD be explicitly declared (Codex, Buffs, or Execution Packs).
+- Doors inform system verification: each Door should have a smoke test path when feasible.
+
+Reference term:
+- The Guild/Terminology/Terms/Door.md
+
 ================================================================================
 2) UNIVERSAL DIRECTORY RULES
 ================================================================================
 
 2.1 Governance stays universal
-Synapse Governance (this folder) defines universal rules, lifecycles, naming law, and rituals.
-
-It MUST NOT hard-code a subject’s unique internal structure.
-However, it MAY define a universal minimum Subject_Data skeleton that applies to all subjects.
+Synapse Governance (the Governance Pack) defines universal rules, naming law, and rituals.
+It MUST NOT hard-code a Subject’s unique internal Engine structure.
 
 Canonical reference:
 - Processes/SYNAPSE_GUILD__SUBJECT_INITIALIZATION_AND_INCUBATION.txt
 
-2.2 Subject-specific trees live in <Subject>_Data
-Each subject may add its own internal structure inside its own Data bundle,
-on top of the universal skeleton.
+2.2 Subject-specific trees live inside <Subject>_Data and <Subject>_Engine
+Each Subject may define its own structure inside its Data bundle and Engine.
+Synapse only cares that:
+- the universal minimum <Subject>_Data skeleton exists
+- artifacts live in the correct domain (Engine vs Data)
 
-Recommended location (inside the subject bundle):
-- <Subject>_Data/Blueprint/Subject_Structure.md  (or equivalent)
+Recommended location for a Subject's structure blueprint:
+- <Subject>_Data/Blueprint/Subject_Structure.md
 
 2.3 Examples are allowed, defaults are not
-Ashby/Stuart may be referenced as examples, but no rule may assume those subjects.
+Ashby/Stuart may be referenced as examples, but no universal rule may assume those subjects.
+
+2.4 Canonical Working Tree (anti-parallel-state)
+Work MUST occur in the canonical working tree.
+Parallel copies are invalid state and cause drift.
+- See: The Guild/Terminology/Locks/LOCK__CANONICAL_WORKING_TREE.md
 
 ================================================================================
 END OF DOCUMENT

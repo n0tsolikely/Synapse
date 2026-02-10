@@ -1,33 +1,53 @@
 # LOCK — Fog of War (World State)
-**Locked:** 2026-01-31 19:20:21 (America/Montreal assumed)
+**Locked:** 2026-02-08 00:00:00 (America/Toronto assumed)
 
 ## Canon meaning
-Fog of War is a **World State** where the Subject’s structure, constraints, and safe execution paths are not yet fully known.
+Fog of War is the **default World State** when Codex Freeze is not proven.
 
-Fog of War is **global**: it constrains what other modes may do.
+It means the Subject’s structure, constraints, and safe execution paths are not yet fixed enough to safely make execution commitments.
 
-## What is allowed while Fog of War is active
-- Exploration and discussion
-- Recording **Discoveries**
-- Formalization artifacts
-- Control Sync snapshots that capture decisions/Discoveries/readiness state
+Fog of War is **GLOBAL**: it constrains what all other modes may do.
 
-## What is forbidden by default
-- Generating Quests as execution commitments
-- Starting Raids / executing Guild Orders
-- Irreversible execution steps without explicit operator approval
+## Proof rule (how to determine state)
+Fog of War MUST be treated as ACTIVE unless **Codex Freeze is proven** per:
+- `LOCK__CODEX_FREEZE_FOG_LIFTED.md`
+
+Minimum proof check (non-negotiable):
+- the marker file exists on disk at:
+  - `<Subject>_Data/Codex/CODEX_FREEZE.md`
+- and the marker contains explicit Hands approval (per the Codex Freeze lock)
+
+If proof cannot be produced in the current canonical working tree:
+- Fog of War remains ACTIVE (default)
+
+## Allowed while Fog of War is active (non-execution work)
+Allowed:
+- Exploration / Incubation / Discovery capture
+- Subject initialization and `<Subject>_Data` skeleton setup
+- Drafting TOC and Codex sections (including revisions; no Freeze claim)
+- Drafting Guild Orders in **PAUSED**
+- Drafting Quests on **BOARD** as proposals
+- Control Sync sessions for alignment (Control Sync may occur under Fog)
+- Required snapshots + continuity artifacts
+
+## Forbidden while Fog of War is active (execution commitments)
+Forbidden (no exceptions):
+- Accepting Quests (BOARD → ACCEPTED)
+- Starting a Raid / executing Guild Orders (PAUSED → ACTIVE)
+- Claiming "execution-ready" status (Freeze implied) without proving Codex Freeze
+
+Forbidden by default:
+- Creating `<Subject>_Engine/` during Fog of War
+  - Exception: allowed only if Hands explicitly orders it OR Hands provides an existing Engine to treat as canonical
+  - This exception does NOT lift Fog of War
 
 ## Exit condition (Fog Lifted)
-Fog of War ends only when:
-- a Codex/Map exists **and**
-- Codex is frozen enough to safely generate execution scope (Codex Freeze)
+Fog of War ends ONLY when Codex Freeze is proven (marker file + Hands approval).
 
-## Non-ambiguous sub-terms
-- Exploration = behavior under Fog
-- Discoveries = units of revealed truth
-- Codex/Map = revealed structure (end-state artifact)
+If Codex Freeze becomes stale, missing, unreadable, or contradictory:
+- Fog of War MUST be treated as ACTIVE again immediately (Disclosure Gate)
 
 ## Do not assume
-- Fog of War does not mean “no progress”
-- Fog of War does not forbid snapshots
-- Fog of War is not a directory; it is a constraint
+- Fog of War does not mean "no progress" — it means "no execution commitments."
+- Chat statements do not lift Fog — artifacts do.
+- "We have a Codex" does not lift Fog — proven Freeze does.

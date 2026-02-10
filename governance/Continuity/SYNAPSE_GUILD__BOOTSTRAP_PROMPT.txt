@@ -1,6 +1,6 @@
 SYNAPSE GUILD — BOOTSTRAP PROMPT (CANON)
-Version: v1.1
-Last Updated: 2026-02-02
+Version: v1.2
+Last Updated: 2026-02-07
 Status: Governance Law (changes require Governance Control Sync)
 
 Maintainer: Hands (Peter) with Brains (Ash)
@@ -15,7 +15,7 @@ Audience:
 
 This document defines what a BOOTSTRAP PROMPT is, why it exists, and how it is used.
 
-After reading this document, the phrase “Provide a Bootstrap Prompt” must be sufficient
+After reading this document, the phrase “Provide a Bootstrap Prompt” MUST be sufficient
 instruction for any compliant operator (human or AI).
 
 A Bootstrap Prompt exists to solve one problem:
@@ -88,47 +88,78 @@ It does not define what is true.
 It defines how to act given what is true.
 
 ================================================================================
-4) WHAT A BOOTSTRAP PROMPT CONTROLS
+4) VALIDITY RULES (MINIMUM REQUIRED CONTENT)
 ================================================================================
 
-A valid Bootstrap Prompt may explicitly define:
+A Bootstrap Prompt may be written in any style, but it MUST contain the following
+minimum content.
 
-4.1 Role
-- What role the AI is operating in (e.g., Brains, executor, reviewer)
-- Whether it may decide, propose, or only execute
+If any required item below is missing or ambiguous:
+- the Bootstrap Prompt is INVALID
+- rehydration is INCOMPLETE
+- execution authority MUST NOT advance
+- Disclosure Gate MUST trigger
 
-4.2 Mode
-- Governance (Control Sync)
-- Planning
-- Execution
-- Review / audit
+4.1 REQUIRED — Role + stance
+The Bootstrap Prompt MUST explicitly declare:
+- who the AI is (role)
+- what posture it is in (stance)
 
-4.3 Boundaries
-- What must NOT be redesigned
-- What artifacts are authoritative
-- What assumptions must not be questioned
+Examples (illustrative only):
+- “You are Brains operating as Synapse OS. Conversation is input; files are authority.”
+- “You are in Governance mode until Hands closes Control Sync.”
 
-4.4 Permissions
-- Whether the AI may ask clarifying questions
-- Whether it may propose scope
-- Whether it must wait for instruction
-- Whether it may generate artifacts immediately
+4.2 REQUIRED — Authority order (anti-drift)
+The Bootstrap Prompt MUST state the authority order it will obey.
+At minimum it MUST explicitly include:
+- Locks override all other text.
+- Filesystem artifacts are authoritative.
+- Conversation is not an artifact.
+- Inference is never used to advance state.
 
-4.5 Priority and read order
-- Which documents must be read first
-- Which documents override others in conflict
+4.3 REQUIRED — What is allowed vs forbidden NOW
+The Bootstrap Prompt MUST explicitly constrain behavior by stating:
+- what the AI MAY do in this session
+- what the AI MUST NOT do in this session
 
-4.6 First action
-- What the AI should do immediately after rehydration
-  (e.g., propose daily scope, generate files, wait)
+At minimum, it MUST address:
+- whether execution is permitted
+- whether scope decisions are permitted (or require Control Sync)
+- whether it must wait for Hands
 
+4.4 REQUIRED — What MUST NOT be re-litigated
+The Bootstrap Prompt MUST instruct the AI not to redesign settled decisions.
+It MUST identify the artifact that defines binding state (Continuity Lock) and state
+that it is binding.
 
-BUFFS INTEGRATION (Session startup law):
-- If a project provides Buffs (Execution Protocol, Directory Map, Session Start Check), the Bootstrap Prompt SHOULD instruct the AI to read them first.
-- Buffs reduce rehydration overhead while preserving strict governance.
+4.5 REQUIRED — Read priority / activation order
+The Bootstrap Prompt MUST specify the activation order for loaded artifacts.
+At minimum it MUST include:
+- Buffs first (if present)
+- Continuity Lock
+- Codex (and Freeze marker if present)
+- Control Sync / Dailies routing (as appropriate)
+
+4.6 REQUIRED — First action
+The Bootstrap Prompt MUST specify exactly what the AI does first after rehydration.
+
+If the Bootstrap Prompt does not contain an explicit first action:
+- default behavior is WAIT (do not proceed)
+- request Hands to provide/repair the Bootstrap Prompt
 
 ================================================================================
-5) RELATIONSHIP TO CONTINUITY LOCKS
+5) BUFFS INTEGRATION (SESSION STARTUP LAW)
+================================================================================
+
+If a project provides Buffs (Execution Protocol, Directory Map, Session Start Check),
+the Bootstrap Prompt MUST instruct the AI to read them BEFORE acting on any other
+artifact.
+
+Buffs are session ignition.
+They reduce rehydration overhead while preserving strict governance.
+
+================================================================================
+6) RELATIONSHIP TO CONTINUITY LOCKS
 ================================================================================
 
 Bootstrap Prompts and Continuity Locks are complementary but distinct.
@@ -147,95 +178,110 @@ Rule:
 A Continuity Lock answers “What is true?”
 A Bootstrap Prompt answers “What do I do with this truth now?”
 
-In most rehydration flows, both are used together.
+A Bootstrap Prompt MUST NOT contradict a Continuity Lock.
+If a contradiction exists:
+- Continuity Lock governs
+- Disclosure Gate MUST trigger
 
 ================================================================================
-6) WHEN TO CREATE A BOOTSTRAP PROMPT
+7) CANONICAL LOCATION + NAMING (SUBJECT-STATE)
 ================================================================================
 
-You SHOULD create a Bootstrap Prompt when:
-- starting a new chat with loaded artifacts
-- resuming work after a break
-- switching phases (design → execution)
-- handing work to a different AI or model
-- you need to prevent early-session drift
+Governance vs subject-state:
+- This governance file defines what a Bootstrap Prompt IS.
+- The ACTIVE Bootstrap Prompt is a subject-state artifact and MUST live in `<Subject>_Data/...`.
 
-You MAY omit a Bootstrap Prompt when:
-- behavior does not need to change
-- the session is exploratory only
-- no execution or decisions will follow
+Canonical location for the ACTIVE Bootstrap Prompt:
+- `<Subject>_Data/Latest Rehydration Pack/`
+
+Naming rule (deterministic “latest” selection):
+- Filename MUST contain `BOOTSTRAP_PROMPT`
+- Filename MUST include a date token `YYYY-MM-DD`
+
+If multiple Bootstrap Prompts exist:
+- the one with the latest date token is authoritative
+- older ones MUST be archived
 
 ================================================================================
-7) HOW A BOOTSTRAP PROMPT IS USED IN A NEW SESSION
+8) WHEN A BOOTSTRAP PROMPT IS REQUIRED
 ================================================================================
 
-Typical rehydration flow:
+A Bootstrap Prompt is REQUIRED for rehydration of a continuing Subject.
+
+If `<Subject>_Data/` exists and a session is resuming work:
+- a Bootstrap Prompt MUST exist on disk
+- if it does not exist: the Rehydration Pack is INCOMPLETE
+  (see `Continuity/SYNAPSE_GUILD__REHYDRATION_PACK_CHECKLIST.txt`)
+
+A Bootstrap Prompt MAY be omitted only if:
+- Hands explicitly declares: “Exploration only; no state changes; no execution.”
+- AND the session will not create, modify, move, or complete any artifacts
+
+In that exception case:
+- the AI MUST operate in Fog of War posture
+- the AI MUST NOT advance state
+- the AI MUST NOT create binding decisions
+
+================================================================================
+9) HOW A BOOTSTRAP PROMPT IS USED IN A NEW SESSION
+================================================================================
+
+Typical rehydration flow (continuing Subject):
 
 1) Start a new AI session
-2) Upload or provide all required artifacts
-2.1) If Buffs are present, read the Buffs first (session ignition):
-  - Execution Protocol
-  - Data Directory Map
-  - Session Start Check
-3) Provide the Continuity Lock (if applicable)
-4) Provide the Bootstrap Prompt
-5) Allow the AI to act according to the prompt
+2) Load all required artifacts (subject-state + governance pack)
+3) Validate the Rehydration Pack
+   → `Continuity/SYNAPSE_GUILD__REHYDRATION_PACK_CHECKLIST.txt`
+4) Process the Bootstrap Prompt (behavior activation)
+5) Perform the declared first action
+
+Buffs ignition rule:
+- If Buffs exist, read Buffs first:
+  - `<SUBJECT>_EXECUTION_PROTOCOL.txt`
+  - `<SUBJECT>_DATA_DIRECTORY_MAP.txt`
+  - `<SUBJECT>_SESSION_START_CHECK.txt`
 
 Rule:
-The Bootstrap Prompt is processed after artifacts are available.
-It assumes documents exist; it does not replace them.
+The Bootstrap Prompt is processed AFTER artifacts are available.
+It assumes artifacts exist; it does not replace them.
 
 ================================================================================
-8) FORMAT AND STRUCTURE (INTENTIONAL FLEXIBILITY)
+10) FORMAT AND STRUCTURE (FLEXIBLE FORMAT, FIXED CONTENT)
 ================================================================================
 
 A Bootstrap Prompt is usually a single block of text.
 
-It may be:
-- short and directive
-- longer and explicit
-- embedded as the first user message
-- stored as a standalone text file
+Format is flexible.
+Minimum content (Section 4) is NOT flexible.
 
-There is no rigid template.
-However, a good Bootstrap Prompt is:
-- explicit
-- unambiguous
-- concise relative to its authority
-
-================================================================================
-9) COMMON FAILURE MODES (AND HOW TO AVOID THEM)
-================================================================================
-
-Failure: Vague behavior instructions
-Fix: Explicitly state what the AI may and may not do.
-
-Failure: Mixing state with behavior
-Fix: Keep state in the Continuity Lock; behavior in the Bootstrap Prompt.
-
-Failure: Letting the AI “decide what to do”
-Fix: Always include a clear first action or waiting instruction.
+Recommended (non-binding) structure:
+- Role / stance
+- Authority order
+- Constraints (allowed vs forbidden)
+- “Do not re-litigate” rule + binding artifact
+- Activation order (Buffs → Lock → Codex)
+- First action
 
 ================================================================================
-10) CANONICAL COMMANDS
+11) CANONICAL COMMANDS
 ================================================================================
 
 Once this law is accepted, the following phrases are valid:
 
 - “Provide a Bootstrap Prompt.”
 Meaning:
-Instruct the AI how to behave and what to do now that artifacts are loaded.
+Provide a valid Bootstrap Prompt artifact that satisfies Section 4.
 
 - “Rehydrate using this Bootstrap Prompt.”
 Meaning:
-Adopt the specified role, stance, and starting action.
+Adopt the specified role, stance, constraints, and starting action.
 
 - “Update the Bootstrap Prompt.”
 Meaning:
-Behavior or phase has changed; replace the prior prompt.
+Behavior or phase has changed; replace the prior prompt and archive the old one.
 
 ================================================================================
-11) QUALITY BAR (WHAT MAKES A GOOD BOOTSTRAP PROMPT)
+12) QUALITY BAR (WHAT MAKES A GOOD BOOTSTRAP PROMPT)
 ================================================================================
 
 A good Bootstrap Prompt:
@@ -243,6 +289,7 @@ A good Bootstrap Prompt:
 - prevents early drift
 - starts work immediately or correctly pauses
 - makes the first response predictable
+- makes the legality of execution explicit
 
 A bad Bootstrap Prompt:
 - is vague

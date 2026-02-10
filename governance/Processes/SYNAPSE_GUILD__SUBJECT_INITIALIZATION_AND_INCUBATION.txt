@@ -1,61 +1,78 @@
-SYNAPSE OS — SUBJECT INITIALIZATION + PRE-CODEX INCUBATION (CANON)
-Version: v1.2
-Last Updated: 2026-02-02
+SYNAPSE OS — SUBJECT INITIALIZATION + INCUBATION (FOG OF WAR) (CANON)
+Version: v1.4
+Last Updated: 2026-02-09
 Status: Governance Law (changes require Governance Control Sync)
 
 NOTE (DISAMBIGUATION):
 - “Continuity Bootstrap Prompt” rehydrates an AI session.
 - “Subject Initialization” creates a new project workspace (<Subject>_Data) when no Subject exists yet.
 
-# SYNAPSE OS — SUBJECT INITIALIZATION + PRE-CODEX INCUBATION
-*(Beginning State / Idea Formation / Non-Executable)*
+LOCK PRECEDENCE:
+- If this document conflicts with any Terminology Lock, the Lock wins.
+  - Especially: The Guild/Terminology/Locks/LOCK__SUBJECT_DATA_SKELETON.md
+  - Especially: The Guild/Terminology/Locks/LOCK__CODEX_FREEZE_FOG_LIFTED.md
+
+# SYNAPSE OS — SUBJECT INITIALIZATION + INCUBATION (FOG OF WAR)
+*(Beginning State / Idea Formation / Non-Executable Execution State)*
 
 ---
 
 ## 0) PRIME PURPOSE
 
 Synapse OS must support a true beginning:
-- user has an idea
-- there is no subject workspace yet
-- there is no Codex yet
-- and nothing must be lost
+- Hands has an idea
+- there is no Subject workspace yet (no <Subject>_Data)
+- there is no frozen Codex yet (Fog of War)
+- nothing gets lost
+- execution does not begin early
 
 This document defines:
-1) how to initialize a Subject workspace from nothing
-2) how incubation behaves until a Codex exists
-3) how the system produces a Codex deterministically (no guessing)
+1) how to initialize a Subject workspace from nothing (create <Subject>_Data)
+2) how incubation behaves while World State is Fog of War (pre-freeze)
+3) how the system transitions from captured ideas → TOC → Codex → Codex Freeze deterministically
 
 ---
 
-## 1) SUBJECT INITIALIZATION (MANDATORY WHEN SUBJECT DOES NOT EXIST)
+## 1) SUBJECT INITIALIZATION (MANDATORY WHEN <Subject>_Data DOES NOT EXIST)
 
-### 1.1 Subject Identification
-When the user starts a new idea, the system must establish:
+### 1.1 Subject identification (binding)
+
+A Subject MUST be identified by two values:
 - Subject name (human readable)
-- Subject key/slug (filesystem-safe identifier)
+- Subject key (slug; filesystem-safe namespace)
 
-Example:
-- Subject name: "Stuart"
-- Subject key: "Stuart"
+Hard rule:
+- The Subject key is a binding namespace choice. It MUST be explicitly confirmed by Hands.
+
+Slug constraints (minimum; deterministic):
+- ASCII
+- NO spaces
+- Allowed characters: A–Z a–z 0–9 _ -
+- Examples:
+  - ✅ Stuart
+  - ✅ ashby_os
+  - ✅ VideoGame-V1
+  - ❌ “My Project” (contains spaces; must be rewritten)
+  - ❌ “weird/thing” (contains slash; must be rewritten)
 
 The Subject key is used for folder naming:
 - `<Subject>_Data`
 - `<Subject>_Engine` (created at build kickoff, unless already provided)
 
-### 1.2 Create Canonical Subject Root
-If it does not already exist, the system MUST create:
+### 1.2 Create canonical Subject root (Data-first rule)
 
+If it does not already exist, Brains MUST create:
 - `<Subject>_Data/`  (stateful continuity + governance artifacts + idea capture)
 
-The system MUST NOT create `<Subject>_Engine/` during Incubation **unless** one of the following is true:
+Default rule (non-negotiable unless Hands overrides):
+- New Subjects start with **Data only**.
+- `<Subject>_Engine/` is created at **Build Kickoff (post‑Codex Freeze)**.
+
+Brains MUST NOT create `<Subject>_Engine/` during Fog of War unless one of the following is true:
 - Hands provides an existing engine/repo and requests it be treated as canonical, OR
-- Hands explicitly requests an Engine be created before Codex Freeze (rare).
+- Hands explicitly requests an Engine be created before Codex Freeze.
 
-Default rule:
-- New Subject starts with **Data only**.
-- Engine is created at **Build Kickoff (post-Codex Freeze)**.
-
-Important:
+Clarification:
 - “Engine” does NOT mean “code only.”
 - Engine means “the thing being built.”
   Examples:
@@ -64,139 +81,138 @@ Important:
   - game → project files
   - essay → the essay itself
 
-### 1.3 Create Mandatory `<Subject>_Data` Skeleton
+### 1.3 Create mandatory `<Subject>_Data` skeleton (locked)
 
-Lock reference:
-- The `<Subject>_Data` minimum skeleton is locked.
-- See: The Guild/Terminology/Locks/LOCK__SUBJECT_DATA_SKELETON.md
-These directories MUST exist for every subject, regardless of domain:
-
-#### A) Snapshots
-- `<Subject>_Data/Snapshots/General/`
-- `<Subject>_Data/Snapshots/Control Sync/`
-- `<Subject>_Data/Snapshots/End of Day/`
-
-#### B) Guild Orders
-- `<Subject>_Data/Guild Orders/ACTIVE/`
-- `<Subject>_Data/Guild Orders/PAUSED/`
-- `<Subject>_Data/Guild Orders/COMPLETED/`
-
-#### C) Quest Board (Filesystem State Machine)
-- `<Subject>_Data/Quest Board/`
-- `<Subject>_Data/Quest Board/Accepted/`
-- `<Subject>_Data/Quest Board/Completed/`
-- `<Subject>_Data/Quest Board/Abandoned/`
+Lock reference (authoritative):
+- The Guild/Terminology/Locks/LOCK__SUBJECT_DATA_SKELETON.md
 
 Rule:
-- Quests “on the board” may live directly in:
-  `<Subject>_Data/Quest Board/`
-- Once accepted, they must move into `Accepted/`.
-- Completed goes to `Completed/`.
-- Abandoned requires Control Sync decision.
+- The skeleton MUST exist exactly as required by the lock.
+- Additional subject-specific folders are allowed, but the locked minimum skeleton MUST remain present.
 
-(Quest templates may exist in Quest Board root as needed.)
+Minimum required structure (restated for convenience; lock wins on conflict):
 
-#### D) Codex
-- `<Subject>_Data/Codex/`
-- `<Subject>_Data/Codex/Sections/`
+```
+<Subject>_Data/
+  Snapshots/
+    General/
+    Control Sync/
+    End of Day/
 
-Codex artifacts:
-- `<Subject>_Data/Codex/TOC.md` (or TOC_DRAFT.md during incubation)
-- `<Subject>_Data/Codex/CODEX_FREEZE.md` (exists only after Hands declares Codex Freeze)
-- `<Subject>_Data/Codex/Sections/<numbered_sections>.md` (one subsection per file)
-- `<Subject>_Data/Codex/<Subject>_Codex_Full.txt` (TOC + all sections stitched into one canonical full-text deliverable)
+  Guild Orders/
+    ACTIVE/
+    PAUSED/
+    COMPLETED/
 
-Rule:
-- Sections are written individually (chunk-safe).
-- FULL is generated by deterministic stitch after verification.
+  Quest Board/
+    Accepted/
+    Completed/
+    Abandoned/
+    # Quest files may also live at the root of Quest Board when "on the board"
 
-#### E) Docs
-- `<Subject>_Data/Docs/`
-- `<Subject>_Data/Docs/Notes/`
+  Audits/
+    Execution/
 
-Purpose:
-- Notes are non-canon brainstorming and supporting explanation.
-- Notes may be messy. They exist to prevent loss of thought.
-- Notes do not replace Codex once Codex exists.
+  Codex/
+    TOC.md
+    TOC_DRAFT.md            # optional during incubation
+    CODEX_FREEZE.md         # exists only after Hands freezes the Codex
+    Sections/
+    <Subject>_Codex_Full.txt
 
-#### F) Buffs (Ignition System)
-- `<Subject>_Data/Buffs/`
+  Docs/
+  Buffs/
+  To Do/
+  Talent Tree/
+  Latest Rehydration Pack/
+  Incubation/
+  Archive/
+```
 
-The subject MUST contain the canonical Buff set:
+Additional notes (allowed):
+- `<Subject>_Data/Docs/Notes/` is permitted for non-canon notes.
+- `<Subject>_Data/Incubation/CLUSTERS/` is permitted for grouped incubation notes.
+
+### 1.4 Required Buffs (Ignition set)
+
+Inside `<Subject>_Data/Buffs/`, the canonical Buff set MUST exist:
 1) `<SUBJECT>_EXECUTION_PROTOCOL.txt`
 2) `<SUBJECT>_DATA_DIRECTORY_MAP.txt`
 3) `<SUBJECT>_SESSION_START_CHECK.txt`
 
 Rule:
-- Buffs are canonical session startup documents.
-- They are read at session start to prevent drift.
+- Buffs are canonical session startup docs to prevent drift.
 - Copies may appear in rehydration packs, but canonical Buffs live here.
 
-#### G) Talent Tree
-- `<Subject>_Data/Talent Tree/`
+Additional requirement (code/software subjects):
+- `<SUBJECT>_SESSION_START_CHECK.txt` MUST include the verification command slots defined in:
+  - `Continuity/SYNAPSE_GUILD__BUFFS.txt`
+- At minimum, include:
+  - `VERIFY_SMOKE_CMD: ...`
+  - `VERIFY_FULL_CMD: ...`
+  - `VERIFY_E2E_CMD: ...` (optional)
+  - `NETWORK_POLICY: ...`
+  - `EXECUTION_SURFACE: ...`
 
-#### H) To Do
-- `<Subject>_Data/To Do/`
-(Non-binding idea list. Not quests.)
-
-#### I) Latest Rehydration Pack
-- `<Subject>_Data/Latest Rehydration Pack/`
-
-Purpose:
-- This is a convenience export bundle for starting a fresh chat or resuming fast.
-- It may contain:
-  - Continuity Lock
-  - Bootstrap Prompt
-  - Latest Snapshots
-  - Copies of Buffs
-  - Any other session resume material
-- It is reference-only unless Hands explicitly orders edits inside it.
-
-#### J) Incubation
-- `<Subject>_Data/Incubation/`
-
-Incubation contains the live “idea capture” artifacts:
-- `<Subject>_Data/Incubation/INCUBATION_LEDGER.md`
-- `<Subject>_Data/Incubation/INCUBATION_CRYSTALS.md`
-- `<Subject>_Data/Incubation/CLUSTERS/` (optional; for grouped notes as structure emerges)
-
-Rule:
-- Incubation artifacts are not canon.
-- They exist to make Codex formation deterministic.
-
-#### K) Execution Audits (Subject-local, canonical)
-- `<Subject>_Data/Audits/Execution/`
-(Execution audits live in subject data, not the engine.)
+Early-stage allowance:
+- If tests do not exist yet, these fields MUST still exist and be set to `NONE YET`.
+- In that case, the Session Start Check MUST specify the baseline executable verification to run
+  (e.g., TL1 static/import checks) until real tests exist.
+- This is a truthful placeholder that MUST be updated once tests/doors exist.
 
 ---
 
-## 2) PRE-CODEX INCUBATION PHASE (NO CODEX EXISTS)
+## 2) INCUBATION (FOG OF WAR; PRE‑FREEZE)
 
-### 2.1 Purpose
-Incubation is the idea formation stage where:
+### 2.1 Definition
+
+Incubation is the Fog of War phase where:
 - exploration is allowed
 - structure is allowed to emerge
+- Codex drafting is allowed
 - execution is forbidden
 
-The goal is to fully understand the subject end-to-end so that a Codex can be written
-“as if the thing already exists.”
+Goal:
+- fully define the Subject end-to-end so the Codex can be written “as if the thing already exists.”
 
-### 2.2 Entry Conditions
-Incubation is entered when:
-- no Codex exists for the subject, and
-- the user is exploring or describing an idea.
+### 2.2 Entry conditions (deterministic)
 
-### 2.3 Execution Prohibition (Non-Negotiable)
-While in incubation:
-- do not generate Guild Orders
-- do not generate Quests
-- do not implement or execute
-- do not build the Engine deliverable
+World State is Fog of War unless Codex Freeze has occurred.
 
-(Subject bootstrap is allowed. It is scaffolding, not project execution.)
+Gate condition for Fog Lifted (both must be true):
+1) Hands explicitly declares the Codex frozen, AND
+2) the marker file exists:
+   - `<Subject>_Data/Codex/CODEX_FREEZE.md`
 
-### 2.4 Continuous Capture Obligation (No Loss Rule)
-During incubation, the system MUST continuously capture:
+Therefore, Incubation / Fog of War applies when:
+- `<Subject>_Data` exists but `<Subject>_Data/Codex/CODEX_FREEZE.md` does NOT exist, OR
+- `<Subject>_Data` does not exist yet (new Subject; initialization + incubation are required).
+
+Hard rule:
+- A drafted TOC does not lift Fog.
+- A drafted Codex does not lift Fog.
+- Only the freeze marker lifts Fog.
+
+### 2.3 Execution prohibition (non-negotiable)
+
+While World State is Fog of War:
+- DO NOT generate Guild Orders
+- DO NOT generate Quests
+- DO NOT accept Quests
+- DO NOT start a Raid
+- DO NOT implement or execute
+- DO NOT build the Engine deliverable
+
+Allowed (scaffolding; not execution):
+- create the Subject_Data skeleton
+- write/update Incubation artifacts
+- draft TOC and Codex sections
+- stitch a draft Codex full text
+- write snapshots (Control Sync / General / End of Day)
+
+### 2.4 Continuous capture obligation (No Loss Rule)
+
+During incubation, Brains MUST continuously capture:
 - decisions
 - constraints
 - requirements
@@ -205,92 +221,103 @@ During incubation, the system MUST continuously capture:
 - dependencies
 - any meaningful design direction
 
-Capture must be detailed enough that the idea can be reconstructed later
-without relying on chat memory.
+Capture must be detailed enough that the idea can be reconstructed later without relying on chat memory.
 
-Capture location is deterministic:
+Capture location (deterministic):
 - `<Subject>_Data/Incubation/INCUBATION_LEDGER.md`
 
-### 2.5 Structural Coherence Obligation (Domain-Agnostic)
-The system MUST actively detect and maintain emerging structure, regardless of project type.
+### 2.5 Structural coherence obligation (domain-agnostic)
+
+Brains MUST actively detect and maintain emerging structure.
 
 This means:
 - identify recurring conceptual clusters (whatever they are for the subject)
 - keep related ideas grouped over time
-- when decisions change, update the same cluster rather than forking parallel conflicting ideas
+- when decisions change, update the same cluster rather than forking conflicting parallel truths
 - avoid “scattered drift” that makes TOC creation guessy
 
-The system must not force a fixed taxonomy.
-Structure must emerge from the subject itself.
+The system MUST NOT force a fixed taxonomy.
+Structure must emerge from the subject.
 
-### 2.6 Periodic Crystallization (Continuity Anchors)
-The system MUST periodically write “crystals” that summarize:
+### 2.6 Periodic crystallization (continuity anchors)
+
+Crystals are condensed checkpoints that summarize:
 - what changed since the last crystal
 - current understanding
 - open questions
-- emerging clusters/structure
+- emerging structure / clusters
 
-Crystals are written to:
+Crystals live at:
 - `<Subject>_Data/Incubation/INCUBATION_CRYSTALS.md`
 
-Trigger examples:
-- after extended discussion
-- after major decision changes
-- before ending a session
-- when explicitly requested by Hands
+Minimum required cadence (deterministic):
+- update crystals at the end of any Control Sync that occurs during Fog of War (before Control Sync closeout)
+- update crystals immediately before generating the TOC
+- update crystals before ending a session if meaningful incubation occurred without a Control Sync
 
-### 2.7 Control Sync Snapshots During Incubation
-During incubation, Control Sync snapshots are especially important.
+If Brains cannot write/update crystals:
+- Disclosure Gate MUST trigger
+- do NOT proceed as if capture succeeded
 
-They must:
-- be detailed
-- reference incubation artifacts
-- describe how the idea is evolving as understanding increases (“fog lifting”)
-- record the current structural shape (emerging clusters)
+### 2.7 Control Sync snapshots during incubation
 
-Snapshots must be saved to:
+Control Sync still governs decisions during Fog of War.
+
+Rule:
+- Snapshot requirements are governed by Snapshot law (Guild Docs/SYNAPSE_GUILD__SNAPSHOTS.txt).
+- During incubation, Control Sync Snapshots MUST also record:
+  - what incubation artifacts were updated (paths)
+  - current cluster/structure summary
+  - what remains ambiguous / deferred
+
+Snapshot location (canonical):
 - `<Subject>_Data/Snapshots/Control Sync/`
 
 ---
 
-## 3) EXIT CONDITIONS — CODEX FORMATION
+## 3) EXIT CONDITIONS — TOC + CODEX FORMATION → CODEX FREEZE
 
-Incubation ends when Hands explicitly says they are ready to formalize, such as:
+Incubation ends only when Hands explicitly commands formalization, such as:
 - “Generate the TOC”
 - “Write the Codex”
 - “Freeze the map”
 - “We’re ready to build”
 
-At this point, the system:
-1) performs a **final completeness sweep** (domain-appropriate stress test)
-   - goal: identify missing decisions, unresolved questions, or holes
-   - outcome: either fill the gaps, or explicitly record them as deferred
-2) derives a TOC from incubation structure
-3) writes Codex sections one-by-one (section/subsection)
-4) self-audits each written section against the TOC for numbering + scope + completeness
-5) stitches all sections + TOC into `<Subject>_Codex_Full.txt`
-6) runs a final stitch verification (tail + seam sanity)
-7) if Hands approves, writes the **Codex Freeze marker**:
-   - `<Subject>_Data/Codex/CODEX_FREEZE.md`
-   - includes date/time + Hands approval
+When this occurs, Brains MUST follow Codex law:
+- `Guild Docs/SYNAPSE_GUILD__CODEX.txt`
 
-Execution remains forbidden until Codex Freeze is declared **and the marker exists**.
+Minimum deterministic sequence (high-level):
+1) Completeness sweep
+   - identify missing decisions / unresolved questions / holes
+   - either fill them OR record them explicitly as DEFERRED (do not hand-wave)
+2) Derive TOC from captured structure (ledger + crystals; not guesses)
+3) Write Codex sections one-by-one (one TOC entry per section file)
+4) Audit each section against the TOC (numbering + scope + completeness; no placeholders)
+5) Stitch TOC + sections into `<Subject>_Codex_Full.txt`
+6) Verify the stitch (no gaps, no duplicates, clean end)
+7) If Hands approves: write the Codex Freeze marker:
+   - `<Subject>_Data/Codex/CODEX_FREEZE.md`
+   - include date/time + Hands approval
+
+Hard rule:
+- Execution remains forbidden until Codex Freeze is declared AND the marker exists.
 
 ---
 
-## 4) POST-CODEX EXECUTION (OUT OF SCOPE HERE)
+## 4) POST‑FREEZE EXECUTION (OUT OF SCOPE HERE)
 
 Once Codex exists and is frozen (Fog Lifted):
-- If `<Subject>_Engine/` does not exist yet, create it at **Build Kickoff**.
-- Then proceed: Codex → Guild Orders → Quests → Dailies → Audits → Snapshots
+- If `<Subject>_Engine/` does not exist yet, create it at Build Kickoff.
+- Then proceed:
+  Codex → Guild Orders → Dungeons → Quests → Dailies → Audits → Snapshots
 
-This is the standard execution pipeline already defined elsewhere.
+This is defined elsewhere (The Loop + Dailies + Guild Orders + Quest law).
 
 ---
 
-## 5) SUBJECT-SPECIFIC EXTENSIONS (OPTIONAL, DOMAIN-DEPENDENT)
+## 5) SUBJECT‑SPECIFIC EXTENSIONS (OPTIONAL, DOMAIN‑DEPENDENT)
 
-In addition to the mandatory skeleton, subjects MAY add domain folders under `<Subject>_Data/` when useful.
+In addition to the mandatory skeleton, Subjects MAY add domain folders under `<Subject>_Data/` when useful.
 
 Examples:
 - book project:
@@ -305,8 +332,8 @@ Examples:
   - `<Subject>_Data/Assets/`
   - `<Subject>_Data/Progression/`
 
-Rule:
-- these are support artifacts for Codex creation and engine writing.
-- they do not replace the mandatory governance skeleton.
+Rules:
+- subject-specific folders MUST NOT replace or delete the locked skeleton.
+- if a new folder becomes a recurring anchor, it SHOULD be referenced/defined in the Codex.
 
 End.

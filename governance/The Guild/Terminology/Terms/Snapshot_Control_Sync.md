@@ -1,14 +1,38 @@
 # TERM — Control Sync Snapshot
 
 ## Definition
-A Control Sync Snapshot records the alignment state at the end of a Control Sync: decisions, scope, current objectives, and what is known.
+A Control Sync Snapshot is the **Snapshot file** written at the end of a Control Sync.
 
-## Purpose
-It preserves decision-state continuity and prevents the “why did we do this?” problem.
+It records the **binding outcome** of the Control Sync: decisions, scope commitment,
+constraints, and references to updated artifacts.
 
-## Do Not Assume
-- It is not a detailed execution receipt
-- It may list what Quests were completed or attempted, but execution evidence lives in EOD snapshots/audits
+## Artifact Law
+- If the Snapshot file does not exist on disk in `<Subject>_Data/Snapshots/Control Sync/`,
+  the Snapshot does not exist.
+- Chat summaries are not Snapshots.
+
+## Trigger (hard anchor; no interpretation)
+- A Control Sync MUST end with exactly one Snapshot file:
+  - Control Sync Snapshot if any binding decision was made
+  - General Snapshot if no binding decisions were made (alignment/context only)
+
+## Minimum Contents (hard anchor)
+- What is now binding (decisions / scope / constraints)
+- What is explicitly **NOT** decided (deferrals)
+- References to affected artifacts (paths)
+- If Quests were accepted or re-scoped: list IDs + intended outcomes (not receipts)
+- If an Execution Pack was activated/changed: name + canonical path
+
+## Not This
+- Not an execution receipt (execution reality belongs in End-of-Day Snapshots and per-quest audits)
+- Not a transcript
+- Not brainstorming
 
 ## Interactions
-- Reviewed first on the next session start
+- Reviewed first during session start rehydration (before planning/accepting/implementing)
+- May be referenced by the Continuity Lock
+- A Control Sync is not considered closed until this Snapshot exists as a file
+
+## Authority
+→ `Guild Docs/SYNAPSE_GUILD__SNAPSHOTS.txt`
+→ `Guild Docs/SYNAPSE_GUILD__SNAPSHOT_TEMPLATES.txt`

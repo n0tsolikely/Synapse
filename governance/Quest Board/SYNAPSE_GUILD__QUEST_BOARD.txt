@@ -1,6 +1,6 @@
 SYNAPSE GUILD — QUEST BOARD (CANON)
-Version: v1.1
-Last Updated: 2026-02-02
+Version: v1.2
+Last Updated: 2026-02-06
 Status: Governance Law (changes require Governance Control Sync)
 
 Maintainer: Hands (Peter) with Brains (Ash)
@@ -15,7 +15,7 @@ Audience:
 
 This document defines what the QUEST BOARD is, why it exists, and how it is used.
 
-After reading this document, the phrase “Check the Quest Board” must be sufficient
+After reading this document, the phrase “Check the Quest Board” MUST be sufficient
 instruction for any compliant operator (human or AI).
 
 The Quest Board is the **commitment surface** of the Synapse Guild.
@@ -33,6 +33,11 @@ the lifecycle of Quests from proposal to completion or abandonment.
 
 One-sentence definition:
 The Quest Board shows what work is proposed, committed, completed, or intentionally dropped.
+
+Hard rules (anti-ambiguity):
+- State is defined ONLY by filesystem location (Section 3).
+- If filesystem location cannot be proven, state is INVALID.
+- Conversation is NOT the Quest Board. Chat does not change Quest state.
 
 ================================================================================
 2) WHAT PROBLEM THE QUEST BOARD SOLVES
@@ -62,7 +67,7 @@ State is defined by **where a Quest file lives**, not by metadata inside the fil
 
 Canonical states (locations):
 
-- BOARD (on the board):
+- BOARD (on the board; proposed/drafted; NOT committed):
   <Subject>_Data/Quest Board/
   (Quest files live directly in the Quest Board root)
 
@@ -79,6 +84,16 @@ Moving a Quest file between folders **is the state transition**.
 
 There is no separate “status field” to keep in sync.
 The filesystem is the truth.
+
+Anti-ambiguity rules:
+- A Quest file MUST exist in exactly one canonical state at a time.
+- If copies of the “same quest” exist in multiple states, the board is INVALID until resolved.
+- Any quest file stored outside these canonical paths is NON-CANONICAL and MUST NOT be executed.
+
+Terminal states:
+- COMPLETED and ABANDONED are terminal.
+- A Quest file MUST NOT be moved out of Completed/ or Abandoned/.
+- Additional work requires a NEW Quest that references the prior Quest ID (history preserved).
 
 ================================================================================
 4) ONE QUEST = ONE FILE
@@ -102,20 +117,40 @@ If a Quest does not deserve its own file, it is not a Quest yet.
 
 Control Syncs decide commitment.
 
-Rules:
-- Quests may be created during a Control Sync.
-- Quests become real only when ACCEPTED during a Control Sync.
-- Acceptance Validity Gate:
-  - Before moving a Quest to ACCEPTED, it MUST pass Quest Validation.
-    See: Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt
-  - The Quest must conform to the canonical Quest Template (Quest Board/QUEST_TEMPLATE.txt).
-  - The Quest must have an audit bundle folder created and recorded in the quest file.
-  - If invalid, normalize the quest file BEFORE acceptance (preserve original content under Notes).
-- ACCEPTED implies intent to execute.
+Hard rules:
+- Drafting: Quest files may be created/edited at any time in BOARD.
+- Acceptance: Moving a Quest into Accepted/ is a binding commitment and MUST occur only:
+  - during an OPEN Control Sync, and
+  - after the Quest passes Quest Validation.
 
-After a Control Sync:
-- Newly accepted Quests must be moved to ACCEPTED.
-- This action should be recorded in a Snapshot when relevant.
+World State Gate (execution legality):
+- Acceptance is ILLEGAL in Fog of War.
+- Machine-check for Fog Lifted:
+  <Subject>_Data/Codex/CODEX_FREEZE.md
+
+Acceptance Validity Gate (mandatory for each Quest being accepted):
+- Before moving a Quest to Accepted/, it MUST pass Quest Validation:
+  Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt
+- The Quest MUST conform to the canonical Quest Template:
+  Quest Board/QUEST_TEMPLATE.txt
+- The Quest MUST have an audit bundle folder created and recorded in the Quest file.
+  (See: Processes/SYNAPSE_GUILD__EXECUTION_AUDITS.txt)
+- If invalid, normalize the Quest file BEFORE acceptance.
+  - Preserve original content under Notes if needed.
+  - Do not accept an invalid quest “to fix later”.
+
+Commitment act:
+- The filesystem move into Accepted/ is the acceptance.
+- If the Quest file is not moved, it is not accepted.
+- Conversation alone cannot accept a Quest.
+
+Recording requirement (Snapshots):
+- Every acceptance MUST be recorded in the Control Sync Snapshot.
+  (Acceptance is a binding decision; see Snapshot law.)
+- At minimum, record:
+  - Quest filename / ID
+  - short title/label
+  - audit bundle folder path
 
 ================================================================================
 6) QUEST BOARD AND DAILIES
@@ -123,24 +158,39 @@ After a Control Sync:
 
 Dailies execute from the Quest Board.
 
-Rules:
-- Daily scope is chosen from ACCEPTED Quests only.
-- BOARD Quests are not executed.
-- COMPLETED Quests are not re-opened without respec or new Quest.
+Hard rules:
+- Daily scope is chosen from Accepted/ quests only.
+- BOARD quests are not executed.
+- COMPLETED and ABANDONED quests are not executed.
 
-The Quest Board is the execution input.
-Dailies are the execution loop.
+Execution input:
+- Accepted/ is the execution input surface.
+- Dailies are the execution loop.
+
+Carry-over rule:
+- If a Quest spans multiple sessions/days, it remains in Accepted/ until:
+  - it is verified PASS and moved to Completed/, OR
+  - it is intentionally dropped and moved to Abandoned/.
+
+If scope must change mid-session:
+- open a NEW Control Sync
+- decide the new scope
+- record it in the new Control Sync Snapshot
+- then continue
+
+(See: Processes/SYNAPSE_GUILD__DAILIES.txt)
 
 ================================================================================
 7) QUEST BOARD AND SNAPSHOTS
 ================================================================================
 
-Snapshots record changes to the Quest Board.
+Snapshots record binding decisions and execution outcomes that affect the Quest Board.
 
-Examples:
-- Quests accepted → Control Sync Snapshot
-- Quests completed → End-of-Day Snapshot
-- Quests abandoned → General or EOD Snapshot
+Hard rules:
+- Accepting quests MUST be recorded in the Control Sync Snapshot.
+- Completing or abandoning quests MUST be recorded in the End-of-Day Snapshot.
+- If Quest Board state transitions occurred but no Snapshot exists on disk for the session,
+  the session record is INVALID until corrected.
 
 The Quest Board shows current state.
 Snapshots preserve history.
@@ -153,7 +203,7 @@ The Quest Board reflects authoritative execution state.
 State without proof is not allowed.
 
 Canonical rule:
-- A Quest file must not move to COMPLETED unless its execution is provable via Execution Audits.
+- A Quest file MUST NOT move to Completed/ unless its execution is provable via Execution Audits.
 
 Execution Audits (mandatory phases):
 1) Pre-Quest Alignment Audit
@@ -172,12 +222,14 @@ Quest file requirement:
   (see Quest Board/QUEST_TEMPLATE.txt).
 
 Multi-day / retries rule:
-- If a Quest spans multiple Dailies, it remains in ACCEPTED until it is actually verified.
+- If a Quest spans multiple Dailies, it remains in Accepted/ until it is actually verified PASS.
 - The audit bundle path remains canonical.
-- Audits are append-only: new attempts get timestamped sections INSIDE the same audit phase files.
-- Do not create a second audit bundle.
+- Audits are append-only:
+  - new attempts get timestamped sections INSIDE the same audit phase files.
+  - do not create a second audit bundle.
+
 Invalid state transition:
-- Moving a Quest to Completed/ without audits is forbidden.
+- Moving a Quest to Completed/ without required audits is forbidden.
 
 See:
 - Processes/SYNAPSE_GUILD__EXECUTION_AUDITS.txt
@@ -200,13 +252,13 @@ Only Quests (the files) use a template.
 ================================================================================
 
 A healthy Quest Board:
-- shows few ACCEPTED Quests at once
+- keeps Accepted/ small (commitments are real)
 - reflects reality honestly
 - has completed work moving forward
 - has abandoned work marked explicitly
 
 An unhealthy Quest Board:
-- has many ACCEPTED Quests with no progress
+- has many Accepted/ quests with no progress
 - uses BOARD as a dumping ground
 - hides abandonment
 - relies on memory instead of state
@@ -215,23 +267,33 @@ An unhealthy Quest Board:
 10) CANONICAL COMMANDS
 ================================================================================
 
-Once this law is accepted, the following phrases are valid:
+Once this law is accepted, the following phrases are valid.
 
 - “Check the Quest Board.”
 Meaning:
 Inspect current commitments and state.
+Minimum compliant checks:
+- list Quests by state (BOARD / Accepted / Completed / Abandoned)
+- identify what is currently executable (Accepted only)
+- for each Accepted quest:
+  - confirm it records an audit bundle path
+  - confirm the audit bundle folder exists
+If any required proof is missing, Disclosure Gate MUST trigger.
 
 - “Accept this Quest.”
 Meaning:
-Move the Quest file to ACCEPTED and commit to execution.
+During an OPEN Control Sync, validate the Quest and then move the Quest file to Accepted/.
+Record the acceptance in the Control Sync Snapshot.
 
 - “Complete this Quest.”
 Meaning:
-Move the Quest file to COMPLETED after verification.
+After verification PASS exists in the Quest’s audit bundle, move the Quest file to Completed/.
+Record the completion in the End-of-Day Snapshot.
 
 - “Abandon this Quest.”
 Meaning:
-Move the Quest file to ABANDONED intentionally.
+Move the Quest file to Abandoned/ intentionally (do not hide drops).
+Record the abandonment (and reason) in the End-of-Day Snapshot.
 
 ================================================================================
 END OF DOCUMENT

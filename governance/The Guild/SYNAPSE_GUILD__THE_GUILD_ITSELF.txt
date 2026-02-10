@@ -1,12 +1,30 @@
 SYNAPSE GUILD — THE GUILD ITSELF
-Version: v1.0
-Last Updated: 2026-01-19
+Version: v1.1
+Last Updated: 2026-02-08
 Status: Descriptive (identity, not law)
 
 Audience:
 - Anyone asking “what is the Synapse Guild?”
 - New collaborators
 - Future readers trying to understand where this all came from
+
+================================================================================
+AUTHORITY NOTICE (READ THIS FIRST)
+================================================================================
+
+This document is **identity + context** only.
+
+- It is **not** a Lock.
+- It is **not** a Process.
+- It is **not** a Rule.
+- It is **not** an execution authority.
+
+If anything in this file conflicts with Synapse OS governance artifacts
+(e.g., Locks, Terms, Processes, Quest Board rules, Codex rules), then this file
+is treated as **non-authoritative** and must be ignored for execution.
+
+If you are an AI operator: do not use this document to justify deviation,
+shortcuts, “creative interpretation”, or skipping steps.
 
 ================================================================================
 WHAT THE SYNAPSE GUILD IS
@@ -44,8 +62,6 @@ Every part of the Guild and its Operating System exists because it was **needed*
 When something felt painful, confusing, or fragile, structure was added.
 When something felt heavy or artificial, it was removed.
 
-That is why it works.
-
 ================================================================================
 WHY IT EXISTS
 ================================================================================
@@ -73,7 +89,7 @@ It is how the Guild moves.
 
 It exists to:
 - preserve shared understanding,
-- prevent re‑deciding the same things,
+- prevent re-deciding the same things,
 - turn ideas into executable reality,
 - and allow humans and AI to work together without losing their place.
 
@@ -81,6 +97,11 @@ The OS was not invented all at once.
 It crystallized piece by piece as real problems appeared.
 
 That is why it feels natural instead of forced.
+
+IMPORTANT:
+- The OS governs execution.
+- The OS is where “what must happen” lives.
+- This file is where “why we care” lives.
 
 ================================================================================
 THE HEART OF THE GUILD
@@ -109,9 +130,12 @@ The Synapse Guild is not trying to:
 - replace human judgment with process,
 - or force work into rigid shapes.
 
-If something feels forced, it does not belong.
+Cultural rule of thumb:
+- If a *new* mechanic feels forced, it should be treated as suspect.
+- It belongs only if it earns its place through real need.
 
-Everything here earns its place.
+This is not permission to bypass the existing system.
+Existing governance remains binding regardless of “feel”.
 
 ================================================================================
 FINAL NOTE

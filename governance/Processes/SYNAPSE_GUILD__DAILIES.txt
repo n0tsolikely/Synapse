@@ -1,34 +1,60 @@
-# SYNAPSE GUILD — DAILIES (v1.3)
+# SYNAPSE GUILD — DAILIES (v1.4)
 
-Last Updated: 2026-02-02
+Last Updated: 2026-02-06
 
 ================================================================================
 0) PURPOSE
 ================================================================================
 
-Dailies are the repeating execution loop used to turn Quests into completed work **without drift**.
+Dailies are the repeating execution loop that turns **Accepted Quests** into
+**Completed work** without drift.
 
-Dailies exist so that the system reliably:
-- starts with alignment (Control Sync)
-- executes only what was accepted
-- produces receipts (audits + diffs + tests)
-- updates quest state deterministically
-- updates capability state (Talent Tree when applicable)
-- produces end-of-day continuity
+Dailies are a runtime loop (per session/day).
+
+Dailies do NOT require a separate "daily artifact" to track what step you are
+currently in.
+
+The only authoritative outputs of Dailies are filesystem artifacts:
+- Quest state moves (Board → Accepted → Completed/Abandoned)
+- Execution Audit bundles (per quest)
+- Snapshots (Control Sync + End-of-Day)
+- Talent Tree updates (when applicable)
+- Latest Rehydration Pack updates (when crossing chat boundaries)
+
+Topology (hard anchor; no interpretation):
+- CONTROL SYNC (alignment + scope decision)
+- SCOPE COMMITMENT (quest acceptance state moves)
+- IMPLEMENT (Quest Mini‑Loop)
+- SYSTEM VERIFICATION (end‑of‑session)
+- SNAPSHOT (End‑of‑Day)
+- STOP / RESUME
+
+The Quest Mini‑Loop is the deterministic inner loop:
+Pre‑Quest → Execute → Verify → Outcome → State Transition
 
 ================================================================================
 1) SCOPE + WORLD STATE
 ================================================================================
 
-Dailies are an **execution-phase** loop.
+Dailies are an **execution‑phase** loop for a continuing Subject.
 
-- If World State is **Fog of War** (no Codex Freeze marker), Dailies may run only as **conceptual planning**.
+Precondition (Subject existence):
+- If there is no subject workspace (no <Subject>_Data and no <Subject>_Engine),
+  Dailies are BLOCKED.
+  Route to:
+  - `Processes/SYNAPSE_GUILD__SUBJECT_INITIALIZATION_AND_INCUBATION.txt`
+
+World State gating:
+
+- If World State is **Fog of War** (no Codex Freeze marker), Dailies are permitted only
+  as **conceptual planning**.
   - No engine modifications.
   - No Quest execution.
 
-- If World State is **Fog Lifted** (Codex Freeze marker exists), Dailies are authorized.
+- If World State is **Fog Lifted** (Codex Freeze marker exists), Dailies are
+  authorized.
 
-Machine-check:
+Machine‑check:
 - Fog Lifted requires: `<Subject>_Data/Codex/CODEX_FREEZE.md`
 
 ================================================================================
@@ -36,19 +62,24 @@ Machine-check:
 ================================================================================
 
 Dailies begin only after:
-1) a Control Sync has occurred
-2) Hands has accepted a scope (explicit or implied by accepted quests)
+1) Control Sync has started and completed its start sequence
+2) Hands has decided today/session scope (inside the Control Sync)
 3) World State permits execution (Fog Lifted + Codex Freeze marker)
 
+Hard rule:
+- If any precondition cannot be proven, Disclosure Gate MUST trigger.
+
 ================================================================================
-3) THE 7 DAILY STEPS (CANON)
+3) THE DAILY LOOP (CANON)
 ================================================================================
 
-A Daily execution loop MUST follow these steps in order:
+A Daily execution loop MUST follow these steps in order.
 
 --------------------------------------------------------------------------------
-3.1 STEP 1 — CONTROL SYNC (ALIGNMENT)
+3.1 STEP 1 — CONTROL SYNC (ALIGNMENT + SCOPE DECISION)
 --------------------------------------------------------------------------------
+
+Control Sync is mandatory. It is where today’s scope is decided.
 
 Mandatory:
 - Run the Control Sync Checklist:
@@ -57,28 +88,39 @@ Mandatory:
 Minimum outcomes:
 - Rehydrate by reviewing snapshots in locked order:
   1) latest Control Sync Snapshot (intent/decisions)
-  2) latest End-of-Day Snapshot (execution reality/outcomes/blockers)
+  2) latest End‑of‑Day Snapshot (execution reality/outcomes/blockers)
   3) relevant General Snapshots (if any)
 - Review current Quest Board state.
 - Review Active/Paused Guild Orders/Raids.
 - Confirm World State (Fog of War vs Fog Lifted).
 - Decide the day’s intended scope.
+  - Scope is: which accepted quests will be executed today, and/or which new
+    quests will be accepted today.
 
-Control Sync is governed by:
+Control Sync law:
 - `Processes/SYNAPSE_GUILD__CONTROL_SYNC.txt`
 
 Output:
 - A Control Sync Snapshot when the Control Sync ends.
+  (Snapshot law governs what is required.)
 
 --------------------------------------------------------------------------------
-3.2 STEP 2 — SCOPE SELECTION (COMMITMENT)
+3.2 STEP 2 — SCOPE COMMITMENT (QUEST ACCEPTANCE)
 --------------------------------------------------------------------------------
+
+Scope decision happens inside the Control Sync.
+This step is the **commitment act**: making scope real via filesystem state.
 
 If execution is permitted (Fog Lifted):
-- Select which quests will be executed today/session.
 
-Acceptance Validity Gate (mandatory):
-For each quest being accepted:
+A) Determine scope set
+- The scope set is the set of quests that will be executed this session.
+- It is drawn from:
+  - quests already in `<Subject>_Data/Quest Board/Accepted/` from prior days
+  - new quests selected from the board to accept today
+
+B) Acceptance Validity Gate (mandatory for each newly accepted quest)
+For each quest being newly accepted:
 1) Validate the Quest file format
    - `Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt`
 2) Create the Quest’s audit bundle folder under:
@@ -90,16 +132,20 @@ For each quest being accepted:
 
 Rules:
 - Only quests in `Accepted/` may be executed.
-- A quest that cannot be executed today should remain on the board (or be explicitly paused/abandoned by Hands).
+- If scope must change mid‑session:
+  - open a NEW Control Sync
+  - decide the new scope
+  - write the new Control Sync Snapshot
+  - then continue
 
 --------------------------------------------------------------------------------
-3.3 STEP 3 — IMPLEMENTATION (PER-QUEST MINI-LOOP)
+3.3 STEP 3 — IMPLEMENT (QUEST MINI‑LOOP)
 --------------------------------------------------------------------------------
 
-For each accepted quest in scope, the system MUST perform the following mini-loop:
+For each accepted quest in scope, the system MUST perform the Quest Mini‑Loop.
 
-A) Pre-Quest Alignment Audit (MANDATORY)
-- Create the audit before changing any files.
+A) Pre‑Quest Alignment Audit (MANDATORY)
+- Create the audit BEFORE changing any files.
 - Store it inside the quest’s audit bundle:
   - 01_PREQUEST.md
 - Confirm:
@@ -123,22 +169,27 @@ C) Execution Audit (MANDATORY)
   - deviations
 
 --------------------------------------------------------------------------------
-3.4 STEP 4 — VERIFICATION + OUTCOME (PER-QUEST MINI-LOOP)
+3.4 STEP 4 — VERIFY + OUTCOME (QUEST MINI‑LOOP)
 --------------------------------------------------------------------------------
 
 For each quest, after implementation:
 
 A) Verification Audit (MANDATORY)
-- Run appropriate verification (tests, lint, smoke run, compilation, etc.).
+- Perform appropriate verification (tests, lint, smoke run, compilation, etc.).
 - Record the steps and results in:
   - 03_VERIFY.md
 - If outputs are large, store as separate receipt files and reference them.
 
-B) Post-Quest Outcome Note (MANDATORY)
+Truth Gate reminder:
+- Brains MUST NOT claim tests/commands ran unless evidence exists.
+- Narration is not proof.
+(See: `Processes/SYNAPSE_GUILD__TRUTH_GATE.txt`)
+
+B) Post‑Quest Outcome Note (MANDATORY)
 - Record final status in:
   - 04_OUTCOME.md
 - If incomplete: exact blocker + next action.
-- Update 00_SUMMARY.md with a human-readable summary.
+- Update 00_SUMMARY.md with a human‑readable summary.
 
 C) State Transition (FILESYSTEM STATE MACHINE)
 - If completed (latest verification attempt is PASS):
@@ -149,38 +200,79 @@ C) State Transition (FILESYSTEM STATE MACHINE)
   - keep in `Accepted/` (or pause explicitly under Hands direction)
 
 Hard rule:
-- A quest may NOT be moved to Completed without required audits AND an explicit PASS verification result.
+- A quest may NOT be moved to Completed without required audits AND an explicit
+  PASS verification result.
+
+D) Talent Update (WHEN APPLICABLE)
+- If the quest produced a new durable capability, update the subject’s Talent Tree.
+- Record what capability was unlocked and where the proof lives (audit + artifacts).
+- Note the talent update in the End‑of‑Day Snapshot.
 
 --------------------------------------------------------------------------------
-3.5 STEP 5 — TALENT UPDATE (WHEN APPLICABLE)
+3.5 STEP 5 — SYSTEM VERIFICATION (END‑OF‑SESSION)
 --------------------------------------------------------------------------------
 
-If a quest created a new durable capability:
-- update the subject’s Talent Tree (and/or Buffs if instructed)
+After all in‑scope quests have completed their Quest Mini‑Loop (or when Hands
+requests), Brains MUST perform system‑level verification.
 
-Rule:
-- Talents record capabilities; they are not proof.
-- Proof lives in audits + tests.
+System Verification has THREE distinct checks (do not blur them):
+
+A) Codex Alignment Check (MANDATORY; ALWAYS)
+- Confirm today’s changes do not violate Codex invariants/constraints.
+- Record a single verdict in the End‑of‑Day Snapshot:
+  - CODEX_ALIGNMENT: ALIGNED | DRIFT
+- If DRIFT is detected:
+  - record evidence (what violates what),
+  - escalate to Hands (do not silently accept drift).
+
+B) Build Manual Alignment Check (CONDITIONAL)
+- If a Build Manual exists for the Subject, verify today’s changes align with it.
+- If no Build Manual exists, skip silently (do not invent one; do not block).
+
+C) Executable System Verification (MANDATORY WHEN FEASIBLE)
+- For code/software Subjects, follow:
+  - `Processes/SYNAPSE_GUILD__VERIFICATION_LADDER.txt`
+  This defines command discovery, feasibility (PASS/FAIL/BLOCKED), and receipts.
+- For non‑code Subjects, use the system verification checklist defined by:
+  1) Codex
+  2) active Guild Orders / Raids
+  3) quest success criteria
+
+Purpose:
+- Catch integration failures that pass per‑quest verification.
+- Produce a single “today’s system health” truth surface.
+
+Rules:
+- Executable verification MUST be reported as: PASS | FAIL | BLOCKED.
+- FAIL means the system is NOT healthy (do not present it as passing).
+- BLOCKED means verification could not be executed in this surface; it is not a silent pass.
+
+Receipts:
+- Record the commands/checks performed and their outputs.
+- If the output fits in the End‑of‑Day Snapshot without truncation, include it there.
+- If the output does not fit, store it as a receipt file inside the audit bundle for
+  the final quest executed in scope, and reference its path in the End‑of‑Day Snapshot.
+- If no quest was executed in scope today, include the output (or a pointer to it)
+  directly in the End‑of‑Day Snapshot.
 
 --------------------------------------------------------------------------------
-3.6 STEP 6 — SNAPSHOT + CONTINUITY (END OF DAY)
+3.6 STEP 6 — SNAPSHOT + CONTINUITY (END OF SESSION)
 --------------------------------------------------------------------------------
 
 At end of the Daily session:
 
-A) End-of-Day Snapshot (mandatory)
-- Write an End-of-Day Snapshot that captures:
-  - what happened today (gist)
+A) End‑of‑Day Snapshot (MANDATORY)
+- Write an End‑of‑Day Snapshot that captures:
+  - what happened today
   - what succeeded
   - what failed / remained incomplete (and WHY)
   - bugs/weirdness encountered
-  - verification performed
+  - verification performed (per‑quest + system‑level)
   - talent updates
   - raid status changes
-- Snapshots are governed by:
+- Snapshot law:
   - `Guild Docs/SYNAPSE_GUILD__SNAPSHOTS.txt`
   - `Guild Docs/SYNAPSE_GUILD__SNAPSHOT_TEMPLATES.txt`
-  (Templates are minimums, not limits.)
 
 B) Raid lifecycle updates (when applicable)
 - If a Raid/Guild Order is fully complete:
@@ -191,9 +283,10 @@ B) Raid lifecycle updates (when applicable)
 C) Latest Rehydration Pack update (when applicable)
 - If this work will cross chat boundaries or days:
   - update `<Subject>_Data/Latest Rehydration Pack/`
-  - include continuity lock + bootstrap prompt as needed
+  - include Continuity Lock + Bootstrap Prompt as needed
   - include references to latest snapshots + quest state surfaces
-- Follow the Reference-Only rule (do not duplicate the entire project unless required).
+- Follow the Reference‑Only rule (do not duplicate the entire project unless
+  required).
 
 --------------------------------------------------------------------------------
 3.7 STEP 7 — STOP / REPEAT
@@ -203,15 +296,15 @@ C) Latest Rehydration Pack update (when applicable)
 - Resume tomorrow with a new Control Sync.
 
 ================================================================================
-4) NON-NEGOTIABLE RULES
+4) NON‑NEGOTIABLE RULES
 ================================================================================
 
 - No execution without Codex Freeze marker.
 - No quest acceptance without Quest Validation + audit bundle pointer.
-- No file changes without Pre-Quest Alignment Audit.
+- No file changes without Pre‑Quest Alignment Audit.
 - No quest completion claims without Verification Audit + explicit PASS.
+- No mid‑session scope changes without a NEW Control Sync + Snapshot.
 - If Truth Gate blocks, Disclosure Gate triggers immediately.
-- Templates are minimums; capture any additional important detail needed for truth + continuity.
 
 ================================================================================
 END OF DOCUMENT

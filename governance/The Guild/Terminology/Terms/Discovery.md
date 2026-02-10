@@ -1,29 +1,34 @@
 # TERM — Discovery
 
 ## Definition
-A Discovery is a revealed truth about the Subject uncovered during Fog of War: a fact, constraint, invariant, requirement, dependency, risk, or structural insight.
+A Discovery is a single unit of revealed truth about the Subject uncovered during Exploration while **Fog of War** is active.
 
-## Purpose
-Discoveries progressively reveal the “map” so a Codex can be formed and frozen without hallucinated structure.
+A Discovery should be phrased as a testable statement (not a vague idea), e.g.:
+- constraint
+- invariant
+- requirement
+- dependency
+- risk
+- structural insight
 
-## When It Applies
-- During Exploration
-- During Control Syncs under Fog of War
-- When assumptions are confirmed/invalidated
-- When contradictions are identified and resolved
+## Artifact Law
+A Discovery is only authoritative if it is recorded in a filesystem artifact, such as:
+- a Snapshot (Control Sync / General), and/or
+- the Codex (as an explicit rule/constraint)
 
-## What It Enables
-- Accurate Codex/Map formation
-- Safer scope decisions later (Guild Orders)
-- Reduced drift in execution
+If it only exists in conversation, it is non-authoritative and MUST NOT be treated as a hard constraint for execution.
 
 ## Do Not Assume
-- A Discovery is not a Task
-- A Discovery is not a Quest
-- A Discovery is not a commitment
-- A Discovery does not imply execution
+- Discovery ≠ Task
+- Discovery ≠ Quest
+- Discovery ≠ Commitment
+- Discovery does not authorize execution.
 
 ## Interactions
-- Discoveries accumulate under Fog of War
-- Discoveries are promoted into Codex sections / constraints
-- Conflicting Discoveries should be resolved before Codex Freeze
+- Discoveries accumulate during Fog of War.
+- Conflicting Discoveries must be resolved before Codex Freeze.
+- After Codex Freeze, new Discoveries must be integrated via Codex updates + Snapshots (no ad-hoc rule injection).
+
+## Authority
+→ `The Guild/Terminology/Locks/LOCK__FOG_OF_WAR.md`  
+→ `Guild Docs/SYNAPSE_GUILD__CODEX.txt`

@@ -1,114 +1,164 @@
 SYNAPSE GUILD — REHYDRATION PACK (CHECKLIST)
-Version: v1.3
-Last Updated: 2026-02-02
-Status: Reference (governance-aligned, non-executable)
+Version: v1.4
+Last Updated: 2026-02-07
+Status: Reference (governance-aligned validation checklist; non-executable)
 
 ================================================================================
-WHAT IS A REHYDRATION PACK?
+PURPOSE
 ================================================================================
 
-A **Rehydration Pack** is the minimum complete bundle of artifacts required to resume
-work in a new session (human or AI) **without drift, re-litigation, or loss of context**.
+A **Rehydration Pack** is the minimum complete bundle of subject-state artifacts required to resume
+work in a new session (human or AI) WITHOUT drift, re-litigation, or loss of context.
 
-It is not a single document.
-It is a **bundle**.
+This checklist is binary:
+- If every required item is present and readable: REHYDRATION PACK = COMPLETE
+- If any required item is missing or unprovable: REHYDRATION PACK = INCOMPLETE
+  → Disclosure Gate MUST trigger and execution authority is INVALID.
 
-Purpose:
-> “Resume work as if the previous session never ended.”
+Authority note (anti-confusion):
+- Governance pack files define law and templates.
+- The Rehydration Pack contains the ACTIVE subject-state instances (in <Subject>_Data/...).
+- Conversation is not an artifact. If the file does not exist on disk, it does not exist.
 
 ================================================================================
-REHYDRATION PACK — REQUIRED CONTENTS
+SCOPE
 ================================================================================
 
-Include these unless they are explicitly unnecessary for the current work:
+This checklist applies to continuing subjects (i.e., <Subject>_Data exists).
 
-- **Continuity Lock**  
-  Captures the current authoritative state (what is binding, deferred, read-first, next step).
+It does NOT replace:
+- Processes/SYNAPSE_GUILD__CONTROL_SYNC_CHECKLIST.txt
 
-- **Bootstrap Prompt**  
-  Instructs the next AI session how to ingest artifacts and how to behave (role, stance, first action).
+Relationship:
+- This checklist defines what must exist for rehydration to be real.
+- The Control Sync Checklist is how you ignite the session after rehydration is proven.
 
-- **Buffs (Session Ignition Key)**
-  The canonical session startup documents used to prevent drift and reduce rehydration overhead:
-  - Execution Protocol
-  - Data Directory Map
-  - Session Start Check
+================================================================================
+CANONICAL LOCATION
+================================================================================
 
+Active pack location:
+- <Subject>_Data/Latest Rehydration Pack/
 
+Archival location (optional):
+- <Subject>_Data/Archive/
 
-- **Control Sync Checklist**
-  The deterministic start-of-session checklist:
-  - Processes/SYNAPSE_GUILD__CONTROL_SYNC_CHECKLIST.txt
+Rule:
+- Rehydration Packs are subject-state artifacts. They do not live in Governance.
 
-- **Snapshot Templates** (minimum structure, not rigid)
-  - Guild Docs/SYNAPSE_GUILD__SNAPSHOT_TEMPLATES.txt
-- **Latest Snapshots**  
-  Ground-truth history relevant to the work:
-  - Control Sync Snapshot(s)
-  - End-of-Day (EOD) Snapshot(s)
-  - General Snapshot(s), if applicable
+================================================================================
+REQUIRED CONTENTS
+================================================================================
 
-- **Active Guild Orders** (if a Raid is ongoing)  
-  Defines current scope and objectives.
+If an item is not applicable, it MUST be explicitly marked as NONE (not silently omitted).
 
-- **Accepted Quests**  
-  Current commitments eligible for execution.
-  (Quest acceptance is gated by Quest Validation rules.)
-  - Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt
+1) Latest Rehydration Pack (active continuity)
+Location:
+- <Subject>_Data/Latest Rehydration Pack/
 
-- **Relevant Codex / Canonical Vision**  
-  System law and high-level intent execution must respect.
+Required:
+[ ] Bootstrap Prompt (latest)
+    - MUST exist on disk.
+    - MUST be unambiguously identifiable as a Bootstrap Prompt.
+    - Naming MUST support deterministic “latest” selection.
+      Canonical resolver uses: filename contains BOOTSTRAP_PROMPT and includes date token YYYY-MM-DD.
 
-- **Updated repository, project zip, or data folder**  
-  The actual working state of the system.
+[ ] Continuity Lock (latest)
+    - MUST exist on disk.
+    - MUST be unambiguously identifiable as a Continuity Lock.
+    - Naming MUST support deterministic “latest” selection.
+      Canonical resolver uses: filename contains CONTINUITY_LOCK and includes date token YYYY-MM-DD.
+
+2) Buffs (session ignition key)
+Location:
+- <Subject>_Data/Buffs/
+
+Required (see LOCK__SUBJECT_DATA_SKELETON.md):
+[ ] <SUBJECT>_EXECUTION_PROTOCOL.txt
+[ ] <SUBJECT>_DATA_DIRECTORY_MAP.txt
+[ ] <SUBJECT>_SESSION_START_CHECK.txt
+
+Rule:
+- If Buffs are missing, the session MUST NOT “wing it.” Stop and repair Buffs.
+
+3) Snapshots (ground-truth history)
+Location:
+- <Subject>_Data/Snapshots/
+  - Control Sync/
+  - End of Day/
+  - General/
+
+Required minimum:
+[ ] Latest Control Sync Snapshot(s) exist on disk.
+[ ] Latest End of Day Snapshot(s) exist on disk.
+
+Rule:
+- If the previous session performed work and no EOD Snapshot exists, continuity is invalid until repaired.
+
+4) Codex / Canonical Vision (what execution must obey)
+Location:
+- <Subject>_Data/Codex/
+
+Required:
+[ ] TOC.md exists.
+[ ] If CODEX_FREEZE.md exists:
+    - Fog is lifted; execution is legally allowed.
+    - Freeze is binding; execution must comply.
+[ ] If CODEX_FREEZE.md does NOT exist:
+    - Fog of War; execution is forbidden.
+    - Accepted Quests MUST be NONE.
+
+5) Active scope + commitments (only when applicable)
+Guild Orders:
+[ ] If a Raid is in progress:
+    - <Subject>_Data/Guild Orders/ACTIVE/ contains the active Orders.
+    - Otherwise: NONE.
+
+Accepted Quests:
+[ ] If any Accepted Quests exist:
+    - <Subject>_Data/Quest Board/Accepted/ contains them.
+    - Any required audit bundles exist under <Subject>_Data/Audits/Execution/.
+    - Otherwise: NONE.
+
+6) Engine / working state (the thing being built)
+Required:
+[ ] The current working state is accessible and corresponds to the Subject state.
+    - Code subjects: repository present + updated.
+    - Writing subjects: manuscript/assets present.
+    - Mixed subjects: both present.
 
 ================================================================================
 OPTIONAL / CONTEXTUAL CONTENTS (EXPLICIT)
 ================================================================================
 
-Include these when applicable:
+Include only when required by the work state:
 
-- **(Optional) Execution Pack**  
-  Required when execution is constrained by anti-drift rules
-  (long Control Sync, complex or delayed execution).
-
-- **(Optional) Other supporting documents**  
-  Any additional artifacts required to understand or execute correctly
-  (research notes, diagrams, temporary specs, one-off references).
+[ ] Execution Pack (when execution is delayed, spans tool boundaries, or drift risk is high)
+[ ] Research notes / diagrams / temporary specs required to execute without re-litigation
+[ ] External pointers required for execution (NEVER include secrets; store pointers only)
 
 ================================================================================
 WHAT A REHYDRATION PACK IS NOT
 ================================================================================
 
 A Rehydration Pack is NOT:
-- a summary
-- a snapshot itself
-- a replacement for canon docs
-- a permanent artifact
-
-Once execution resumes and progresses, the Rehydration Pack is typically:
-- updated,
-- superseded,
-- or archived.
+- a summary that replaces artifacts
+- a substitute for <Subject>_Data/
+- a substitute for Governance
+- a license to invent new decisions during resume
 
 ================================================================================
-WHERE IT LIVES
+FINAL RULE (BINDING)
 ================================================================================
 
-Canonical location:
-- `<Subject>_Data/Latest Rehydration Pack/`
-
-Archival practice (optional):
-- Old or superseded packs may be moved into `<Subject>_Data/Archive/` to retain history.
-
-Rule:
-- Rehydration Packs are subject-state artifacts. They do not live in Governance.
-================================================================================
-FINAL RULE
-================================================================================
-
-If resuming work causes confusion, drift, or re-litigation,
+If resuming work causes confusion, drift, missing context, or re-litigation:
 the Rehydration Pack is incomplete.
+
+Correct response:
+- STOP
+- Trigger Disclosure Gate
+- Repair missing/weak artifacts (update Bootstrap Prompt / Continuity Lock / Snapshots as required)
+- Re-run Processes/SYNAPSE_GUILD__CONTROL_SYNC_CHECKLIST.txt
 
 ================================================================================
 END OF DOCUMENT

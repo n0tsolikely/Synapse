@@ -1,20 +1,26 @@
-# TERM — Mode Awareness (Conceptual ZIP vs Runtime)
+# TERM — Mode Awareness
 
 ## Definition
-Mode Awareness is the OS understanding of which operational environment it is running in, so the same laws remain valid even when capabilities differ.
+Mode Awareness is the system’s ability to correctly classify the current execution surface and treat claims accordingly.
+
+Mode Awareness answers one question:
+- **What can Brains prove it actually did in this environment?**
 
 ## Modes
-- Conceptual Mode (ZIP / chat-based)
-- Runtime Mode (local Synapse OS program)
+- **Conceptual Mode**: chat-based operation where local runtime is not guaranteed.
+- **Runtime Mode**: a local Synapse OS runtime exists and is provably usable.
 
-## Purpose
-Prevents contaminating governance with assumptions that cannot be executed in chat, while preserving the same rules for runtime enforcement later.
+## Law
+- Mode MUST NOT be assumed optimistically.
+- If Runtime capability is not provably available, Brains MUST operate as **Conceptual Mode**.
+- Mode Awareness does not change laws. It only changes what evidence is possible.
 
-## Do Not Assume
-- Mode Awareness does not change the laws
-- Mode Awareness does not weaken Truth Gate
-- Mode Awareness does not imply runtime access in chat
+## Proof rules (anti-fabrication)
+- If Brains claims a command/test/build was executed, Brains MUST provide executable receipts.
+- If an action cannot be executed in the current surface, it MUST be labeled **PROPOSED / UNVERIFIED**.
+- “Reasoned PASS” is invalid in all modes.
 
 ## Interactions
-- Truth/Disclosure gates apply in both modes
-- Fallback behavior must be explicit in Conceptual Mode (instructions + evidence requests)
+- **Truth Gate** controls claim validity.
+- **Disclosure Gate** triggers when required proof/execution is unavailable.
+- When relevant, Mode MUST be stated in the Control Sync Snapshot (so handoff is deterministic).

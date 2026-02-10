@@ -1,92 +1,147 @@
 SYNAPSE OS — QUEST VALIDATION RULES (CANON)
-Version: v1.0
-Last Updated: 2026-02-02
+Version: v1.2
+Last Updated: 2026-02-09
 Status: Governance Law (changes require Governance Control Sync)
 
 Maintainer: Hands (Peter) with Brains (Ash)
 Audience:
-- Any AI session creating, accepting, or completing quests
-- Any human operator (Hands) who needs deterministic execution state
+- Any AI session creating, accepting, or completing Quests
+- Any human operator (Hands) who requires deterministic execution state
 
 ================================================================================
 0) PURPOSE
 ================================================================================
-Quests are executable units. If a Quest file drifts, corrupts, or becomes ambiguous,
-execution becomes unreliable and truth becomes unverifiable.
+Quest Validation exists to prevent ambiguous or non-executable work from entering
+(or leaving) execution state.
+
+If a Quest is invalid:
+- execution becomes unreliable,
+- completion becomes subjective,
+- and Truth Gate becomes unenforceable.
 
 This document defines:
-- the minimum invariants every Quest MUST satisfy
-- when validation must occur
-- what happens when validation fails
+- what a Quest MUST contain to be considered valid,
+- when validation MUST occur,
+- and what happens when validation FAILS.
 
-Core intent:
-- prevent quest header corruption
-- prevent “status drift”
-- prevent execution without audit anchoring
+Key guarantee:
+- If a Quest passes validation, it is unambiguous enough to be executed,
+  audited, verified, and resumed by any compliant operator.
 
 ================================================================================
 1) CORE LAW (VALIDATION GATES STATE TRANSITIONS)
 ================================================================================
-A Quest may NOT change state unless it passes validation.
+1.1 Validation is mandatory for state transitions
+A Quest file MUST NOT change state unless it passes validation.
 
-State changes include:
+State transitions include:
 - moving a quest from BOARD → ACCEPTED
-- marking a quest COMPLETE
-- abandoning a quest
+- moving a quest from ACCEPTED → COMPLETED
+- moving a quest from ACCEPTED → ABANDONED
 
-If validation fails:
+1.2 Failure behavior (deterministic)
+If validation FAILS:
 - Truth Gate blocks advancement
-- Disclosure Gate must notify Hands
-- the quest file must be fixed before proceeding
+- Disclosure Gate MUST notify Hands
+- the Quest file MUST be corrected before proceeding
 
 (See: Processes/SYNAPSE_GUILD__TRUTH_GATE.txt)
+
+1.3 Ambiguity resolution
+If any required element is ambiguous, missing, or cannot be verified:
+- validation FAILS
+- the system defaults to NOT EXECUTED / NOT ADVANCED
 
 ================================================================================
 2) QUEST STATE IS BY LOCATION (CANON)
 ================================================================================
-Quest status is defined by WHERE the quest file lives, not by metadata.
+Quest status is defined by WHERE the Quest file lives, not by metadata.
 
-Locations:
-- BOARD: <Subject>_Data/Quest Board/
-- ACCEPTED: <Subject>_Data/Quest Board/Accepted/
+Canonical locations:
+- BOARD:     <Subject>_Data/Quest Board/
+- ACCEPTED:  <Subject>_Data/Quest Board/Accepted/
 - COMPLETED: <Subject>_Data/Quest Board/Completed/
 - ABANDONED: <Subject>_Data/Quest Board/Abandoned/
 
-If a Quest file contains a “Quest Board folder state” section, it MUST match its actual location.
-If it conflicts, location wins and the file must be corrected.
+If a Quest file contains a “Quest Board folder state” section, it MUST match its
+actual location.
+If it conflicts:
+- location wins
+- the file must be corrected
 
 ================================================================================
-3) MINIMUM QUEST FILE INVARIANTS (REQUIRED)
+3) QUEST INVARIANTS (MINIMUM REQUIREMENTS)
 ================================================================================
-All Quest files MUST include, at minimum:
+All Quest files MUST satisfy the minimum invariants below.
 
-A) Identity
+If a Quest is derived from Guild Orders, it SHOULD include links to the relevant
+Guild Orders / Raid / Dungeon, but links are not a hard validity requirement.
+
+3.1 Identity (required)
 - Quest ID (required)
 - Title (required)
 - Subject (required)
-
-B) Priority + Origin
-- Priority: P0 / P1 / P2 (required)
 - Origin (required)
 
-C) Description + Objective
+3.2 Priority (required)
+- Priority: P0 / P1 / P2
+
+3.3 Atomicity (required; inherited law)
+A Quest MUST be atomic.
+
+Definition (see: Quest Board/SYNAPSE_GUILD__QUESTS.txt):
+- A Quest is a single, clearly scoped, independently completable commitment.
+
+Validation rule:
+- If the work cannot be finished and verified independently, it is NOT a Quest.
+  It is a Dungeon (or larger) and MUST be decomposed.
+
+3.4 Description + Objective (required)
 - Description (required)
 - Scope / Objective (success conditions) (required)
 
-D) Dependencies (required if applicable)
-- If none, state “None”.
+Hard requirement:
+- “Success conditions” MUST be stated as what will be true when done.
+- Vague outcomes like “improve”, “optimize”, “make better” are invalid unless
+  paired with concrete criteria.
 
-E) Verification Notes (strongly recommended)
-- The verification plan that will prove completion.
+3.5 Dependencies (required if applicable)
+- If there are dependencies, they MUST be listed.
+- If there are none, the section MUST explicitly state: None.
 
-F) Audit Bundle pointer (required when ACCEPTED)
-- A Quest must not be executed unless it has an audit bundle folder path recorded.
-
-G) Risk + Consent (conditional)
+3.6 Risk + Consent (conditional)
 - Risk defaults to R0 if omitted.
-- If Risk = R2, the quest MUST include an R2 Confirmation Artifact path AND the
-  confirmation file MUST exist with "CONFIRM: YES".
+- If Risk = R2:
+  - the Quest MUST include an R2 Confirmation Artifact path
+  - the confirmation file MUST exist and contain "CONFIRM: YES"
+
 (See: Processes/SYNAPSE_GUILD__CONSENT_GATE.txt)
+
+3.7 Verification Notes (recommended)
+Verification Notes SHOULD exist.
+
+Clarification:
+- A Quest MUST NOT be executed without a Verification Plan.
+- The Verification Plan is enforced in Execution Audits (01_PREQUEST.md), and
+  may also be summarized in the Quest file.
+
+(See: Processes/SYNAPSE_GUILD__EXECUTION_AUDITS.txt)
+
+3.8 Audit Bundle pointer (required once ACCEPTED)
+A Quest MUST NOT be executed unless it has a canonical audit bundle path recorded
+in the Quest file.
+
+3.9 Doors + Testing Level (required for code/software Quests)
+If the Quest changes code/software artifacts (see Testing Protocol / Verification Ladder):
+- Door Impact MUST be stated (even if NONE).
+- Testing Level (TL) MUST be stated (TL1–TL4) OR explicitly deferred to 01_PREQUEST.md.
+
+Notes:
+- “Deferred to 01_PREQUEST.md” is allowed ONLY if the Quest is not yet ready to
+  select TL at BOARD time. TL must be selected before execution begins.
+- A Quest MUST NOT claim TL4 coverage if wiring/doors do not exist yet.
+
+(See: Processes/SYNAPSE_GUILD__VERIFICATION_LADDER.txt)
 
 ================================================================================
 4) QUEST ID FORMAT (CANON)
@@ -97,23 +152,41 @@ Canonical patterns:
 - QUEST_###        (example: QUEST_015)
 - SIDE-QUEST_###   (example: SIDE-QUEST_003)
 
-Rule:
+Rules:
 - The numeric portion SHOULD be zero-padded to 3 digits for sorting.
 - Do not reuse Quest IDs.
 
 ================================================================================
-5) AUDIT BUNDLE REQUIREMENT (ACCEPTED STATE)
+5) WORLD STATE GATE (EXECUTION LEGALITY)
 ================================================================================
-When a quest becomes ACCEPTED, it MUST be anchored to a canonical audit bundle:
+Accepting a Quest is an execution commitment.
+
+Default legality:
+- If Codex Freeze marker does NOT exist, World State is Fog of War.
+- Under Fog of War, Quests MUST NOT be ACCEPTED for execution.
+
+Codex Freeze marker (required for execution readiness):
+- <Subject>_Data/Codex/CODEX_FREEZE.md
+
+If the marker file does not exist:
+- validation FAILS for BOARD → ACCEPTED transitions
+
+(See: The Guild/Terminology/Locks/LOCK__FOG_OF_WAR.md
+      The Guild/Terminology/Locks/LOCK__CODEX_FREEZE_FOG_LIFTED.md)
+
+================================================================================
+6) AUDIT BUNDLE REQUIREMENT (ACCEPTED STATE)
+================================================================================
+When a Quest becomes ACCEPTED, it MUST be anchored to a canonical audit bundle.
 
 Audit bundle root:
 - <Subject>_Data/Audits/Execution/<AuditBundleFolder>/
 
-Canonical folder name:
+Canonical folder name patterns:
 - QUEST_###__YYYY-MM-DD__<short_slug>/
 - SIDE-QUEST_###__YYYY-MM-DD__<short_slug>/
 
-Rule:
+Rules:
 - One audit bundle per quest.
 - Multi-day/retry work appends into the same bundle (no second bundle).
 
@@ -122,43 +195,62 @@ The Quest file MUST include:
   <Subject>_Data/Audits/Execution/QUEST_###__YYYY-MM-DD__<short_slug>/
 
 ================================================================================
-6) ACCEPTANCE CHECKLIST (BOARD → ACCEPTED)
+7) ACCEPTANCE CHECKLIST (BOARD → ACCEPTED)
 ================================================================================
-Before moving a quest into Accepted/:
+Before moving a Quest into Accepted/:
 
 [ ] Quest invariants satisfied (Section 3)
 [ ] Quest ID format valid (Section 4)
+[ ] Quest is atomic (Section 3.3)
 [ ] Dependencies captured (or explicitly None)
-[ ] Verification plan exists (or explicitly pending)
-[ ] Audit bundle folder created and recorded in the quest file
+[ ] Verification Notes exist OR are explicitly deferred to Pre-Quest Audit
+    (Execution may not begin until 01_PREQUEST.md contains the Verification Plan)
+[ ] For code/software Quests: Door Impact + TL recorded OR explicitly deferred
+[ ] Audit bundle folder created and recorded in the Quest file
 [ ] If Risk = R2, confirmation artifact exists (Consent Gate)
-[ ] World State permits execution (Fog Lifted + Codex Freeze if required)
+[ ] World State permits execution (Codex Freeze marker exists)
 
 If any box cannot be checked:
 - STOP
-- Disclosure Gate must notify Hands
-- Fix the quest file or defer acceptance
+- Disclosure Gate MUST notify Hands
+- Fix the Quest file or defer acceptance
 
 ================================================================================
-7) COMPLETION CHECKLIST (ACCEPTED → COMPLETED)
+8) COMPLETION CHECKLIST (ACCEPTED → COMPLETED)
 ================================================================================
 A Quest may only be moved to Completed/ if:
 
-[ ] The audit bundle exists and contains required phase files
-[ ] Verification passes (tests/checks recorded)
+[ ] The audit bundle exists
+[ ] The audit bundle contains the mandatory phase files:
+    - 00_SUMMARY.md
+    - 01_PREQUEST.md
+    - 02_EXECUTION.md
+    - 03_VERIFY.md
+    - 04_OUTCOME.md
+[ ] 03_VERIFY.md contains an explicit outcome: PASS / FAIL / BLOCKED
+[ ] If PASS: receipts exist (no simulated runs)
+[ ] If BLOCKED:
+    - the reason is explicit (what prevented execution)
+    - the maximum feasible substitute checks ran (with receipts)
+    - operator-run verification commands are provided
+    - the Blocked Verification Ledger was created/updated (and its path is stated)
+    - Disclosure Gate notified Hands
+[ ] FAIL is never eligible for completion (fix or abandon)
 [ ] Outcome note recorded (what is now true)
 [ ] Talent Tree updated if capability changed
 
 If not:
-- Quest remains ACCEPTED or is explicitly marked blocked (in audits + snapshots)
+- Quest remains ACCEPTED (or is ABANDONED by Control Sync)
+- Blockers/failures MUST be recorded in audits + EOD snapshot
 
 ================================================================================
-8) ABANDONMENT RULE
+9) ABANDONMENT RULE
 ================================================================================
-Abandoning a quest is a Control Sync decision.
-If a quest is abandoned:
-- the reason must be recorded (Control Sync snapshot + audit outcome)
-- the quest file must be moved into Abandoned/
-- replacement quest(s) should be created if the intent remains
+Abandoning a Quest is a Control Sync decision.
+
+If a Quest is abandoned:
+- the reason MUST be recorded (Control Sync snapshot + audit outcome)
+- the Quest file MUST be moved into Abandoned/
+- replacement Quest(s) SHOULD be created if the intent remains
 
 END OF DOCUMENT

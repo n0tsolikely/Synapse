@@ -1,0 +1,216 @@
+SYNAPSE OS — VERIFICATION LADDER (CODE/SOFTWARE) (CANON)
+Version: v1.0
+Last Updated: 2026-02-08
+Status: Governance Law (changes require Governance Control Sync)
+
+Audience:
+- Any AI session (Brains) executing code/software Quests under Synapse OS
+- Hands reviewing audits and deciding completion
+
+================================================================================
+0) PURPOSE
+================================================================================
+
+This law makes "verification" for code/software subjects mean:
+- executable checks were actually executed (not reasoned),
+- the right level of testing was selected for the work,
+- receipts exist in Execution Audits to prove it.
+
+This ladder is NON-BINARY:
+- not every Quest requires full end-to-end testing,
+- but every Quest requires the smallest correct set of executed checks.
+
+This ladder integrates with:
+- Truth Gate: `Processes/SYNAPSE_GUILD__TRUTH_GATE.txt`
+- Execution Audits: `Processes/SYNAPSE_GUILD__EXECUTION_AUDITS.txt`
+- Risk Rubric (network/tokens): `Processes/SYNAPSE_GUILD__RISK_RUBRIC.txt`
+
+================================================================================
+1) CORE DEFINITIONS
+================================================================================
+
+1.1 Testing Level (TL)
+Each software Quest MUST select a Testing Level (TL) in its Verification Plan.
+TL is chosen based on what was changed and what is realistically verifiable now.
+
+1.2 PASS / FAIL / BLOCKED
+- PASS: checks were executed and passed.
+- FAIL: checks were executed and failed.
+- BLOCKED: checks could not be executed in this execution surface.
+
+Hard rule:
+- FAIL stops the Quest (must fix before continuing).
+- BLOCKED does NOT pretend PASS.
+
+================================================================================
+2) THE LADDER (TL0–TL4)
+================================================================================
+
+TL0 — FORBIDDEN
+- "No checks, just vibes." Not allowed.
+
+TL1 — BUILD / STATIC SAFETY
+Examples (language-dependent):
+- build/compile succeeds
+- typecheck passes
+- lint passes
+- import/syntax sanity check passes
+
+TL2 — UNIT BEHAVIOR
+Examples:
+- unit tests for touched modules
+- deterministic behavior tests for new logic
+
+TL3 — INTEGRATION / CONTRACT BEHAVIOR
+Examples:
+- integration tests across modules/services
+- contract tests between adapters/interfaces
+
+TL4 — END-TO-END / SMOKE FLOW
+Examples:
+- start the app/service and hit a real endpoint (local)
+- CLI smoke ("--help", "--version", happy-path command)
+- door smoke for each declared Door (API/Web/CLI/Bot)
+
+Notes:
+- Higher TL implies lower TL is also expected when feasible.
+- TL selection is not moral; it is about what is verifiable at this stage.
+
+================================================================================
+3) FEASIBILITY (REMOVE SUBJECTIVITY)
+================================================================================
+
+"Feasible" is NOT personal judgment.
+A check is FEASIBLE if ALL are true:
+
+A) Executable here
+- The current execution surface can actually run the command (shell available).
+
+B) Dependencies obtainable here
+- Required dependencies can be installed/available in this execution surface.
+- If dependency install requires network/model downloads, it is governed by Risk Rubric.
+
+C) Risk allowed
+- The command does not trigger R2 (network egress / real tokens / model downloads)
+  unless Hands explicitly approves via Consent Gate.
+
+D) Time budget
+- Per-Quest verification should fit in a small budget.
+- System Verification may take longer.
+
+If A/B/C fail -> verification is BLOCKED.
+If D fails -> escalate to Hands (do not silently skip).
+
+================================================================================
+4) COMMAND DISCOVERY (DETERMINISTIC ORDER)
+================================================================================
+
+Brains MUST select verification commands using this authority order:
+
+1) Execution Pack commands (highest authority for the session)
+2) Subject Buffs (canonical verify commands)
+3) Repo-native commands documented in README/CONTRIBUTING
+4) Conventional defaults (appendix; last resort)
+
+Brains MUST record chosen commands in:
+- 01_PREQUEST.md (Verification Plan)
+
+Brains MUST record execution receipts in:
+- 03_VERIFY.md
+
+================================================================================
+5) REQUIRED MINIMUMS (DEFAULTS)
+================================================================================
+
+5.1 If relevant automated tests already exist
+If the repo already has tests for the capability you touched, you MUST run them.
+Build-only is NOT sufficient when relevant tests exist.
+
+5.2 If no automated tests exist yet (early repo / fresh capability)
+Minimum:
+- TL1, plus at least ONE of:
+  - a minimal unit test for deterministic logic (preferred), OR
+  - a smoke run that exercises the new behavior (TL4-lite), OR
+  - a contract harness proving adapter boundaries.
+
+If none are possible in this execution surface:
+- verification is BLOCKED (recorded with receipts + operator-run commands),
+- Quest MAY proceed/complete only with explicit Disclosure.
+
+5.3 If integration is not wired yet
+Allowed:
+- verify the new capability at TL1/TL2 in isolation
+- explicitly mark TL3/TL4 as "NOT YET POSSIBLE" with concrete missing precondition
+
+Required:
+- do NOT claim a fake e2e
+- record what would need to exist to run TL3/TL4 later
+
+================================================================================
+6) BLOCKED VERIFICATION LEDGER (LAZY-CREATED)
+================================================================================
+
+Purpose:
+- keep a single, searchable record of verification gaps that were BLOCKED.
+- not a mandatory cleanup requirement; it is an audit trail.
+
+6.1 Creation rule
+- The ledger MUST NOT be created unless a BLOCKED event occurs.
+- When first created, Brains MUST explicitly state the exact path.
+
+6.2 Standard location (software subjects)
+Create on first BLOCKED:
+- `<Subject>_Data/Audits/Blocked_Verification_Ledger.md`
+
+6.3 Minimum entry schema
+Each entry MUST include:
+- Date
+- Quest ID / name
+- What was blocked (which TL / which command)
+- Why blocked (precondition)
+- Operator-run command(s) to verify later
+
+6.4 Clearing
+Entries may be marked CLEARED later ONLY if real execution occurred and receipts exist.
+Clearing is optional; it is governed by Hands.
+
+================================================================================
+7) OPTIONAL: REASONED RISK ASSESSMENT (NOT VERIFICATION)
+================================================================================
+
+Brains MAY add a short "Reasoned Risk Assessment" section when verification is BLOCKED.
+This is allowed ONLY if it is labeled as NON-AUTHORITATIVE and never replaces execution.
+
+Hard rule:
+- Reasoned assessment MUST NOT be labeled PASS.
+
+================================================================================
+APPENDIX A) CONVENTIONAL DEFAULTS (LAST RESORT)
+================================================================================
+
+Use only if the project does not define canonical commands.
+
+Python:
+- `python -m compileall -q .`
+- `python -m pytest -q`
+
+Node/TS:
+- `npm test` / `pnpm test` / `yarn test`
+- `npm run build`
+
+Go:
+- `go test ./...`
+
+Rust:
+- `cargo test`
+
+Java:
+- `mvn test`
+- `./gradlew test`
+
+.NET:
+- `dotnet test`
+
+================================================================================
+END
+================================================================================

@@ -1,6 +1,6 @@
 SYNAPSE GUILD — EXECUTION PACKS (CANON)
-Version: v1.2
-Last Updated: 2026-02-02
+Version: v1.3
+Last Updated: 2026-02-07
 Status: Governance Law (changes require Governance Control Sync)
 
 Maintainer: Hands (Peter) with Brains (Ash)
@@ -32,6 +32,17 @@ Execution Packs convert a long, nuanced Control Sync into a deterministic, resum
 anti-drift execution state.
 
 This is governance law. It applies across all projects (Ashby, Stuart, games, anything).
+
+================================================================================
+0.1) ARTIFACT LAW (BINDING)
+================================================================================
+
+Execution Packs are subject-state artifacts.
+
+- If the Execution Pack does not exist as file(s) on disk, the pack does not exist.
+- Chat text describing a pack is PROPOSAL only until written to canonical storage.
+- If a pack is referenced but cannot be proven present + readable, trigger Disclosure Gate
+  and treat the pack as unavailable.
 
 ================================================================================
 1) DEFINITIONS (CANON)
@@ -107,7 +118,7 @@ Execution Packs convert decisions into a resumable, deterministic execution stat
 
 Execution Packs are optional; they are not required for every piece of work.
 
-You SHOULD create an Execution Pack when one or more of the following is true:
+An Execution Pack is warranted when one or more of the following is true:
 
 3.1 Drift risk is high
 - The work spans multiple days or chats.
@@ -135,7 +146,7 @@ You SHOULD create an Execution Pack when one or more of the following is true:
 3.6 “We must not refactor” or “we must not redesign” is a hard constraint
 When you need to freeze behavior and forbid creative rewrites, use an Execution Pack.
 
-You SHOULD NOT create an Execution Pack if:
+An Execution Pack is usually unnecessary when:
 - the work is trivial and can be done in one sitting with low risk
 - the work is exploratory brainstorming only (no execution planned)
 - the work is already fully locked and simple enough to follow with existing canon
@@ -288,6 +299,17 @@ need for deterministic execution is identified.
 While active, the Execution Pack is binding for the execution it governs.
 Operators (human or AI) must not improvise beyond allowed discretion.
 
+7.2.1 Activation must be explicit (anti-guess)
+An Execution Pack is ACTIVE only when the current execution state explicitly names
+it as binding for this execution window.
+
+Valid sources include (any one is sufficient):
+- a Control Sync decision captured in the Control Sync Snapshot
+- the Bootstrap Prompt
+- the Continuity Lock
+
+If no canonical artifact names an active pack, you MUST NOT assume one is active.
+
 7.3 Completion
 A pack is complete when its objective/deliverables are met and verification passes.
 
@@ -388,9 +410,12 @@ If an operator hits a decision that feels “architectural,” pause and trigger
 11) PACK STRUCTURE AND STORAGE (FILE SYSTEM LAW)
 ================================================================================
 
+Execution Packs are subject-state artifacts.
+They belong in <Subject>_Data (not in <Subject>_Engine and not in Governance).
+
 Execution Packs should have first-class storage, like Snapshots and Guild Orders.
 
-Canonical storage recommendation (inside the SUBJECT data bundle):
+Canonical default storage (inside the SUBJECT data bundle):
 - `<Subject>_Data/Docs/Execution Packs/Active/`
 - `<Subject>_Data/Docs/Execution Packs/Archived/`
 

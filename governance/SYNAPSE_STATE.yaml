@@ -1,26 +1,69 @@
 # SYNAPSE_STATE.yaml
-# Purpose:
-# Deterministic rehydration + routing file.
-# Mirrors the REQUIRED READ ORDER exactly (including continuity activation),
-# while resolving "latest" artifacts dynamically.
+# Version: v1.3
+# Last Updated: 2026-02-09
+#
+# PURPOSE
+# - Deterministic rehydration + routing manifest for Synapse OS.
+# - Mirrors README.txt → REQUIRED READ ORDER and resolves "latest" subject artifacts.
+#
+# AUTHORITY + SAFETY
+# - This file does NOT grant execution authority. It only routes what must be read.
+# - Terminology Locks override all non-lock text. This file MUST NOT be used to bypass Locks.
+# - If a required artifact cannot be proven present/readable at the resolved path:
+#   - Disclosure Gate MUST trigger
+#   - execution authority is INVALID
+#   - no guessing / no improv
+#
+# PATH RULE (CANON)
+# - All paths in this file are WORKSPACE-RELATIVE.
+# - governance_pack.root MUST point to the extracted governance pack directory
+#   (the directory that contains README.txt + INDEX.txt).
+# - subject_data.roots MUST point to canonical {ACTIVE_SUBJECT}_Data/ directories
+#   (i.e., directories that contain the Subject Data Skeleton).
 
 schema_version: 2
 
 # =============================================================================
 # CANONICAL ROOTS
 # =============================================================================
+
 governance_pack:
-  root: "Synapse_OS_Governance/Synapse_OS_Governance"
+  # Expected default when the Governance Pack is extracted into the workspace root.
+  root: "Synapse_OS_Governance"
 
 subject_data:
+  # One or more canonical {ACTIVE_SUBJECT}_Data roots.
+  # NOTE: Each root MUST itself be the {ACTIVE_SUBJECT}_Data directory (no wrapper folders).
+  # Example: "{ACTIVE_SUBJECT}_Data"
   roots:
-    - "Ashby_Data/Ashby_Data"
+    - "{ACTIVE_SUBJECT}_Data"
 
+  # SUBJECT-LOCAL STATE (IMPORTANT)
+  # - This SYNAPSE_STATE.yaml lives with the GOVERNANCE pack and is universal.
+  # - Subject-specific state/config (if any) MUST live inside each subject's data root
+  #   per Terminology Locks (e.g., Subject Data Skeleton). Do NOT hardcode a specific
+  #   subject (like Ashby) into this governance-level file.
+  # - This governance file may resolve ACTIVE_SUBJECT, but it does not define the
+  #   per-subject YAML schema. That schema belongs to the Subject Model / subject docs.
+
+
+  # active_subject determines placeholder expansion (e.g., {ACTIVE_SUBJECT}_ in Snapshots).
+  # Allowed:
+  # - "auto" (infer from state)
+  # - explicit subject name (string)
   active_subject: "auto"
+
   infer_active_subject:
+    # If true, infer ACTIVE_SUBJECT from presence of ACTIVE Guild Orders.
     from_active_guild_orders: true
+
+    # If inference yields multiple candidates or none:
+    # - do not guess
+    # - ask Hands
     if_ambiguous: "ask_hands"
 
+  # Directories containing any of these substrings are ignored when scanning roots.
+  # (This is defensive against junk packaging artifacts.)
   ignore_dir_name_contains:
     - "(IGNORE)"
     - "__MACOSX"
@@ -28,6 +71,9 @@ subject_data:
 # =============================================================================
 # REQUIRED READ ORDER (SESSION-LEVEL, DO NOT SKIP)
 # =============================================================================
+# This list MUST mirror README.txt → REQUIRED READ ORDER.
+# The list is SEQUENTIAL. Items must be resolved + read in this exact order.
+
 required_read_order:
   - governance: "README.txt"
   - governance: "INDEX.txt"
@@ -44,6 +90,7 @@ required_read_order:
 
   - governance: "Processes/SYNAPSE_GUILD__TRUTH_GATE.txt"
   - governance: "Processes/SYNAPSE_GUILD__EXECUTION_AUDITS.txt"
+  - governance: "Processes/SYNAPSE_GUILD__VERIFICATION_LADDER.txt"
   - governance: "Processes/SYNAPSE_GUILD__LARGE_ARTIFACT_COMPOSITION.txt"
 
   - governance: "Processes/SYNAPSE_GUILD__CONTROL_SYNC.txt"
@@ -61,23 +108,32 @@ required_read_order:
 
   - locks: "The Guild/Terminology/Locks/LOCK__CODEX_FREEZE_FOG_LIFTED.md"
   - locks: "The Guild/Terminology/Locks/LOCK__SUBJECT_DATA_SKELETON.md"
+  - locks: "The Guild/Terminology/Locks/LOCK__NO_GOD_ARTIFACTS.md"
+  - locks: "The Guild/Terminology/Locks/LOCK__LAYER_RESPONSIBILITIES.md"
 
 # =============================================================================
 # RESOLUTION RULES
 # =============================================================================
+# These rules define how "subject:" items above are resolved to concrete files.
+# IMPORTANT: If resolution yields 0 matches or multiple ambiguous matches,
+#            do NOT guess. Trigger Disclosure Gate or ask Hands (as applicable).
+
 rehydration:
   latest_rehydration_pack:
     dir: "Latest Rehydration Pack"
-
     bootstrap_prompt:
-      filename_contains_any: ["BOOTSTRAP_PROMPT", "BOOTSRAP_PROMPT"]
-      date_regex: "(\\d{4}-\\d{2}-\\d{2})"
-      pick: "latest_by_date"
-
+      filename_contains_any: ["BOOTSTRAP_PROMPT"]
+      pick: "single_required"
     continuity_lock:
       filename_contains_any: ["CONTINUITY_LOCK"]
-      date_regex: "(\\d{4}-\\d{2}-\\d{2})"
-      pick: "latest_by_date"
+      pick: "single_required"
+
+    execution_pack:
+      dir: "Execution Pack"
+      include_globs: ["*.txt", "*.md"]
+      read: "all"
+      order: "lexicographic"
+      recursive: false
 
   buffs:
     dir: "Buffs"
@@ -85,7 +141,11 @@ rehydration:
       - "{BUFF_PREFIX}_EXECUTION_PROTOCOL.txt"
       - "{BUFF_PREFIX}_DATA_DIRECTORY_MAP.txt"
       - "{BUFF_PREFIX}_SESSION_START_CHECK.txt"
-    buff_prefix: "ASHBY"
+
+    # BUFF_PREFIX should match the subject identity used in Buff filenames.
+    
+    # Use "AUTO" to derive BUFF_PREFIX = UPPER(ACTIVE_SUBJECT)
+    buff_prefix: "AUTO"
 
   snapshots:
     root_dir: "Snapshots"
@@ -107,9 +167,13 @@ rehydration:
 
     general:
       dir: "General"
+
+      # include_if is evaluated as ANY/OR across the list below.
       include_if:
         - "same_day_as_session_day"
         - "newer_than_session_day"
+
+      # session_day is derived from the latest binding work day.
       session_day: "max(control_sync_day, end_of_day_day)"
       pick: "selected_date_include_all"
       read_order: "lexicographic"
@@ -131,4 +195,3 @@ rehydration:
   audits:
     root_dir: "Audits"
     execution_dir: "Execution"
-    legacy_execution_subdir: "Execution/LEGACY__QUEST_DIFF_AUDIT_FILES"

@@ -1,6 +1,6 @@
 SYNAPSE GUILD — SNAPSHOTS (CANON)
-Version: v1.1
-Last Updated: 2026-02-02
+Version: v1.2
+Last Updated: 2026-02-06
 Status: Governance Law (changes require Governance Control Sync)
 
 Maintainer: Hands (Peter) with Brains (Ash)
@@ -15,13 +15,13 @@ Audience:
 
 This document defines what SNAPSHOTS are, why they exist, and how they are used.
 
-After reading this document, the phrase “Write a Snapshot” must be sufficient
+After reading this document, the phrase “Write a Snapshot” MUST be sufficient
 instruction for any compliant operator (human or AI).
 
-Snapshots are the **ground‑truth memory system** of the Synapse Guild.
+Snapshots are the ground‑truth memory system of the Synapse Guild.
 They preserve reality over time without relying on chat history or human recall.
 
-This is governance law.
+Snapshots are governance law.
 
 ================================================================================
 1) CORE DEFINITION (CANON)
@@ -36,6 +36,15 @@ A Snapshot answers one question:
 
 One‑sentence definition:
 A Snapshot is an immutable record of reality captured at a specific moment in time.
+
+1.2 Snapshot Artifact — definition
+A Snapshot is an artifact file stored in the Subject’s data directory.
+
+A Snapshot is not “what the operator remembers.”
+A Snapshot is not “what was said in chat.”
+A Snapshot is a file that exists in <Subject>_Data/Snapshots/.
+
+If the Snapshot file does not exist, then the Snapshot does not exist.
 
 ================================================================================
 2) WHAT PROBLEM SNAPSHOTS SOLVE
@@ -54,7 +63,7 @@ Without Snapshots:
 - execution becomes non‑auditable
 - continuity breaks across days, weeks, or months
 
-Snapshots prevent **historical drift**.
+Snapshots prevent historical drift.
 
 ================================================================================
 3) WHAT SNAPSHOTS ARE — AND ARE NOT
@@ -77,33 +86,48 @@ Snapshots are NOT:
 
 If something is not true yet, it does not belong in a Snapshot.
 
+3.3 Immutability rule
+Snapshots MUST NOT be edited to change historical truth.
+
+If a Snapshot is wrong or missing context:
+- write a new Snapshot that corrects it
+- reference the prior Snapshot explicitly
+- do not rewrite history
+
 ================================================================================
 4) THE THREE SNAPSHOT TYPES (CANON)
 ================================================================================
 
-There are exactly **three** Snapshot types.
+There are exactly three Snapshot types.
 
 Each exists for a different purpose.
-They must not be conflated.
+They MUST NOT be conflated.
 
 --------------------------------------------------------------------------------
 4.1 CONTROL SYNC SNAPSHOT
 --------------------------------------------------------------------------------
 
 Purpose:
-Capture **binding decisions** made during a Control Sync.
+Capture binding decisions produced by a Control Sync.
 
-Used when:
+Mandatory trigger:
+A Control Sync MUST end with exactly one Snapshot:
+- Control Sync Snapshot if any binding decision was made
+- General Snapshot if no binding decisions were made (alignment/context only)
+
+Used when binding decisions occur, including (non‑exhaustive):
 - scope was defined or changed
 - Guild Orders were created or updated
-- Quests were created
+- Dungeons/Quests were created, accepted, rejected, re‑scoped
 - Execution Packs or canon documents were generated
 - authoritative decisions were made
 
-What it records:
+What it records (minimum):
 - decisions made
 - what is now binding
-- references to new or updated artifacts
+- what is explicitly NOT decided
+- references to new or updated artifacts (paths)
+- the declared scope commitment for the session/day (if applicable)
 
 What it does NOT record:
 - exploratory discussion
@@ -118,7 +142,15 @@ Think of it as:
 --------------------------------------------------------------------------------
 
 Purpose:
-Capture **what actually happened during execution**.
+Capture what actually happened during execution.
+
+Mandatory trigger:
+When Hands ends a work session (“stop”, “done”, “end session”, or equivalent),
+Brains MUST write an End‑of‑Day Snapshot.
+
+If no execution occurred:
+- the End‑of‑Day Snapshot MUST explicitly state that no execution occurred
+- it MUST reference the latest Control Sync Snapshot (if one occurred)
 
 Used when:
 - work was done
@@ -126,12 +158,13 @@ Used when:
 - files or code changed
 - blockers or failures were discovered
 
-What it records:
-- what was worked on
+What it records (minimum):
+- what was worked on (by Quest and by concrete work performed)
 - what was completed
 - what is now true in the system
-- what remains incomplete
-- any problems uncovered
+- what remains incomplete (and why)
+- any problems uncovered (errors, failures, blockers)
+- where the raw receipts live (Execution Audits, logs, test output files) if applicable
 
 What it does NOT record:
 - future plans
@@ -146,23 +179,27 @@ Think of it as:
 --------------------------------------------------------------------------------
 
 Purpose:
-Capture **any important moment** that does not fit cleanly into the other two types.
+Capture any important moment that does not fit cleanly into the other two types.
+
+Mandatory trigger (alignment‑only Control Sync):
+If a Control Sync ended with no binding decisions, the Control Sync MUST end with
+exactly one General Snapshot.
 
 Used when:
-- a Control Sync was mostly discussion or alignment
+- a Control Sync was discussion/alignment/context only
 - context was rehydrated after time away
 - insight or understanding emerged
 - governance or philosophy was clarified
 - an important moment occurred mid‑day
 
-What it records:
+What it records (minimum):
 - context
 - understanding
 - rationale
 - observations worth preserving
 
 What it does NOT record:
-- binding decisions (unless explicitly stated)
+- binding decisions (unless explicitly stated as binding)
 - execution logs
 
 Think of it as:
@@ -178,10 +215,17 @@ Snapshots are records.
 A Control Sync itself is ephemeral.
 Its outcomes are not.
 
-Rules:
-- Binding decisions from a Control Sync must be captured in a Control Sync Snapshot.
-- Alignment‑only Control Syncs may produce a General Snapshot.
-- Not every Control Sync requires a Snapshot, but most should.
+Rules (hard):
+- A Control Sync MUST end with exactly one Snapshot.
+  - Control Sync Snapshot if binding decisions exist.
+  - General Snapshot if no binding decisions exist.
+- Binding decisions MUST NOT exist only in chat.
+  If a decision is binding, it MUST be recorded in a Snapshot.
+
+If a Snapshot cannot be written (missing Subject, missing permissions, environment limits):
+- Disclosure Gate MUST trigger.
+- The Control Sync is not considered closed.
+- Execution authority MUST NOT advance.
 
 ================================================================================
 6) SNAPSHOTS AND DAILIES
@@ -194,8 +238,13 @@ In Dailies:
 - Reality changes.
 - A Snapshot records that change.
 
-Rule:
-Execution without Snapshots leads to drift.
+Rules (hard):
+- The Dailies loop MUST include:
+  - a Snapshot at the end of the Control Sync (Control Sync Snapshot or General Snapshot per Section 5)
+  - an End‑of‑Day Snapshot when Hands ends the work session
+
+Execution without Snapshots causes drift.
+Drift invalidates continuity.
 
 ================================================================================
 7) SNAPSHOTS AND CONTINUITY LOCKS
@@ -203,29 +252,31 @@ Execution without Snapshots leads to drift.
 
 Snapshots and Continuity Locks serve different roles.
 
-- Snapshots preserve **history**.
-- Continuity Locks preserve **current state**.
+- Snapshots preserve history.
+- Continuity Locks preserve current state.
 
 Snapshots accumulate.
 Continuity Locks replace one another.
 
 A Continuity Lock may reference Snapshots.
-Snapshots must never be rewritten to match a Continuity Lock.
+Snapshots MUST NEVER be rewritten to match a Continuity Lock.
 
 ================================================================================
 8) FORMAT, STORAGE, AND NAMING (CANON)
 ================================================================================
 
-Snapshots are usually single text files stored inside the SUBJECT data folder:
+Snapshots are text files stored inside the Subject data folder.
 
 <Subject>_Data/Snapshots/
   General/
   Control Sync/
   End of Day/
 
-Canonical rule:
+Canonical rules:
 - Snapshots belong to the Subject, not to Governance.
-- Governance defines the law; Subject_Data stores the artifacts.
+- Governance defines the law; <Subject>_Data stores the artifacts.
+- If the required Snapshot directories do not exist, Brains MUST create them
+  (or trigger Disclosure Gate if creation is not possible).
 
 ----------------------------------------
 8.1 STORAGE LOCATIONS (CANON)
@@ -270,7 +321,7 @@ When resuming a Subject, the ordering is locked:
 2) Review the latest End of Day Snapshot
   (execution reality / outcomes / blockers)
 
-This prevents intent-reality inversion during rehydration.
+This prevents intent‑reality inversion during rehydration.
 
 ================================================================================
 9) QUALITY BAR (WHAT MAKES A GOOD SNAPSHOT)
@@ -293,17 +344,30 @@ Snapshots must be boring and reliable.
 --------------------------------------------------------------------------------
 9.1 MINIMUM STRUCTURE (TEMPLATES ARE MINIMUMS, NOT LIMITS)
 --------------------------------------------------------------------------------
-Snapshots must capture enough truth that tomorrow’s Control Sync can resume without guessing.
 
-Canonical minimum snapshot templates live here:
+Snapshots MUST capture enough truth that tomorrow’s Control Sync can resume without guessing.
+
+Canonical minimum Snapshot templates live here:
 - Guild Docs/SYNAPSE_GUILD__SNAPSHOT_TEMPLATES.txt
 
-Rule:
+Rules (hard):
 - Templates define minimum sections.
-- If additional information is relevant (bugs, failures, blockers, weird behavior, decisions), it MUST be captured even if not listed.
+- The operator MUST include any additional relevant information even if the template
+  does not list it (bugs, failures, blockers, weird behavior, decisions, scope changes).
 
-Mandatory reminder for End-of-Day Snapshots:
-- If anything failed or remained incomplete, the snapshot MUST record what happened and WHY (blocking reason + errors + next action).
+End‑of‑Day Snapshot quality bar (hard):
+- The Snapshot MUST describe work performed in concrete terms.
+  It is NOT sufficient to only list Quest IDs/titles.
+- For each Quest worked on, the Snapshot MUST capture (minimum):
+  - what changed (conceptually)
+  - what actions were taken (high level steps)
+  - what the outcome was
+  - what is left (if incomplete) and why
+- If anything failed, the Snapshot MUST record:
+  - what failed
+  - why it failed (blocking reason)
+  - the relevant error output location (Execution Audit / log / receipt path)
+  - the next action required to avoid repeating the failure
 
 ================================================================================
 10) CANONICAL COMMANDS
@@ -313,11 +377,19 @@ Once this law is accepted, the following phrases are valid:
 
 - “Write a Snapshot.”
 Meaning:
-Record the current reality truthfully.
+Record the current reality truthfully in the correct Snapshot type.
+
+- “Write a Control Sync Snapshot.”
+Meaning:
+Record binding decisions and artifact updates produced by the Control Sync.
+
+- “Write an End‑of‑Day Snapshot.”
+Meaning:
+Record what actually happened during execution and what is now true.
 
 - “This needs a Snapshot.”
 Meaning:
-What just happened must be preserved as historical truth.
+What just happened MUST be preserved as historical truth.
 
 - “Reference this Snapshot.”
 Meaning:

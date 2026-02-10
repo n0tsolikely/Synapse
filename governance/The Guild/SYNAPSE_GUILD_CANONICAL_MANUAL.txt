@@ -1,5 +1,5 @@
-SYNAPSE GUILD — CANONICAL OPERATING MANUAL (v1.4)
-Last Updated: 2026-02-02
+SYNAPSE GUILD — CANONICAL OPERATING MANUAL (v1.5)
+Last Updated: 2026-02-07
 
 Maintainer: Hands (Peter) with Brains (Ash)
 Audience:
@@ -99,14 +99,15 @@ As the guild grows, a body-part role can subdivide (Hands → fingers → joints
 The metaphor keeps scale legible without adding bureaucracy.
 
 ================================================================================
-3) THE ARTIFACT MODEL (THE TWO WORLDS)
+3) THE ARTIFACT MODEL (GOVERNANCE / <Subject>_DATA / <Subject>_ENGINE)
 ================================================================================
 
 Everything Synapse Guild does is captured in artifacts.
-Artifacts fall into two worlds:
+
+Artifacts fall into two CLASSES:
 
 A) Governance artifacts (how we operate)
-These define the Synapse Guild Operating System and apply across all projects.
+These define the Synapse Guild Operating System and apply across all Subjects.
 
 Examples:
 - Control Sync law
@@ -119,25 +120,30 @@ Examples:
 - Execution Pack doctrine
 - Buffs (session startup ignition docs: protocol + map + start check)
 
-B) Project artifacts (what we’re building)
-These define a specific system/module.
+B) Subject artifacts (what we’re building)
+These define a specific Subject.
 
 Examples:
 - Codex (full spec/law)
 - Canonical Vision (compressed spec)
 - Guild Orders (scope and Dungeons)
 - Project snapshots (Control Sync / EOD for that project)
-- Rehydration packs for that project
-- Code (repo / engine)
+- Rehydration packs for that Subject
+- Code / manuscript / engine output
 
 Classification rule:
-- If it changes how the Guild operates across projects → GOVERNANCE.
-- If it changes what a specific system does → PROJECT.
+- If it changes how the Guild operates across Subjects → GOVERNANCE.
+- If it changes what a specific Subject is or does → SUBJECT.
+
+Artifacts live in three DOMAINS (see Subject Model):
+- Governance Pack (this folder): universal governance law.
+- <Subject>_Data/: subject state + continuity artifacts.
+- <Subject>_Engine/: the built system (the product itself).
 
 Storage note:
 - Governance is a standalone pack meant to be dropped into any session.
 - You MAY store a reference copy inside a subject’s data area for convenience, but it is inert.
-- Canonical governance remains the Governance pack; canonical subject state remains in Subject_Data.
+- Canonical governance remains the Governance pack; canonical subject state remains in <Subject>_Data.
 
 ================================================================================
 4) THE OPERATING SYSTEM: THE PILLARS
@@ -181,7 +187,7 @@ Authoritative spine:
 - Processes/SYNAPSE_GUILD__THE_LOOP.txt
 
 Branch rule:
-- If the Subject already exists (Subject_Data + Codex/Map), skip Incubation and begin at Control Sync.
+- If the Subject already exists (<Subject>_Data + Codex/Map), skip Incubation and begin at Control Sync.
 - If no Subject exists yet, run Subject Initialization + Incubation first.
 
 STEP 0 — Raw ideas
@@ -221,8 +227,8 @@ Rules:
 - SIDE-QUEST must NOT be referenced as fulfilling Guild Orders unless later promoted/merged intentionally.
 
 Delegation:
-- Operational enforcement details (snapshot timing, execution gating, protocol triggers)
-  are defined in Data-layer BUFFS and may evolve independently of this governance.
+- Subject Buffs may define subject-specific operational parameters (paths, invariants, style rules).
+- Buffs do NOT override Locks or Governance law. Conflicts trigger Disclosure Gate.
 
 
 Quests are atomic executable units.
@@ -306,24 +312,25 @@ Authoritative canon:
 - Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt
 
 ================================================================================
-9) DAILY EXECUTION LAYER (DAILIES — 7 STEPS)
+9) DAILY EXECUTION LAYER (DAILIES)
 ================================================================================
 
 Dailies are the mandatory execution loop.
 They create clean continuity even when work time is small.
 
-The 7 steps (always, in order):
-1) Control Sync
-2) Decide Scope
-3) Implement
-4) Test / Verify
-5) Snapshot
+The daily loop (always, in order):
+1) Control Sync (includes deciding scope)
+2) Scope Commitment (accept quests / commit today’s work)
+3) Implement (Quest Mini-Loop)
+4) System Verification (subject-appropriate)
+5) Snapshot (End-of-Day)
 6) Stop
-7) Repeat next day (restart at step 1 using recorded truth)
+7) Resume next session (restart at step 1 using recorded truth)
 
-Control Sync snapshot rule:
-- If binding decisions are made during the Control Sync step, record a Control Sync Snapshot.
-- If it’s mostly alignment/chat, record a General Snapshot (optional but often useful).
+Control Sync snapshot rule (non-optional):
+- A Control Sync MUST end with exactly one Snapshot file.
+  - If binding decisions exist: Control Sync Snapshot.
+  - If no binding decisions exist: General Snapshot.
 
 Authoritative canon:
 - Processes/SYNAPSE_GUILD__DAILIES.txt
@@ -444,7 +451,7 @@ DOCS (the Docs folder):
 - Loose reference material, drafts, notes, research, random docs.
 - Anything important that doesn’t have a named home yet goes here temporarily.
 - **Active rehydration pack** belongs in `<Subject>_Data/Latest Rehydration Pack/`.
-- Archived rehydration packs should live in `<Subject>_Data/Archive/` (recommended).
+- Archived rehydration packs live in `<Subject>_Data/Archive/` (default).
 
 REHYDRATION PACKS:
 - A folder that contains Continuity Lock + Bootstrap Prompt + supporting artifacts.
@@ -470,10 +477,11 @@ Refine first, quest second.
 If you feel lost, do not improvise.
 Follow this recovery path:
 
-0) Buff up (read the Buffs) if available:
+0) Buff up (read the Buffs):
    - Execution Protocol
    - Data Directory Map
    - Session Start Check
+   If Buffs are missing/unreadable for a continuing Subject: trigger Disclosure Gate and stop.
 1) Read the latest Continuity Lock (if one exists).
 2) Read the latest Control Sync Snapshot relevant to the current work.
 3) Read the latest EOD Snapshot relevant to the current work.
@@ -526,7 +534,6 @@ Quest System
 - `Quest Board/SYNAPSE_GUILD__QUEST_BOARD.txt`
 - `Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt` (quest format gate)
 - `Quest Board/SYNAPSE_GUILD__QUESTS.txt`
-- `Quest Board/QUEST_TEMPLATE.txt`
 - `Quest Board/QUEST_TEMPLATE.txt`
 
 Talent

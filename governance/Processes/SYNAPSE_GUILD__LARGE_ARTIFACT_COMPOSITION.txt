@@ -1,19 +1,19 @@
 # SYNAPSE OS — LARGE ARTIFACT COMPOSITION (CHUNKING)
 *(Canonical Governance Law)*
 
-Version: v1.1  
-Last Updated: 2026-02-02
-Status: Governance Law  
-Applies To: Codex Writing, TOC Generation, Large Specifications, Large Code Artifacts  
+Version: v1.2
+Last Updated: 2026-02-07
+Status: Governance Law
+Applies To: Codex Writing, TOC Generation, Large Specifications, Large Code Artifacts
 Audience: Any AI or human executing work under Synapse OS
 
 ================================================================================
 0) PURPOSE
 ================================================================================
 
-Chunking exists to prevent **structural failure in large artifact generation**.
+Chunking exists to prevent structural failure in large artifact generation.
 
-It exists because large outputs cause predictable, repeatable failure modes:
+Large outputs create predictable failure modes:
 
 - truncation due to output limits
 - silent summarization near the tail
@@ -24,14 +24,14 @@ It exists because large outputs cause predictable, repeatable failure modes:
 
 Chunking is not “splitting output.”
 
-Chunking is a **deterministic composition pipeline** that guarantees:
+Chunking is a deterministic composition pipeline that guarantees:
 - completeness
 - non-summarization
 - resumability
 - verifiability
 - structural integrity
 
-Chunking is mandatory when risk is present.
+If an artifact cannot be verified as complete, it is not complete.
 
 ================================================================================
 1) WHEN CHUNKING IS REQUIRED (ACTIVATION RULES)
@@ -41,9 +41,11 @@ Chunking MUST be used when ANY of the following are true:
 
 1.1 Size Risk
 - The artifact is expected to exceed safe single-output limits.
+- If the artifact has unknown size and could exceed safe limits, size risk is TRUE.
 
 1.2 Verbatim Accuracy Requirement
-- The artifact must be explicit and detailed.
+- The artifact must be explicit and detailed (summarization is unacceptable).
+
 Examples:
 - Codex sections
 - governance laws
@@ -57,13 +59,17 @@ If summarization risk is non-trivial, chunking is required even if size is uncer
 - The system detects that later sections may degrade in quality or completeness.
 
 1.4 Session / Continuity Risk
-- The environment may reset.
+- The environment may reset or the session may be interrupted.
 - The artifact must survive interruptions without rework.
 
 1.5 Hands Directive
-- The user explicitly instructs to chunk.
+- Hands explicitly instructs to chunk.
 
-Rule of thumb:
+1.6 Output Ceiling Unknown
+If you cannot state (with proof) the safe single-output ceiling of the current execution surface,
+treat it as UNKNOWN and engage chunking.
+
+Default rule:
 > If unsure, engage the chunking protocol.
 
 ================================================================================
@@ -84,12 +90,25 @@ Skipping, reordering, or merging steps is a protocol violation.
 3) STAGING RULES (WHERE PARTS LIVE)
 ================================================================================
 
-Parts are **temporary scaffolding**.
+3.0 Definitions (kills “workspace root” ambiguity)
+- WorkspaceRoot:
+  The canonical working root for the current Subject where work is occurring.
+  It MUST be provably inside the canonical working tree, and it MUST be the location
+  used to resolve relative paths for staging and install.
 
-They MUST NOT pollute canonical locations.
+  For most subjects, WorkspaceRoot is the directory that contains:
+  - <Subject>_Data/    (required)
+  - <Subject>_Engine/  (if it exists for this subject)
 
-Default staging location: <WorkspaceRoot>/compose/<Subject>/<ArtifactName>/
+If WorkspaceRoot cannot be proven (multiple candidates, missing subject, unknown root):
+- Disclosure Gate MUST trigger
+- chunking is BLOCKED until Hands selects/clarifies WorkspaceRoot
 
+Parts are temporary scaffolding.
+They MUST NOT be mistaken for deliverables.
+
+Default staging location:
+<WorkspaceRoot>/compose/<SubjectKey>/<ArtifactName>/
 
 Contents:
 - part-001
@@ -98,13 +117,24 @@ Contents:
 - MANIFEST.md
 
 Hard prohibitions:
-- Do NOT store parts in `<Subject>_Engine/`
-- Do NOT store parts in `<Subject>_Data/`
-- Do NOT treat parts as deliverables
+- Do NOT store parts in <Subject>_Engine/
+- Do NOT store parts in canonical subject-state locations (e.g., <Subject>_Data/Codex/)
 
 Exception:
 - Only if Hands explicitly requests draft preservation (e.g., book drafts)
-- Even then, drafts remain non-canon until installed
+- Even then, parts remain non-canon unless installed
+
+Canonical boundary law:
+- Staging MUST be inside the canonical working tree.
+- If the staging path would be outside the canonical tree, you MUST BLOCK and disclose.
+
+Execution-surface law (Truth Gate aligned):
+- If filesystem writes are available: parts MUST be real files in the staging directory.
+- If filesystem writes are NOT available:
+  - you MUST disclose the limitation
+  - you MUST still use the Part Header + Sentinel system inside the session transcript
+  - you MUST still produce a MANIFEST artifact (in-text if necessary)
+  - you MUST NOT claim INSTALL completed
 
 ================================================================================
 4) CHUNK BOUNDARY LAW (STRUCTURAL INTEGRITY)
@@ -122,17 +152,32 @@ Never split inside atomic constructs, including:
 - mid-indented block
 - mid-logical unit
 
-Each chunk must end at a **safe structural seam**.
+Each chunk must end at a safe structural seam.
 
-No artificial wrap-ups.
-No “mini conclusions” unless the artifact genuinely ends there.
+Hard prohibition:
+- Do NOT add “mini conclusions” or “wrap-ups” at the end of a part unless the artifact genuinely ends there.
 
 ================================================================================
 5) PART FORMAT + SENTINEL SYSTEM
 ================================================================================
 
-Each part MUST end with a sentinel marker.
+Each part MUST:
+- start with a Part Header
+- end with a sentinel marker
 
+5.1 Part Header (required)
+The first lines of each part MUST declare:
+- SubjectKey
+- ArtifactName
+- Part ID (001-based)
+- Total parts (if known) OR “TBD”
+- Scope of this part (what it covers)
+
+Purpose:
+- prevents drift mid-series
+- makes handoff deterministic across sessions/AIs
+
+5.2 Sentinel (required)
 Sentinels MUST be syntax-safe.
 
 Examples:
@@ -149,12 +194,12 @@ Sentinels prove:
 6) MANIFEST (STITCH CONTRACT)
 ================================================================================
 
-Each chunked artifact MUST include a `MANIFEST.md` containing:
+Each chunked artifact MUST include a MANIFEST.md containing:
 
-- Subject name
+- Subject name / SubjectKey
 - Artifact name
 - Target canonical install path
-- Ordered list of parts
+- Ordered list of parts (part-001 … part-N)
 - Separator rules between parts
 - Sentinel convention
 - Boundary strategy (“semantic seams only”)
@@ -162,6 +207,14 @@ Each chunked artifact MUST include a `MANIFEST.md` containing:
 The manifest is the authoritative build recipe.
 
 If a manifest is missing, the artifact is invalid.
+
+Manifest precision law:
+- The manifest MUST list the exact intended order.
+- If the order is unknown initially, you MUST create a provisional manifest and update it as parts are completed.
+- Before VERIFY begins:
+  - Total parts MUST be resolved (no “TBD”)
+  - The manifest MUST be internally consistent (N parts listed, N parts exist)
+- Once VERIFY begins, the manifest becomes read-only for this artifact unless Hands orders changes.
 
 ================================================================================
 7) STITCHING LAW (DETERMINISTIC + IDEMPOTENT)
@@ -180,7 +233,7 @@ Rules:
 
 Single Deliverable Rule:
 - If the artifact is intended to be one file, the final output MUST be one file
-- Parts NEVER ship unless explicitly ordered
+- Parts NEVER ship unless Hands explicitly orders it
 
 ================================================================================
 8) VERIFICATION (MANDATORY BEFORE CLAIMING DONE)
@@ -190,61 +243,86 @@ After stitching, verification is REQUIRED.
 
 Verification MUST include:
 
-8.1 Size Check
+8.1 Size Check (with receipt)
 - Record final file size (bytes or lines)
+- Evidence MUST be captured (command output or equivalent receipt)
 
-8.2 Tail Check
+8.2 Tail Check (with receipt)
 - Inspect the final section
 - Confirm the artifact ends cleanly
 - Confirm no truncation
+- Evidence MUST include the end-of-file region (or a pointer to where it is stored)
 
-8.3 Sentinel Check
-- Confirm all part sentinels exist
+8.3 Sentinel Check (with receipt)
+- Confirm every part sentinel exists
 - Confirm correct ordering
+- Confirm the stitched artifact ends with the final sentinel (if that is the convention)
+- Evidence MUST be captured (counts + proof)
 
-8.4 Seam Verification
+8.4 Seam Verification (with receipt)
 - Inspect boundaries between parts
 - Confirm no duplication or gaps
+- Evidence MUST be captured (or stored as a receipt artifact)
 
 8.5 Structured Artifact Checks (when applicable)
-- Code: syntax check / compile
-- Specs: section completeness
-- Governance: no summarization
+- Code: syntax check / compile / tests (as available)
+- Specs: section completeness against the TOC/outline
+- Governance: no summarization and no missing sections
 
 If verification fails:
 - fix only the failing region
 - re-stitch
 - re-verify
 
-Rewriting earlier parts is forbidden unless Hands orders it.
+Rewriting earlier verified parts is forbidden unless Hands orders it.
+
+8.6 Install Proof (mandatory)
+INSTALL is not “pasting into chat.”
+INSTALL means: the stitched artifact exists at the manifest’s Target canonical install path.
+
+To claim INSTALL:
+- you MUST prove the file exists at the install path (listing / stat / hash)
+- you MUST record its size (bytes or lines)
+
+If install cannot be proven, INSTALL did not occur.
+
+8.7 Cleanup Proof (mandatory)
+CLEANUP means staging artifacts do not linger as ambiguous state.
+
+After INSTALL:
+- Default: delete the staging directory
+- Exception: if Hands orders retention, keep the staging directory but mark it non-canon (Archive-only) and document where it lives
+
+To claim CLEANUP:
+- you MUST show evidence that staging was deleted or retained by explicit Hands order
 
 ================================================================================
 9) RECEIPT INTEGRATION (PHASE-AWARE)
 ================================================================================
 
-Chunking is a **high-risk operation** and MUST leave receipts.
+Chunking is a high-risk operation and MUST leave receipts.
 
-Which artifact carries the receipt depends on *what phase you are in*:
+Which artifact carries the receipt depends on the phase:
 
-A) During **Quest Execution** (post-Codex)
+A) During Quest Execution (post-Codex; Fog Lifted)
 - Record chunking details inside the Quest’s Execution Audits (PreQuest/Execution/Verify/Outcome as appropriate).
 - Minimum receipts:
-  - staging directory creation (if filesystem available)
+  - staging directory creation (path)
   - each part written (path + size)
   - stitching action (target path + size)
-  - verification steps performed (tail/seams/sentinels/tests)
-  - install action (destination path)
-  - cleanup or archival decision
+  - verification steps performed (tail/seams/sentinels/tests) + evidence pointers
+  - install proof (destination path + evidence)
+  - cleanup proof (deleted/retained + evidence)
 
-B) During **Incubation / TOC / Codex Writing** (Fog of War)
-- Record chunking usage in the relevant **Control Sync Snapshot(s)** (because this is not Quest execution).
+B) During Incubation / TOC / Codex Writing (Fog of War)
+- Record chunking usage in the relevant Snapshot(s) covering the work (Control Sync Snapshot or General Snapshot as appropriate).
 - Minimum receipts:
   - what artifact was composed (TOC / section / full stitch)
   - how it was chunked (part count, sentinel convention)
-  - what was verified (tail/seams/sentinels)
-  - where the installed final artifact lives in `<Subject>_Data/`
+  - what was verified (tail/seams/sentinels) + evidence pointers
+  - where the installed final artifact lives in <Subject>_Data/
 
-C) During **Governance Pack maintenance**
+C) During Governance Pack maintenance
 - Record chunking usage in the Governance Control Sync snapshot for Synapse OS (outside this pack).
 
 Chunking without receipts violates Truth Gate.
@@ -272,7 +350,7 @@ Chunking MUST be referenced by:
 
 If chunking fails:
 - do NOT restart from scratch
-- do NOT rewrite completed parts
+- do NOT rewrite completed verified parts
 - surgically repair the failure
 - preserve existing verified work
 
@@ -284,7 +362,7 @@ Rewrite loops are explicitly forbidden.
 
 Chunking exists to guarantee:
 
-> Complete artifacts, written as if they already exist,  
+> Complete artifacts, written as if they already exist,
 > without truncation, summarization, or invention.
 
 If an artifact cannot be verified as complete,

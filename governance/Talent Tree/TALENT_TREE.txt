@@ -1,26 +1,45 @@
-TALENT TREE — SYNAPSE GUILD (v0.1)
-Purpose: This is the authoritative, human-readable statement of CURRENT unlocked system capabilities.
-Rule: Update only when a Talent Point is spent (usually when a Quest is completed).
+TALENT_TREE.txt — TEMPLATE (SUBJECT STATE)
+Version: v0.2
+Last Updated: 2026-02-08
+Status: Template (copy into <Subject>_Data/Talent Tree/)
 
-How to use:
-- Add new TALENT entries at the bottom.
+Purpose:
+When this file exists at:
+  <Subject>_Data/Talent Tree/TALENT_TREE.txt
+…it is the authoritative, human-readable ledger of unlocked capabilities for that Subject.
+
+Governance note:
+- The copy of this file inside the Synapse OS Governance Pack is a TEMPLATE ONLY.
+- Chat is not an update. If the file is not written on disk, the Talent Tree is not updated.
+
+Update trigger:
+- Update only when a Talent Point is spent (usually at Quest completion).
+- If a Quest did not explicitly award a Talent Point, do not update this file.
+
+Core rules:
+- Append-only: add new TALENT entries at the bottom.
 - Do not delete old TALENT entries.
-- If a talent must be reversed, use RESPEC_RULES and record it explicitly.
+- Do not rewrite history. Corrections are appended as new entries referencing prior Talent IDs.
+- If a Talent must be reversed, follow RESPEC_RULES.txt and log it.
 
 ────────────────────────────────────────────────────────
-TALENT FORMAT
+TALENT ENTRY FORMAT (REQUIRED)
 ────────────────────────────────────────────────────────
-TALENT ID:
+TALENT ID: T-###   (monotonic; never reused)
 Name:
-Unlocked On:
-Source Quest:
-Scope: (Ashby / Stuart / System / Other)
+Unlocked On: YYYY-MM-DD (America/Toronto)
+Source Quest: <Quest ID> + <relative path under <Subject>_Data/>   (must be traceable)
+Scope: System / Subject / Engine / Data / Other
 
-Description:
-(What capability now exists?)
+Capability:
+(What can the system now do that it could not do before? Be concrete.)
 
-Implications:
-(What future work must respect now?)
+Implications / Constraints:
+(What future work MUST respect now? What becomes illegal, redundant, or assumed true?)
+
+Evidence / Receipts:
+(Exact file paths proving the capability: e.g., quest audit 03_VERIFY.md, test logs, system verification output.
+If you cannot point to evidence, this Talent is not ready to be written.)
 
 Notes:
-(optional)
+(Optional. Keep it short. No vibes.)

@@ -1,10 +1,68 @@
 TALENT LOG — SYNAPSE GUILD (append-only)
-Purpose: Progression history. Records when Talent Points were earned and what they were spent on.
-Rule: Never delete entries. Corrections are appended.
+Version: v1.1
+Last Updated: 2026-02-08
 
-Entry format:
-YYYY-MM-DD
-Quest Completed:
+Purpose
+- Progression history.
+- Records when Talent Points were earned and what they were spent on.
+
+Canonical placement
+- This file is a TEMPLATE inside the Governance pack.
+- The ACTIVE Talent Log for a Subject lives at:
+  <Subject>_Data/Talent Tree/TALENT_LOG.txt
+
+Hard rules
+1) Append-only
+   - Never delete entries.
+   - Never rewrite history.
+   - Corrections are appended as new entries that explicitly reference the prior entry being corrected.
+
+2) Artifact reality
+   - If an entry is not written to the filesystem, it does not exist.
+   - Chat summaries do not count as log entries.
+
+3) Mode Awareness / Truth Gate compliance
+   - If the current execution surface cannot write files, you MUST NOT claim the Talent Log was updated.
+   - Instead, you MUST emit a PROPOSED TALENT LOG ENTRY (clearly labeled PROPOSED) and include the exact path where it must be written.
+
+4) Deterministic linkage
+   - Every Talent Point award MUST be traceable to a specific Quest and its completion artifacts.
+   - Minimum required references:
+     - Quest ID + canonical quest file path
+     - Verification/Outcome evidence path(s)
+
+Entry format (one award = one entry)
+- Timestamp (timezone required)
+- Quest reference
+- Award decision (YES/NO)
+- Spend decision (Talent ID + Name OR NONE)
+- Evidence paths
+- Notes (optional)
+
+------------------------------------------------------------
+ENTRY TEMPLATE
+------------------------------------------------------------
+Timestamp: YYYY-MM-DD HH:MM (TZ)
+Quest ID:
+Quest Path:
+Quest Completed: YES/NO
+Talent Point Awarded: YES/NO
+Talent Spent On: (TALENT ID — Name) | NONE
+Evidence Paths:
+- (e.g., <Quest>/03_VERIFY.md)
+- (e.g., <Quest>/04_OUTCOME.md)
+Notes:
+
+------------------------------------------------------------
+EXAMPLE (format only)
+------------------------------------------------------------
+Timestamp: 2026-02-08 14:22 (America/Toronto)
+Quest ID: Q-012
+Quest Path: <Subject>_Data/Quest Board/Completed/Q-012__.../Q-012__...txt
+Quest Completed: YES
 Talent Point Awarded: YES
-Talent Spent On: (TALENT ID — Name)
-Notes: (optional)
+Talent Spent On: T-003 — Deterministic Diffs
+Evidence Paths:
+- <Subject>_Data/Quest Board/Completed/Q-012__/Audit/03_VERIFY.md
+- <Subject>_Data/Quest Board/Completed/Q-012__/Audit/04_OUTCOME.md
+Notes: Awarded for successful verified implementation + receipts.

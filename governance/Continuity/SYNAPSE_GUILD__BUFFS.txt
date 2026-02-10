@@ -1,6 +1,6 @@
 SYNAPSE GUILD — BUFFS (CANON)
-Version: v1.1
-Last Updated: 2026-02-02
+Version: v1.3
+Last Updated: 2026-02-09
 Status: Governance Law (changes require Governance Control Sync)
 
 Maintainer: Hands (Peter) with Brains (Ash)
@@ -14,15 +14,24 @@ Audience:
 
 This document defines what BUFFS are, why they exist, and how they are used.
 
-After reading this document, the phrase “Buff up before a Raid” must be sufficient
+After reading this document, the phrase “Buff up before a Raid” MUST be sufficient
 instruction for any compliant operator (human or AI).
+
+Definition of “Buff up” (binding):
+- Locate the canonical Buffs folder: <Subject>_Data/Buffs/
+- Read the canonical Buff set (Section 3) in full
+- Adopt the constraints and operational posture described there
+- If any required Buff is missing, unreadable, or contradictory → STOP (Disclosure Gate)
 
 Buffs exist to solve one problem:
 
 > How do we start a new session with maximum rigor and minimum prompting,
 > without re-explaining the Operating System every time?
 
-Buffs are governance law.
+Buffs are governance law (system-level definition) and subject-state artifacts
+(runtime instructions).
+- Governance defines what Buffs ARE.
+- Each Subject defines Buffs CONTENT.
 
 ================================================================================
 1) CORE DEFINITION (CANON)
@@ -34,11 +43,23 @@ Buffs are canonical “session startup” documents that preload the operator wi
 - directory/authority map (where truth lives)
 - deterministic session start check (what to verify before acting)
 
-Buff Design Principle
-Buffs are intentionally operator-facing documents.
-They may be verbose, redundant, path-specific, and environment-specific.
-Buffs encode how to work today, not timeless law.
-Governance defines the rules; Buffs define the operational posture.
+1.2 Buffs are ignition, not authority
+Buffs are ACTIVE constraints for the current Subject, but they DO NOT override:
+- Locks
+- Governance law
+- Truth Gate / Disclosure Gate
+
+If a Buff contradicts a Lock or governance law:
+- the higher authority governs
+- the Buff is INVALID until repaired
+- Disclosure Gate MUST trigger
+
+1.3 Buff design principle
+Buffs are intentionally operator-facing and environment-aware.
+They are ALLOWED to be verbose, redundant, path-specific, and environment-specific.
+
+Buffs encode: “how to work this Subject, in this environment, right now.”
+They are not timeless law. They are runtime posture.
 
 One-sentence definition:
 Buffs are the Guild’s ignition system: read them at session start to prevent drift.
@@ -47,23 +68,31 @@ Buffs are the Guild’s ignition system: read them at session start to prevent d
 2) WHERE BUFFS LIVE (CANONICAL LOCATION)
 ================================================================================
 
-Buffs live inside the current SUBJECT’s data bundle:
-
+Canonical location for ACTIVE Buffs:
 <Subject>_Data/Buffs/
 
-Notes:
-- Do NOT hard-code Workspace Root here. The environment may be /mnt/data, /home/claude,
-  local disk, etc.
-- The rule is location RELATIVE TO the subject bundle.
+Path rule:
+- You MUST NOT hard-code the workspace root in governance documents.
+- The only stable rule is location RELATIVE TO the Subject bundle.
 
 Governance vs Subject Buffs:
-- The Governance pack defines the Buff system (this document).
-- The active Buffs for a project live in <Subject>_Data/Buffs/.
-- The Latest Rehydration Pack may include copies of Buffs for convenience, but those are reference-only.
-  Canonical Buffs remain in <Subject>_Data/Buffs/.
+- This Governance pack defines the Buff system (this document).
+- The ACTIVE Buffs for a project live in <Subject>_Data/Buffs/.
+
+Reference copies:
+- A Latest Rehydration Pack MAY include copies of Buffs for convenience.
+- Those copies are REFERENCE-ONLY.
+- Canonical Buffs remain in <Subject>_Data/Buffs/.
+
+Conflict rule (anti-drift):
+If multiple Buff copies exist and their content differs:
+- treat Buffs as INCONSISTENT
+- Disclosure Gate MUST trigger
+- do not execute until canonical Buffs are repaired and consistent
 
 Metadata rule:
-- If a Buff document is edited, it must update its Version + Last Updated header.
+- If any Buff doc is edited, it MUST update its Version + Last Updated header.
+- If the header is stale, the Buff is INVALID until corrected.
 
 ================================================================================
 3) CANONICAL BUFF SET (REQUIRED)
@@ -72,49 +101,117 @@ Metadata rule:
 Each Subject MUST have the following three Buff documents in its Buffs folder:
 
 1) <SUBJECT>_EXECUTION_PROTOCOL.txt
-- Governs how work is executed (authority stack, quest state machine, audits, truth gate).
+- Operational posture for work execution (authority stack, quest state machine, audits, truth gate).
 
 2) <SUBJECT>_DATA_DIRECTORY_MAP.txt
-- Governs where truth lives (canonical vs reference paths, review tiers, edit rules).
+- Where truth lives (canonical vs reference paths, edit rules, review tiers).
 
 3) <SUBJECT>_SESSION_START_CHECK.txt
-- Governs the deterministic ignition key (what to verify before starting any Raid work).
-- Includes explicit confirmation of Continuity Lock + Bootstrap Prompt when provided.
+- Deterministic ignition checklist (what to verify before starting any Raid work).
+- MUST include explicit checks for Continuity Lock + Bootstrap Prompt when they exist.
+- If the Subject includes code/software execution, it MUST also include canonical
+  verification command fields (copy/paste safe):
+  - VERIFY_SMOKE_CMD: <command(s) for smoke / door checks>
+  - VERIFY_FULL_CMD: <command(s) for full test suite>
+  - VERIFY_E2E_CMD: <optional; end-to-end suite>
+  - NETWORK_POLICY: NO_EGRESS (default) | LOCALHOST_ONLY | EGRESS_ALLOWED
+  - EXECUTION_SURFACE: ZIP_SANDBOX | LOCAL_RUNTIME | CI (or equivalent)
 
-These three files together are “Buff up.”
+Notes:
+- If tests do not exist yet, the VERIFY_* fields MUST exist and be set to "NONE YET",
+  and the Session Start Check MUST state the minimum verification baseline.
+- These fields describe HOW to verify (commands), not an inventory of tests.
+
+Naming rule (deterministic):
+- Filenames MUST contain the exact tokens above.
+- If the names differ, they are not canonical Buffs (treat as missing).
+
+Substitution is forbidden:
+- One Buff file MUST NOT attempt to “cover” for another.
+- If any of the three are missing/unreadable, Buff Up is INCOMPLETE.
 
 ================================================================================
-4) WHEN TO BUFF
+4) WHEN TO BUFF (IGNITION RULES)
 ================================================================================
 
-You MUST buff:
+You MUST Buff Up:
 - at the start of any new chat/session
-- before beginning any Raid work
-- any time there is doubt about where the canonical truth lives
+- before beginning any Raid work (any quest execution)
 - after any long break
+- any time canonical truth location is in doubt
 
-If the operator feels even slightly lost:
-Buff again. Then proceed.
-
-================================================================================
-5) STARTUP ORDER (RECOMMENDED)
-================================================================================
-
-1) Buff up (read Buffs)
-2) Read Continuity Lock (if present)
-3) Read Bootstrap Prompt (if present)
-4) Read Active Guild Orders
-5) Read Accepted Quests
-6) Execute one quest at a time with pre/post-flight audits
+Loss-of-orientation rule:
+If the operator is even slightly unsure what is true or what to do next:
+- Buff Up again
+- then re-open Control Sync if decisions are required
 
 ================================================================================
-6) SELF-AUDIT (THIS DOCUMENT)
+5) ACTIVATION ORDER (CANONICAL ROUTING)
+================================================================================
+
+Hard rule:
+- If canonical Buffs exist, you MUST Buff Up BEFORE acting on any other artifact.
+
+After Buff Up, route based on the session type:
+
+A) Continuing Subject (rehydration)
+1) Validate the Rehydration Pack exists and is complete:
+   → Continuity/SYNAPSE_GUILD__REHYDRATION_PACK_CHECKLIST.txt
+2) Read/process the ACTIVE Bootstrap Prompt (behavior activation).
+3) Read the ACTIVE Continuity Lock (binding state).
+4) Ignite the session by running the Control Sync Checklist:
+   → Processes/SYNAPSE_GUILD__CONTROL_SYNC_CHECKLIST.txt
+
+B) New Subject (no <Subject>_Data yet)
+1) Follow the initialization/incubation process:
+   → Processes/SYNAPSE_GUILD__SUBJECT_INITIALIZATION_AND_INCUBATION.txt
+2) Once <Subject>_Data/Buffs exists, Buff Up applies.
+
+If in doubt about what to do next:
+- default to opening Control Sync and running the checklist
+- do not guess
+
+================================================================================
+6) MINIMUM COMPLIANCE CHECK (BUFF UP)
+================================================================================
+
+A session is considered “Buffed” only if:
+- canonical Buff folder is identified (<Subject>_Data/Buffs/)
+- all three required Buff files are read
+- any conflicts are disclosed and resolved (or execution is blocked)
+
+If the above cannot be proven:
+- default state is NOT BUFFED
+- execution authority MUST NOT advance
+
+================================================================================
+7) WHEN BUFFS MUST BE UPDATED (MAINTENANCE TRIGGERS)
+================================================================================
+
+Buffs SHOULD NOT be rewritten for every small change, but they MUST be updated when
+any of the following changes occur:
+
+- Doors are added/removed/renamed (CLI/API/Web/Telegram/etc.)
+- Canonical verification commands change (the VERIFY_* fields)
+- Execution surface changes (zip sandbox vs local runtime vs CI)
+- Network policy changes (egress rules)
+- Canonical truth locations change (directory map / canonical paths)
+
+If none of the above changed, “no Buff updates needed” is a valid statement.
+
+================================================================================
+8) SELF-AUDIT (THIS DOCUMENT)
 ================================================================================
 
 Checklist:
 [ ] Canonical location declared (<Subject>_Data/Buffs/)
-[ ] Canonical set of three Buffs declared
-[ ] “Always buff before a Raid” is explicit
-[ ] No hard-coded Workspace Root paths
+[ ] Canonical set of three Buffs declared (names + purpose)
+[ ] “Buff up before a Raid” is binding and unambiguous
+[ ] Workspace root is NOT hard-coded
+[ ] Conflict rule exists (canonical Buffs only)
+[ ] Session Start Check requires VERIFY_* command fields for code/software subjects
+[ ] Buff maintenance triggers declared (Doors / VERIFY_* / surface / network)
+
+
 
 END OF DOCUMENT

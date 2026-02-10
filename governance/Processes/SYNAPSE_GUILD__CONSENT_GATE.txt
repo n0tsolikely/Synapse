@@ -1,65 +1,89 @@
 SYNAPSE OS — CONSENT GATE (CANON)
-Version: v1.0
-Last Updated: 2026-02-02
+Version: v1.2
+Last Updated: 2026-02-09
 Status: Governance Law
 
 Purpose:
-Hands should NOT be forced to understand technical details to approve work.
-Hands only approves BLAST RADIUS and RISK. Everything else is handled by quests,
-audits, and verification.
+Hands is never required to approve technical detail.
+Hands approves only BLAST RADIUS and RISK.
+Brains executes everything else under Truth Gate + Execution Audits.
 
-This gate introduces a single universal rule:
+This gate enforces one universal rule:
 - R0/R1 may execute without Hands confirmation.
-- R2 must never execute unless Hands explicitly greenlights it.
+- R2 MUST NOT execute unless a Confirmation Artifact exists (on disk).
 
 Definitions:
 - Risk levels are defined in: Processes/SYNAPSE_GUILD__RISK_RUBRIC.txt
-- A Confirmation Artifact is a small file created inside the working tree.
-- The Consent Gate is enforced by Truth Gate + Quest Validation.
+- A Confirmation Artifact is a small file created by Hands.
+- The Consent Gate is enforced by: Truth Gate + Quest Validation + Execution Audits.
 
 ================================================================================
 CORE LAW
 ================================================================================
-1) DEFAULT
-   - If a quest does not declare Risk, treat it as R0.
+0) AUTHORITY (ANTI-DRIFT)
+   - Chat acknowledgements ("yes", "ok", "go ahead") are NOT consent.
+   - Consent exists ONLY if a valid Confirmation Artifact exists on disk.
+
+1) RISK IS DETERMINED BY THE WORK
+   - The Risk label in a Quest is a claim, not a guarantee.
+   - Brains MUST classify risk using the Risk Rubric BEFORE executing.
+   - If the rubric indicates a higher risk than declared, the higher risk governs.
+   - If risk cannot be confidently classified as R0/R1, treat it as R2 (hard stop).
 
 2) R0 / R1
    - Auto-execute.
-   - No special confirmation needed.
    - Must still follow Execution Audits + Verification.
 
 3) R2
    - HARD STOP until confirmation exists.
-   - The quest may be drafted and may perform SAFE prep work only:
-     - analysis
-     - dry-run commands
-     - patch proposals
-     - adding tests
-     - generating a plan
-   - The quest may NOT execute the risky step(s) until confirmed.
+
+   Allowed before confirmation (SAFE prep only):
+   - analysis / planning
+   - drafting patch proposals (NOT applying risky changes)
+   - adding tests and non-destructive instrumentation
+   - dry-run / read-only commands
+
+   Not allowed before confirmation:
+   - executing the risky step(s)
+   - destructive or irreversible operations
+   - wide structural changes
 
 4) HOW HANDS CONFIRMS (MINIMUM)
-   - Create a Confirmation Artifact file with a single line:
+   - Hands confirms by creating a Confirmation Artifact file that contains:
      CONFIRM: YES
    - No essays. No code review required.
-   - If Hands wants more detail, the quest/audits provide it.
+   - If Hands wants detail, the quest + audits provide it.
+
+   Optional (allowed) scope toggles:
+   - Hands MAY include scope toggles to constrain what Brains is allowed to do.
+   - If a toggle is present, Brains MUST treat it as an additional hard constraint.
+   - If toggles are absent, the confirmation applies to the R2 scope described by the Quest
+     + the PreQuest plan (01_PREQUEST.md).
 
 ================================================================================
-CONFIRMATION ARTIFACT FORMAT
+CONFIRMATION ARTIFACT FORMAT (CANON)
 ================================================================================
-Canonical location (relative to project root):
+Canonical root (relative to <Subject>_Data/):
   confirmations/
 
 Canonical filename:
   CONFIRM_R2__<quest_id>__YYYY-MM-DD__<slug>.txt
 
-Canonical content:
+Canonical content (minimum):
   CONFIRM: YES
 
 Optional (allowed) extra lines:
-  CONFIRM: YES
   BY: Hands
   AT: 2026-02-02 23:59
+
+Optional (allowed) scope toggles (YES/NO):
+  ALLOW_NETWORK_EGRESS: YES|NO
+  ALLOW_REAL_TOKENS: YES|NO
+  ALLOW_MODEL_DOWNLOADS: YES|NO
+
+Notes:
+- Scope toggles are intended to make Hands' consent more precise (blast radius).
+- These toggles do NOT replace the requirement for CONFIRM: YES.
 
 ================================================================================
 ENFORCEMENT HOOKS
@@ -67,11 +91,14 @@ ENFORCEMENT HOOKS
 Quest Template:
 - Quest Board/QUEST_TEMPLATE.txt includes Risk and an R2 Confirmation pointer.
 
-Quest Validation (rule extension):
-- If Risk = R2, the quest is not eligible for ACCEPTED execution unless the
-  confirmation artifact path is present AND the file exists.
+Quest Validation:
+- If Risk = R2, the Quest is not eligible for ACCEPTED execution unless:
+  - the confirmation artifact path is present
+  - AND the file exists
+  - AND the file contains "CONFIRM: YES"
 
 Execution Audits:
-- The confirm file path should be recorded in 01_PREQUEST.md when relevant.
+- The confirm file path MUST be recorded in 01_PREQUEST.md when Risk = R2.
+- If scope toggles are present, they MUST be copied into 01_PREQUEST.md.
 
 END OF DOCUMENT

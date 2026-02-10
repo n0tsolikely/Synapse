@@ -1,26 +1,33 @@
 # TERM — Exploration
 
 ## Definition
-Exploration is the behavior performed while Fog of War is active to reveal truth: constraints, invariants, requirements, and structure.
+Exploration is the set of allowed behaviors under **Fog of War** used to reveal the Subject’s constraints, invariants, requirements, risks, and structure.
 
-## Purpose
-Exploration reduces uncertainty without prematurely committing to execution.
+Exploration is how the map is discovered before it is frozen.
 
-## When It Applies
-- While World State is Fog of War
-- During idea formation and refinement
-- During rehydration when the Map is still incomplete
+## Applicability
+- World State: Fog of War
+- During Incubation
+- During rehydration when a Codex Freeze marker does not exist
 
-## What It Enables
-- Creation of Discoveries
-- Structured Formalizations (summaries that preserve meaning)
-- Codex readiness assessment (when enough map is revealed)
+## Output / Artifact Law
+Exploration only “counts” when its results are captured into filesystem artifacts, such as:
+- Snapshots (General or Control Sync)
+- Draft TOC/Codex updates
+
+Chat-only exploration is non-authoritative and MUST NOT be treated as state.
 
 ## Do Not Assume
-- Exploration is not execution
-- Exploration does not generate Quests by default
-- Exploration does not imply commitments (it can surface options and tradeoffs)
+- Exploration is not execution.
+- Exploration does not start Raids.
+- Exploration does not accept Quests.
+- Exploration does not create commitments unless elevated into a binding artifact.
 
 ## Interactions
-- Exploration produces Discoveries
-- Exploration informs Codex/Map creation and TOC/Legend refinement
+- Exploration produces Discoveries.
+- Discoveries inform TOC and Codex construction.
+- Once the Codex is sufficiently complete, Hands may freeze it (Fog Lifted) to authorize execution.
+
+## Authority
+→ `The Guild/Terminology/Locks/LOCK__FOG_OF_WAR.md`  
+→ `Processes/SYNAPSE_GUILD__SUBJECT_INITIALIZATION_AND_INCUBATION.txt`

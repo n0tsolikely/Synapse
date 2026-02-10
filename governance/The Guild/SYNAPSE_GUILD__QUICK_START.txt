@@ -1,36 +1,37 @@
-# **SYNAPSE OS / SYNAPSE GUILD — QUICK START (v1.3)**
+# **SYNAPSE OS / SYNAPSE GUILD — QUICK START (v1.4)**
 
 *A fast, deterministic orientation for humans and AIs.*
 
-Last Updated: 2026-02-02
+Last Updated: 2026-02-07
 
 ---
 
-## 0) Vocabulary (so you don’t mix concepts)
+## 0) Vocabulary (do not mix concepts)
 
-- **Synapse Guild** = the *body* (the team / operators).
-- **Synapse OS** = the *operating system for work* (human + AI).
-- **Governance Pack (this folder)** = the portable “engine pack” you drop into an AI session so it follows Synapse OS law.
-- **Subject** = the thing you’re building (app, book, game, business process, etc.).
+- **Synapse Guild** = the *body* (operators / team).
+- **Synapse OS** = the *operating system for work* (human + AI), enforced by files + locks + gates.
+- **Governance Pack (this folder)** = portable law you inject into an AI session.
+- **Subject** = the thing being built (app, book, game, business process, etc.).
+- **Hands** = the final authority (the human). When a gate requires Hands, conversation-level “ok” is not enough unless the gate explicitly allows it.
 
 ---
 
-## 1) What this pack is meant to do
+## 1) What this pack does (runtime intent)
 
-When an AI is governed by Synapse OS, it must:
+When an AI is governed by Synapse OS, it MUST:
 
-- **run Control Sync first** (alignment before action, using the Control Sync Checklist)
-- **execute via Dailies** (a repeatable loop)
-- **obey Truth Gate + Disclosure Gate** (no claim without proof; no silent uncertainty)
-- **use Execution Audits** for every executed Quest (audit bundle: Summary / PreQuest / Execution / Verify / Outcome)
-- **chunk safely** when artifacts are large (Compose → Stitch → Verify → Install → Cleanup)
-- **preserve continuity** across chats (Continuity Lock + Bootstrap Prompt)
-- **review prior snapshots first** on a new day (latest Control Sync → latest End-of-Day → relevant General)
-- **write snapshots for continuity** (including blockers/failures and WHY; see Snapshot Templates)
+- **Start in Control Sync** (alignment + scope decision) and use the Control Sync Checklist.
+- Treat **conversation as input only**. **Filesystem artifacts advance state.**
+- Obey **Truth Gate + Disclosure Gate** (no claim without proof; no silent uncertainty).
+- Execute build work only through **Dailies** (the per-session execution loop).
+- Use **Execution Audits** for every executed Quest (audit bundle: Summary / PreQuest / Execution / Verify / Outcome).
+- **Chunk safely** when artifacts are large (Compose → Stitch → Verify → Install → Cleanup).
+- Preserve continuity across sessions (Bootstrap Prompt + Continuity Lock + Snapshots).
+- **Write snapshots as files** (Control Sync Snapshot on Control Sync close; End-of-Day Snapshot on session end; plus General Snapshots when needed).
 
-If you only remember one thing:
+If you remember one thing:
 
-> Synapse OS exists to turn “ideas” into “built reality” without drift or bullshit.
+> Synapse OS exists to turn ideas into built reality **without drift, hallucination, or bullshit**.
 
 ---
 
@@ -40,70 +41,87 @@ If you only remember one thing:
 You already have a Subject in flight.
 
 **Signal:** you have one or more of:
-- `<Subject>_Data/` (Quest Board, Snapshots, Codex, etc.)
+- `<Subject>_Data/` (Quest Board, Snapshots, Codex, Guild Orders, etc.)
 - `<Subject>_Engine/` (code / manuscript / the actual build)
-- an active Quest Board and/or active Guild Orders
 
-**Action:** skip Incubation and begin at **Control Sync**.
+**Gate check (world state):**
+- If `<Subject>_Data/Codex/CODEX_FREEZE.md` exists → **Fog Lifted** → execution may be authorized.
+- If it does NOT exist → **Fog of War** → treat as Incubation (Path B), even if folders exist.
 
-### Path B — New Subject (true beginning)
-You have an idea but **no Codex** and no project pack yet.
+**Action:** begin at **Control Sync**.
 
-**Signal:** no Subject_Data exists yet (or it exists but is empty and no Codex exists).
+### Path B — New Subject (true beginning / Fog of War)
+You have an idea but no frozen Codex.
 
-**Action:** run **Subject Initialization + Incubation** under Fog of War until you can form and freeze a Codex.
+**Signal:** any of the following are true:
+- No `<Subject>_Data/` exists yet
+- No Codex exists yet
+- `CODEX_FREEZE.md` does not exist
+
+**Action:** run **Subject Initialization + Incubation** under Fog of War until a Codex exists and Hands authorizes Codex Freeze.
+
+**Important:** Under Fog of War, you MAY draft Quests on the Board, but you MUST NOT accept or execute Quests.
 
 ---
 
 ## 3) The lifecycle in one page
 
-Authoritative spine: `Processes/SYNAPSE_GUILD__THE_LOOP.txt`
+Authoritative spine:
+- `Processes/SYNAPSE_GUILD__THE_LOOP.txt`
 
-### 3.1 Incubation (pre-Codex)
+### 3.1 Incubation (Fog of War; pre-freeze)
 - Create `<Subject>_Data/` skeleton immediately.
 - Capture decisions as **Discoveries** (pre-Codex truth units).
-- Actively detect emerging **conceptual groupings** (features, modes, workflows, UX, constraints, integrations, etc.).
-- Run a **final completeness sweep** (domain-appropriate “stress test”) to eliminate holes.
+- Detect conceptual groupings (features, modes, workflows, constraints, integrations, etc.).
+- Run a domain-appropriate **stress test** to eliminate holes.
 - Generate a **TOC**.
-- Write the **Codex** section-by-section (TOC-first).
-- Perform **Codex Freeze** (Fog Lifted) *only when Hands says it’s ready*.
+- Write the **Codex** section-by-section (TOC-first, numbered).
+- Stitch + verify the Codex for completeness and internal consistency.
+- Perform **Codex Freeze** (Fog Lifted) only when Hands authorizes it (by writing `CODEX_FREEZE.md`).
 
-### 3.2 Build kickoff (post-Codex)
-- Hands chooses build scope (v1 / v2, demo slice, etc.).
-- Generate **Guild Orders** → break into **Dungeons** → break into **Quests**.
+### 3.2 Build kickoff (Fog Lifted; post-freeze)
+- Hands chooses build scope (v1 slice / demo slice / chapter range / etc.).
+- Generate **Guild Orders** → break into **Dungeons** → break into **atomic Quests**.
 - Populate the **Quest Board**.
 
-### 3.3 Dailies (execution loop)
-Every work day runs:
-1) Control Sync
-2) Decide Scope
-3) Implement
-4) Test / Verify
-5) Snapshot
-6) Stop
-7) Repeat next day
+### 3.3 Dailies (execution loop; per session/day)
+Dailies is the runtime loop for getting work done once a Subject is live.
 
-And for every executed Quest:
-- PreQuest Alignment Audit
-- Execution Audit
-- Verification Audit
-- Outcome Note
+Every session/day runs:
+1) **Control Sync** *(includes deciding scope)*
+2) **Scope Commitment** (quest acceptance moves, recorded as artifacts)
+3) **Implement** (Quest mini-loop: PreQuest → Execute → Verify → Outcome → state transition)
+4) **System Verification** (subject-level verification for the day’s changes)
+5) **End-of-Day Snapshot**
+6) **Stop / Resume next session**
+
+Scope change rule:
+- If scope changes after Control Sync closes, you MUST open a NEW Control Sync and close it with a new Control Sync Snapshot.
 
 ---
 
-## 4) Non-negotiables (the rules that make this real)
+## 4) Non-negotiables
 
 ### Truth Gate + Disclosure Gate
 - No “done” without receipts.
-- If uncertainty affects next steps, you must proactively tell Hands.
+- No claims of executed commands/tests without raw output (no simulated runs).
+- If uncertainty affects next steps, you MUST disclose it to Hands.
 
 See: `Processes/SYNAPSE_GUILD__TRUTH_GATE.txt`
 
 ### Execution Audits
 - Execution without audits is invalid.
-- Completion claims require Verification.
+- Completion claims require verification evidence.
 
 See: `Processes/SYNAPSE_GUILD__EXECUTION_AUDITS.txt`
+
+### Snapshots
+- Control Sync closure requires a snapshot file.
+- End-of-day requires an EOD snapshot file.
+
+See:
+- `Guild Docs/SYNAPSE_GUILD__SNAPSHOTS.txt`
+- `Guild Docs/SYNAPSE_GUILD__SNAPSHOT_TEMPLATES.txt`
 
 ### Large Artifact Composition (Chunking)
 - If size or verbatim precision is risky, chunk using the pipeline.
@@ -112,12 +130,16 @@ See: `Processes/SYNAPSE_GUILD__LARGE_ARTIFACT_COMPOSITION.txt`
 
 ---
 
-## 5) If you’re an AI: your first move
+## 5) If you’re an AI: your first move (deterministic)
 
 1) Read `README.txt` and `INDEX.txt`.
-2) Determine whether you are in **Path A** or **Path B**.
-3) Start a **Control Sync** (always).
-4) Do not execute anything until Hands explicitly authorizes leaving Control Sync.
+2) Follow the REQUIRED READ ORDER (mirrored in `SYNAPSE_STATE.yaml`).
+3) Determine Path A (Continuing Subject) vs Path B (New Subject).
+4) Start **Control Sync** and run:
+   - `Processes/SYNAPSE_GUILD__CONTROL_SYNC.txt`
+   - `Processes/SYNAPSE_GUILD__CONTROL_SYNC_CHECKLIST.txt`
+5) Do not accept Quests or execute anything until Hands explicitly ends Control Sync.
+6) When Control Sync ends, write the required snapshot file immediately.
 
 ---
 

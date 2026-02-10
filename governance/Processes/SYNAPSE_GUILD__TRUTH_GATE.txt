@@ -1,6 +1,6 @@
 SYNAPSE OS — TRUTH GATE + DISCLOSURE GATE (CANON)
-Version: v1.3
-Last Updated: 2026-02-02
+Version: v1.4
+Last Updated: 2026-02-07
 Status: Governance Law (changes require Governance Control Sync)
 
 Audience:
@@ -57,6 +57,38 @@ Brains MUST prefer:
 - refusal / pause / clarify
 over:
 - guessing / smoothing / confident approximation
+
+1.5 Executable Verification Law (No Simulated Runs)
+Brains MUST NOT claim that a command/test/build/script was executed unless it was actually executed
+in the current execution surface and the raw result is available as evidence.
+
+This law exists because “reasoned execution” (mentally simulating what would happen) is NOT execution.
+
+1.5.1 Required Receipt for Executed Commands/Tests
+When claiming execution, Brains MUST provide at least one receipt that includes:
+- the exact command(s) executed
+- the working directory/context used
+- the raw output (or a pointer to where the raw output is stored)
+- the pass/fail signal (exit code, test summary, or equivalent)
+
+If the output is too large to paste, it MUST be preserved as an artifact (e.g., inside the relevant
+Execution Audit bundle) and referenced by exact path.
+
+1.5.2 Prohibited: Fabricated Receipts
+Brains MUST NOT fabricate terminal output, stack traces, failing assertions, or PASS/FAIL summaries.
+If a receipt was not captured, it does not exist.
+
+1.5.3 If Execution Cannot Be Performed Here
+If the current execution surface cannot run the command/test:
+- Brains MUST label the claim as UNABLE TO VERIFY IN CURRENT EXECUTION SURFACE
+- Disclosure Gate MUST trigger (Section 3)
+- the work MUST NOT be advanced as “verified”
+
+1.5.4 Non-Code Subjects Still Require Real Verification
+For non-code subjects, “tests” may be structured checks (consistency, invariants, style/tone rules,
+cross-references to Codex sections, etc.). The same rule applies:
+- Brains MUST NOT claim PASS unless the check was actually performed
+- receipts MUST describe the check performed and its result clearly enough for handoff
 
 ================================================================================
 2) PROPOSED PATCH VS APPLIED CHANGE

@@ -1,29 +1,25 @@
 # TERM — Fog of War
 
 ## Definition
-Fog of War is a World State where the Subject’s structure, constraints, and safe execution paths are not yet fully known.
+Fog of War is the World State where the Subject’s structure, constraints, and safe execution paths are not yet frozen into a Codex.
 
-## Purpose
-Fog of War exists to allow exploration and discovery without forcing premature commitments or execution.
+## When it applies (machine-checkable)
+Fog of War is active whenever **Fog Lifted** is not provably active.
 
-## When It Applies
-- When a new idea / Subject is started
-- Before a Codex/Map exists (or before it is frozen)
-- During multi-session idea formation
+Machine check:
+- If `<Subject>_Data/Codex/CODEX_FREEZE.md` does **not** exist → Fog of War.
 
-## What It Enables
-- Exploration behavior
-- Recording Discoveries
-- Idea-forming Control Syncs (alignment without execution)
-- Snapshots focused on decisions and discovery state
+## What is legal in Fog of War
+- Exploration / Discovery capture
+- Incubation work (TOC draft, Codex drafting, definitions, constraints)
+- Control Sync for alignment and scope shaping **without** quest acceptance/execution
+- Snapshots that capture decisions, discoveries, and next steps
 
-## Do Not Assume
-- Fog of War does not mean “ignorance” or “no progress”
-- Fog of War does not forbid documentation or snapshots
-- Fog of War does not allow Quests/Raids by default
-- Fog of War is not a folder; it is a global constraint
+## What is illegal in Fog of War
+- Accepting quests (BOARD → ACCEPTED)
+- Executing Quests / Dailies implementation
+- Executing Guild Orders (Raid) / Dungeons
 
-## Interactions
-- Exploration occurs under Fog of War
-- Discoveries are produced while Fog of War is active
-- Codex Freeze (“Fog Lifted”) ends Fog of War and allows execution workflows
+## Notes
+- Fog of War is not “no progress.” It is “no execution authority.”
+- If there is ambiguity about World State, default to Fog of War and require Hands direction to lift it (Codex Freeze).
