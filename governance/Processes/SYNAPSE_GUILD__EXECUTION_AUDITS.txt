@@ -1,6 +1,6 @@
 SYNAPSE OS — EXECUTION AUDITS (CANON)
-Version: v1.3
-Last Updated: 2026-02-09
+Version: v1.4
+Last Updated: 2026-02-12
 Status: Governance Law (changes require Governance Control Sync)
 
 Audience:
@@ -90,6 +90,23 @@ Must include:
 - Files touched (paths)
 - Nature of changes (diffs or explicit description)
 - Deviations from plan (if any) + why
+
+- If any work is done in the Engine or Data (including code changes, tests, or partial work), 
+a new canon ZIP must always be generated, regardless of the outcome (PASS, FAIL, or INCOMPLETE).
+
+* The ZIP should contain:
+
+  * All modified files in the "Engine"
+  * All modified files in "Data" (including any partial outputs, logs, or artifacts)
+  * The "full audit bundle" (including execution status, test receipts, and failure notes)
+
+Even if tests fail or only partial work is done", the "ZIP must be generated" as a snapshot of progress, ensuring "nothing is lost".
+
+If a ZIP cannot be produced in the same response, the Quest status must remain "IN-PROGRESS" or be marked "BLOCKED" (export not produced), 
+and the "failed execution" must be logged explicitly.
+
+Failure to produce a ZIP (even if some work was done) constitutes a "governance violation" and must prevent the Quest from 
+being marked “complete” or “verified” until the artifact is exported.
 
 Commands/tools invoked (anti-fabrication format):
 - For every command/tool you claim you ran, you MUST record:
@@ -203,6 +220,28 @@ Must include:
 - If INCOMPLETE: blocker + what was attempted + why continuation failed
 - If ABANDONED: justification + follow-up required (yes/no)
 - Recommended next actions
+
+- Talent Decision (capability ledger sync):
+  - Must match the Quest file: `Talent Point Awarded: (YES/NO)`
+  - If YES:
+    - record the Talent ID + Name
+    - record evidence paths to the updated Talent Tree + Talent Log
+    - if Talent updates cannot be written/proven in the current surface: Outcome MUST be BLOCKED (do not mark Completed)
+  (See: Talent Tree/SYNAPSE_GUILD__TALENT_TREE.txt + Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt)
+
+=========================================
+2.5 QUEST CLOSURE REQUIREMENT (MANDATORY)
+=========================================
+
+A Quest MUST NOT be declared COMPLETE, VERIFIED, or DONE unless the same response also produces a durable canonical artifact.
+
+For chat / ephemeral execution surfaces, this artifact is a new canon ZIP (plus updated audits and quest state).
+
+If a ZIP cannot be produced in the same response, the Quest status MUST remain IN-PROGRESS or be marked BLOCKED (export not produced).
+
+Test results (PASS or BLOCKED) do NOT waive the export requirement.
+
+Claiming completion without producing the artifact is a governance violation.
 
 ================================================================================
 3) STORAGE LAW (WHERE EXECUTION AUDITS LIVE)

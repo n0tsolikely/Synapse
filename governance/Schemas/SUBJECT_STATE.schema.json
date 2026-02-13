@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Synapse OS — SUBJECT_STATE.yaml Schema",
+  "type": "object",
+  "required": ["schema_version", "subject", "roots", "pointers"],
+  "properties": {
+    "schema_version": { "type": "integer", "minimum": 1 },
+
+    "subject": {
+      "type": "object",
+      "required": ["name", "key"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "key": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    },
+
+    "roots": {
+      "type": "object",
+      "required": ["data_root", "engine_root"],
+      "properties": {
+        "data_root": { "type": "string", "minLength": 1 },
+        "engine_root": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    },
+
+    "pointers": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": { "$ref": "#/$defs/path_or_rule" }
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "path_or_rule": {
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "properties": {
+            "path": { "type": "string", "minLength": 1 },
+            "dir": { "type": "string", "minLength": 1 },
+            "pick": { "type": "string" },
+            "filename_contains_any": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          },
+          "additionalProperties": true
+        }
+      ]
+    }
+  }
+}

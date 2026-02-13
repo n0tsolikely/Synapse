@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Synapse OS — SYNAPSE_STATE.yaml Schema",
+  "type": "object",
+  "required": ["schema_version", "governance_pack", "subject_data", "required_read_order", "rehydration"],
+  "properties": {
+    "schema_version": { "type": "integer", "minimum": 1 },
+
+    "governance_pack": {
+      "type": "object",
+      "required": ["root"],
+      "properties": {
+        "root": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": true
+    },
+
+    "subject_data": {
+      "type": "object",
+      "required": ["roots", "active_subject"],
+      "properties": {
+        "roots": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "active_subject": { "type": "string", "minLength": 1 },
+        "infer_active_subject": { "type": "object" },
+        "ignore_dir_name_contains": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    },
+
+    "required_read_order": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "minProperties": 1,
+        "maxProperties": 1,
+        "additionalProperties": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+
+    "rehydration": {
+      "type": "object",
+      "required": ["latest_rehydration_pack"],
+      "properties": {
+        "latest_rehydration_pack": {
+          "type": "object",
+          "required": ["dir", "bootstrap_prompt", "continuity_lock"],
+          "properties": {
+            "dir": { "type": "string", "minLength": 1 },
+            "bootstrap_prompt": { "$ref": "#/$defs/pick_rule" },
+            "continuity_lock": { "$ref": "#/$defs/pick_rule" }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "pick_rule": {
+      "type": "object",
+      "required": ["filename_contains_any", "pick"],
+      "properties": {
+        "filename_contains_any": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "pick": {
+          "type": "string",
+          "enum": ["single_required", "latest_date_include_all", "all_files", "selected_date_include_all"]
+        },
+        "if_ambiguous": { "type": "string" }
+      },
+      "additionalProperties": true
+    }
+  }
+}

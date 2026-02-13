@@ -1,6 +1,6 @@
 SYNAPSE OS — INDEX (ROUTING MAP)
-Version: v1.7
-Last Updated: 2026-02-09
+Version: v1.9
+Last Updated: 2026-02-12
 
 This file is a deterministic routing map.
 It does NOT grant execution authority.
@@ -55,6 +55,9 @@ Alignment + scope (MUST happen before building):
 → Processes/SYNAPSE_GUILD__CONTROL_SYNC.txt
 → Processes/SYNAPSE_GUILD__CONTROL_SYNC_CHECKLIST.txt
 
+Control Sync Lock (non-negotiable; overrides non-lock text):
+→ The Guild/Terminology/Locks/LOCK__CONTROL_SYNC.md
+
 Inner execution loop (quests; deterministic daily execution cadence):
 → Processes/SYNAPSE_GUILD__DAILIES.txt
 
@@ -79,6 +82,11 @@ E) TRUTH, DISCLOSURE, RISK, CONSENT
 Truth Gate (claims require proof):
 → Processes/SYNAPSE_GUILD__TRUTH_GATE.txt
 → The Guild/Terminology/Locks/LOCK__TRUTH_GATE.md
+
+Schema Validation (state manifest drift protection; routing contracts):
+→ Processes/SYNAPSE_GUILD__SCHEMA_VALIDATION.txt
+→ Schemas/
+→ The Guild/Terminology/Locks/LOCK__SCHEMA_VALIDATION_REQUIRED.md
 
 Disclosure Gate (mandatory operator notification when blocked/uncertain):
 → The Guild/Terminology/Locks/LOCK__DISCLOSURE_GATE.md
@@ -113,6 +121,10 @@ Fog of War (default; execution forbidden):
 Codex Freeze (Fog Lifted; execution authorized):
 → The Guild/Terminology/Locks/LOCK__CODEX_FREEZE_FOG_LIFTED.md
 
+Mode Awareness (active mode must be explicit; no silent mode switching):
+→ The Guild/Terminology/Locks/LOCK__MODE_AWARENESS.md
+→ The Guild/Terminology/Terms/Mode_Awareness.md
+
 ================================================================================
 H) CONTINUITY / REHYDRATION
 ================================================================================
@@ -146,7 +158,14 @@ Key terms (anchors; use when drafting Codex / Guild Orders / Quests):
 → The Guild/Terminology/Terms/Dungeon.md
 → The Guild/Terminology/Terms/Quest.md
 
+New subject / incubation terms (Fog of War; discovery-driven):
+→ The Guild/Terminology/Terms/Incubation.md
+→ The Guild/Terminology/Terms/Exploration.md
+→ The Guild/Terminology/Terms/Discovery.md
+→ The Guild/Terminology/Terms/Fog_of_War.md
+
 Additional key terms (common in governed software builds):
+→ The Guild/Terminology/Terms/Control_Sync.md
 → The Guild/Terminology/Terms/Door.md
 → The Guild/Terminology/Terms/Smoke_Test.md
 → The Guild/Terminology/Terms/God_Artifact.md
@@ -159,9 +178,24 @@ Terms directory:
 Locks directory (overrides all non-lock text):
 → The Guild/Terminology/Locks/
 
+Read ALL locks in this directory (lexicographic). Required Read Order MUST include every lock file.
+
 Architecture hygiene locks (capability separation + layering):
 → The Guild/Terminology/Locks/LOCK__NO_GOD_ARTIFACTS.md
+→ The Guild/Terminology/Locks/LOCK__SCHEMA_VALIDATION_REQUIRED.md
 → The Guild/Terminology/Locks/LOCK__LAYER_RESPONSIBILITIES.md
+
+Core locks (all mandatory; also in required_read_order):
+→ The Guild/Terminology/Locks/LOCK__CANONICAL_WORKING_TREE.md
+→ The Guild/Terminology/Locks/LOCK__ENGINE_VS_DATA.md
+→ The Guild/Terminology/Locks/LOCK__SUBJECT_DATA_SKELETON.md
+→ The Guild/Terminology/Locks/LOCK__FOG_OF_WAR.md
+→ The Guild/Terminology/Locks/LOCK__CODEX_FREEZE_FOG_LIFTED.md
+→ The Guild/Terminology/Locks/LOCK__MODE_AWARENESS.md
+→ The Guild/Terminology/Locks/LOCK__CONTROL_SYNC.md
+→ The Guild/Terminology/Locks/LOCK__TRUTH_GATE.md
+→ The Guild/Terminology/Locks/LOCK__DISCLOSURE_GATE.md
+→ The Guild/Terminology/Locks/LOCK__SNAPSHOTS.md
 
 ================================================================================
 J) SNAPSHOTS (CONTINUITY RECEIPTS)

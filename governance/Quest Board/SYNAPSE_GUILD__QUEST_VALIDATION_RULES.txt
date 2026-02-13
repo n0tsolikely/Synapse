@@ -1,6 +1,6 @@
 SYNAPSE OS — QUEST VALIDATION RULES (CANON)
-Version: v1.2
-Last Updated: 2026-02-09
+Version: v1.3
+Last Updated: 2026-02-12
 Status: Governance Law (changes require Governance Control Sync)
 
 Maintainer: Hands (Peter) with Brains (Ash)
@@ -144,6 +144,19 @@ Notes:
 (See: Processes/SYNAPSE_GUILD__VERIFICATION_LADDER.txt)
 
 ================================================================================
+
+3.10 Talent Point Awarded (required; no assumption)
+A Quest MUST explicitly state whether it awards a Talent Point.
+
+Required field:
+- Talent Point Awarded: (YES / NO)
+
+If YES:
+- The Quest MUST state the capability unlocked/expanded (so it can be logged).
+- Completion is not legal unless the Talent Tree + Talent Log are updated (Section 8).
+
+(See: Talent Tree/SYNAPSE_GUILD__TALENT_TREE.txt)
+================================================================================
 4) QUEST ID FORMAT (CANON)
 ================================================================================
 Quest IDs MUST be stable identifiers.
@@ -203,6 +216,7 @@ Before moving a Quest into Accepted/:
 [ ] Quest ID format valid (Section 4)
 [ ] Quest is atomic (Section 3.3)
 [ ] Dependencies captured (or explicitly None)
+[ ] Talent Point Awarded field set (YES/NO) (no assumption)
 [ ] Verification Notes exist OR are explicitly deferred to Pre-Quest Audit
     (Execution may not begin until 01_PREQUEST.md contains the Verification Plan)
 [ ] For code/software Quests: Door Impact + TL recorded OR explicitly deferred
@@ -237,7 +251,12 @@ A Quest may only be moved to Completed/ if:
     - Disclosure Gate notified Hands
 [ ] FAIL is never eligible for completion (fix or abandon)
 [ ] Outcome note recorded (what is now true)
-[ ] Talent Tree updated if capability changed
+[ ] Quest declares Talent Point Awarded: YES/NO
+[ ] If Talent Point Awarded = YES:
+    - <Subject>_Data/Talent Tree/TALENT_TREE.txt updated (real or PROPOSED)
+    - <Subject>_Data/Talent Tree/TALENT_LOG.txt updated (real or PROPOSED)
+    - 04_OUTCOME.md records the Talent ID + evidence paths
+    - If the current execution surface cannot write/verify these files: Quest completion validation FAILS (remain ACCEPTED/BLOCKED)
 
 If not:
 - Quest remains ACCEPTED (or is ABANDONED by Control Sync)

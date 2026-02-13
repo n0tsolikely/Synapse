@@ -1,6 +1,6 @@
 # SYNAPSE_STATE.yaml
-# Version: v1.3
-# Last Updated: 2026-02-09
+# Version: v1.5
+# Last Updated: 2026-02-12
 #
 # PURPOSE
 # - Deterministic rehydration + routing manifest for Synapse OS.
@@ -77,47 +77,86 @@ subject_data:
 required_read_order:
   - governance: "README.txt"
   - governance: "INDEX.txt"
-
+  - governance: "SYNAPSE_STATE.yaml"
+  - governance: "Continuity/SYNAPSE_GUILD__BOOTSTRAP_PROMPT.txt"
+  - governance: "Continuity/SYNAPSE_GUILD__BUFFS.txt"
+  - governance: "Continuity/SYNAPSE_GUILD__CONTINUITY_LOCK.txt"
+  - governance: "Continuity/SYNAPSE_GUILD__EXECUTION_PACKS.txt"
   - subject: "latest_rehydration_pack.bootstrap_prompt"
   - subject: "buffs"
   - subject: "latest_rehydration_pack.continuity_lock"
   - governance: "Continuity/SYNAPSE_GUILD__REHYDRATION_PACK_CHECKLIST.txt"
-
   - governance: "The Guild/SYNAPSE_GUILD_CANONICAL_MANUAL.txt"
+  - governance: "The Guild/SYNAPSE_GUILD__SUBJECT_MODEL.txt"
   - governance: "The Guild/SYNAPSE_GUILD__QUICK_START.txt"
-
   - governance: "Processes/SYNAPSE_GUILD__THE_LOOP.txt"
-
   - governance: "Processes/SYNAPSE_GUILD__TRUTH_GATE.txt"
+  - governance: "Processes/SYNAPSE_GUILD__SCHEMA_VALIDATION.txt"
   - governance: "Processes/SYNAPSE_GUILD__EXECUTION_AUDITS.txt"
   - governance: "Processes/SYNAPSE_GUILD__VERIFICATION_LADDER.txt"
+  - governance: "Processes/SYNAPSE_GUILD__RISK_RUBRIC.txt"
+  - governance: "Processes/SYNAPSE_GUILD__CONSENT_GATE.txt"
   - governance: "Processes/SYNAPSE_GUILD__LARGE_ARTIFACT_COMPOSITION.txt"
-
+  - governance: "Processes/SYNAPSE_GUILD__SUBJECT_INITIALIZATION_AND_INCUBATION.txt"
   - governance: "Processes/SYNAPSE_GUILD__CONTROL_SYNC.txt"
   - governance: "Processes/SYNAPSE_GUILD__CONTROL_SYNC_CHECKLIST.txt"
   - governance: "Processes/SYNAPSE_GUILD__DAILIES.txt"
-
   - governance: "Guild Docs/SYNAPSE_GUILD__CODEX.txt"
   - governance: "Guild Docs/SYNAPSE_GUILD__GUILD_ORDERS.txt"
   - governance: "Guild Docs/SYNAPSE_GUILD__SNAPSHOTS.txt"
   - governance: "Guild Docs/SYNAPSE_GUILD__SNAPSHOT_TEMPLATES.txt"
-
   - governance: "Quest Board/SYNAPSE_GUILD__QUEST_BOARD.txt"
   - governance: "Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt"
   - governance: "Quest Board/SYNAPSE_GUILD__QUESTS.txt"
-
+  - governance: "Quest Board/QUEST_TEMPLATE.txt"
+  - governance: "Quest Board/CONFIRM_R2_TEMPLATE.txt"
+  - governance: "Talent Tree/SYNAPSE_GUILD__TALENT_TREE.txt"
+  - governance: "Talent Tree/TALENT_TREE.txt"
+  - governance: "Talent Tree/TALENT_LOG.txt"
+  - governance: "Talent Tree/RESPEC_RULES.txt"
+  - governance: "The Guild/Terminology/README.md"
+  - governance: "The Guild/Terminology/Terms/Build_Manual.md"
+  - governance: "The Guild/Terminology/Terms/Canonical_Working_Tree.md"
+  - governance: "The Guild/Terminology/Terms/Codex.md"
+  - governance: "The Guild/Terminology/Terms/Control_Sync.md"
+  - governance: "The Guild/Terminology/Terms/Dailies.md"
+  - governance: "The Guild/Terminology/Terms/Disclosure_Gate.md"
+  - governance: "The Guild/Terminology/Terms/Discovery.md"
+  - governance: "The Guild/Terminology/Terms/Door.md"
+  - governance: "The Guild/Terminology/Terms/Dungeon.md"
+  - governance: "The Guild/Terminology/Terms/Exploration.md"
+  - governance: "The Guild/Terminology/Terms/Fog_of_War.md"
+  - governance: "The Guild/Terminology/Terms/God_Artifact.md"
+  - governance: "The Guild/Terminology/Terms/Guild_Orders.md"
+  - governance: "The Guild/Terminology/Terms/Incubation.md"
+  - governance: "The Guild/Terminology/Terms/Mode_Awareness.md"
+  - governance: "The Guild/Terminology/Terms/Quest.md"
+  - governance: "The Guild/Terminology/Terms/Raid.md"
+  - governance: "The Guild/Terminology/Terms/Rehydration.md"
+  - governance: "The Guild/Terminology/Terms/Smoke_Test.md"
+  - governance: "The Guild/Terminology/Terms/Snapshot.md"
+  - governance: "The Guild/Terminology/Terms/Snapshot_Control_Sync.md"
+  - governance: "The Guild/Terminology/Terms/Snapshot_End_of_Day.md"
+  - governance: "The Guild/Terminology/Terms/Snapshot_General.md"
+  - governance: "The Guild/Terminology/Terms/TOC.md"
+  - governance: "The Guild/Terminology/Terms/Talent_Tree.md"
+  - governance: "The Guild/Terminology/Terms/Truth_Gate.md"
+  - governance: "The Guild/Terminology/Terms/Verification_Ladder.md"
+  - governance: "The Guild/Terminology/Terms/World_State.md"
+  - governance: "The Guild/Terminology/Terms/engine_DATA.md"
+  - locks: "The Guild/Terminology/Locks/LOCK__CANONICAL_WORKING_TREE.md"
   - locks: "The Guild/Terminology/Locks/LOCK__CODEX_FREEZE_FOG_LIFTED.md"
-  - locks: "The Guild/Terminology/Locks/LOCK__SUBJECT_DATA_SKELETON.md"
-  - locks: "The Guild/Terminology/Locks/LOCK__NO_GOD_ARTIFACTS.md"
+  - locks: "The Guild/Terminology/Locks/LOCK__CONTROL_SYNC.md"
+  - locks: "The Guild/Terminology/Locks/LOCK__DISCLOSURE_GATE.md"
+  - locks: "The Guild/Terminology/Locks/LOCK__ENGINE_VS_DATA.md"
+  - locks: "The Guild/Terminology/Locks/LOCK__FOG_OF_WAR.md"
   - locks: "The Guild/Terminology/Locks/LOCK__LAYER_RESPONSIBILITIES.md"
-
-# =============================================================================
-# RESOLUTION RULES
-# =============================================================================
-# These rules define how "subject:" items above are resolved to concrete files.
-# IMPORTANT: If resolution yields 0 matches or multiple ambiguous matches,
-#            do NOT guess. Trigger Disclosure Gate or ask Hands (as applicable).
-
+  - locks: "The Guild/Terminology/Locks/LOCK__MODE_AWARENESS.md"
+  - locks: "The Guild/Terminology/Locks/LOCK__NO_GOD_ARTIFACTS.md"
+  - locks: "The Guild/Terminology/Locks/LOCK__SCHEMA_VALIDATION_REQUIRED.md"
+  - locks: "The Guild/Terminology/Locks/LOCK__SNAPSHOTS.md"
+  - locks: "The Guild/Terminology/Locks/LOCK__SUBJECT_DATA_SKELETON.md"
+  - locks: "The Guild/Terminology/Locks/LOCK__TRUTH_GATE.md"
 rehydration:
   latest_rehydration_pack:
     dir: "Latest Rehydration Pack"
