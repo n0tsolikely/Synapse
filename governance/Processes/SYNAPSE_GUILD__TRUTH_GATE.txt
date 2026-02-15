@@ -1,6 +1,6 @@
-SYNAPSE OS — TRUTH GATE + DISCLOSURE GATE (CANON)
-Version: v1.4
-Last Updated: 2026-02-07
+SYNAPSE OS — TRUTH GATE (CANON)
+Version: v1.5
+Last Updated: 2026-02-13
 Status: Governance Law (changes require Governance Control Sync)
 
 Audience:
@@ -81,7 +81,7 @@ If a receipt was not captured, it does not exist.
 1.5.3 If Execution Cannot Be Performed Here
 If the current execution surface cannot run the command/test:
 - Brains MUST label the claim as UNABLE TO VERIFY IN CURRENT EXECUTION SURFACE
-- Disclosure Gate MUST trigger (Section 3)
+- Disclosure Gate MUST trigger (see Processes/SYNAPSE_GUILD__DISCLOSURE_GATE.txt)
 - the work MUST NOT be advanced as “verified”
 
 1.5.4 Non-Code Subjects Still Require Real Verification
@@ -105,45 +105,21 @@ It MUST include receipts (Section 1.2) and must identify:
 - exact diff(s) or explicit file contents
 
 ================================================================================
-3) DISCLOSURE GATE — MANDATORY OPERATOR NOTIFICATION
+3) DISCLOSURE GATE (REFERENCE ONLY)
 ================================================================================
 
-3.1 Core Law
-When Truth Gate intervenes in a way that affects the next safe action,
-Brains MUST proactively notify Hands BEFORE proceeding.
+Disclosure Gate is a separate, canonical governance procedure.
+This file MUST NOT be treated as the canonical source of Disclosure Gate triggers
+or disclosure message schema.
 
-This is event-driven (no spam), but it is mandatory when triggered.
+Canonical authority for Disclosure Gate:
+- Processes/SYNAPSE_GUILD__DISCLOSURE_GATE.txt
+- The Guild/Terminology/Terms/Disclosure_Gate.md
+- The Guild/Terminology/Locks/LOCK__DISCLOSURE_GATE.md
 
-3.2 Disclosure Trigger Events (Non-Exhaustive)
-Disclosure Gate triggers when any of the following occur:
-- expected artifact/path is missing
-- canonical root cannot be proven
-- an action cannot be evidenced
-- verification cannot be performed
-- preconditions for safe execution are missing
-- continuity uncertainty invalidates assumptions about state
-- execution diverges materially from plan
-- any governance requirement cannot be followed in the current execution surface
-- any “maybe / probably / I think” appears in action reasoning
-
-3.3 Required Disclosure Message Schema (Mandatory Fields)
-Every disclosure MUST include:
-
-A) EXPECTED vs PROVABLE
-- what was expected to be true
-- what can be proven true right now
-
-B) IMPACT
-- what this blocks/invalidates/changes
-- why it matters for next actions
-
-C) SAFE OPTIONS
-- the smallest set of safe next steps (halt, rehydrate, re-run, regenerate, revise plan)
-
-3.4 Stop Rule (Blocking)
-Once Disclosure Gate triggers:
-- Brains MUST pause execution path selection
-- Brains MUST NOT continue “as if resolved” until Hands directs or acknowledges
+Binding coupling rule (Truth Gate → Disclosure Gate):
+- If Truth Gate blocks a claim/verification in a way that changes the next safe action,
+  Disclosure Gate MUST trigger and Hands MUST be notified before proceeding.
 
 ================================================================================
 4) INTEGRATION WITH EXECUTION AUDITS (SUBJECT TRUTH)

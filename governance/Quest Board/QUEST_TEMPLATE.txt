@@ -1,6 +1,6 @@
 QUEST TEMPLATE — SYNAPSE OS
-Version: v1.3
-Last Updated: 2026-02-09
+Version: v1.5
+Last Updated: 2026-02-14
 Status: Canon Template (must comply with Quest Validation Rules)
 
 (duplicate this file for each new Quest)
@@ -44,6 +44,65 @@ Priority: (P0 / P1 / P2)
 Links:
 # OPTIONAL but strongly recommended.
 # References to Codex sections, Guild Orders/Raid/Dungeon, related Quests, etc.
+
+================================================================================
+CODEX ANCHORS + CONSTRAINT SUMMARY (DRAFT)
+================================================================================
+Codex Anchors (DRAFT):
+# REQUIRED at BOARD state.
+# Provide 2–7 stable anchors into the Subject Codex (section IDs or file/path anchors).
+# If missing at BOARD time, allowed placeholder:
+#   BLOCKED — CODEX_ANCHORS_MISSING
+# NOTE: A Quest MUST NOT move to ACCEPTED until anchors are resolved.
+
+Codex Constraint Summary (DRAFT):
+# REQUIRED at BOARD state.
+# 3–7 bullet constraints derived from the anchors above.
+# May be rough at BOARD time; must be finalized in 01_PREQUEST.md before execution.
+
+
+================================================================================
+QUEST CREATION VISION ALIGNMENT (REQUIRED)
+================================================================================
+Change Class: (TRIVIAL / FEATURE / STRUCTURAL)
+# REQUIRED at BOARD state.
+# TRIVIAL: small contained change (docs / local refactor / low blast radius)
+# FEATURE: new behavior inside existing structure (no new doors/runtimes)
+# STRUCTURAL: changes system shape (new Door/runtime/adapter/module boundary/entrypoint)
+# If unsure, default to STRUCTURAL.
+
+Vision Delta: (ALIGNED / VARIATION / SHIFT)
+# REQUIRED at BOARD state.
+# ALIGNED: explicitly within existing Codex vision.
+# VARIATION: same intent class as Codex, new instance/channel (e.g., Discord Door alongside Telegram).
+# SHIFT: changes what the system IS (product identity/purpose). Execution must not proceed.
+
+System Context Statement:
+# REQUIRED at BOARD state.
+# 1–3 sentences stating what system this Quest is inside and what it is building on.
+# Must include the relevant boundary statement (platform vs module) to avoid greenfield assumptions.
+
+If Vision Delta = VARIATION:
+# REQUIRED only if Vision Delta = VARIATION.
+# - Codex intent class it maps to: <e.g., Door: chat interface>
+# - Codification path: <SIDE-QUEST id or "TBD — requires Hands approval">
+# NOTE: Variations may be allowed to execute if anchored + oriented, but MUST spawn a Side-Quest to codify.
+
+If Vision Delta = SHIFT:
+# REQUIRED only if Vision Delta = SHIFT.
+# Write: BLOCKED — CONTROL_SYNC_REQUIRED
+# Briefly state what would need to change in Codex for this to become valid.
+
+Anti-Duplication Plan:
+# REQUIRED at BOARD state.
+# What you will search for in the repo to ensure this is not already implemented (paths/keywords).
+# If unknown, say so.
+
+Placement Intent:
+# REQUIRED at BOARD state.
+# Intended layer: platform | module | adapter | door | runtime | interface
+# Intended target path(s) (or "unknown").
+
 
 ================================================================================
 ATOMICITY CHECK (REQUIRED)

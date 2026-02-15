@@ -1,6 +1,6 @@
 SYNAPSE GUILD — SNAPSHOTS (CANON)
-Version: v1.2
-Last Updated: 2026-02-06
+Version: v1.3
+Last Updated: 2026-02-13
 Status: Governance Law (changes require Governance Control Sync)
 
 Maintainer: Hands (Peter) with Brains (Ash)
@@ -296,19 +296,31 @@ Canonical rules:
 Snapshot filenames MUST make type + subject + date obvious.
 
 Canonical pattern:
-<Subject>_<SnapshotType>_Snapshot_YYYY-MM-DD__<Topic>.txt
+<Subject>_<SnapshotType>_Snapshot_YYYY-MM-DD.txt
 
 Where <SnapshotType> is one of:
 - Control_Sync
 - End_of_Day
 - General
 
-Topic is optional but recommended. If omitted, drop the "__<Topic>" suffix.
-
 Examples:
-- STUART_Control_Sync_Snapshot_2026-02-02__v1_scope.txt
-- STUART_End_of_Day_Snapshot_2026-02-02__quests_1-3.txt
-- STUART_General_Snapshot_2026-02-02__architecture_note.txt
+- STUART_Control_Sync_Snapshot_2026-02-02.txt
+- STUART_End_of_Day_Snapshot_2026-02-02.txt
+- STUART_General_Snapshot_2026-02-02.txt
+
+Strict filename termination rule (hard):
+- Snapshot filenames MUST end with the date token: YYYY-MM-DD.txt
+- No suffix-after-date is allowed (no _topic, no _notes, etc).
+- Only allowed insertion is SAME-DAY DUPLICATE COUNTER (see below), which MUST appear BEFORE the date token.
+
+Duplicate same-day rule (when multiple Snapshots of the same type are required on the same date):
+- First snapshot of the day:
+  - <Subject>_<SnapshotType>_Snapshot_YYYY-MM-DD.txt
+- Second snapshot of the day (counter is lexicographic-safe and does NOT appear after the date):
+  - <Subject>_<SnapshotType>_Snapshot__02_YYYY-MM-DD.txt
+- Third snapshot of the day:
+  - <Subject>_<SnapshotType>_Snapshot__03_YYYY-MM-DD.txt
+- Counters MUST be zero-padded (02, 03, …) for deterministic sorting.
 
 ----------------------------------------
 8.3 REHYDRATION ORDER (LOCK)
@@ -332,12 +344,16 @@ A good Snapshot:
 - is explicit
 - separates fact from interpretation
 - can be trusted months later
+- is extremely detailed and human readable
+- able for a guild member to read who was not present that day and not miss a beat
 
 A bad Snapshot:
 - mixes intent with reality
 - omits important outcomes
 - rewrites history
 - relies on memory instead of evidence
+- omits to much information
+- leaves ambiguity in elements it discusses and states
 
 Snapshots must be boring and reliable.
 

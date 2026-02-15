@@ -1,7 +1,5 @@
-# SYNAPSE GUILD — CODEX (v1.3)
-
-Last Updated: 2026-02-06
-
+# SYNAPSE GUILD — CODEX (v1.4)
+Last Updated: 2026-02-14
 ================================================================================
 0) DEFINITION
 ================================================================================
@@ -243,3 +241,22 @@ Guild Orders, Dungeons, and Quests MUST reference the Codex by TOC/section numbe
 
 Rule:
 - If work cannot be traced back to a Codex section (or an explicitly deferred decision), it is not execution-ready.
+
+
+Clarification — anchors are about intent class, not exact nouns:
+- Codex anchors do NOT require that the exact feature name appears in the Codex
+  (example: “Discord Door” may not be named).
+- Anchors MUST point to the governing Codex intent class and constraints
+  (example: “Doors / UI interaction channels / Interfaces”).
+
+Vision Delta (classification rule used during Quest creation and Pre-Quest alignment):
+- ALIGNED: the work is explicitly described by the Codex sections referenced.
+- VARIATION (allowed): the work is a new instance/channel that fits an existing
+  Codex intent class (example: add Discord alongside Telegram).
+  Required:
+  - Declare it as Vision Delta = VARIATION.
+  - Obtain Hands authority and codify it via SIDE-QUEST: VISION_VARIATION_CODIFY.
+- SHIFT (blocked): the work changes what the Subject IS (identity/purpose).
+  Required:
+  - Declare it as Vision Delta = SHIFT.
+  - Stop and resolve via Control Sync before execution continues.

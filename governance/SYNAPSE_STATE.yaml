@@ -1,6 +1,6 @@
 # SYNAPSE_STATE.yaml
-# Version: v1.5
-# Last Updated: 2026-02-12
+# Version: v1.6
+# Last Updated: 2026-02-13
 #
 # PURPOSE
 # - Deterministic rehydration + routing manifest for Synapse OS.
@@ -29,8 +29,7 @@ schema_version: 2
 
 governance_pack:
   # Expected default when the Governance Pack is extracted into the workspace root.
-  root: "Synapse_OS_Governance"
-
+  root: "Synapse_OS_Governance(AI)"
 subject_data:
   # One or more canonical {ACTIVE_SUBJECT}_Data roots.
   # NOTE: Each root MUST itself be the {ACTIVE_SUBJECT}_Data directory (no wrapper folders).
@@ -91,6 +90,7 @@ required_read_order:
   - governance: "The Guild/SYNAPSE_GUILD__QUICK_START.txt"
   - governance: "Processes/SYNAPSE_GUILD__THE_LOOP.txt"
   - governance: "Processes/SYNAPSE_GUILD__TRUTH_GATE.txt"
+  - governance: "Processes/SYNAPSE_GUILD__DISCLOSURE_GATE.txt"
   - governance: "Processes/SYNAPSE_GUILD__SCHEMA_VALIDATION.txt"
   - governance: "Processes/SYNAPSE_GUILD__EXECUTION_AUDITS.txt"
   - governance: "Processes/SYNAPSE_GUILD__VERIFICATION_LADDER.txt"

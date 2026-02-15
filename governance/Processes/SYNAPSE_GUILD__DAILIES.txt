@@ -1,6 +1,6 @@
-# SYNAPSE GUILD — DAILIES (v1.4)
+# SYNAPSE GUILD — DAILIES (v1.5)
 
-Last Updated: 2026-02-06
+Last Updated: 2026-02-14
 
 ================================================================================
 0) PURPOSE
@@ -144,16 +144,24 @@ Rules:
 
 For each accepted quest in scope, the system MUST perform the Quest Mini‑Loop.
 
-A) Pre‑Quest Alignment Audit (MANDATORY)
+A) Pre‑Quest Vision Alignment Audit (MANDATORY)
 - Create the audit BEFORE changing any files.
 - Store it inside the quest’s audit bundle:
   - 01_PREQUEST.md
-- Confirm:
-  - quest goal
-  - relevant Codex sections
-  - relevant locks/constraints
-  - success criteria
-  - World State permits execution
+- Confirm (by receipts, not vibes):
+  - quest goal + success criteria
+  - Change Class + Vision Delta (must match the Quest file)
+  - Orientation Receipt (where we are + what we are building on):
+    - canonical roots confirmed (governance/data/engine)
+    - boundary statement (platform vs module; no parallel systems)
+  - Codex Anchors + Constraint Summary (+ Vision Delta verdict)
+  - Repo Orientation Receipt (anti‑duplication + placement decision)
+    - REQUIRED for FEATURE/STRUCTURAL
+    - LIGHTWEIGHT permitted for TRIVIAL
+  - World State permits execution (Fog Lifted)
+
+Reference law:
+- `Processes/SYNAPSE_GUILD__EXECUTION_AUDITS.txt`
 
 B) Execute Changes
 - Make the smallest correct set of changes.
@@ -301,7 +309,7 @@ C) Latest Rehydration Pack update (when applicable)
 
 - No execution without Codex Freeze marker.
 - No quest acceptance without Quest Validation + audit bundle pointer.
-- No file changes without Pre‑Quest Alignment Audit.
+- No file changes without Pre‑Quest Vision Alignment Audit (01_PREQUEST.md).
 - No quest completion claims without Verification Audit + explicit PASS.
 - No mid‑session scope changes without a NEW Control Sync + Snapshot.
 - If Truth Gate blocks, Disclosure Gate triggers immediately.

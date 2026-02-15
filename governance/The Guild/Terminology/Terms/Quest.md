@@ -16,6 +16,13 @@ It is not a different type of work; it is a Quest with a different origin.
 Conversation is input.
 The Quest artifact is authority.
 
+## Vision Alignment Fields
+Each Quest MUST declare the governance alignment fields used to prevent drift:
+- **Change Class** (TRIVIAL / FEATURE / STRUCTURAL)
+- **Vision Delta** (ALIGNED / VARIATION / SHIFT)
+
+These fields constrain execution and determine which Pre‑Quest receipts are mandatory (Orientation + Repo Orientation).
+
 ## Purpose
 Quests make execution deterministic, auditable, and bounded by forcing:
 - one unit of work

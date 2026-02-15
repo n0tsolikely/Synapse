@@ -1,6 +1,6 @@
 SYNAPSE OS — QUEST VALIDATION RULES (CANON)
-Version: v1.3
-Last Updated: 2026-02-12
+Version: v1.5
+Last Updated: 2026-02-14
 Status: Governance Law (changes require Governance Control Sync)
 
 Maintainer: Hands (Peter) with Brains (Ash)
@@ -156,6 +156,103 @@ If YES:
 - Completion is not legal unless the Talent Tree + Talent Log are updated (Section 8).
 
 (See: Talent Tree/SYNAPSE_GUILD__TALENT_TREE.txt)
+
+================================================================================
+3.11 Codex Anchors (DRAFT; required at BOARD state)
+================================================================================
+
+Purpose:
+- Prevent Quest-level drift from Codex intent.
+- Ensure every Quest is traceably rooted in the Subject Codex.
+
+Required field in every Quest file (BOARD state):
+
+- Codex Anchors (DRAFT):
+
+Rules:
+
+- Must contain 2–7 references MAX.
+- References must be:
+  - Stable Codex section identifiers (e.g., 6.5, 9.2, 10.5), OR
+  - Stable Codex file/path anchors.
+
+- “Read the whole Codex” is INVALID.
+- Anchors must be directly relevant to the Quest scope.
+
+If Codex Anchors cannot be found:
+
+- The Quest MUST declare:
+  Codex Anchors (DRAFT): BLOCKED — CODEX_ANCHORS_MISSING
+
+- Validation does NOT fail at BOARD time,
+  but the Quest may NOT move to ACCEPTED until resolved.
+
+Resolution paths:
+
+A) Create SIDE-QUEST: CODEX_ANCHOR_FIX
+   - Identify existing Codex anchors OR
+   - Add missing Codex section via Control Sync
+
+B) Escalate to Control Sync
+   - If the requested work introduces new law or architecture
+
+No execution is legal without finalized anchors (see Execution Audits).
+
+================================================================================
+3.12 Quest Creation Vision Alignment (required at BOARD state)
+================================================================================
+
+Purpose:
+- Force situational awareness at Quest creation time.
+- Ensure Quests are born grounded in a pre-determined system (Codex) that already exists.
+- Prevent structural duplication and greenfield assumptions as Quest count grows (Quest 80 / Quest 200).
+
+Required fields in every Quest file (BOARD state):
+
+- Change Class: (TRIVIAL / FEATURE / STRUCTURAL)
+- Vision Delta: (ALIGNED / VARIATION / SHIFT)
+- System Context Statement:
+- Anti-Duplication Plan:
+- Placement Intent:
+
+Definitions:
+
+A) Change Class
+- TRIVIAL: contained refactor/docs; does not change system shape.
+- FEATURE: new behavior inside an existing component/boundary.
+- STRUCTURAL: changes system shape (new Door, runtime, adapter, module boundary, registry, entrypoint).
+- If unsure -> STRUCTURAL.
+
+B) Vision Delta
+- ALIGNED: explicitly inside Codex intent/boundaries.
+- VARIATION: new instance/channel that fits an existing Codex intent class
+  (example: add a Discord Door when Codex already defines “Doors / UI channels”).
+- SHIFT: changes what the system is (primary purpose / product identity).
+
+Rules:
+
+- Missing Change Class or Vision Delta -> Quest is INVALID (may remain on BOARD but MUST NOT move to ACCEPTED).
+- Vision Delta = SHIFT -> the Quest MUST remain on BOARD as:
+  Vision Delta: SHIFT (BLOCKED — VISION_SHIFT)
+  Resolution requires Control Sync + Codex update before acceptance.
+
+- Vision Delta = VARIATION is allowed ONLY if Codex Anchors exist for the underlying intent class
+  AND the Quest declares a Codification Side-Quest.
+
+Required when Vision Delta = VARIATION:
+- Variation Mapping: <Codex intent class being extended>
+- Codification Side-Quest: <SIDE-QUEST_###> (must exist on Quest Board)
+
+Notes:
+- VARIATION is not blocked just because the exact noun is absent from Codex.
+  It is blocked only if it cannot be traced to an existing Codex intent class or violates boundaries.
+
+BOARD-state allowance (but not acceptance):
+- If Anti-Duplication Plan or Placement Intent are not yet known, they MAY be declared as:
+  BLOCKED — REPO_ORIENTATION_REQUIRED
+  However, any Quest with this BLOCKED declaration MUST NOT move to ACCEPTED until resolved.
+
+
 ================================================================================
 4) QUEST ID FORMAT (CANON)
 ================================================================================
@@ -213,6 +310,27 @@ The Quest file MUST include:
 Before moving a Quest into Accepted/:
 
 [ ] Quest invariants satisfied (Section 3)
+[ ] Codex Anchors (DRAFT) present (Section 3.11)
+[ ] If Anchors = BLOCKED — CODEX_ANCHORS_MISSING:
+    - Quest MUST NOT move to ACCEPTED
+
+[ ] Quest Creation Vision Alignment present (Section 3.12):
+    - Change Class set (TRIVIAL/FEATURE/STRUCTURAL)
+    - Vision Delta set (ALIGNED/VARIATION/SHIFT)
+    - System Context Statement present
+
+[ ] If Vision Delta = SHIFT:
+    - Quest MUST NOT move to ACCEPTED (BLOCKED — VISION_SHIFT; Control Sync required)
+
+[ ] If Vision Delta = VARIATION:
+    - Variation Mapping present (Codex intent class)
+    - Codification Side-Quest declared and exists on Quest Board
+
+[ ] For FEATURE/STRUCTURAL Quests:
+    - Anti-Duplication Plan is NOT BLOCKED — REPO_ORIENTATION_REQUIRED
+    - Placement Intent is NOT BLOCKED — REPO_ORIENTATION_REQUIRED
+
+
 [ ] Quest ID format valid (Section 4)
 [ ] Quest is atomic (Section 3.3)
 [ ] Dependencies captured (or explicitly None)

@@ -1,0 +1,342 @@
+SYNAPSE OS — DISCLOSURE GATE (CANON)
+Version: v1.1
+Last Updated: 2026-02-14
+Status: Governance Law (changes require Governance Control Sync)
+
+Maintainer: Hands (Peter) with Brains (Ash)
+Audience:
+- Any AI session operating under Synapse OS
+- Any human operator executing Quests / writing Snapshots / managing state
+
+================================================================================
+0) PURPOSE
+================================================================================
+
+Disclosure Gate exists to prevent silent failure, hidden drift, and “discover truth later.”
+
+It enforces one thing:
+
+Hands MUST be explicitly notified (with evidence) when uncertainty, missing artifacts,
+or Truth Gate blocks change the next safe action.
+
+Disclosure Gate is NOT optional posture.
+It is an event-driven safety mechanism.
+
+================================================================================
+0.1) AUTHORITATIVE REFERENCES (BINDING)
+================================================================================
+
+This document operationalizes (does not override) the following canonical artifacts:
+
+- Term:
+  - The Guild/Terminology/Terms/Disclosure_Gate.md
+
+- Lock:
+  - The Guild/Terminology/Locks/LOCK__DISCLOSURE_GATE.md
+
+Common interacting laws (non-exhaustive):
+- Processes/SYNAPSE_GUILD__TRUTH_GATE.txt
+- Processes/SYNAPSE_GUILD__EXECUTION_AUDITS.txt
+- Guild Docs/SYNAPSE_GUILD__SNAPSHOTS.txt
+- Continuity/SYNAPSE_GUILD__REHYDRATION_PACK_CHECKLIST.txt
+- Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt
+
+Hierarchy reminder:
+Locks > Governance Processes > Continuity Lock > Buffs > Chat.
+
+================================================================================
+1) CANON DEFINITION
+================================================================================
+
+Disclosure Gate is the mandatory operator notification required when:
+
+- something expected cannot be proven
+- uncertainty exists that changes the next safe action
+- Truth Gate prevents, invalidates, or forces UNVERIFIED/BLOCKED/UNKNOWN labeling
+- environment/canonical tree cannot be proven
+- “latest” is ambiguous
+- consent/risk state cannot be safely determined
+- repo reality / placement cannot be safely determined (duplication risk)
+- vision delta cannot be safely classified (ALIGNED vs VARIATION vs SHIFT)
+
+Rule:
+If Brains is unsure whether Disclosure Gate applies, it applies.
+
+================================================================================
+2) CANON TRIGGERS (NON-EXHAUSTIVE)
+================================================================================
+
+Disclosure Gate MUST trigger when any of the following are true:
+
+A) Missing / Unprovable Artifacts
+- expected file/path is missing
+- expected canonical folder cannot be listed
+- required Rehydration Pack component missing/unreadable
+- required Buff missing/unreadable/contradictory
+- required Snapshot missing for continuity
+
+B) Canonical Working Tree Uncertainty
+- multiple competing copies exist
+- the “canonical” tree cannot be proven
+- state appears overwritten/reset/wiped since last receipts
+
+C) Proof / Verification Blocked
+- commands/tests/builds cannot be executed in the current surface
+- results cannot be captured as receipts
+- verification claim cannot be proven (Truth Gate blocks)
+
+D) Ambiguity That Changes Next Safe Action
+- multiple “latest” candidates (snapshots, packs, audits) and pick rule cannot resolve deterministically
+- ambiguous risk classification / missing consent artifact
+- ambiguous ownership of decision (Hands vs Brains vs governance)
+
+E) Codex / Build Manual Anchor Failure (anti-drift)
+- a Quest requires Codex anchors but none can be found/justified
+- “anchor search” fails and Brains is tempted to guess
+- build manual or codex references required by law cannot be produced
+
+F) Schema / Manifest Problems
+- SYNAPSE_STATE.yaml or SUBJECT_STATE.yaml fails schema validation (if validation is in scope)
+- manifest fields required for routing/rehydration are missing/invalid
+
+G) Vision Alignment / Repo Orientation Ambiguity (anti-duplication)
+- Change Class cannot be safely classified (TRIVIAL/FEATURE/STRUCTURAL)
+- Vision Delta cannot be safely classified (ALIGNED/VARIATION/SHIFT)
+- placement decision is ambiguous (platform/module/door/runtime/etc.)
+- existing-component discovery yields candidates but reuse/extend/new cannot be decided safely
+
+================================================================================
+3) REQUIRED DISCLOSURE CONTENTS (TEMPLATE)
+================================================================================
+
+A Disclosure Gate event MUST produce a disclosure message containing, at minimum:
+
+- Trigger:
+  What event caused disclosure (one sentence).
+
+- Expected:
+  What was expected to be true (paths/artifacts/states).
+
+- Provable:
+  What is provable now, including receipts where relevant:
+  - directory listings
+  - file paths
+  - hashes
+  - tool output
+
+- Status labels:
+  What is BLOCKED / UNVERIFIED / UNKNOWN and why.
+  Use Truth Gate labels.
+
+- Impact:
+  What cannot safely proceed and what would be unsafe to assume.
+
+- Safe options:
+  2–5 legal next actions that can be taken under the current state.
+
+- Decision needed from Hands:
+  The minimal approval/choice required to continue.
+
+-------------------------
+Canonical Disclosure Block (copy/paste format)
+-------------------------
+
+DISCLOSURE GATE — EVENT
+
+Trigger:
+Expected:
+Provable:
+Status Labels:
+Impact:
+Safe Options:
+Decision Needed From Hands:
+
+================================================================================
+4) DISCLOSURE PROTOCOL (WHAT TO DO, IN ORDER)
+================================================================================
+
+When Disclosure Gate triggers:
+
+1) STOP (Freeze state)
+- Do not modify files.
+- Do not “fix quietly.”
+- Do not proceed to a new step that depends on the missing/uncertain thing.
+
+2) LABEL THE STATE
+- Declare BLOCKED / UNVERIFIED / UNKNOWN as needed.
+- Be explicit about which parts of work are invalidated.
+
+3) COLLECT MINIMAL RECEIPTS (NON-DESTRUCTIVE)
+Examples of legal receipts:
+- `ls -la` of relevant directories
+- reading file headers
+- hashing a file
+- printing the exact error output from a tool
+
+Do NOT:
+- rewrite artifacts
+- generate new canon artifacts “just to make it pass”
+- move folders around unless Hands explicitly approves
+
+4) DISCLOSE IMMEDIATELY
+- Produce the Disclosure Gate message (Section 3 template).
+- Request the smallest possible decision from Hands.
+
+================================================================================
+5) WHERE DISCLOSURES MUST BE RECORDED (AUDITABILITY LAW)
+================================================================================
+
+Disclosure Gate is satisfied by notifying Hands in-session, but when it affects work state,
+it MUST be recorded durably in Subject_Data artifacts.
+
+Recording rules:
+
+A) If Disclosure occurs during a Quest lifecycle (accepted/executing/verifying):
+- Record it inside the Quest’s Execution Audit bundle:
+  - 00_SUMMARY.md MUST reference the disclosure (at minimum)
+  - In the relevant phase file (01_PREQUEST / 02_EXECUTION / 03_VERIFY / 04_OUTCOME),
+    include a “Disclosure Gate Event” subsection containing the canonical disclosure block.
+
+Optional (recommended):
+- Add a dedicated file in the audit bundle:
+  - 05_DISCLOSURE.md
+  containing the full disclosure block + receipts/pointers.
+
+B) If Disclosure occurs outside any Quest (rehydration, buff up, continuity, environment):
+- Record it in the next appropriate Snapshot:
+  - Control Sync Snapshot if disclosure affected binding decisions
+  - General Snapshot if disclosure is continuity/rehydration-only
+  - EOD Snapshot if disclosure happened during a work session and affects state
+(See: Guild Docs/SYNAPSE_GUILD__SNAPSHOTS.txt)
+
+C) If Disclosure changes the “resume point” for future sessions:
+- It MUST be reflected in the next Continuity Lock.
+
+================================================================================
+6) CANON RESOLUTION PATHS (WHAT HANDS MAY CHOOSE)
+================================================================================
+
+Disclosure Gate does NOT decide. Hands decides.
+
+Common legal resolutions:
+
+- HALT:
+  Stop work for the session. Record EOD snapshot (if applicable).
+
+- REHYDRATE / RE-READ:
+  Rehydrate with the correct pack or confirm the canonical path set.
+
+- RE-RUN WITH RECEIPTS:
+  Re-run verification or execution steps with captured outputs.
+
+- SIDE-QUEST: CODEX_ANCHOR_FIX:
+  Create a side quest whose only objective is to locate/add the missing Codex anchors,
+  then unblock the original quest.
+
+- SIDE-QUEST: VISION_VARIATION_CODIFY:
+  Create a side quest to codify an approved vision-consistent variation (e.g., a new Door type)
+  into the Codex/registries so future Quests can anchor deterministically.
+
+- CONTROL SYNC:
+  If the missing anchors represent new law/architecture, or if risk/consent changes are needed,
+  do a Control Sync and update binding artifacts.
+
+- REPAIR STATE (WITH RECEIPTS):
+  Repair broken naming, folder placement, or manifest fields ONLY with explicit Hands approval,
+  and capture receipts for every change.
+
+================================================================================
+7) SPECIAL CASES (DETERMINISTIC ROUTING)
+================================================================================
+
+7.1 CODEX_ANCHORS_MISSING (Quest or Pre-Quest)
+Condition:
+- Quest requires Codex Anchors (DRAFT or FINAL) and Brains cannot find/justify them.
+
+Required behavior:
+- Quest MUST be BLOCKED.
+- No execution.
+- Hands must choose:
+  A) SIDE-QUEST: CODEX_ANCHOR_FIX, OR
+  B) CONTROL SYNC (Codex expansion / law addition)
+
+7.2 “LATEST” AMBIGUOUS (multiple candidates)
+Condition:
+- Multiple plausible “latest” snapshots/packs/audits exist and deterministic pick rules do not resolve.
+
+Required behavior:
+- Trigger Disclosure Gate.
+- Present candidates with provable metadata (filenames, dates, paths).
+- Hands chooses, or Hands authorizes a new deterministic rule.
+
+7.3 SCHEMA VALIDATION FAIL (manifests)
+Condition:
+- Manifest fails schema validation when validation is required by law.
+
+Required behavior:
+- Trigger Disclosure Gate.
+- Block execution that depends on the manifest.
+- Repair manifest/schema only with receipts and Hands approval.
+
+7.4 VISION_VARIATION_NEEDS_APPROVAL (Quest or Pre-Quest)
+Condition:
+- Work is classified as Vision Delta = VARIATION (intent-consistent but not explicitly codified), OR
+- Guild Orders introduce a new instance/channel within an existing Codex intent class (e.g., Discord Door alongside Telegram Door).
+
+Required behavior:
+- Trigger Disclosure Gate (this is a Hands decision point).
+- Disclosure MUST include:
+  - Codex anchors supporting the intent class
+  - what the variation is
+  - proposed placement (layer + target paths)
+  - proposed codification path (Side-Quest or Control Sync)
+
+Hands must choose:
+A) APPROVE VARIATION (for this Quest) + require a Codification Side-Quest declared/created, OR
+B) CONTROL SYNC (update Codex/law) before execution, OR
+C) REJECT / DEFER
+
+Execution rule:
+- No execution may proceed without a recorded Hands decision AND a declared codification path.
+
+7.5 VISION_SHIFT_BLOCKED (Quest or Pre-Quest)
+Condition:
+- Work is classified as Vision Delta = SHIFT, OR
+- Proposed work changes the system’s primary purpose/identity relative to Codex, OR
+- Proposed work violates platform/module boundaries and would require rewriting the declared vision.
+
+Required behavior:
+- Trigger Disclosure Gate.
+- Quest MUST be BLOCKED. No execution.
+- Hands must choose:
+  A) CONTROL SYNC + Codex update (explicit vision change), then re-plan Quests, OR
+  B) Modify request to fit existing vision, OR
+  C) Drop the request
+
+================================================================================
+8) PROHIBITED (VIOLATIONS)
+================================================================================
+
+- “Fix quietly” then report success later
+- Proceeding “as if nothing happened”
+- Guessing to fill gaps (anchors, latest files, verification)
+- Claiming remediation succeeded without receipts
+- Changing state to avoid disclosure
+
+================================================================================
+9) MINIMUM COMPLIANCE CHECKLIST
+================================================================================
+
+A Disclosure Gate event is compliant only if ALL are true:
+
+[ ] Trigger declared
+[ ] Expected vs Provable stated
+[ ] Status labels declared (BLOCKED/UNVERIFIED/UNKNOWN as appropriate)
+[ ] Impact declared
+[ ] 2–5 safe options offered
+[ ] Decision requested from Hands
+[ ] Durable record created when disclosure affects work state (Audit/Snapshot/Continuity Lock)
+
+================================================================================
+END OF DOCUMENT
+================================================================================

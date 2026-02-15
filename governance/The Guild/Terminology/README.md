@@ -1,5 +1,5 @@
 # Terminology
-**Updated:** 2026-02-08
+**Updated:** 2026-02-14
 
 This folder defines canonical meanings for Synapse OS terms.
 
@@ -40,14 +40,3 @@ Terminology exists to prevent drift, “helpful” reinterpretation, and cross-s
 - **File existence rule:** if a Term or Lock file does not exist on disk, that definition does not exist.
 - **No soft overrides:** Terms cannot override Locks; conversation cannot override either.
 - **No hidden assumptions:** if you are unsure which definition applies, you are unsure. Trigger Disclosure Gate and stop.
-
-## Added Terms
-- Door
-- Smoke_Test
-- God_Artifact
-- Verification_Ladder
-- Build_Manual
-
-## Added Locks
-- LOCK__NO_GOD_ARTIFACTS
-- LOCK__LAYER_RESPONSIBILITIES

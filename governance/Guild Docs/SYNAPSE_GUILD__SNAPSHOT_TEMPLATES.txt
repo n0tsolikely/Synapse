@@ -1,6 +1,6 @@
 SYNAPSE OS — SNAPSHOT TEMPLATES (CANON)
-Version: v1.1
-Last Updated: 2026-02-06
+Version: v1.3
+Last Updated: 2026-02-13
 Status: Governance Law (changes require Governance Control Sync)
 
 Maintainer: Hands (Peter) with Brains (Ash)
@@ -16,6 +16,9 @@ These templates define the MINIMUM structure for Snapshots so they remain readab
 resumable, and audit-safe across days.
 
 Hard rules:
+- Snapshot filenames MUST end with the date token (YYYY-MM-DD.txt). No suffix-after-date is allowed.
+- Same-day duplicates MUST use a counter BEFORE the date token:
+  - <Subject>_<SnapshotType>_Snapshot__02_YYYY-MM-DD.txt (then __03_, etc; zero-padded)
 - A Snapshot MUST be an artifact file stored in <Subject>_Data/Snapshots/...
 - If the Snapshot file does not exist, then the Snapshot does not exist.
 - Templates define minimum required sections.
@@ -33,7 +36,10 @@ Storage location (canon):
 - <Subject>_Data/Snapshots/Control Sync/
 
 Filename (canon):
-- <Subject>_Control_Sync_Snapshot_YYYY-MM-DD__<Topic>.txt
+- <Subject>_Control_Sync_Snapshot_YYYY-MM-DD.txt
+- If a same-day duplicate is required:
+  - <Subject>_Control_Sync_Snapshot__02_YYYY-MM-DD.txt
+
 
 Mandatory use (canon):
 - A Control Sync MUST end with exactly one Snapshot.
@@ -64,6 +70,7 @@ C) Current Reality (State Surface)
 - Paused Guild Orders / Raids:
 - Quest Board state summary:
   - On-board quests:
+  - Created Quests or Side-Quests if any:
   - Accepted quests (if any already accepted at start):
   - Blockers:
 - Known risks / unknowns:
@@ -86,7 +93,9 @@ List every artifact created/updated during this Control Sync (paths):
 - Dungeon / Quest artifacts created/updated (paths)
 - Any other <Subject>_Data artifacts touched
 
-G) Exit Condition + Closure Statement (required)
+G) NOTES(Any other notes or discussion points of interest):
+
+H) Exit Condition + Closure Statement (required)
 - Closure statement: “This Control Sync is CLOSED only when this Snapshot exists as a file.”
 - If execution will begin: state the first quest to be accepted/executed (or the next immediate action).
 
@@ -97,7 +106,10 @@ Storage location (canon):
 - <Subject>_Data/Snapshots/End of Day/
 
 Filename (canon):
-- <Subject>_End_of_Day_Snapshot_YYYY-MM-DD__<Topic>.txt
+- <Subject>_End_of_Day_Snapshot_YYYY-MM-DD.txt
+- If a same-day duplicate is required:
+  - <Subject>_End_of_Day_Snapshot__02_YYYY-MM-DD.txt
+
 
 Mandatory trigger (canon):
 - When Hands ends a work session (“stop”, “done”, “end session”, or equivalent),
@@ -175,7 +187,10 @@ Storage location (canon):
 - <Subject>_Data/Snapshots/General/
 
 Filename (canon):
-- <Subject>_General_Snapshot_YYYY-MM-DD__<Topic>.txt
+- <Subject>_General_Snapshot_YYYY-MM-DD.txt
+- If a same-day duplicate is required:
+  - <Subject>_General_Snapshot__02_YYYY-MM-DD.txt
+
 
 Minimum required sections:
 
@@ -195,6 +210,8 @@ C) Content (facts / notes)
 D) Binding marker (conditional)
 - If any statement here is intended to be binding: explicitly mark it “BINDING”.
 - Otherwise: do not include binding decisions.
+
+E) NOTES (Any kind of relevant information that was discussed at all, a summery of the majority of the context discussed):
 
 ================================================================================
 4) NON-NEGOTIABLE QUALITY BAR

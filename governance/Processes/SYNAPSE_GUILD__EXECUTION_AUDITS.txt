@@ -1,6 +1,6 @@
 SYNAPSE OS — EXECUTION AUDITS (CANON)
-Version: v1.4
-Last Updated: 2026-02-12
+Version: v1.6
+Last Updated: 2026-02-14
 Status: Governance Law (changes require Governance Control Sync)
 
 Audience:
@@ -31,6 +31,7 @@ They prevent:
 - repeated work,
 - unverifiable claims,
 - and “we already did this” ambiguity.
+- Drift
 
 They also prevent a specific failure mode:
 - hallucinated execution (claiming commands/tests were run without actually running them)
@@ -63,12 +64,56 @@ Trigger:
 - Immediately after a Quest is accepted and BEFORE execution begins.
 
 Purpose:
-- Prove execution is aligned with Codex/Map, World State, and Locks.
+- Prove execution is aligned with Codex intent, current repo reality (anti-duplication), World State, and Locks.
 
 Must include:
 - Quest ID + title
 - Link(s) to Dungeon/Raid/Guild Order (if applicable)
-- Codex sections consulted (explicit references)
+
+- Change Class (MANDATORY; must match Quest file)
+  - TRIVIAL / FEATURE / STRUCTURAL
+
+- Vision Delta (MANDATORY; must match Quest file)
+  - ALIGNED / VARIATION / SHIFT
+
+- Orientation Receipt (MANDATORY; “where am I / what am I building on”)
+  - Confirm canonical roots (provable paths):
+    - GOVERNANCE_ROOT
+    - DATA_ROOT
+    - ENGINE_ROOT
+  - Confirm working tree root (where commands will be run)
+  - System context statement (1–3 sentences)
+    - Must explicitly acknowledge platform/module boundary (no greenfield assumptions)
+
+- Repo Orientation Receipt (MANDATORY for FEATURE/STRUCTURAL; TRIVIAL = lightweight)
+  - Evidence of discovery searches for existing implementations relevant to this Quest
+  - Candidates found + decision: reuse / extend / new
+  - Placement decision: layer + target paths
+  - If ambiguous: BLOCKED + Disclosure Gate before any file modifications
+
+- Codex Anchors (MANDATORY; explicit references)
+  - These anchors exist to prevent drift and enforce that execution is constrained by the Subject Codex.
+  - Provide 2–7 anchors MAX.
+  - Each anchor must be a stable section identifier OR stable file/path anchor.
+  
+  Valid examples:
+  - Section IDs: 6.5, 9.2, 10.5, 11.2, 11.3
+  - File anchors: <Subject>_Data/Codex/Sections/10.5__Adapter_Invocation.md
+  
+  Rules:
+  - “Read the whole Codex” is INVALID.
+  - Anchors must be directly relevant to the Quest scope.
+  - If you cannot find relevant anchors, DO NOT GUESS. Trigger Disclosure Gate (see Failure Behavior below).
+  
+  Codex Constraint Summary (MANDATORY; derived from anchors)
+  - 3–7 bullet points stating binding constraints for THIS quest.
+  - Each bullet must be traceable to at least one Codex Anchor above.
+  
+  Example constraint bullets:
+  - Router must remain thin orchestrator; no domain logic added to router.
+  - WHAT vs HOW separation: no vendor logic in Engine.
+  - Truth posture: no VERIFIED claims without receipts/evidence.
+  - No god files; new responsibility → new module.
 - Locks / constraints acknowledged (explicit references)
 - Definition of success (what must be true)
 - Verification plan (how success will be proven)
@@ -76,8 +121,55 @@ Must include:
 - Confirmation that World State permits execution
   (Codex Freeze marker exists: `<Subject>_Data/Codex/CODEX_FREEZE.md`)
 
+Failure Behavior (Pre-Quest Vision Alignment Gate) — NON-NEGOTIABLE
+
+- If Change Class or Vision Delta is missing/invalid OR conflicts with the Quest file:
+  - Execution status MUST be BLOCKED.
+  - Disclosure Gate MUST trigger.
+  - NO FILE MODIFICATIONS ARE LEGAL until resolved.
+
+- If Vision Delta = SHIFT:
+  - Execution status MUST be BLOCKED.
+  - Disclosure Gate MUST trigger.
+  - Escalate to Control Sync (Codex/Vision update required).
+  - NO FILE MODIFICATIONS ARE LEGAL.
+
+- If Vision Delta = VARIATION:
+  Allowed only if ALL are true:
+  - Codex Anchors justify the underlying intent class (e.g., Door/UI interaction channel).
+  - Authority evidence exists (explicit Guild Order reference OR Control Sync approval).
+  - A Codification Side-Quest is created/queued (to update Codex/registries so this becomes first-class).
+  If any are missing:
+  - Execution status MUST be BLOCKED.
+  - Disclosure Gate MUST trigger.
+  - NO FILE MODIFICATIONS ARE LEGAL until resolved.
+
+- If Orientation Receipt cannot be proven in the current execution surface:
+  - Execution status MUST be BLOCKED.
+  - Disclosure Gate MUST trigger.
+
+- If Repo Orientation Receipt is required (FEATURE/STRUCTURAL) and is missing or ambiguous:
+  - Execution status MUST be BLOCKED.
+  - Disclosure Gate MUST trigger.
+  - NO FILE MODIFICATIONS ARE LEGAL until placement/anti-duplication is resolved.
+
+- If Codex Anchors are missing OR cannot be found/justified:
+  - Execution status MUST be BLOCKED.
+  - Disclosure Gate MUST trigger.
+  - Create/queue SIDE-QUEST: CODEX_ANCHOR_FIX (or escalate to Control Sync if new Codex law is required).
+  - NO FILE MODIFICATIONS ARE LEGAL until anchors are resolved.
+
+Optional (runtime-ready enhancement; recommended when feasible)
+- Record a small receipt file in the audit bundle:
+  - 01_CODEX_ANCHOR_RECEIPT.json
+  containing:
+  - codex_path
+  - codex_version (if available)
+  - anchors list
+  - (optional) per-anchor text hash if extraction is feasible
+
 Hard prohibition:
-- No file modifications before this exists.
+- No file modifications before Pre-Quest Vision Alignment is PASS for all required receipts.
 
 2.2 EXECUTION AUDIT (MANDATORY)
 Trigger:
@@ -106,7 +198,7 @@ If a ZIP cannot be produced in the same response, the Quest status must remain "
 and the "failed execution" must be logged explicitly.
 
 Failure to produce a ZIP (even if some work was done) constitutes a "governance violation" and must prevent the Quest from 
-being marked “complete” or “verified” until the artifact is exported.
+being marked “complete” or “verified” until the artifact is exported cleanly.
 
 Commands/tools invoked (anti-fabrication format):
 - For every command/tool you claim you ran, you MUST record:
@@ -254,7 +346,7 @@ Canonical structure: one audit bundle folder per Quest.
 
 Example:
 <Subject>_Data/Audits/Execution/
-  QUEST_014__2026-02-02__<short_slug>/
+  QUEST_014__2026-02-02_<short_slug>/
     00_SUMMARY.md
     01_PREQUEST.md
     02_EXECUTION.md

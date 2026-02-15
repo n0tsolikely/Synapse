@@ -1,6 +1,6 @@
 SYNAPSE OS — GOVERNANCE PACK (README)
-Version: v1.9
-Last Updated: 2026-02-12
+Version: v1.10
+Last Updated: 2026-02-13
 This folder is a portable Synapse OS “engine pack” designed to be dropped into ANY AI session.
 Its purpose is to govern the AI to follow Synapse OS protocol strictly and deterministically.
 
@@ -139,66 +139,93 @@ D) CORE EXECUTION LOOP
 E) ENFORCEMENT LAWS (NON-NEGOTIABLE)
 --------------------------------------------------------------------------------
 16) Processes/SYNAPSE_GUILD__TRUTH_GATE.txt
-17) Processes/SYNAPSE_GUILD__SCHEMA_VALIDATION.txt
-18) Processes/SYNAPSE_GUILD__EXECUTION_AUDITS.txt
-19) Processes/SYNAPSE_GUILD__VERIFICATION_LADDER.txt
-20) Processes/SYNAPSE_GUILD__RISK_RUBRIC.txt
-21) Processes/SYNAPSE_GUILD__CONSENT_GATE.txt
-22) Processes/SYNAPSE_GUILD__LARGE_ARTIFACT_COMPOSITION.txt
+17) Processes/SYNAPSE_GUILD__DISCLOSURE_GATE.txt
+18) Processes/SYNAPSE_GUILD__SCHEMA_VALIDATION.txt
+19) Processes/SYNAPSE_GUILD__EXECUTION_AUDITS.txt
+20) Processes/SYNAPSE_GUILD__VERIFICATION_LADDER.txt
+21) Processes/SYNAPSE_GUILD__RISK_RUBRIC.txt
+22) Processes/SYNAPSE_GUILD__CONSENT_GATE.txt
+23) Processes/SYNAPSE_GUILD__LARGE_ARTIFACT_COMPOSITION.txt
 
 --------------------------------------------------------------------------------
 F) OPERATING PROCEDURES
 --------------------------------------------------------------------------------
-23) Processes/SYNAPSE_GUILD__SUBJECT_INITIALIZATION_AND_INCUBATION.txt
-24) Processes/SYNAPSE_GUILD__CONTROL_SYNC.txt
-25) Processes/SYNAPSE_GUILD__CONTROL_SYNC_CHECKLIST.txt
-26) Processes/SYNAPSE_GUILD__DAILIES.txt
+24) Processes/SYNAPSE_GUILD__SUBJECT_INITIALIZATION_AND_INCUBATION.txt
+25) Processes/SYNAPSE_GUILD__CONTROL_SYNC.txt
+26) Processes/SYNAPSE_GUILD__CONTROL_SYNC_CHECKLIST.txt
+27) Processes/SYNAPSE_GUILD__DAILIES.txt
 
 --------------------------------------------------------------------------------
 G) PLANNING + STATE SURFACES
 --------------------------------------------------------------------------------
-27) Guild Docs/SYNAPSE_GUILD__CODEX.txt
-28) Guild Docs/SYNAPSE_GUILD__GUILD_ORDERS.txt
-29) Guild Docs/SYNAPSE_GUILD__SNAPSHOTS.txt
-30) Guild Docs/SYNAPSE_GUILD__SNAPSHOT_TEMPLATES.txt
+28) Guild Docs/SYNAPSE_GUILD__CODEX.txt
+29) Guild Docs/SYNAPSE_GUILD__GUILD_ORDERS.txt
+30) Guild Docs/SYNAPSE_GUILD__SNAPSHOTS.txt
+31) Guild Docs/SYNAPSE_GUILD__SNAPSHOT_TEMPLATES.txt
 
 --------------------------------------------------------------------------------
 H) QUEST SYSTEM
 --------------------------------------------------------------------------------
-31) Quest Board/SYNAPSE_GUILD__QUEST_BOARD.txt
-32) Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt
-33) Quest Board/SYNAPSE_GUILD__QUESTS.txt
-34) Quest Board/QUEST_TEMPLATE.txt
-35) Quest Board/CONFIRM_R2_TEMPLATE.txt
+32) Quest Board/SYNAPSE_GUILD__QUEST_BOARD.txt
+33) Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt
+34) Quest Board/SYNAPSE_GUILD__QUESTS.txt
+35) Quest Board/QUEST_TEMPLATE.txt
+36) Quest Board/CONFIRM_R2_TEMPLATE.txt
 
 --------------------------------------------------------------------------------
 I) TALENT TREE
 --------------------------------------------------------------------------------
-36) Talent Tree/SYNAPSE_GUILD__TALENT_TREE.txt
-37) Talent Tree/TALENT_TREE.txt
-38) Talent Tree/TALENT_LOG.txt
-39) Talent Tree/RESPEC_RULES.txt
+37) Talent Tree/SYNAPSE_GUILD__TALENT_TREE.txt
+38) Talent Tree/TALENT_TREE.txt
+39) Talent Tree/TALENT_LOG.txt
+40) Talent Tree/RESPEC_RULES.txt
 
 --------------------------------------------------------------------------------
 J) TERMINOLOGY AUTHORITY (OVERRIDES ALL NON-LOCK TEXT)
 --------------------------------------------------------------------------------
-40) The Guild/Terminology/README.md
-41) The Guild/Terminology/Terms/ (ALL terms, alphabetical)
-42) The Guild/Terminology/Locks/ (ALL locks, alphabetical):
-  - LOCK__CANONICAL_WORKING_TREE.md
-  - LOCK__CODEX_FREEZE_FOG_LIFTED.md
-  - LOCK__CONTROL_SYNC.md
-  - LOCK__DISCLOSURE_GATE.md
-  - LOCK__ENGINE_VS_DATA.md
-  - LOCK__FOG_OF_WAR.md
-  - LOCK__LAYER_RESPONSIBILITIES.md
-  - LOCK__MODE_AWARENESS.md
-  - LOCK__NO_GOD_ARTIFACTS.md
-  - LOCK__SCHEMA_VALIDATION_REQUIRED.md
-  - LOCK__SNAPSHOTS.md
-  - LOCK__SUBJECT_DATA_SKELETON.md
-  - LOCK__TRUTH_GATE.md
-
+41) The Guild/Terminology/README.md
+42) The Guild/Terminology/Terms/Build_Manual.md
+43) The Guild/Terminology/Terms/Canonical_Working_Tree.md
+44) The Guild/Terminology/Terms/Codex.md
+45) The Guild/Terminology/Terms/Control_Sync.md
+46) The Guild/Terminology/Terms/Dailies.md
+47) The Guild/Terminology/Terms/Disclosure_Gate.md
+48) The Guild/Terminology/Terms/Discovery.md
+49) The Guild/Terminology/Terms/Door.md
+50) The Guild/Terminology/Terms/Dungeon.md
+51) The Guild/Terminology/Terms/Exploration.md
+52) The Guild/Terminology/Terms/Fog_of_War.md
+53) The Guild/Terminology/Terms/God_Artifact.md
+54) The Guild/Terminology/Terms/Guild_Orders.md
+55) The Guild/Terminology/Terms/Incubation.md
+56) The Guild/Terminology/Terms/Mode_Awareness.md
+57) The Guild/Terminology/Terms/Quest.md
+58) The Guild/Terminology/Terms/Raid.md
+59) The Guild/Terminology/Terms/Rehydration.md
+60) The Guild/Terminology/Terms/Smoke_Test.md
+61) The Guild/Terminology/Terms/Snapshot.md
+62) The Guild/Terminology/Terms/Snapshot_Control_Sync.md
+63) The Guild/Terminology/Terms/Snapshot_End_of_Day.md
+64) The Guild/Terminology/Terms/Snapshot_General.md
+65) The Guild/Terminology/Terms/TOC.md
+66) The Guild/Terminology/Terms/Talent_Tree.md
+67) The Guild/Terminology/Terms/Truth_Gate.md
+68) The Guild/Terminology/Terms/Verification_Ladder.md
+69) The Guild/Terminology/Terms/World_State.md
+70) The Guild/Terminology/Terms/engine_DATA.md
+71) The Guild/Terminology/Locks/LOCK__CANONICAL_WORKING_TREE.md
+72) The Guild/Terminology/Locks/LOCK__CODEX_FREEZE_FOG_LIFTED.md
+73) The Guild/Terminology/Locks/LOCK__CONTROL_SYNC.md
+74) The Guild/Terminology/Locks/LOCK__DISCLOSURE_GATE.md
+75) The Guild/Terminology/Locks/LOCK__ENGINE_VS_DATA.md
+76) The Guild/Terminology/Locks/LOCK__FOG_OF_WAR.md
+77) The Guild/Terminology/Locks/LOCK__LAYER_RESPONSIBILITIES.md
+78) The Guild/Terminology/Locks/LOCK__MODE_AWARENESS.md
+79) The Guild/Terminology/Locks/LOCK__NO_GOD_ARTIFACTS.md
+80) The Guild/Terminology/Locks/LOCK__SCHEMA_VALIDATION_REQUIRED.md
+81) The Guild/Terminology/Locks/LOCK__SNAPSHOTS.md
+82) The Guild/Terminology/Locks/LOCK__SUBJECT_DATA_SKELETON.md
+83) The Guild/Terminology/Locks/LOCK__TRUTH_GATE.md
 Locks override ALL non-lock documents regardless of read order.
 ================================================================================
 

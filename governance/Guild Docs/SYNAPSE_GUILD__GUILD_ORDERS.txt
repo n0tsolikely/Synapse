@@ -1,6 +1,6 @@
 SYNAPSE GUILD — GUILD ORDERS (CANON)
-Version: v1.2
-Last Updated: 2026-02-06
+Version: v1.3
+Last Updated: 2026-02-14
 Status: Governance Law (changes require Governance Control Sync)
 
 Maintainer: Hands (Peter) with Brains (Ash)
@@ -154,6 +154,38 @@ Atomicity rule:
 Quest execution is governed by:
 - `Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt`
 - `Processes/SYNAPSE_GUILD__EXECUTION_AUDITS.txt`
+
+================================================================================
+4.4 QUEST CREATION VISION ALIGNMENT (NON-OPTIONAL)
+================================================================================
+
+When deriving Quests from Dungeons, the Quest Author (human or AI) MUST treat the
+Subject as a pre-existing system governed by the Codex (no greenfield assumptions).
+
+Each Quest MUST include the Quest Creation Vision Alignment block defined in:
+- `Quest Board/QUEST_TEMPLATE.txt`
+- `Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt`
+
+Minimum requirements at Quest creation:
+- Change Class: TRIVIAL / FEATURE / STRUCTURAL (if unsure → STRUCTURAL)
+- Vision Delta: ALIGNED / VARIATION / SHIFT
+- System Context Statement (what this builds on; platform vs module boundaries)
+- Codex Anchors + Constraint Summary (required for execution readiness)
+
+Vision Delta rules:
+- ALIGNED: normal execution path.
+- VARIATION (allowed): the work is within an existing Codex intent class but is a
+  new instance/channel (example: adding a Discord Door alongside Telegram).
+  Required:
+  - Anchor to the governing Codex intent class.
+  - Declare a codification path via SIDE-QUEST: VISION_VARIATION_CODIFY (Hands authority).
+- SHIFT (blocked): the work changes what the Subject IS. Execution MUST NOT proceed.
+  Resolve via Control Sync (Codex update and/or Orders revision) before continuing.
+
+Repo reality / anti-duplication:
+- Pre-Quest Vision Alignment (Orientation + Repo Orientation receipts) is required
+  before any state changes, per `Processes/SYNAPSE_GUILD__EXECUTION_AUDITS.txt`.
+
 
 ================================================================================
 5) STRUCTURE REQUIREMENTS (MINIMUM SPEC; NO FULL TEMPLATE)
