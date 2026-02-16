@@ -1,6 +1,6 @@
 SYNAPSE OS — GOVERNANCE PACK (README)
-Version: v1.10
-Last Updated: 2026-02-13
+Version: v1.11
+Last Updated: 2026-02-15
 This folder is a portable Synapse OS “engine pack” designed to be dropped into ANY AI session.
 Its purpose is to govern the AI to follow Synapse OS protocol strictly and deterministically.
 
@@ -154,23 +154,24 @@ F) OPERATING PROCEDURES
 25) Processes/SYNAPSE_GUILD__CONTROL_SYNC.txt
 26) Processes/SYNAPSE_GUILD__CONTROL_SYNC_CHECKLIST.txt
 27) Processes/SYNAPSE_GUILD__DAILIES.txt
+28) Processes/SYNAPSE_GUILD__DRAFTSHOTS.txt
 
 --------------------------------------------------------------------------------
 G) PLANNING + STATE SURFACES
 --------------------------------------------------------------------------------
-28) Guild Docs/SYNAPSE_GUILD__CODEX.txt
-29) Guild Docs/SYNAPSE_GUILD__GUILD_ORDERS.txt
-30) Guild Docs/SYNAPSE_GUILD__SNAPSHOTS.txt
-31) Guild Docs/SYNAPSE_GUILD__SNAPSHOT_TEMPLATES.txt
+29) Guild Docs/SYNAPSE_GUILD__CODEX.txt
+30) Guild Docs/SYNAPSE_GUILD__GUILD_ORDERS.txt
+31) Guild Docs/SYNAPSE_GUILD__SNAPSHOTS.txt
+32) Guild Docs/SYNAPSE_GUILD__SNAPSHOT_TEMPLATES.txt
 
 --------------------------------------------------------------------------------
 H) QUEST SYSTEM
 --------------------------------------------------------------------------------
-32) Quest Board/SYNAPSE_GUILD__QUEST_BOARD.txt
-33) Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt
-34) Quest Board/SYNAPSE_GUILD__QUESTS.txt
-35) Quest Board/QUEST_TEMPLATE.txt
-36) Quest Board/CONFIRM_R2_TEMPLATE.txt
+33) Quest Board/SYNAPSE_GUILD__QUEST_BOARD.txt
+34) Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt
+35) Quest Board/SYNAPSE_GUILD__QUESTS.txt
+36) Quest Board/QUEST_TEMPLATE.txt
+37) Quest Board/CONFIRM_R2_TEMPLATE.txt
 
 --------------------------------------------------------------------------------
 I) TALENT TREE

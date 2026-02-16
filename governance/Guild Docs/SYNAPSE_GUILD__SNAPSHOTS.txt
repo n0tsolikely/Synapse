@@ -1,6 +1,6 @@
 SYNAPSE GUILD — SNAPSHOTS (CANON)
-Version: v1.3
-Last Updated: 2026-02-13
+Version: v1.4
+Last Updated: 2026-02-15
 Status: Governance Law (changes require Governance Control Sync)
 
 Maintainer: Hands (Peter) with Brains (Ash)
@@ -93,6 +93,18 @@ If a Snapshot is wrong or missing context:
 - write a new Snapshot that corrects it
 - reference the prior Snapshot explicitly
 - do not rewrite history
+
+3.4 Draftshots (long-session continuity anchor)
+During long sessions, do NOT rely on end-of-session reconstruction from chat history.
+
+If an ACTIVE Draftshot exists for the session:
+- Use the latest Draftshot as the base for the Snapshot.
+- Add ONLY the delta since the last Draftshot update.
+- Then mint the Snapshot into the canonical subject Data tree per Snapshot law.
+
+Reference:
+- Processes/SYNAPSE_GUILD__DRAFTSHOTS.txt
+
 
 ================================================================================
 4) THE THREE SNAPSHOT TYPES (CANON)

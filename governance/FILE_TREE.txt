@@ -1,0 +1,90 @@
+CANAON_VERSION.txt
+Continuity/SYNAPSE_GUILD__BOOTSTRAP_PROMPT.txt
+Continuity/SYNAPSE_GUILD__BUFFS.txt
+Continuity/SYNAPSE_GUILD__CONTINUITY_LOCK.txt
+Continuity/SYNAPSE_GUILD__EXECUTION_PACKS.txt
+Continuity/SYNAPSE_GUILD__REHYDRATION_PACK_CHECKLIST.txt
+FILE_TREE.txt
+Guild Docs/SYNAPSE_GUILD__CODEX.txt
+Guild Docs/SYNAPSE_GUILD__GUILD_ORDERS.txt
+Guild Docs/SYNAPSE_GUILD__SNAPSHOTS.txt
+Guild Docs/SYNAPSE_GUILD__SNAPSHOT_TEMPLATES.txt
+INDEX.txt
+Processes/SYNAPSE_GUILD__CONSENT_GATE.txt
+Processes/SYNAPSE_GUILD__CONTROL_SYNC.txt
+Processes/SYNAPSE_GUILD__CONTROL_SYNC_CHECKLIST.txt
+Processes/SYNAPSE_GUILD__DAILIES.txt
+Processes/SYNAPSE_GUILD__DISCLOSURE_GATE.txt
+Processes/SYNAPSE_GUILD__EXECUTION_AUDITS.txt
+Processes/SYNAPSE_GUILD__LARGE_ARTIFACT_COMPOSITION.txt
+Processes/SYNAPSE_GUILD__RISK_RUBRIC.txt
+Processes/SYNAPSE_GUILD__SCHEMA_VALIDATION.txt
+Processes/SYNAPSE_GUILD__SUBJECT_INITIALIZATION_AND_INCUBATION.txt
+Processes/SYNAPSE_GUILD__THE_LOOP.txt
+Processes/SYNAPSE_GUILD__TRUTH_GATE.txt
+Processes/SYNAPSE_GUILD__VERIFICATION_LADDER.txt
+Quest Board/CONFIRM_R2_TEMPLATE.txt
+Quest Board/QUEST_TEMPLATE.txt
+Quest Board/SYNAPSE_GUILD__QUESTS.txt
+Quest Board/SYNAPSE_GUILD__QUEST_BOARD.txt
+Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt
+README.txt
+SYNAPSE_STATE.yaml
+Schemas/README.md
+Schemas/SUBJECT_STATE.schema.json
+Schemas/SYNAPSE_STATE.schema.json
+Talent Tree/RESPEC_RULES.txt
+Talent Tree/SYNAPSE_GUILD__TALENT_TREE.txt
+Talent Tree/TALENT_LOG.txt
+Talent Tree/TALENT_TREE.txt
+The Guild/Guild Members/Guild_Members.txt
+The Guild/SYNAPSE_GUILD_CANONICAL_MANUAL.txt
+The Guild/SYNAPSE_GUILD__QUICK_START.txt
+The Guild/SYNAPSE_GUILD__SUBJECT_MODEL.txt
+The Guild/SYNAPSE_GUILD__THE_GUILD_ITSELF.txt
+The Guild/Terminology/Locks/LOCK__CANONICAL_WORKING_TREE.md
+The Guild/Terminology/Locks/LOCK__CODEX_FREEZE_FOG_LIFTED.md
+The Guild/Terminology/Locks/LOCK__CONTROL_SYNC.md
+The Guild/Terminology/Locks/LOCK__DISCLOSURE_GATE.md
+The Guild/Terminology/Locks/LOCK__ENGINE_VS_DATA.md
+The Guild/Terminology/Locks/LOCK__FOG_OF_WAR.md
+The Guild/Terminology/Locks/LOCK__LAYER_RESPONSIBILITIES.md
+The Guild/Terminology/Locks/LOCK__MODE_AWARENESS.md
+The Guild/Terminology/Locks/LOCK__NO_GOD_ARTIFACTS.md
+The Guild/Terminology/Locks/LOCK__SCHEMA_VALIDATION_REQUIRED.md
+The Guild/Terminology/Locks/LOCK__SNAPSHOTS.md
+The Guild/Terminology/Locks/LOCK__SUBJECT_DATA_SKELETON.md
+The Guild/Terminology/Locks/LOCK__TRUTH_GATE.md
+The Guild/Terminology/README.md
+The Guild/Terminology/Terms/Build_Manual.md
+The Guild/Terminology/Terms/Canonical_Working_Tree.md
+The Guild/Terminology/Terms/Change_Class.md
+The Guild/Terminology/Terms/Codex.md
+The Guild/Terminology/Terms/Control_Sync.md
+The Guild/Terminology/Terms/Dailies.md
+The Guild/Terminology/Terms/Disclosure_Gate.md
+The Guild/Terminology/Terms/Discovery.md
+The Guild/Terminology/Terms/Door.md
+The Guild/Terminology/Terms/Dungeon.md
+The Guild/Terminology/Terms/Exploration.md
+The Guild/Terminology/Terms/Fog_of_War.md
+The Guild/Terminology/Terms/God_Artifact.md
+The Guild/Terminology/Terms/Guild_Orders.md
+The Guild/Terminology/Terms/Incubation.md
+The Guild/Terminology/Terms/Mode_Awareness.md
+The Guild/Terminology/Terms/Quest.md
+The Guild/Terminology/Terms/Raid.md
+The Guild/Terminology/Terms/Rehydration.md
+The Guild/Terminology/Terms/Repo_Orientation.md
+The Guild/Terminology/Terms/Smoke_Test.md
+The Guild/Terminology/Terms/Snapshot.md
+The Guild/Terminology/Terms/Snapshot_Control_Sync.md
+The Guild/Terminology/Terms/Snapshot_End_of_Day.md
+The Guild/Terminology/Terms/Snapshot_General.md
+The Guild/Terminology/Terms/TOC.md
+The Guild/Terminology/Terms/Talent_Tree.md
+The Guild/Terminology/Terms/Truth_Gate.md
+The Guild/Terminology/Terms/Verification_Ladder.md
+The Guild/Terminology/Terms/Vision_Delta.md
+The Guild/Terminology/Terms/World_State.md
+The Guild/Terminology/Terms/engine_DATA.md

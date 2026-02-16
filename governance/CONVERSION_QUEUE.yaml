@@ -1,0 +1,46 @@
+conversion_queue:
+  - order: 1
+    doc_path: "README.txt"
+    reason: "Defines non-negotiable operating rule and canonical required read order."
+  - order: 2
+    doc_path: "INDEX.txt"
+    reason: "Canonical router; maps authority paths and references enforcement artifacts."
+  - order: 3
+    doc_path: "SYNAPSE_STATE.yaml"
+    reason: "Deterministic routing manifest and required_read_order mirror; resolver for subject artifacts."
+  - order: 4
+    doc_path: "The Guild/Terminology/Locks/LOCK__TRUTH_GATE.md"
+    reason: "INDEX routes Truth Gate enforcement through this lock; locks override non-lock text."
+  - order: 5
+    doc_path: "The Guild/Terminology/Locks/LOCK__DISCLOSURE_GATE.md"
+    reason: "INDEX routes Disclosure Gate enforcement through this lock; required for blocked/uncertain handling."
+  - order: 6
+    doc_path: "The Guild/Terminology/Locks/LOCK__SCHEMA_VALIDATION_REQUIRED.md"
+    reason: "Schema validation is explicitly enforced by this lock and process routing."
+  - order: 7
+    doc_path: "Processes/SYNAPSE_GUILD__TRUTH_GATE.txt"
+    reason: "Primary process artifact for proof requirements and limitation handling behavior."
+  - order: 8
+    doc_path: "Processes/SYNAPSE_GUILD__DISCLOSURE_GATE.txt"
+    reason: "Primary process artifact for required disclosure and halt behavior when blocked/uncertain."
+  - order: 9
+    doc_path: "Processes/SYNAPSE_GUILD__SCHEMA_VALIDATION.txt"
+    reason: "Defines schema validation procedure referenced by README/INDEX and schema README authority section."
+  - order: 10
+    doc_path: "Schemas/SYNAPSE_STATE.schema.json"
+    reason: "Formal contract for SYNAPSE_STATE.yaml, which governs deterministic routing."
+  - order: 11
+    doc_path: "Schemas/SUBJECT_STATE.schema.json"
+    reason: "Formal contract for subject-local state pointer manifest used by routing model."
+  - order: 12
+    doc_path: "Schemas/README.md"
+    reason: "Explains schema scope, authority references, and validation model details."
+  - order: 13
+    doc_path: "The Guild/SYNAPSE_GUILD_CANONICAL_MANUAL.txt"
+    reason: "README marks this as constitutional law defining invariants and authority boundaries."
+  - order: 14
+    doc_path: "Processes/SYNAPSE_GUILD__THE_LOOP.txt"
+    reason: "README identifies this as invariant execution cycle; central to governed workflow behavior."
+  - order: 15
+    doc_path: "The Guild/Terminology/README.md"
+    reason: "Defines Lock precedence and terminology boundaries needed to interpret remaining docs."

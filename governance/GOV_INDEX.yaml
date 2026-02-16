@@ -1,0 +1,453 @@
+docs:
+  - doc_path: "CANAON_VERSION.txt"
+    purpose: "UNKNOWN"
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "UNKNOWN"
+  - doc_path: "Continuity/SYNAPSE_GUILD__BOOTSTRAP_PROMPT.txt"
+    purpose: "Governance-level continuity definition and rule artifact."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "continuity_governance"
+  - doc_path: "Continuity/SYNAPSE_GUILD__BUFFS.txt"
+    purpose: "Governance-level continuity definition and rule artifact."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "continuity_governance"
+  - doc_path: "Continuity/SYNAPSE_GUILD__CONTINUITY_LOCK.txt"
+    purpose: "Governance-level continuity definition and rule artifact."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "continuity_governance"
+  - doc_path: "Continuity/SYNAPSE_GUILD__EXECUTION_PACKS.txt"
+    purpose: "Governance-level continuity definition and rule artifact."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "continuity_governance"
+  - doc_path: "Continuity/SYNAPSE_GUILD__REHYDRATION_PACK_CHECKLIST.txt"
+    purpose: "Governance-level continuity definition and rule artifact."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "continuity_governance"
+  - doc_path: "FILE_TREE.txt"
+    purpose: "UNKNOWN"
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "UNKNOWN"
+  - doc_path: "Guild Docs/SYNAPSE_GUILD__CODEX.txt"
+    purpose: "Governance planning/state surface artifact listed in required read order."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "governance_planning"
+  - doc_path: "Guild Docs/SYNAPSE_GUILD__GUILD_ORDERS.txt"
+    purpose: "Governance planning/state surface artifact listed in required read order."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "governance_planning"
+  - doc_path: "Guild Docs/SYNAPSE_GUILD__SNAPSHOTS.txt"
+    purpose: "Governance planning/state surface artifact listed in required read order."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "governance_planning"
+  - doc_path: "Guild Docs/SYNAPSE_GUILD__SNAPSHOT_TEMPLATES.txt"
+    purpose: "Governance planning/state surface artifact listed in required read order."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "governance_planning"
+  - doc_path: "INDEX.txt"
+    purpose: "Deterministic routing map for governance artifacts; does not grant execution authority."
+    dependencies:
+    - README.txt
+    enforcement_domain: "governance_pack"
+  - doc_path: "Processes/SYNAPSE_GUILD__CONSENT_GATE.txt"
+    purpose: "Governance process artifact listed in required read order."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "governance_process"
+  - doc_path: "Processes/SYNAPSE_GUILD__CONTROL_SYNC.txt"
+    purpose: "Governance process artifact listed in required read order."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "governance_process"
+  - doc_path: "Processes/SYNAPSE_GUILD__CONTROL_SYNC_CHECKLIST.txt"
+    purpose: "Governance process artifact listed in required read order."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "governance_process"
+  - doc_path: "Processes/SYNAPSE_GUILD__DAILIES.txt"
+    purpose: "Governance process artifact listed in required read order."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "governance_process"
+  - doc_path: "Processes/SYNAPSE_GUILD__DISCLOSURE_GATE.txt"
+    purpose: "Governance process artifact listed in required read order."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "governance_process"
+  - doc_path: "Processes/SYNAPSE_GUILD__EXECUTION_AUDITS.txt"
+    purpose: "Governance process artifact listed in required read order."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "governance_process"
+  - doc_path: "Processes/SYNAPSE_GUILD__LARGE_ARTIFACT_COMPOSITION.txt"
+    purpose: "Governance process artifact listed in required read order."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "governance_process"
+  - doc_path: "Processes/SYNAPSE_GUILD__RISK_RUBRIC.txt"
+    purpose: "Governance process artifact listed in required read order."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "governance_process"
+  - doc_path: "Processes/SYNAPSE_GUILD__SCHEMA_VALIDATION.txt"
+    purpose: "Governance process artifact listed in required read order."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "governance_process"
+  - doc_path: "Processes/SYNAPSE_GUILD__SUBJECT_INITIALIZATION_AND_INCUBATION.txt"
+    purpose: "Governance process artifact listed in required read order."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "governance_process"
+  - doc_path: "Processes/SYNAPSE_GUILD__THE_LOOP.txt"
+    purpose: "Governance process artifact listed in required read order."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "governance_process"
+  - doc_path: "Processes/SYNAPSE_GUILD__TRUTH_GATE.txt"
+    purpose: "Governance process artifact listed in required read order."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "governance_process"
+  - doc_path: "Processes/SYNAPSE_GUILD__VERIFICATION_LADDER.txt"
+    purpose: "Governance process artifact listed in required read order."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "governance_process"
+  - doc_path: "Quest Board/CONFIRM_R2_TEMPLATE.txt"
+    purpose: "Quest-system governance artifact listed in required read order."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "quest_system"
+  - doc_path: "Quest Board/QUEST_TEMPLATE.txt"
+    purpose: "Quest-system governance artifact listed in required read order."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "quest_system"
+  - doc_path: "Quest Board/SYNAPSE_GUILD__QUESTS.txt"
+    purpose: "Quest-system governance artifact listed in required read order."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "quest_system"
+  - doc_path: "Quest Board/SYNAPSE_GUILD__QUEST_BOARD.txt"
+    purpose: "Quest-system governance artifact listed in required read order."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "quest_system"
+  - doc_path: "Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt"
+    purpose: "Quest-system governance artifact listed in required read order."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "quest_system"
+  - doc_path: "README.txt"
+    purpose: "Entry point for governance pack; defines required read order and non-negotiable operating rules."
+    dependencies:
+    - NONE
+    enforcement_domain: "governance_pack"
+  - doc_path: "SYNAPSE_STATE.yaml"
+    purpose: "Deterministic rehydration and routing manifest mirroring required read order."
+    dependencies:
+    - README.txt
+    - INDEX.txt
+    enforcement_domain: "governance_pack"
+  - doc_path: "Schemas/README.md"
+    purpose: "Schema contracts overview for governance and subject state manifests."
+    dependencies:
+    - Processes/SYNAPSE_GUILD__SCHEMA_VALIDATION.txt
+    - The Guild/Terminology/Locks/LOCK__SCHEMA_VALIDATION_REQUIRED.md
+    enforcement_domain: "schema_validation"
+  - doc_path: "Schemas/SUBJECT_STATE.schema.json"
+    purpose: "JSON Schema contract for subject-local state manifest."
+    dependencies:
+    - Schemas/README.md
+    enforcement_domain: "schema_validation"
+  - doc_path: "Schemas/SYNAPSE_STATE.schema.json"
+    purpose: "JSON Schema contract for governance routing manifest."
+    dependencies:
+    - Schemas/README.md
+    enforcement_domain: "schema_validation"
+  - doc_path: "Talent Tree/RESPEC_RULES.txt"
+    purpose: "Talent-tree governance artifact listed in required read order."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "talent_tree"
+  - doc_path: "Talent Tree/SYNAPSE_GUILD__TALENT_TREE.txt"
+    purpose: "Talent-tree governance artifact listed in required read order."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "talent_tree"
+  - doc_path: "Talent Tree/TALENT_LOG.txt"
+    purpose: "Talent-tree governance artifact listed in required read order."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "talent_tree"
+  - doc_path: "Talent Tree/TALENT_TREE.txt"
+    purpose: "Talent-tree governance artifact listed in required read order."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "talent_tree"
+  - doc_path: "The Guild/Guild Members/Guild_Members.txt"
+    purpose: "UNKNOWN"
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "UNKNOWN"
+  - doc_path: "The Guild/SYNAPSE_GUILD_CANONICAL_MANUAL.txt"
+    purpose: "Core constitutional/canonical governance artifact listed in required read order."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "canonical_law"
+  - doc_path: "The Guild/SYNAPSE_GUILD__QUICK_START.txt"
+    purpose: "Core constitutional/canonical governance artifact listed in required read order."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "canonical_law"
+  - doc_path: "The Guild/SYNAPSE_GUILD__SUBJECT_MODEL.txt"
+    purpose: "Core constitutional/canonical governance artifact listed in required read order."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "canonical_law"
+  - doc_path: "The Guild/SYNAPSE_GUILD__THE_GUILD_ITSELF.txt"
+    purpose: "Core constitutional/canonical governance artifact listed in required read order."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "canonical_law"
+  - doc_path: "The Guild/Terminology/Locks/LOCK__CANONICAL_WORKING_TREE.md"
+    purpose: "Cross-cutting enforcement Lock; overrides all non-lock governance text."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "locks"
+  - doc_path: "The Guild/Terminology/Locks/LOCK__CODEX_FREEZE_FOG_LIFTED.md"
+    purpose: "Cross-cutting enforcement Lock; overrides all non-lock governance text."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "locks"
+  - doc_path: "The Guild/Terminology/Locks/LOCK__CONTROL_SYNC.md"
+    purpose: "Cross-cutting enforcement Lock; overrides all non-lock governance text."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "locks"
+  - doc_path: "The Guild/Terminology/Locks/LOCK__DISCLOSURE_GATE.md"
+    purpose: "Cross-cutting enforcement Lock; overrides all non-lock governance text."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "locks"
+  - doc_path: "The Guild/Terminology/Locks/LOCK__ENGINE_VS_DATA.md"
+    purpose: "Cross-cutting enforcement Lock; overrides all non-lock governance text."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "locks"
+  - doc_path: "The Guild/Terminology/Locks/LOCK__FOG_OF_WAR.md"
+    purpose: "Cross-cutting enforcement Lock; overrides all non-lock governance text."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "locks"
+  - doc_path: "The Guild/Terminology/Locks/LOCK__LAYER_RESPONSIBILITIES.md"
+    purpose: "Cross-cutting enforcement Lock; overrides all non-lock governance text."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "locks"
+  - doc_path: "The Guild/Terminology/Locks/LOCK__MODE_AWARENESS.md"
+    purpose: "Cross-cutting enforcement Lock; overrides all non-lock governance text."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "locks"
+  - doc_path: "The Guild/Terminology/Locks/LOCK__NO_GOD_ARTIFACTS.md"
+    purpose: "Cross-cutting enforcement Lock; overrides all non-lock governance text."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "locks"
+  - doc_path: "The Guild/Terminology/Locks/LOCK__SCHEMA_VALIDATION_REQUIRED.md"
+    purpose: "Cross-cutting enforcement Lock; overrides all non-lock governance text."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "locks"
+  - doc_path: "The Guild/Terminology/Locks/LOCK__SNAPSHOTS.md"
+    purpose: "Cross-cutting enforcement Lock; overrides all non-lock governance text."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "locks"
+  - doc_path: "The Guild/Terminology/Locks/LOCK__SUBJECT_DATA_SKELETON.md"
+    purpose: "Cross-cutting enforcement Lock; overrides all non-lock governance text."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "locks"
+  - doc_path: "The Guild/Terminology/Locks/LOCK__TRUTH_GATE.md"
+    purpose: "Cross-cutting enforcement Lock; overrides all non-lock governance text."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "locks"
+  - doc_path: "The Guild/Terminology/README.md"
+    purpose: "Terminology authority map defining Lock precedence and Term usage boundaries."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"
+  - doc_path: "The Guild/Terminology/Terms/Build_Manual.md"
+    purpose: "Terminology meaning anchor used to interpret governed artifacts."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"
+  - doc_path: "The Guild/Terminology/Terms/Canonical_Working_Tree.md"
+    purpose: "Terminology meaning anchor used to interpret governed artifacts."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"
+  - doc_path: "The Guild/Terminology/Terms/Change_Class.md"
+    purpose: "Terminology meaning anchor used to interpret governed artifacts."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"
+  - doc_path: "The Guild/Terminology/Terms/Codex.md"
+    purpose: "Terminology meaning anchor used to interpret governed artifacts."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"
+  - doc_path: "The Guild/Terminology/Terms/Control_Sync.md"
+    purpose: "Terminology meaning anchor used to interpret governed artifacts."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"
+  - doc_path: "The Guild/Terminology/Terms/Dailies.md"
+    purpose: "Terminology meaning anchor used to interpret governed artifacts."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"
+  - doc_path: "The Guild/Terminology/Terms/Disclosure_Gate.md"
+    purpose: "Terminology meaning anchor used to interpret governed artifacts."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"
+  - doc_path: "The Guild/Terminology/Terms/Discovery.md"
+    purpose: "Terminology meaning anchor used to interpret governed artifacts."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"
+  - doc_path: "The Guild/Terminology/Terms/Door.md"
+    purpose: "Terminology meaning anchor used to interpret governed artifacts."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"
+  - doc_path: "The Guild/Terminology/Terms/Dungeon.md"
+    purpose: "Terminology meaning anchor used to interpret governed artifacts."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"
+  - doc_path: "The Guild/Terminology/Terms/Exploration.md"
+    purpose: "Terminology meaning anchor used to interpret governed artifacts."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"
+  - doc_path: "The Guild/Terminology/Terms/Fog_of_War.md"
+    purpose: "Terminology meaning anchor used to interpret governed artifacts."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"
+  - doc_path: "The Guild/Terminology/Terms/God_Artifact.md"
+    purpose: "Terminology meaning anchor used to interpret governed artifacts."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"
+  - doc_path: "The Guild/Terminology/Terms/Guild_Orders.md"
+    purpose: "Terminology meaning anchor used to interpret governed artifacts."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"
+  - doc_path: "The Guild/Terminology/Terms/Incubation.md"
+    purpose: "Terminology meaning anchor used to interpret governed artifacts."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"
+  - doc_path: "The Guild/Terminology/Terms/Mode_Awareness.md"
+    purpose: "Terminology meaning anchor used to interpret governed artifacts."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"
+  - doc_path: "The Guild/Terminology/Terms/Quest.md"
+    purpose: "Terminology meaning anchor used to interpret governed artifacts."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"
+  - doc_path: "The Guild/Terminology/Terms/Raid.md"
+    purpose: "Terminology meaning anchor used to interpret governed artifacts."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"
+  - doc_path: "The Guild/Terminology/Terms/Rehydration.md"
+    purpose: "Terminology meaning anchor used to interpret governed artifacts."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"
+  - doc_path: "The Guild/Terminology/Terms/Repo_Orientation.md"
+    purpose: "Terminology meaning anchor used to interpret governed artifacts."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"
+  - doc_path: "The Guild/Terminology/Terms/Smoke_Test.md"
+    purpose: "Terminology meaning anchor used to interpret governed artifacts."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"
+  - doc_path: "The Guild/Terminology/Terms/Snapshot.md"
+    purpose: "Terminology meaning anchor used to interpret governed artifacts."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"
+  - doc_path: "The Guild/Terminology/Terms/Snapshot_Control_Sync.md"
+    purpose: "Terminology meaning anchor used to interpret governed artifacts."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"
+  - doc_path: "The Guild/Terminology/Terms/Snapshot_End_of_Day.md"
+    purpose: "Terminology meaning anchor used to interpret governed artifacts."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"
+  - doc_path: "The Guild/Terminology/Terms/Snapshot_General.md"
+    purpose: "Terminology meaning anchor used to interpret governed artifacts."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"
+  - doc_path: "The Guild/Terminology/Terms/TOC.md"
+    purpose: "Terminology meaning anchor used to interpret governed artifacts."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"
+  - doc_path: "The Guild/Terminology/Terms/Talent_Tree.md"
+    purpose: "Terminology meaning anchor used to interpret governed artifacts."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"
+  - doc_path: "The Guild/Terminology/Terms/Truth_Gate.md"
+    purpose: "Terminology meaning anchor used to interpret governed artifacts."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"
+  - doc_path: "The Guild/Terminology/Terms/Verification_Ladder.md"
+    purpose: "Terminology meaning anchor used to interpret governed artifacts."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"
+  - doc_path: "The Guild/Terminology/Terms/Vision_Delta.md"
+    purpose: "Terminology meaning anchor used to interpret governed artifacts."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"
+  - doc_path: "The Guild/Terminology/Terms/World_State.md"
+    purpose: "Terminology meaning anchor used to interpret governed artifacts."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"
+  - doc_path: "The Guild/Terminology/Terms/engine_DATA.md"
+    purpose: "Terminology meaning anchor used to interpret governed artifacts."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"

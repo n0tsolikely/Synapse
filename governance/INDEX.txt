@@ -1,6 +1,6 @@
 SYNAPSE OS — INDEX (ROUTING MAP)
-Version: v1.10
-Last Updated: 2026-02-13
+Version: v1.11
+Last Updated: 2026-02-15
 This file is a deterministic routing map.
 It does NOT grant execution authority.
 
@@ -44,6 +44,9 @@ Large artifact chunking (TOC + Codex sections; compose→stitch→verify):
 → Processes/SYNAPSE_GUILD__LARGE_ARTIFACT_COMPOSITION.txt
 
 Snapshots during incubation / conceptual continuity:
+Draftshots (incremental session continuity anchors):
+→ Processes/SYNAPSE_GUILD__DRAFTSHOTS.txt
+
 → Guild Docs/SYNAPSE_GUILD__SNAPSHOTS.txt
 → Guild Docs/SYNAPSE_GUILD__SNAPSHOT_TEMPLATES.txt
 

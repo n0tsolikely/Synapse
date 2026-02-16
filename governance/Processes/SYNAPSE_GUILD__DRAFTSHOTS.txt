@@ -1,0 +1,293 @@
+SYNAPSE_GUILD__DRAFTSHOTS.txt
+================================================================================
+SYNAPSE GUILD — DRAFTSHOTS (CANON)
+Version: v1.1
+Last Updated (America/Toronto): 2026-02-15
+Status: Governance Law (changes require Governance Control Sync)
+
+Maintainer: Hands (Peter) with Brains (Ash)
+Audience:
+- Synapse Guild members (human)
+- Any AI session operating in long-form planning, incubation, governance, or execution
+- External collaborators adopting the Synapse Guild Operating System
+
+CHANGELOG (v1.1)
+- Added hard rule: Draftshot consumption MUST preserve Draftshot body verbatim (no rewrite/restructure).
+
+================================================================================
+0) PURPOSE OF THIS DOCUMENT
+================================================================================
+
+This document defines what a Draftshot is, why it exists, and how it is used.
+
+After reading this document, the phrase “Create/Update the Draftshot” MUST be
+sufficient instruction for any compliant operator (human or AI) to:
+- externalize long-session memory into a durable artifact,
+- incrementally update it without re-summarizing the entire session,
+- and consume it deterministically when minting canonical Snapshots.
+
+Draftshots are governance law.
+
+================================================================================
+1) CORE DEFINITION (CANON)
+================================================================================
+
+1.1 Draftshot — definition
+A Draftshot is a temporary, incremental, full-replacement artifact used to
+externalize session memory during long interactions.
+
+A Draftshot answers one question:
+
+> “What have we captured so far, in a durable form, without relying on chat history?”
+
+One-sentence definition:
+A Draftshot is an incremental session anchor designed to prevent token-limit loss,
+chat summarization drift, and end-of-session reconstruction errors.
+
+1.2 Draftshot is NOT a Snapshot
+A Draftshot is NOT a canonical Snapshot.
+
+- A Draftshot may be used to produce a Snapshot.
+- A Draftshot does not satisfy Snapshot law by itself.
+
+================================================================================
+2) WHAT PROBLEM DRAFTSHOTS SOLVE
+================================================================================
+
+Draftshots exist because long sessions cause continuity failures:
+- token window limits
+- chat summarization loss
+- “try to remember it all at the end” errors
+- missing details during incubation/exploration
+
+Draftshots prevent the common failure mode:
+- “We talked for hours; now write a perfect snapshot from memory.”
+
+Instead:
+- capture incrementally
+- persist externally
+- consume deterministically
+
+================================================================================
+3) RELATIONSHIP TO SNAPSHOTS AND CANON EXPORT
+================================================================================
+
+3.1 Draftshot vs Snapshot
+- Draftshot: temporary session memory anchor (non-canonical)
+- Snapshot: canonical subject data artifact
+
+Hard rule:
+If the Snapshot file does not exist inside <Subject>_Data/Snapshots/ then the
+Snapshot does not exist.
+
+3.2 Draftshot consumption (bridge rule)
+When a Draftshot is ACTIVE and a Snapshot is requested or required:
+- the Draftshot MUST be used as the base source (verbatim)
+- ONLY the delta since the last Draftshot update is added
+- the result is minted into the correct Snapshot type per Snapshot law
+
+3.3 Durable export requirement (ephemeral execution surfaces)
+On ephemeral/chat execution surfaces where files may be lost:
+- Any Draftshot create/update MUST produce a durable downloadable artifact.
+- Any canonical mutation (writing Snapshots, Quests, Audits, Buffs, Rehydration) MUST
+  be exported as a durable canonical archive (ZIP) in the SAME response.
+
+If a durable artifact cannot be produced: Disclosure Gate MUST trigger.
+
+================================================================================
+4) ACTIVATION TRIGGERS (CANON)
+================================================================================
+
+Draftshots MUST be considered requested when Hands uses clear phrasing indicating
+Draftshot creation or update, including but not limited to:
+- “Create Draftshot”
+- “Generate Draftshot”
+- “Start Draftshot”
+- “Update Draftshot”
+- “Draftshot update”
+- “Add this to the Draftshot”
+- equivalent natural-language phrasing
+
+If phrasing is ambiguous, Brains MUST ask:
+“Is that a Draftshot create/update request?” and WAIT.
+
+================================================================================
+5) LIFECYCLE (CANON)
+================================================================================
+
+Draftshots have exactly four lifecycle states:
+- NONE (no Draftshot exists for the session)
+- ACTIVE (being maintained)
+- CONSUMED (converted into a canonical artifact; no longer the active anchor)
+- ABANDONED (explicitly discarded by Hands)
+
+--------------------------------------------------------------------------------
+5.1 ONE ACTIVE DRAFTSHOT PER SESSION (HARD)
+--------------------------------------------------------------------------------
+
+There MUST be at most one ACTIVE Draftshot per session.
+
+If Hands requests a new Draftshot while one is already ACTIVE, Brains MUST ask:
+- “Replace the active Draftshot, or keep using it?”
+
+If Hands says “replace”:
+- mark the old Draftshot ABANDONED (do not delete history)
+- create the new Draftshot as ACTIVE
+
+--------------------------------------------------------------------------------
+5.2 CREATE DRAFTSHOT (REV1)
+--------------------------------------------------------------------------------
+
+Trigger:
+- Hands requests Draftshot creation.
+
+Brains MUST:
+1) Assign filename:
+   DRAFTSHOT__YYYY-MM-DD__<optional_context>__REV1.txt
+   - Context token optional (e.g., CONTROL_SYNC, INCUBATION, GENERAL).
+2) Write a Draftshot with required structure (Section 6).
+3) Provide a durable artifact (download link) in the same response.
+4) Declare Draftshot state: ACTIVE.
+
+--------------------------------------------------------------------------------
+5.3 UPDATE DRAFTSHOT (REV2+)
+--------------------------------------------------------------------------------
+
+Trigger:
+- Hands requests Draftshot update.
+
+Delta rule (HARD):
+- Brains MUST only capture and summarize content since the last Draftshot revision.
+- Brains MUST NOT re-summarize, rewrite, or reorder previously captured sections.
+
+Brains MUST:
+1) Increment revision number (REV2, REV3, ...).
+2) Append new information into the Draftshot under the proper sections.
+3) Update the running log.
+4) Re-emit the FULL replacement file (not a patch) as a durable artifact.
+
+Correction rule:
+- If a correction is required, add an explicit CORRECTION block in a new revision.
+- Do not rewrite earlier revisions; do not rewrite history.
+
+--------------------------------------------------------------------------------
+5.4 CONSUME / CONVERT DRAFTSHOT (HARD)
+--------------------------------------------------------------------------------
+
+Triggers (non-exhaustive):
+- Hands: “Turn Draftshot into a Snapshot”
+- Hands closes an active Control Sync (Control Sync Snapshot required)
+- Hands ends the day/session (End-of-Day Snapshot required)
+- Any command that requires a canonical Snapshot per Snapshot law
+
+When consuming a Draftshot, Brains MUST:
+1) Use latest Draftshot as base.
+2) Add ONLY the delta since the last Draftshot update.
+3) Produce the required canonical Snapshot type and naming per Snapshot law.
+4) Mark Draftshot state: CONSUMED.
+
+Then, because canonical artifacts were written:
+5) Export a durable canonical archive (ZIP) in the SAME response.
+
+--------------------------------------------------------------------------------
+5.4.1 VERBATIM PRESERVATION RULE (NEW, HARD)
+--------------------------------------------------------------------------------
+
+During Draftshot consumption (closing/turning into Snapshot):
+
+- The Draftshot body MUST be preserved verbatim.
+- NO restructuring.
+- NO rewriting.
+- NO summarization.
+- NO “cleaning it up” or reorganizing sections.
+- NO section reordering.
+
+Allowed operations during consumption are strictly limited to:
+A) Add a minimal Snapshot wrapper header (TYPE/DATE/STATUS/SOURCE).
+B) Append a delta block containing ONLY post-last-update content.
+C) Append a closure marker (CLOSED_AT, etc.).
+
+Rationale:
+Draftshots exist specifically to prevent end-of-session reconstruction drift and
+token-limit loss. Any rewrite defeats the purpose.
+
+If Brains cannot preserve the Draftshot body verbatim (tooling limits, missing base,
+etc.): Disclosure Gate MUST trigger.
+
+================================================================================
+6) REQUIRED DRAFTSHOT STRUCTURE (CANON)
+================================================================================
+
+A Draftshot MUST contain the following minimum structure.
+Operators may add sections, but MUST NOT remove these.
+
+6.1 HEADER (MANDATORY)
+Must include:
+- Status: ACTIVE / CONSUMED / ABANDONED
+- Date: YYYY-MM-DD
+- Revision: REV#
+- Session context (optional but recommended): CONTROL_SYNC / DAILIES / INCUBATION / GENERAL
+- Subject (if known; recommended)
+
+6.2 CAPTURE INDEX (MANDATORY)
+A stable index of captured items (IDs must not change once assigned).
+Examples:
+- SIDE-QUEST_CAPTURE_###
+- DISCOVERY_CAPTURE_###
+- DECISION_###
+
+6.3 STRUCTURED SECTIONS (MANDATORY)
+Minimum required sections:
+- Decisions (binding vs non-binding must be explicit)
+- Findings / Observations
+- TODO / Follow-ups
+- Risks / Blockers
+- Open Questions
+
+6.4 RUNNING LOG (MANDATORY)
+An append-only, timestamped log of Draftshot revisions.
+
+================================================================================
+7) CANONICAL COMMANDS
+================================================================================
+
+Once this law is accepted, the following phrases are valid:
+
+- “Create Draftshot.”
+Meaning:
+Start an ACTIVE Draftshot and export it as a durable artifact.
+
+- “Update Draftshot.”
+Meaning:
+Capture only the delta since the last revision, append it, and export REV(n+1).
+
+- “Add this to the Draftshot.”
+Meaning:
+Queue this information for inclusion on the next Draftshot update.
+
+- “Turn Draftshot into a Snapshot.”
+Meaning:
+Consume the Draftshot, add delta since last revision, mint the correct Snapshot,
+and export updated canonical archive (ZIP) in the same response.
+
+- “Abandon the Draftshot.”
+Meaning:
+Mark the Draftshot ABANDONED. Do not delete or rewrite it.
+
+================================================================================
+8) FAILURE MODES (DISCLOSURE GATE)
+================================================================================
+
+If any of the following occurs, Disclosure Gate MUST trigger:
+- Brains cannot produce a durable artifact (download/export) for a Draftshot create/update.
+- Brains cannot determine whether a Draftshot is ACTIVE.
+- Brains cannot safely compute the delta since the last Draftshot revision.
+- Brains cannot preserve Draftshot body verbatim during consumption.
+
+When Disclosure Gate triggers:
+- Brains MUST halt canonical claims.
+- Brains MUST clearly state what can and cannot be proven.
+
+================================================================================
+END OF DOCUMENT
+================================================================================
