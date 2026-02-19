@@ -79,6 +79,11 @@ docs:
     dependencies:
     - UNKNOWN
     enforcement_domain: "governance_process"
+  - doc_path: "Processes/SYNAPSE_GUILD__DRAFTSHOTS.txt"
+    purpose: "Governance process artifact listed in required read order."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "governance_process"
   - doc_path: "Processes/SYNAPSE_GUILD__DISCLOSURE_GATE.txt"
     purpose: "Governance process artifact listed in required read order."
     dependencies:
@@ -347,6 +352,11 @@ docs:
     - UNKNOWN
     enforcement_domain: "terminology"
   - doc_path: "The Guild/Terminology/Terms/Fog_of_War.md"
+    purpose: "Terminology meaning anchor used to interpret governed artifacts."
+    dependencies:
+    - UNKNOWN
+    enforcement_domain: "terminology"
+  - doc_path: "The Guild/Terminology/Terms/Formalization.md"
     purpose: "Terminology meaning anchor used to interpret governed artifacts."
     dependencies:
     - UNKNOWN

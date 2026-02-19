@@ -148,3 +148,4 @@ If an operator is unsure where to store an artifact, the answer is:
 If still unsure, stop and trigger Disclosure Gate.
 
 ---
+- Snapshots/Draft Shots/          # Draftshot artifacts (append-only formalizations)

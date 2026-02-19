@@ -1,8 +1,8 @@
 SYNAPSE_GUILD__DRAFTSHOTS.txt
 ================================================================================
 SYNAPSE GUILD — DRAFTSHOTS (CANON)
-Version: v1.1
-Last Updated (America/Toronto): 2026-02-15
+Version: v1.2
+Last Updated (America/Toronto): 2026-02-18
 Status: Governance Law (changes require Governance Control Sync)
 
 Maintainer: Hands (Peter) with Brains (Ash)
@@ -10,6 +10,10 @@ Audience:
 - Synapse Guild members (human)
 - Any AI session operating in long-form planning, incubation, governance, or execution
 - External collaborators adopting the Synapse Guild Operating System
+
+CHANGELOG (v1.2)
+- AI11 revision: Draftshots are living formalizations (meeting minutes), append-only, and stored in Snapshots/Draft Shots.
+- AI11 revision: Snapshots sourced from Draftshots are formalizations of the latest Draftshot and MUST reference it.
 
 CHANGELOG (v1.1)
 - Added hard rule: Draftshot consumption MUST preserve Draftshot body verbatim (no rewrite/restructure).
@@ -290,4 +294,52 @@ When Disclosure Gate triggers:
 
 ================================================================================
 END OF DOCUMENT
+================================================================================
+
+================================================================================
+AI11 AMENDMENT — DRAFTSHOTS AS LIVING FORMALIZATIONS (MEETING MINUTES)
+================================================================================
+Last Updated (UTC): 2026-02-18 21:49:27 UTC
+Authority: Governance Control Sync (Hands)
+
+This amendment clarifies and upgrades Draftshot behavior without deleting or shrinking prior canon text.
+
+A) DRAFTSHOT = LIVING FORMALIZATION (NOT TRANSCRIPT)
+- A Draftshot is a running, append-only formalization of a session.
+- It is "meeting minutes in progress": decisions + rationale + risks + open questions + resolutions.
+- It is NOT a transcript and MUST NOT attempt to capture every utterance.
+- Term anchor: see `The Guild/Terminology/Terms/Formalization.md`.
+
+B) APPEND-ONLY LAW (UNCHANGED, BUT MADE EXPLICIT)
+- Draftshots are append-only by REV.
+- Earlier content MUST NOT be rewritten, reordered, or cleaned.
+- Each update MUST add a new REV delta and SHOULD add a consolidated "Formalization Layer" (current truth)
+  while leaving prior layers intact as audit trail.
+
+Recommended pattern (compliant and scalable):
+- REV# DELTA (what changed since last update)
+- REV# FORMALIZATION LAYER (current consolidated minutes; supersedes earlier layers conceptually)
+
+C) CANONICAL LOCATION (NEW)
+Draftshots MUST be stored under:
+- `<Subject>_Data/Snapshots/Draft Shots/`
+
+This folder is now part of Subject Data Skeleton law (see `LOCK__SUBJECT_DATA_SKELETON.md`).
+
+D) SNAPSHOT BRIDGE RULE (NEW; MAKES CLOSEOUT DETERMINISTIC)
+When a Snapshot is required AND a Draftshot is ACTIVE:
+1) Update the Draftshot one final time (append only the delta since last update).
+2) Write the Snapshot as a FORMALIZATION of the entire Draftshot:
+   - capture final decisions + rationale + outcomes
+   - do not include every branch of earlier brainstorming
+   - mention that alternative branches were explored if relevant
+3) Snapshot MUST reference the Draftshot:
+   - include Draftshot filename + REV used
+4) Mark Draftshot state: CONSUMED (do not delete; it remains evidence).
+
+If NO Draftshot exists:
+- produce the Snapshot directly from session content (standard snapshot law).
+
+================================================================================
+END AI11 AMENDMENT — DRAFTSHOTS
 ================================================================================

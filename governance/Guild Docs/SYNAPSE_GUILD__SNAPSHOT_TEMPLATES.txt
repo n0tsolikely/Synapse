@@ -1,6 +1,6 @@
 SYNAPSE OS — SNAPSHOT TEMPLATES (CANON)
 Version: v1.3
-Last Updated: 2026-02-13
+Last Updated: 2026-02-18
 Status: Governance Law (changes require Governance Control Sync)
 
 Maintainer: Hands (Peter) with Brains (Ash)
@@ -226,3 +226,21 @@ Snapshots summarize.
 Execution Audits prove.
 
 END OF DOCUMENT
+
+================================================================================
+AI11 TEMPLATE EXTENSION — SNAPSHOTS SOURCED FROM DRAFTSHOTS
+================================================================================
+If a Draftshot is ACTIVE for the session being Snapshotted, every Snapshot template MUST include:
+
+- Source Draftshot:
+  - Path: `<Subject>_Data/Snapshots/Draft Shots/<DraftshotFile>`
+  - Revision: REV#
+  - State at snapshot time: ACTIVE → CONSUMED
+
+Snapshot content rule:
+- The Snapshot is a FORMALIZATION of the entire Draftshot (distilled, not branch-by-branch).
+- Term anchor: `The Guild/Terminology/Terms/Formalization.md`
+
+================================================================================
+END AI11 TEMPLATE EXTENSION
+================================================================================

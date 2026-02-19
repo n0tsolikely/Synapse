@@ -44,3 +44,18 @@ conversion_queue:
   - order: 15
     doc_path: "The Guild/Terminology/README.md"
     reason: "Defines Lock precedence and terminology boundaries needed to interpret remaining docs."
+  - order: 16
+    doc_path: "Processes/SYNAPSE_GUILD__DRAFTSHOTS.txt"
+    reason: "AI11 Draftshot governance; defines Draftshot lifecycle + deterministic bridge into Snapshots."
+  - order: 17
+    doc_path: "Guild Docs/SYNAPSE_GUILD__SNAPSHOT_TEMPLATES.txt"
+    reason: "Snapshot template canon + AI11 Draftshot Source extension enforcement."
+  - order: 18
+    doc_path: "The Guild/Terminology/Terms/Formalization.md"
+    reason: "Defines Formalization term used by Draftshots and Snapshot bridge law."
+  - order: 19
+    doc_path: "The Guild/Terminology/Locks/LOCK__SNAPSHOTS.md"
+    reason: "Lock-level Snapshot law; AI11 Draftshot bridge is binding and overrides non-lock docs."
+  - order: 20
+    doc_path: "The Guild/Terminology/Locks/LOCK__SUBJECT_DATA_SKELETON.md"
+    reason: "Lock-level subject skeleton includes Snapshots/Draft Shots folder (AI11)."

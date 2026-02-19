@@ -36,3 +36,7 @@ constraints, and references to updated artifacts.
 ## Authority
 → `Guild Docs/SYNAPSE_GUILD__SNAPSHOTS.txt`
 → `Guild Docs/SYNAPSE_GUILD__SNAPSHOT_TEMPLATES.txt`
+
+
+## AI11: Draftshot source
+If a Draftshot is ACTIVE during the Control Sync, the Control Sync Snapshot is a formalization of that Draftshot and MUST reference the Draftshot path + REV.

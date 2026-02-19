@@ -66,3 +66,11 @@ If a Snapshot is wrong, incomplete, or missing context:
 - EOD is not planning; Control Sync is not execution.
 - Absence of a required Snapshot means continuity is UNKNOWN until corrected.
 - A Snapshot does not imply tests ran or passed (Truth Gate still governs).
+
+## AI11: Draftshot bridge (deterministic)
+If a Draftshot is ACTIVE for the session being Snapshotted:
+- The Snapshot is a FORMALIZATION of the Draftshot (distilled, decision-complete).
+- The Snapshot MUST reference the Draftshot filename + REV.
+- The Draftshot is then marked CONSUMED and retained as evidence.
+
+Term anchor: `The Guild/Terminology/Terms/Formalization.md`

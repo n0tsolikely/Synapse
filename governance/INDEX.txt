@@ -1,6 +1,6 @@
 SYNAPSE OS — INDEX (ROUTING MAP)
 Version: v1.11
-Last Updated: 2026-02-15
+Last Updated: 2026-02-18
 This file is a deterministic routing map.
 It does NOT grant execution authority.
 
@@ -167,6 +167,7 @@ New subject / incubation terms (Fog of War; discovery-driven):
 → The Guild/Terminology/Terms/Exploration.md
 → The Guild/Terminology/Terms/Discovery.md
 → The Guild/Terminology/Terms/Fog_of_War.md
+→ The Guild/Terminology/Terms/Formalization.md
 
 Additional key terms (common in governed software builds):
 → The Guild/Terminology/Terms/Control_Sync.md

@@ -181,3 +181,6 @@ Only after 1.10 completes:
 - If Fog of War: remain in incubation/Codex work; execution remains forbidden
 
 END OF CHECKLIST
+
+
+CHECK (AI11): If Draftshot ACTIVE, Snapshot MUST reference Source Draftshot path + REV and be a formalization of the Draftshot.

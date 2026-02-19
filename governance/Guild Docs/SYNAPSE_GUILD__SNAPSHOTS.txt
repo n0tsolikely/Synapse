@@ -1,6 +1,6 @@
 SYNAPSE GUILD — SNAPSHOTS (CANON)
-Version: v1.4
-Last Updated: 2026-02-15
+Version: v1.5
+Last Updated: 2026-02-18
 Status: Governance Law (changes require Governance Control Sync)
 
 Maintainer: Hands (Peter) with Brains (Ash)
@@ -425,4 +425,24 @@ Use it as evidence of what occurred.
 
 ================================================================================
 END OF DOCUMENT
+================================================================================
+
+================================================================================
+AI11 ADDENDUM — DRAFTSHOTS ↔ SNAPSHOTS (BRIDGE)
+================================================================================
+- Draftshots live at: `<Subject>_Data/Snapshots/Draft Shots/`
+- Draftshots are living FORMALIZATIONS (meeting minutes), not transcripts.
+  Term anchor: `The Guild/Terminology/Terms/Formalization.md`
+
+When a Draftshot is ACTIVE and a Snapshot is produced:
+1) Update Draftshot one final time (append-only delta).
+2) Snapshot content is a FORMALIZATION of the entire Draftshot (distilled, decision-complete).
+3) Snapshot MUST reference the Draftshot filename + REV used.
+4) Draftshot is marked CONSUMED and retained as evidence.
+
+This prevents Snapshots from including every earlier decision-branch while still preserving all context
+in the Draftshot record.
+
+================================================================================
+END AI11 ADDENDUM — DRAFTSHOTS ↔ SNAPSHOTS
 ================================================================================

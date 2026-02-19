@@ -384,3 +384,16 @@ Run closeout (including required snapshot), then permit progression into the nex
 ================================================================================
 END OF DOCUMENT
 ================================================================================
+
+================================================================================
+AI11 ADDENDUM — CONTROL SYNC + DRAFTSHOTS
+================================================================================
+- Draftshots may be opened during a Control Sync to preserve long-form continuity.
+- Location: `<Subject>_Data/Snapshots/Draft Shots/`
+- If a Draftshot is ACTIVE when the Control Sync closes, the Control Sync Snapshot MUST:
+  - reference the Draftshot filename + REV
+  - be written as a FORMALIZATION of the Draftshot (distilled)
+  - mark the Draftshot CONSUMED (retain file as evidence)
+================================================================================
+END AI11 ADDENDUM — CONTROL SYNC + DRAFTSHOTS
+================================================================================

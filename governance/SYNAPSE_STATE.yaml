@@ -1,6 +1,6 @@
 # SYNAPSE_STATE.yaml
 # Version: v1.7
-# Last Updated: 2026-02-15
+# Last Updated: 2026-02-18
 #
 # PURPOSE
 # - Deterministic rehydration + routing manifest for Synapse OS.
@@ -127,6 +127,7 @@ required_read_order:
   - governance: "The Guild/Terminology/Terms/Dungeon.md"
   - governance: "The Guild/Terminology/Terms/Exploration.md"
   - governance: "The Guild/Terminology/Terms/Fog_of_War.md"
+  - governance: "The Guild/Terminology/Terms/Formalization.md"
   - governance: "The Guild/Terminology/Terms/God_Artifact.md"
   - governance: "The Guild/Terminology/Terms/Guild_Orders.md"
   - governance: "The Guild/Terminology/Terms/Incubation.md"

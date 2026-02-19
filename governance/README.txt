@@ -1,6 +1,6 @@
 SYNAPSE OS — GOVERNANCE PACK (README)
 Version: v1.11
-Last Updated: 2026-02-15
+Last Updated: 2026-02-18
 This folder is a portable Synapse OS “engine pack” designed to be dropped into ANY AI session.
 Its purpose is to govern the AI to follow Synapse OS protocol strictly and deterministically.
 
@@ -196,37 +196,38 @@ J) TERMINOLOGY AUTHORITY (OVERRIDES ALL NON-LOCK TEXT)
 50) The Guild/Terminology/Terms/Dungeon.md
 51) The Guild/Terminology/Terms/Exploration.md
 52) The Guild/Terminology/Terms/Fog_of_War.md
-53) The Guild/Terminology/Terms/God_Artifact.md
-54) The Guild/Terminology/Terms/Guild_Orders.md
-55) The Guild/Terminology/Terms/Incubation.md
-56) The Guild/Terminology/Terms/Mode_Awareness.md
-57) The Guild/Terminology/Terms/Quest.md
-58) The Guild/Terminology/Terms/Raid.md
-59) The Guild/Terminology/Terms/Rehydration.md
-60) The Guild/Terminology/Terms/Smoke_Test.md
-61) The Guild/Terminology/Terms/Snapshot.md
-62) The Guild/Terminology/Terms/Snapshot_Control_Sync.md
-63) The Guild/Terminology/Terms/Snapshot_End_of_Day.md
-64) The Guild/Terminology/Terms/Snapshot_General.md
-65) The Guild/Terminology/Terms/TOC.md
-66) The Guild/Terminology/Terms/Talent_Tree.md
-67) The Guild/Terminology/Terms/Truth_Gate.md
-68) The Guild/Terminology/Terms/Verification_Ladder.md
-69) The Guild/Terminology/Terms/World_State.md
-70) The Guild/Terminology/Terms/engine_DATA.md
-71) The Guild/Terminology/Locks/LOCK__CANONICAL_WORKING_TREE.md
-72) The Guild/Terminology/Locks/LOCK__CODEX_FREEZE_FOG_LIFTED.md
-73) The Guild/Terminology/Locks/LOCK__CONTROL_SYNC.md
-74) The Guild/Terminology/Locks/LOCK__DISCLOSURE_GATE.md
-75) The Guild/Terminology/Locks/LOCK__ENGINE_VS_DATA.md
-76) The Guild/Terminology/Locks/LOCK__FOG_OF_WAR.md
-77) The Guild/Terminology/Locks/LOCK__LAYER_RESPONSIBILITIES.md
-78) The Guild/Terminology/Locks/LOCK__MODE_AWARENESS.md
-79) The Guild/Terminology/Locks/LOCK__NO_GOD_ARTIFACTS.md
-80) The Guild/Terminology/Locks/LOCK__SCHEMA_VALIDATION_REQUIRED.md
-81) The Guild/Terminology/Locks/LOCK__SNAPSHOTS.md
-82) The Guild/Terminology/Locks/LOCK__SUBJECT_DATA_SKELETON.md
-83) The Guild/Terminology/Locks/LOCK__TRUTH_GATE.md
+53) The Guild/Terminology/Terms/Formalization.md
+54) The Guild/Terminology/Terms/God_Artifact.md
+55) The Guild/Terminology/Terms/Guild_Orders.md
+56) The Guild/Terminology/Terms/Incubation.md
+57) The Guild/Terminology/Terms/Mode_Awareness.md
+58) The Guild/Terminology/Terms/Quest.md
+59) The Guild/Terminology/Terms/Raid.md
+60) The Guild/Terminology/Terms/Rehydration.md
+61) The Guild/Terminology/Terms/Smoke_Test.md
+62) The Guild/Terminology/Terms/Snapshot.md
+63) The Guild/Terminology/Terms/Snapshot_Control_Sync.md
+64) The Guild/Terminology/Terms/Snapshot_End_of_Day.md
+65) The Guild/Terminology/Terms/Snapshot_General.md
+66) The Guild/Terminology/Terms/TOC.md
+67) The Guild/Terminology/Terms/Talent_Tree.md
+68) The Guild/Terminology/Terms/Truth_Gate.md
+69) The Guild/Terminology/Terms/Verification_Ladder.md
+70) The Guild/Terminology/Terms/World_State.md
+71) The Guild/Terminology/Terms/engine_DATA.md
+72) The Guild/Terminology/Locks/LOCK__CANONICAL_WORKING_TREE.md
+73) The Guild/Terminology/Locks/LOCK__CODEX_FREEZE_FOG_LIFTED.md
+74) The Guild/Terminology/Locks/LOCK__CONTROL_SYNC.md
+75) The Guild/Terminology/Locks/LOCK__DISCLOSURE_GATE.md
+76) The Guild/Terminology/Locks/LOCK__ENGINE_VS_DATA.md
+77) The Guild/Terminology/Locks/LOCK__FOG_OF_WAR.md
+78) The Guild/Terminology/Locks/LOCK__LAYER_RESPONSIBILITIES.md
+79) The Guild/Terminology/Locks/LOCK__MODE_AWARENESS.md
+80) The Guild/Terminology/Locks/LOCK__NO_GOD_ARTIFACTS.md
+81) The Guild/Terminology/Locks/LOCK__SCHEMA_VALIDATION_REQUIRED.md
+82) The Guild/Terminology/Locks/LOCK__SNAPSHOTS.md
+83) The Guild/Terminology/Locks/LOCK__SUBJECT_DATA_SKELETON.md
+84) The Guild/Terminology/Locks/LOCK__TRUTH_GATE.md
 Locks override ALL non-lock documents regardless of read order.
 ================================================================================
 

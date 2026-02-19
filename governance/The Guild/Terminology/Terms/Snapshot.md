@@ -40,3 +40,8 @@ captures a bounded state of alignment or execution at a point in time.
 ## Authority
 → `Guild Docs/SYNAPSE_GUILD__SNAPSHOTS.txt`
 → `Guild Docs/SYNAPSE_GUILD__SNAPSHOT_TEMPLATES.txt`
+
+
+## AI11: Draftshot integration
+If a Draftshot is ACTIVE for the session being Snapshotted, the Snapshot is a **formalization of the Draftshot** (distilled) and MUST reference the Draftshot file + REV.
+Term anchor: `Formalization.md`
