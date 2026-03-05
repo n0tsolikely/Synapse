@@ -12,11 +12,11 @@ set -euo pipefail
 #   synapse_consent.sh schema-change --quest-id QUEST_154 [--scope DUNGEON_6]
 #
 # Environment:
-#   DATA_ROOT (default /home/notsolikely/Ashby_Data)
+#   DATA_ROOT (default $HOME/Ashby_Data)
 
 export TZ="${TZ:-America/Toronto}"
 
-DATA_ROOT="${DATA_ROOT:-/home/notsolikely/Ashby_Data}"
+DATA_ROOT="${DATA_ROOT:-$HOME/Ashby_Data}"
 CONF_DIR="$DATA_ROOT/confirmations"
 TODAY="$(date +%F)"
 

@@ -14,11 +14,13 @@ set -euo pipefail
 #
 # Defaults are for Ashby/STUART; override via env vars for other subjects.
 
-DATA_ROOT="${DATA_ROOT:-/home/notsolikely/Ashby_Data}"
-ENGINE_ROOT="${ENGINE_ROOT:-/home/notsolikely/Ashby_Engine}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SYNAPSE_ROOT="${SYNAPSE_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
+DATA_ROOT="${DATA_ROOT:-$HOME/Ashby_Data}"
+ENGINE_ROOT="${ENGINE_ROOT:-$HOME/Ashby_Engine}"
 SUBJECT="${SUBJECT:-STUART}"
-GUARD="${GUARD:-/home/notsolikely/Synapse/governance/tools/synapse_governance_guard.py}"
-SNAPSHOT_WRITER="${SNAPSHOT_WRITER:-/home/notsolikely/Synapse/governance/tools/synapse_snapshot_writer.py}"
+GUARD="${GUARD:-$SYNAPSE_ROOT/governance/tools/synapse_governance_guard.py}"
+SNAPSHOT_WRITER="${SNAPSHOT_WRITER:-$SYNAPSE_ROOT/governance/tools/synapse_snapshot_writer.py}"
 RUNTIME_DIR="$DATA_ROOT/.governance_runtime"
 WAVE_FILE="$RUNTIME_DIR/quest_wave_receipts.tsv"
 

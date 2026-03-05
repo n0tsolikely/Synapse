@@ -9,7 +9,7 @@ This script **fails fast** unless a valid confirmation artifact exists on disk a
 ### Network egress for dependency installs only (NO tokens)
 ```bash
 Ashby_Data/tools/require_r2_confirmation.sh \
-  --confirmations-dir "/home/notsolikely/Ashby_Data/confirmations" \
+  --confirmations-dir "$DATA_ROOT/confirmations" \
   --confirm-file "CONFIRM_R2__DUNGEON_6__2026-03-01__network_deps_only.txt" \
   --need-egress YES --need-tokens NO --need-model-downloads NO
 ```
@@ -17,7 +17,7 @@ Ashby_Data/tools/require_r2_confirmation.sh \
 ### Token-backed tests allowed (YES tokens)
 ```bash
 Ashby_Data/tools/require_r2_confirmation.sh \
-  --confirmations-dir "/home/notsolikely/Ashby_Data/confirmations" \
+  --confirmations-dir "$DATA_ROOT/confirmations" \
   --confirm-file "CONFIRM_R2__DUNGEON_6__2026-03-01__token_tests_allowed.txt" \
   --need-egress YES --need-tokens YES --need-model-downloads NO
 ```

@@ -479,7 +479,7 @@ Hard law:
 - Running commands "naked" (outside the wrapper) is forbidden because it breaks receipts.
 
 Canonical wrapper:
-- /home/notsolikely/Synapse/governance/tools/synapse_quest_run.sh
+- $SYNAPSE_ROOT/governance/tools/synapse_quest_run.sh
   (If the Subject is not Ashby/STUART, you may override DATA_ROOT/ENGINE_ROOT env vars.)
 
 Wrapper must guarantee:
