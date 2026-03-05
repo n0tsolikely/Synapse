@@ -81,6 +81,3 @@ Runtime enforcement will be added incrementally without changing the core laws.
 This system is built first and foremost as a \*\*personal operating system for thinking,
 
 building, and executing projects\*\*. Any future productization is a secondary outcome.
-
-
-
