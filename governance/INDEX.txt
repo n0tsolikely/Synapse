@@ -42,6 +42,8 @@ Codex / Map rules (TOC → sections → stitch → freeze):
 
 Large artifact chunking (TOC + Codex sections; compose→stitch→verify):
 → Processes/SYNAPSE_GUILD__LARGE_ARTIFACT_COMPOSITION.txt
+Codex gates tool (lightweight first-pass spec + consistency checks):
+→ tools/synapse_codex_gate.py
 
 Snapshots during incubation / conceptual continuity:
 Draftshots (incremental session continuity anchors):
@@ -77,6 +79,8 @@ Quest system (board, validation gate, quest law + template):
 
 Guild Orders pipeline (Guild Orders executed as a Raid; Guild Orders contain Dungeons; Dungeons decompose into Quests):
 → Guild Docs/SYNAPSE_GUILD__GUILD_ORDERS.txt
+Self-contained Guild Orders template:
+→ Guild Docs/SYNAPSE_GUILD__GUILD_ORDERS_TEMPLATE__SELF_CONTAINED.txt
 
 ================================================================================
 E) TRUTH, DISCLOSURE, RISK, CONSENT
