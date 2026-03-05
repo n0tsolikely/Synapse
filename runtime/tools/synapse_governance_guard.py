@@ -18,6 +18,7 @@ Design posture:
 - File/format enforcement.
 - Refuses placeholders.
 - Refuses "empty" 03_VERIFY/04_OUTCOME.
+- Enforces Talent Tree updates when a Quest awards a Talent Point.
 
 Notes:
 - This tool cannot prevent intentional fraud (an agent can always lie).
@@ -60,12 +61,16 @@ REQUIRED_BUNDLE_FILES = [
 
 # 03_VERIFY must contain an explicit, machine-checkable outcome line.
 _VERIFY_OUTCOME_RX = re.compile(
-    r"(?im)^(?:[-*]\s*)?(?:overall|determination|result|outcome|status)\s*:\s*(PASS|FAIL|BLOCKED)\b"
+    r"(?im)^(?:[-*]\\s*)?(?:overall|determination|result|outcome|status)\\s*:\\s*(PASS|FAIL|BLOCKED)\\b"
 )
+
+_QUEST_TALENT_AWARDED_RX = re.compile(r"(?im)^Talent Point Awarded:\\s*(YES|NO)\\b")
+_OUTCOME_TALENT_AWARDED_RX = re.compile(r"(?im)^Talent Point Awarded:\\s*(YES|NO)\\b")
+_OUTCOME_TALENT_ID_RX = re.compile(r"(?im)^(?:Talent Spent On|Talent ID):\\s*(?:\\()?((?:T-\\d{3}))\\b")
 
 
 def _extract_quest_num(name_or_id: str) -> int | None:
-    m = re.search(r"QUEST_(\d{3})", name_or_id.upper())
+    m = re.search(r"QUEST_(\\d{3})", name_or_id.upper())
     if not m:
         return None
     try:
@@ -77,7 +82,7 @@ def _extract_quest_num(name_or_id: str) -> int | None:
 def _accepted_quest_ids(accepted_dir: Path) -> list[str]:
     out: list[str] = []
     for p in sorted(accepted_dir.glob("QUEST_*.txt")):
-        m = re.match(r"(QUEST_\d{3})__", p.name)
+        m = re.match(r"(QUEST_\\d{3})__", p.name)
         if m:
             out.append(m.group(1))
     return out
@@ -122,6 +127,159 @@ def _infer_subject_from_data_root(data_root: Path, explicit: Optional[str]) -> s
     return "UNKNOWN_SUBJECT"
 
 
+def _parse_talent_point_awarded(quest_text: str) -> str | None:
+    m = _QUEST_TALENT_AWARDED_RX.search(quest_text)
+    if not m:
+        return None
+    v = (m.group(1) or "").strip().upper()
+    return v if v in {"YES", "NO"} else None
+
+
+def _ensure_talent_tree_initialized(data_root: Path, failures: List[str]) -> None:
+    """Ensure the 3 Talent Tree subject-state files exist (copy templates if missing)."""
+
+    target_dir = data_root / "Talent Tree"
+    templates_dir = SYNAPSE_ROOT / "governance" / "Talent Tree"
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    for fname in ("TALENT_TREE.txt", "TALENT_LOG.txt", "RESPEC_RULES.txt"):
+        dst = target_dir / fname
+        if dst.exists():
+            continue
+        src = templates_dir / fname
+        if not src.is_file():
+            failures.append(f"missing governance talent template: {src}")
+            continue
+        try:
+            shutil.copy2(src, dst)
+        except Exception as exc:
+            failures.append(f"failed to initialize talent file {dst}: {exc}")
+
+
+def _extract_talent_id_from_outcome(outcome_text: str) -> str | None:
+    m = _OUTCOME_TALENT_ID_RX.search(outcome_text)
+    if not m:
+        return None
+    return (m.group(1) or "").strip().upper()
+
+
+def _split_talent_entries(talent_tree_text: str) -> list[tuple[str, str]]:
+    """Return list of (talent_id, entry_text) blocks."""
+
+    rx = re.compile(r"(?im)^TALENT ID:\\s*(T-\\d{3})\\b")
+    matches = list(rx.finditer(talent_tree_text))
+    if not matches:
+        return []
+
+    out: list[tuple[str, str]] = []
+    for idx, m in enumerate(matches):
+        start = m.start()
+        end = matches[idx + 1].start() if idx + 1 < len(matches) else len(talent_tree_text)
+        tid = (m.group(1) or "").strip().upper()
+        out.append((tid, talent_tree_text[start:end]))
+    return out
+
+
+def _entry_has_required_fields(entry_text: str, failures: List[str], *, context: str) -> None:
+    required_labels = [
+        "Name:",
+        "Unlocked On:",
+        "Source Quest:",
+        "Scope:",
+        "Capability:",
+        "Implications / Constraints:",
+        "Evidence / Receipts:",
+    ]
+    for lab in required_labels:
+        if lab not in entry_text:
+            failures.append(f"{context}: missing required field label: {lab}")
+
+    m_name = re.search(r"(?im)^Name:\\s*(.+)$", entry_text)
+    if not m_name or not m_name.group(1).strip() or m_name.group(1).strip().upper() in {"TBD", "<FILL>"}:
+        failures.append(f"{context}: Name must be non-empty (no TBD/<fill>)")
+
+    m_date = re.search(r"(?im)^Unlocked On:\\s*(\\d{4}-\\d{2}-\\d{2})\\b", entry_text)
+    if not m_date:
+        failures.append(f"{context}: Unlocked On must be YYYY-MM-DD")
+
+
+def _validate_talent_award(
+    *,
+    data_root: Path,
+    quest_id: str,
+    quest_text: str,
+    bundle: Path,
+    failures: List[str],
+) -> None:
+    awarded = _parse_talent_point_awarded(quest_text)
+    if awarded is None:
+        failures.append("Quest missing required field: 'Talent Point Awarded: (YES/NO)'")
+        return
+
+    outcome_txt = _read_text(bundle / "04_OUTCOME.md")
+    outcome_awarded: str | None = None
+    m = _OUTCOME_TALENT_AWARDED_RX.search(outcome_txt)
+    if m:
+        outcome_awarded = (m.group(1) or "").strip().upper()
+
+    if outcome_awarded is None:
+        failures.append("04_OUTCOME.md must include 'Talent Point Awarded: YES/NO' (must match Quest)")
+    elif outcome_awarded != awarded:
+        failures.append(f"04_OUTCOME.md Talent Point Awarded mismatch: quest={awarded} outcome={outcome_awarded}")
+
+    if awarded != "YES":
+        return
+
+    _ensure_talent_tree_initialized(data_root, failures)
+    if failures:
+        return
+
+    talent_dir = data_root / "Talent Tree"
+    tree_path = talent_dir / "TALENT_TREE.txt"
+    log_path = talent_dir / "TALENT_LOG.txt"
+
+    if not tree_path.is_file() or not log_path.is_file():
+        failures.append(f"Talent Tree not initialized under {talent_dir} (missing TALENT_TREE.txt and/or TALENT_LOG.txt)")
+        return
+
+    talent_id = _extract_talent_id_from_outcome(outcome_txt)
+    if not talent_id:
+        failures.append(
+            "Talent awarded but 04_OUTCOME.md is missing a Talent ID. Add either:\n"
+            "- Talent Spent On: T-### — <Name>\n"
+            "- Talent ID: T-###"
+        )
+        return
+
+    if "TALENT_TREE.txt" not in outcome_txt or "TALENT_LOG.txt" not in outcome_txt:
+        failures.append("04_OUTCOME.md must reference the updated Talent Tree + Talent Log paths (TALENT_TREE.txt and TALENT_LOG.txt)")
+
+    tree_txt = _read_text(tree_path)
+    entries = _split_talent_entries(tree_txt)
+    entry_map = {tid: txt for tid, txt in entries}
+
+    if talent_id not in entry_map:
+        failures.append(f"TALENT_TREE.txt missing entry for Talent ID {talent_id}")
+    else:
+        entry_txt = entry_map[talent_id]
+        if quest_id not in entry_txt:
+            failures.append(f"TALENT_TREE.txt entry {talent_id} must reference Source Quest {quest_id}")
+        _entry_has_required_fields(entry_txt, failures, context=f"TALENT_TREE.txt entry {talent_id}")
+
+        if "03_VERIFY.md" not in entry_txt and "04_OUTCOME.md" not in entry_txt:
+            failures.append(
+                f"TALENT_TREE.txt entry {talent_id} Evidence/Receipts should reference audit evidence "
+                "(03_VERIFY.md and/or 04_OUTCOME.md)"
+            )
+
+    log_txt = _read_text(log_path)
+    rx = re.compile(
+        rf"(?is)Quest ID:\\s*{re.escape(quest_id)}.*?Talent Point Awarded:\\s*YES.*?Talent Spent On:\\s*.*{re.escape(talent_id)}"
+    )
+    if not rx.search(log_txt):
+        failures.append(f"TALENT_LOG.txt missing award entry for {quest_id} with Talent Spent On {talent_id}")
+
+
 def _resolve_context(args: argparse.Namespace, *, high_risk: bool) -> tuple[Path, str, str]:
     try:
         ctx = resolve_subject(
@@ -148,12 +306,12 @@ def _snapshot_name_regex(subject: str) -> re.Pattern:
     # <Subject>_End_of_Day_Snapshot__02_YYYY-MM-DD.txt
     # <Subject>_End_of_Day_Snapshot__03_YYYY-MM-DD.txt
     safe = re.escape(subject)
-    return re.compile(rf"^{safe}_End_of_Day_Snapshot(?:__\d{{2}})?_\d{{4}}-\d{{2}}-\d{{2}}\.txt$")
+    return re.compile(rf"^{safe}_End_of_Day_Snapshot(?:__\\d{{2}})?_\\d{{4}}-\\d{{2}}-\\d{{2}}\\.txt$")
 
 
 def _parse_date_from_quest_filename(quest_file: Path) -> str | None:
     """Extract YYYY-MM-DD from the final __YYYY-MM-DD.txt token."""
-    m = re.search(r"__(\d{4}-\d{2}-\d{2})\.txt$", quest_file.name)
+    m = re.search(r"__(\\d{4}-\\d{2}-\\d{2})\\.txt$", quest_file.name)
     if not m:
         return None
     return m.group(1)
@@ -189,7 +347,7 @@ def _proof_receipts_ok(bundle: Path) -> Tuple[bool, str]:
     # Enforce at least one recorded command receipt line.
     # This is the simplest non-LLM guardrail against "audit-only" bundles.
     # (If a quest truly has no commands, run a trivial cmd via wrapper like `echo ok`.)
-    if not re.search(r"(?m)^CMD:\s", t):
+    if not re.search(r"(?m)^CMD:\\s", t):
         return False, "06_TESTS.txt must contain at least one 'CMD:' receipt line (run commands via quest runner wrapper)"
 
     # Ensure changed-files receipt isn't empty.
@@ -246,7 +404,7 @@ def cmd_init_bundle(args: argparse.Namespace) -> int:
     audits_dir = data_root / "Audits" / "Execution"
 
     quest_id = args.quest_id.strip().upper()
-    if not re.fullmatch(r"QUEST_\d{3}|SIDE-QUEST_\d{3}", quest_id):
+    if not re.fullmatch(r"QUEST_\\d{3}|SIDE-QUEST_\\d{3}", quest_id):
         print(f"FAIL: invalid quest id format: {quest_id}")
         return 2
 
@@ -262,6 +420,8 @@ def cmd_init_bundle(args: argparse.Namespace) -> int:
     bundle.mkdir(parents=True, exist_ok=True)
 
     shutil.copy2(quest_file, bundle / "90_ORIGINAL_QUEST__as_found.txt")
+    quest_txt = _read_text(quest_file)
+    talent_awarded = _parse_talent_point_awarded(quest_txt) or "<MISSING_IN_QUEST>"
 
     _write_if_missing(
         bundle / "00_GOVERNANCE_PREFLIGHT.md",
@@ -295,6 +455,26 @@ def cmd_init_bundle(args: argparse.Namespace) -> int:
                     "the Synapse quest runner wrapper. DO NOT LEAVE PLACEHOLDER.\n"
                 ),
             )
+        elif fname == "04_OUTCOME.md":
+            _write_if_missing(
+                bundle / fname,
+                (
+                    "# 04_OUTCOME.md\n\n"
+                    "## Outcome\n"
+                    "- Final status: <fill>\n"
+                    "- State transition performed: <fill>\n"
+                    f"- Audit bundle: {bundle}\n"
+                    "- Notes: <fill>\n\n"
+                    "## Talent Decision\n"
+                    f"Talent Point Awarded: {talent_awarded}\n"
+                    "Talent Spent On: (T-### — Name) | NONE\n"
+                    "Evidence Paths:\n"
+                    f"- {bundle / '03_VERIFY.md'}\n"
+                    f"- {bundle / '04_OUTCOME.md'}\n"
+                    f"- {data_root / 'Talent Tree' / 'TALENT_TREE.txt'}\n"
+                    f"- {data_root / 'Talent Tree' / 'TALENT_LOG.txt'}\n"
+                ),
+            )
         else:
             _write_if_missing(bundle / fname, f"# {fname}\n")
 
@@ -320,9 +500,13 @@ def cmd_validate(args: argparse.Namespace) -> int:
     accepted_dir = data_root / "Quest Board" / "Accepted"
     completed_dir = data_root / "Quest Board" / "Completed"
 
-    in_accepted = _find_quest_file(accepted_dir, quest_id) is not None
+    quest_file = _find_quest_file(accepted_dir, quest_id)
+    in_accepted = quest_file is not None
     in_completed = any(completed_dir.glob(f"{quest_id}__*.txt"))
     _check(in_accepted or in_completed, failures, f"{quest_id} not found in Accepted or Completed")
+    if quest_file is None and in_completed:
+        done = sorted(completed_dir.glob(f"{quest_id}__*.txt"))
+        quest_file = done[0] if done else None
 
     if not args.allow_out_of_order:
         expected = _lowest_active_quest_id(accepted_dir)
@@ -345,6 +529,17 @@ def cmd_validate(args: argparse.Namespace) -> int:
     ok, why = _outcome_md_ok(bundle)
     _check(ok, failures, why)
 
+    if quest_file is None:
+        failures.append(f"unable to locate quest file for {quest_id} (needed for Talent Point Awarded field)")
+    else:
+        _validate_talent_award(
+            data_root=data_root,
+            quest_id=quest_id,
+            quest_text=_read_text(quest_file),
+            bundle=bundle,
+            failures=failures,
+        )
+
     preflight = _read_text(bundle / "00_GOVERNANCE_PREFLIGHT.md")
     _check("PRE-FLIGHT: PASS" in preflight, failures, "preflight not passed (missing 'PRE-FLIGHT: PASS')")
 
@@ -357,7 +552,11 @@ def cmd_validate(args: argparse.Namespace) -> int:
         expected_dir = (data_root / "Snapshots" / "End of Day").resolve()
         _check(snap.is_file(), failures, f"snapshot missing: {snap}")
         if snap.exists():
-            _check(snap.parent.resolve() == expected_dir, failures, f"snapshot must be under {expected_dir}, got {snap.parent}")
+            _check(
+                snap.parent.resolve() == expected_dir,
+                failures,
+                f"snapshot must be under {expected_dir}, got {snap.parent}",
+            )
 
             if subject == "UNKNOWN_SUBJECT":
                 failures.append("subject unknown; pass --subject to validate snapshot naming")
@@ -382,7 +581,10 @@ def _print_failures(failures: Iterable[str]) -> int:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Synapse governance guard for quest execution (subject-agnostic).")
     p.add_argument("--data-root", help="Canonical <Subject>_Data root")
-    p.add_argument("--subject", help="Subject name (required for validating snapshot filenames if data root isn't <Subject>_Data)")
+    p.add_argument(
+        "--subject",
+        help="Subject name (required for validating snapshot filenames if data root isn't <Subject>_Data)",
+    )
 
     sub = p.add_subparsers(dest="cmd", required=True)
 
