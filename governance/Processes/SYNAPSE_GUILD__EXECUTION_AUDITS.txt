@@ -426,3 +426,88 @@ If required audits are missing:
 ================================================================================
 END
 ================================================================================
+================================================================================
+AUDIT TRUTH PROHIBITION (HARD)
+================================================================================
+Rules:
+- It is forbidden to fabricate receipts or outcomes.
+- Any statement like “tests passed”, “build succeeded”, “13 passed”, etc. is prohibited unless the raw stdout/stderr is included verbatim in the audit bundle OR referenced as a file produced by the command run (with sha256).
+- Automation scripts may ONLY copy/attach real captured output files into the audit bundle. They may not generate “00_SUMMARY/01_PREQUEST/…” containing completion claims that are not provable.
+
+================================================================================
+AUTOMATION SAFE MODE (ALLOWED)
+================================================================================
+Rules:
+- Allowed automation = copy/attach receipts that already exist (e.g., /tmp/pytest_wave.txt, /tmp/npm_build_wave.txt) into the audit bundle as 06_TESTS.txt (verbatim).
+- Hard fail if required receipt files are missing.
+- Never hardcode dates. Use the existing audit bundle directory name. If bundle missing, STOP and require operator to create it intentionally.
+
+================================================================================
+OVERWRITE PROTECTION (HARD)
+================================================================================
+Rules:
+- Any automation that writes into an audit bundle must refuse if target files already exist (no stomping).
+- Required phase files must never be overwritten automatically.
+
+================================================================================
+REQUIRED MINIMUM AUDIT FILE SET (MANDATORY)
+================================================================================
+Required files:
+- 00_SUMMARY.md
+- 01_PREQUEST.md
+- 02_EXECUTION.md
+- 03_VERIFY.md
+- 04_OUTCOME.md
+- 06_CHANGED_FILES.txt
+- 06_TESTS.txt
+Optional files:
+- 06_GIT_STATUS_BEFORE.txt
+- 06_GIT_DIFF_NAME_ONLY.txt
+- 06_GIT_DIFF_STAT.txt
+Rules:
+- Do NOT claim optional files unless they are present.
+- 03_VERIFY.md must reference exact commands executed and contain raw outputs OR point to 06_TESTS.txt that contains raw outputs.
+
+================================================================================
+6) QUEST RUNNER WRAPPER (MANDATORY) — RECEIPTS DURING EXECUTION (HARD)
+================================================================================
+The audit bundle is NOT something you fill out after the fact.
+It must be populated WHILE executing the quest.
+
+Hard law:
+- All terminal execution commands for a quest MUST be run through the Synapse quest runner wrapper.
+- Running commands "naked" (outside the wrapper) is forbidden because it breaks receipts.
+
+Canonical wrapper:
+- /home/notsolikely/Synapse_OS/governance/tools/synapse_quest_run.sh
+  (If the Subject is not Ashby/STUART, you may override DATA_ROOT/ENGINE_ROOT env vars.)
+
+Wrapper must guarantee:
+- Creates the audit bundle as needed using the quest filename date (no "today" bundle drift).
+- Writes command receipts DURING execution into 06_TESTS.txt with lines starting with:
+  - CMD: <command>
+  - RC: <exit_code>
+- Writes changed-file receipts at finalize into 06_CHANGED_FILES.txt.
+- Never overwrites existing audit phase files.
+
+Minimum enforcement hook:
+- Governance validation MUST fail if:
+  - 06_TESTS.txt is placeholder OR contains no CMD: receipts
+  - 06_CHANGED_FILES.txt is placeholder
+  - 03_VERIFY.md is placeholder-only OR lacks explicit OVERALL outcome
+  - 04_OUTCOME.md is placeholder-only
+
+================================================================================
+6.1) AUDIT AUTO-AUTHORITY (STANDING ORDER) — DO NOT ASK (HARD)
+================================================================================
+Agents have standing authority to:
+- create/initialize audit bundles
+- append receipts
+- run governance validation
+
+Agents MUST NOT ask the operator for permission to write audits.
+Agents MUST stop and notify the operator ONLY when they are truly blocked:
+- missing dependency / missing env var
+- cannot proceed truthfully (would require fabrication)
+- consent/disclosure gate required
+- canonical root paths are uncertain

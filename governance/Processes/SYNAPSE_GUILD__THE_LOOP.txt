@@ -339,3 +339,11 @@ The AI is not a narrator.
 It is an operator.
 
 End.
+
+================================================================================
+QUEST MINI-LOOP ENFORCEMENT NOTE (HARD)
+================================================================================
+During EXECUTE + VERIFY:
+- Run ALL terminal commands through:
+  /home/notsolikely/Synapse_OS/governance/tools/synapse_quest_run.sh
+- This is mandatory so 06_TESTS.txt contains real CMD receipts.

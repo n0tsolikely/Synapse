@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Synapse OS — Governance Guard (subject-agnostic).
 
-Version: v0.2
-Last Updated: 2026-02-18
+Version: v0.4
+Last Updated: 2026-02-24
 
 This is NOT a subject runtime.
 It is a deterministic governance helper that:
@@ -13,7 +13,16 @@ Why this exists:
 - Agents love claiming "done" with no receipts.
 - Synapse OS requires proof artifacts and structured audits.
 
-This tool intentionally does NOT try to be smart. It enforces file/format rules.
+Design posture:
+- Deterministic.
+- File/format enforcement.
+- Refuses placeholders.
+- Refuses "empty" 03_VERIFY/04_OUTCOME.
+
+Notes:
+- This tool cannot prevent intentional fraud (an agent can always lie).
+  It *can* prevent accidental fabrication by enforcing required receipts and
+  meaningful verification/outcome content.
 """
 
 from __future__ import annotations
@@ -24,7 +33,7 @@ import re
 import shutil
 import sys
 from pathlib import Path
-from typing import Iterable, List, Optional
+from typing import Iterable, List, Optional, Tuple
 
 
 REQUIRED_BUNDLE_FILES = [
@@ -33,11 +42,18 @@ REQUIRED_BUNDLE_FILES = [
     "02_EXECUTION.md",
     "03_VERIFY.md",
     "04_OUTCOME.md",
+    "06_TESTS.txt",
+    "06_CHANGED_FILES.txt",
     "00_ACCEPTANCE_RECEIPT.txt",
     "90_ORIGINAL_QUEST__as_found.txt",
     "00_GOVERNANCE_PREFLIGHT.md",
     "DISCLOSURE_GATE.md",
 ]
+
+# 03_VERIFY must contain an explicit, machine-checkable outcome line.
+_VERIFY_OUTCOME_RX = re.compile(
+    r"(?im)^(?:[-*]\s*)?(?:overall|determination|result|outcome|status)\s*:\s*(PASS|FAIL|BLOCKED)\b"
+)
 
 
 def _extract_quest_num(name_or_id: str) -> int | None:
@@ -82,10 +98,6 @@ def _check(condition: bool, failures: List[str], message: str) -> None:
         failures.append(message)
 
 
-def _has_any_proof_files(bundle: Path) -> bool:
-    return any(p.is_file() for p in bundle.glob("06_*"))
-
-
 def _read_text(path: Path) -> str:
     try:
         return path.read_text(encoding="utf-8")
@@ -111,6 +123,91 @@ def _snapshot_name_regex(subject: str) -> re.Pattern:
     return re.compile(rf"^{safe}_End_of_Day_Snapshot(?:__\d{{2}})?_\d{{4}}-\d{{2}}-\d{{2}}\.txt$")
 
 
+def _parse_date_from_quest_filename(quest_file: Path) -> str | None:
+    """Extract YYYY-MM-DD from the final __YYYY-MM-DD.txt token."""
+    m = re.search(r"__(\d{4}-\d{2}-\d{2})\.txt$", quest_file.name)
+    if not m:
+        return None
+    return m.group(1)
+
+
+def _is_placeholder_md(md_text: str) -> bool:
+    """True when file is effectively just a header like '# 03_VERIFY.md'."""
+    lines = [ln.strip() for ln in md_text.splitlines()]
+    nonempty = [ln for ln in lines if ln]
+    if not nonempty:
+        return True
+    if len(nonempty) == 1 and nonempty[0].startswith("#"):
+        return True
+    return False
+
+
+def _proof_receipts_ok(bundle: Path) -> Tuple[bool, str]:
+    """Return (ok, failure_reason)."""
+    tests = bundle / "06_TESTS.txt"
+    changed = bundle / "06_CHANGED_FILES.txt"
+
+    if not tests.is_file() or not changed.is_file():
+        return False, "missing required proof receipts: 06_TESTS.txt and/or 06_CHANGED_FILES.txt"
+
+    t = _read_text(tests)
+    c = _read_text(changed)
+
+    if "PLACEHOLDER" in t:
+        return False, "06_TESTS.txt is still PLACEHOLDER"
+    if "PLACEHOLDER" in c:
+        return False, "06_CHANGED_FILES.txt is still PLACEHOLDER"
+
+    # Enforce at least one recorded command receipt line.
+    # This is the simplest non-LLM guardrail against "audit-only" bundles.
+    # (If a quest truly has no commands, run a trivial cmd via wrapper like `echo ok`.)
+    if not re.search(r"(?m)^CMD:\s", t):
+        return False, "06_TESTS.txt must contain at least one 'CMD:' receipt line (run commands via quest runner wrapper)"
+
+    # Ensure changed-files receipt isn't empty.
+    if not any(ln.strip() for ln in c.splitlines()):
+        return False, "06_CHANGED_FILES.txt is empty"
+
+    return True, ""
+
+
+def _verify_md_ok(bundle: Path) -> Tuple[bool, str]:
+    p = bundle / "03_VERIFY.md"
+    txt = _read_text(p)
+
+    if _is_placeholder_md(txt):
+        return False, "03_VERIFY.md is placeholder-only; it must contain real verification content"
+
+    if not _VERIFY_OUTCOME_RX.search(txt):
+        return (
+            False,
+            "03_VERIFY.md must include an explicit outcome line (e.g. 'OVERALL: PASS' / 'OVERALL: FAIL' / 'OVERALL: BLOCKED')",
+        )
+
+    # Must reference raw receipts.
+    if "06_TESTS.txt" not in txt:
+        return False, "03_VERIFY.md must reference 06_TESTS.txt (raw receipts)"
+
+    return True, ""
+
+
+def _outcome_md_ok(bundle: Path) -> Tuple[bool, str]:
+    p = bundle / "04_OUTCOME.md"
+    txt = _read_text(p)
+
+    if _is_placeholder_md(txt):
+        return False, "04_OUTCOME.md is placeholder-only; it must state what is now true + artifacts/paths"
+
+    # Require at least one non-header content line.
+    lines = [ln.rstrip("\n") for ln in txt.splitlines()]
+    nonempty = [ln for ln in lines if ln.strip()]
+    nonheader = [ln for ln in nonempty if not ln.lstrip().startswith("#")]
+    if not nonheader:
+        return False, "04_OUTCOME.md has no content beyond header"
+
+    return True, ""
+
+
 def cmd_init_bundle(args: argparse.Namespace) -> int:
     data_root = Path(args.data_root).expanduser().resolve()
     accepted_dir = data_root / "Quest Board" / "Accepted"
@@ -126,7 +223,9 @@ def cmd_init_bundle(args: argparse.Namespace) -> int:
         print(f"FAIL: {quest_id} is not in {accepted_dir}")
         return 2
 
-    date = args.date or dt.date.today().isoformat()
+    inferred = _parse_date_from_quest_filename(quest_file)
+    date = args.date or inferred or dt.date.today().isoformat()
+
     bundle = audits_dir / f"{quest_id}__{date}__{args.slug}"
     bundle.mkdir(parents=True, exist_ok=True)
 
@@ -156,7 +255,16 @@ def cmd_init_bundle(args: argparse.Namespace) -> int:
     )
 
     for fname in REQUIRED_BUNDLE_FILES:
-        _write_if_missing(bundle / fname, f"# {fname}\n")
+        if fname in {"06_TESTS.txt", "06_CHANGED_FILES.txt"}:
+            _write_if_missing(
+                bundle / fname,
+                (
+                    "PLACEHOLDER: populate this file with real command output via "
+                    "the Synapse quest runner wrapper. DO NOT LEAVE PLACEHOLDER.\n"
+                ),
+            )
+        else:
+            _write_if_missing(bundle / fname, f"# {fname}\n")
 
     print(f"OK: initialized {bundle}")
     return 0
@@ -193,7 +301,14 @@ def cmd_validate(args: argparse.Namespace) -> int:
     for fname in REQUIRED_BUNDLE_FILES:
         _check((bundle / fname).is_file(), failures, f"missing required audit file: {fname}")
 
-    _check(_has_any_proof_files(bundle), failures, "missing proof artifacts: expected at least one 06_* file")
+    ok, why = _proof_receipts_ok(bundle)
+    _check(ok, failures, why)
+
+    ok, why = _verify_md_ok(bundle)
+    _check(ok, failures, why)
+
+    ok, why = _outcome_md_ok(bundle)
+    _check(ok, failures, why)
 
     preflight = _read_text(bundle / "00_GOVERNANCE_PREFLIGHT.md")
     _check("PRE-FLIGHT: PASS" in preflight, failures, "preflight not passed (missing 'PRE-FLIGHT: PASS')")
@@ -239,7 +354,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_init = sub.add_parser("init-bundle", help="Initialize a quest audit bundle with governance templates.")
     p_init.add_argument("--quest-id", required=True, help="QUEST_### or SIDE-QUEST_###")
     p_init.add_argument("--slug", required=True, help="Bundle slug suffix")
-    p_init.add_argument("--date", help="YYYY-MM-DD (default: today)")
+    p_init.add_argument("--date", help="YYYY-MM-DD (default: inferred from quest filename; else today)")
     p_init.set_defaults(func=cmd_init_bundle)
 
     p_val = sub.add_parser("validate", help="Validate governance compliance for a quest bundle.")

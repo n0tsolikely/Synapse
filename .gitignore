@@ -3,15 +3,50 @@
 Thumbs.db
 *.swp
 *.swo
+.idea/
+.vscode/
+*.tmp
+*.bak
 
 # Python (for later)
 __pycache__/
 *.pyc
 *.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+build/
+dist/
+.eggs/
+*.egg-info/
 .env
+.env.*
 .venv/
+venv/
 
 # Runtime artifacts (future)
 runtime/logs/
 runtime/tmp/
 runtime/artifacts/
+*.log
+
+# Secrets / credentials
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.jks
+*.keystore
+*.asc
+*.kdbx
+secrets/
+credentials/
+*.secrets.*

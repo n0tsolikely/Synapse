@@ -1,3 +1,6 @@
 Synapse OS Governance
-Canon Version: 10
-Date: 2026-02-15
+Canon Version: 11
+Date: 2026-02-24
+Notes:
+- Added HARD enforcement for audit-proof receipts + non-placeholder verify/outcome content.
+- Added mandatory quest runner wrapper policy + tools for deterministic receipt capture.
