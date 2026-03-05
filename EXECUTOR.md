@@ -2,7 +2,7 @@
 # =============================================================================
 # PURPOSE
 # - Canonical, executor-agnostic governance contract for this repo.
-# - Shims (AGENTS.md, CLAUDE.md, Copilot/Cursor/Cline/Continue/Roo/Windsurf/JetHands) MUST point here.
+# - Shims (AGENTS.md, CLAUDE.md, Copilot/Cursor/Cline/Continue/Roo/Windsurf/JetBrains) MUST point here.
 # - Paths are parameterized; no machine-specific defaults beyond $HOME.
 # =============================================================================
 
