@@ -3,7 +3,7 @@ Version: v1.4
 Last Updated: 2026-02-07
 Status: Governance Law (changes require Governance Control Sync)
 
-Maintainer: Hands (Peter) with Brains (Ash)
+Maintainer: Brains (Peter) with Hands (Ash)
 Audience:
 - New Synapse Guild members (human)
 - Any AI session that must resume work without chat history
@@ -230,7 +230,7 @@ A Continuity Lock MUST be created/updated when any of the following are true:
 - a session is nearing its limit AND the next session must continue without re-litigation
 
 Omission rule (strict):
-- If Hands explicitly declares “No continuity required,” a Continuity Lock may be omitted.
+- If Brains explicitly declares “No continuity required,” a Continuity Lock may be omitted.
 - If a Continuity Lock is omitted, the next session MUST NOT claim deterministic rehydration.
 
 Operational consequence:

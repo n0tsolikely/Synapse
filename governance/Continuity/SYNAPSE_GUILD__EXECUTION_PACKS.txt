@@ -3,7 +3,7 @@ Version: v1.3
 Last Updated: 2026-02-07
 Status: Governance Law (changes require Governance Control Sync)
 
-Maintainer: Hands (Peter) with Brains (Ash)
+Maintainer: Brains (Peter) with Hands (Ash)
 Audience:
 - Synapse Guild members (human)
 - Any AI session that must rehydrate and execute work without drift

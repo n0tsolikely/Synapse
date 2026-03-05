@@ -4,7 +4,7 @@ Last Updated: 2026-02-09
 Status: Template (used by Consent Gate)
 
 Purpose:
-This file is Hands' consent artifact for executing an R2 action.
+This file is Brains' consent artifact for executing an R2 action.
 Chat acknowledgements ("yes", "ok", "go ahead") are NOT consent.
 
 Canonical placement (relative to <Subject>_Data/):
@@ -25,10 +25,10 @@ DO NOT:
 CONFIRM: YES
 
 # Optional metadata (allowed; ignored by the gate):
-# BY: Hands
+# BY: Brains
 # AT: YYYY-MM-DD HH:MM
 
-# Optional scope toggles (allowed; if present, Brains must honor them):
+# Optional scope toggles (allowed; if present, Hands must honor them):
 # ALLOW_NETWORK_EGRESS: YES|NO
 # ALLOW_REAL_TOKENS: YES|NO
 # ALLOW_MODEL_DOWNLOADS: YES|NO

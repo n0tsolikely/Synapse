@@ -26,7 +26,7 @@ Chat-only exploration is non-authoritative and MUST NOT be treated as state.
 ## Interactions
 - Exploration produces Discoveries.
 - Discoveries inform TOC and Codex construction.
-- Once the Codex is sufficiently complete, Hands may freeze it (Fog Lifted) to authorize execution.
+- Once the Codex is sufficiently complete, Brains may freeze it (Fog Lifted) to authorize execution.
 
 ## Authority
 → `The Guild/Terminology/Locks/LOCK__FOG_OF_WAR.md`  

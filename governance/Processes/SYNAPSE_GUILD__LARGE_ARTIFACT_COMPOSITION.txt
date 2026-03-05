@@ -62,8 +62,8 @@ If summarization risk is non-trivial, chunking is required even if size is uncer
 - The environment may reset or the session may be interrupted.
 - The artifact must survive interruptions without rework.
 
-1.5 Hands Directive
-- Hands explicitly instructs to chunk.
+1.5 Brains Directive
+- Brains explicitly instructs to chunk.
 
 1.6 Output Ceiling Unknown
 If you cannot state (with proof) the safe single-output ceiling of the current execution surface,
@@ -102,7 +102,7 @@ Skipping, reordering, or merging steps is a protocol violation.
 
 If WorkspaceRoot cannot be proven (multiple candidates, missing subject, unknown root):
 - Disclosure Gate MUST trigger
-- chunking is BLOCKED until Hands selects/clarifies WorkspaceRoot
+- chunking is BLOCKED until Brains selects/clarifies WorkspaceRoot
 
 Parts are temporary scaffolding.
 They MUST NOT be mistaken for deliverables.
@@ -121,7 +121,7 @@ Hard prohibitions:
 - Do NOT store parts in canonical subject-state locations (e.g., <Subject>_Data/Codex/)
 
 Exception:
-- Only if Hands explicitly requests draft preservation (e.g., book drafts)
+- Only if Brains explicitly requests draft preservation (e.g., book drafts)
 - Even then, parts remain non-canon unless installed
 
 Canonical boundary law:
@@ -214,7 +214,7 @@ Manifest precision law:
 - Before VERIFY begins:
   - Total parts MUST be resolved (no “TBD”)
   - The manifest MUST be internally consistent (N parts listed, N parts exist)
-- Once VERIFY begins, the manifest becomes read-only for this artifact unless Hands orders changes.
+- Once VERIFY begins, the manifest becomes read-only for this artifact unless Brains orders changes.
 
 ================================================================================
 7) STITCHING LAW (DETERMINISTIC + IDEMPOTENT)
@@ -233,7 +233,7 @@ Rules:
 
 Single Deliverable Rule:
 - If the artifact is intended to be one file, the final output MUST be one file
-- Parts NEVER ship unless Hands explicitly orders it
+- Parts NEVER ship unless Brains explicitly orders it
 
 ================================================================================
 8) VERIFICATION (MANDATORY BEFORE CLAIMING DONE)
@@ -274,7 +274,7 @@ If verification fails:
 - re-stitch
 - re-verify
 
-Rewriting earlier verified parts is forbidden unless Hands orders it.
+Rewriting earlier verified parts is forbidden unless Brains orders it.
 
 8.6 Install Proof (mandatory)
 INSTALL is not “pasting into chat.”
@@ -291,10 +291,10 @@ CLEANUP means staging artifacts do not linger as ambiguous state.
 
 After INSTALL:
 - Default: delete the staging directory
-- Exception: if Hands orders retention, keep the staging directory but mark it non-canon (Archive-only) and document where it lives
+- Exception: if Brains orders retention, keep the staging directory but mark it non-canon (Archive-only) and document where it lives
 
 To claim CLEANUP:
-- you MUST show evidence that staging was deleted or retained by explicit Hands order
+- you MUST show evidence that staging was deleted or retained by explicit Brains order
 
 ================================================================================
 9) RECEIPT INTEGRATION (PHASE-AWARE)

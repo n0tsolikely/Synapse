@@ -27,7 +27,7 @@ Accepted receipts include:
 ## When It Applies
 Always.
 
-Truth Gate is enforced whenever Brains is about to:
+Truth Gate is enforced whenever Hands is about to:
 - advance a workflow state (Quest moves, Orders state changes, Freeze, etc.)
 - claim verification occurred
 - summarize what “happened”

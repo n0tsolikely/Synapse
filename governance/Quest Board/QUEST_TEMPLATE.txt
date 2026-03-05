@@ -85,7 +85,7 @@ System Context Statement:
 If Vision Delta = VARIATION:
 # REQUIRED only if Vision Delta = VARIATION.
 # - Codex intent class it maps to: <e.g., Door: chat interface>
-# - Codification path: <SIDE-QUEST id or "TBD — requires Hands approval">
+# - Codification path: <SIDE-QUEST id or "TBD — requires Brains approval">
 # NOTE: Variations may be allowed to execute if anchored + oriented, but MUST spawn a Side-Quest to codify.
 
 If Vision Delta = SHIFT:
@@ -120,7 +120,7 @@ Risk: (R0 / R1 / R2)
 # OPTIONAL. Defaults to R0 if omitted.
 # R0 = safe/reversible
 # R1 = broad but reversible (touches many files / refactor with rollback)
-# R2 = high-risk (structural/destructive/big diff) — requires Hands confirmation
+# R2 = high-risk (structural/destructive/big diff) — requires Brains confirmation
 # See: Processes/SYNAPSE_GUILD__CONSENT_GATE.txt
 
 R2 Confirmation Artifact (REQUIRED if Risk = R2):

@@ -24,7 +24,7 @@ Terminology exists to prevent drift, “helpful” reinterpretation, and cross-s
 - If a term is used in an artifact, its meaning is the content of the corresponding Term or Lock files, not “what we meant in chat.”
 - If a needed term is not defined here, treat it as undefined.
   - Subject-specific definitions belong in the Subject Codex.
-  - Governance-wide meanings require a governance change and Hands approval.
+  - Governance-wide meanings require a governance change and Brains approval.
 
 ## Conflict handling
 - If a Term conflicts with a Lock:

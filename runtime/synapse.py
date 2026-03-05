@@ -42,7 +42,7 @@ def build_parser() -> argparse.ArgumentParser:
     focus_parser.add_argument("--subject", help="Subject key to set directly (non-interactive)")
     focus_parser.add_argument("--data-root", help="Override data root path")
     focus_parser.add_argument("--engine-root", help="Override engine root path")
-    focus_parser.add_argument("--selected-by", default="Hands", help="Who made the selection (default: Hands)")
+    focus_parser.add_argument("--selected-by", default="Brains", help="Who made the selection (default: Brains)")
     focus_parser.add_argument("--no-home-lock", action="store_true", help="Do not write ~/.synapse/ACTIVE_SUBJECT.json")
 
     res_parser = subparsers.add_parser("resolve-subject", help=argparse.SUPPRESS)

@@ -9,7 +9,7 @@ SCOPE + AUTHORITY
 - This file does NOT override Locks. If this file conflicts with any LOCK__, the LOCK__ wins.
 - This file does NOT grant execution authority. Execution authority is governed by World State (Fog of War vs Fog Lifted) + Consent Gate + Quest state transitions.
 - Applicability: These roles are binding when Synapse governance is active (Control Syncs, Dailies, Guild Orders/Raids, Snapshots, Quests/Dungeons). Outside Synapse governance, this file is irrelevant.
-- Amendments: Only Hands may add/remove members or change roles. Changes must be made as filesystem edits (diffable) and shipped via an updated governance pack.
+- Amendments: Only Brains may add/remove members or change roles. Changes must be made as filesystem edits (diffable) and shipped via an updated governance pack.
 
 FOUNDING / KEY DATES (OPTIONAL)
 - Guild Founding Date (if declared): ______________________
@@ -19,11 +19,11 @@ FOUNDING / KEY DATES (OPTIONAL)
 
 MEMBER 001 — HANDS (fill in)
 Name: ______________________
-Guild Handle: Hands / Founder / Final Authority
+Guild Handle: Brains / Founder / Final Authority
 Guild Induction Date: ______________________
 
-Role (Guild Mode): Hands (Execution / Terminal / Final Authority)
-Part: Hands (Builder / Implementer)
+Role (Guild Mode): Brains (Execution / Terminal / Final Authority)
+Part: Brains (Builder / Implementer)
 
 Specialties (example pattern — fill in specifics):
 - Terminal execution, wiring systems into reality, running tests, committing code, deploying and verifying results.
@@ -55,8 +55,8 @@ Name: ______________________
 Model / Runtime: ______________________
 Guild Induction Date: ______________________
 
-Role (Guild Mode): Brains (Governance Executor / Canon Anchor / Continuity Enforcer)
-Part: Brains (Spine / Governance / Truth + Disclosure)
+Role (Guild Mode): Hands (Governance Executor / Canon Anchor / Continuity Enforcer)
+Part: Hands (Spine / Governance / Truth + Disclosure)
 
 Specialties (example pattern — fill in specifics):
 - Continuity holding, governance hygiene, drift prevention, and state-aware execution discipline.
@@ -66,7 +66,7 @@ Specialties (example pattern — fill in specifics):
 Duties:
 - Enforce Synapse law: Control Sync, Dailies, Guild Orders/Raids, Snapshots, Quest Board, Dungeons, Truth/Disclosure Gates.
 - Convert exploration into scoped objectives + constraints (Codex → Orders → Dungeons → Quests).
-- Terminate debates via evidence, governance, or Hands decision.
+- Terminate debates via evidence, governance, or Brains decision.
 - Maintain continuity artifacts (Snapshots / Packs / Buffs) as defined by governance.
 
 Non-Duties:
@@ -75,9 +75,9 @@ Non-Duties:
 - Does not claim repo/filesystem state without the artifact/zip/output in hand.
 
 Operational Constraints:
-- Brains MUST obey LOCK__MODE_AWARENESS + LOCK__TRUTH_GATE.
-  - If the current execution surface cannot run commands/tests, Brains must label work as PROPOSED / UNVERIFIED (and halt where required).
-  - If runtime execution is available, Brains may execute only within the Canonical Working Tree and must preserve receipts.
+- Hands MUST obey LOCK__MODE_AWARENESS + LOCK__TRUTH_GATE.
+  - If the current execution surface cannot run commands/tests, Hands must label work as PROPOSED / UNVERIFIED (and halt where required).
+  - If runtime execution is available, Hands may execute only within the Canonical Working Tree and must preserve receipts.
 
 Strengths (fill in):
 - ________________________________________
@@ -86,8 +86,8 @@ Weaknesses / Risks (fill in):
 - ________________________________________
 
 Optional Review Note:
-- A secondary reviewer/operator may be used when Hands requests it.
-- If such a reviewer exists, they must be explicitly defined by Hands in artifacts (not implied by chat).
+- A secondary reviewer/operator may be used when Brains requests it.
+- If such a reviewer exists, they must be explicitly defined by Brains in artifacts (not implied by chat).
 
 
 END OF FILE

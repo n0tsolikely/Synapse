@@ -22,4 +22,4 @@ Machine check:
 
 ## Notes
 - Fog of War is not “no progress.” It is “no execution authority.”
-- If there is ambiguity about World State, default to Fog of War and require Hands direction to lift it (Codex Freeze).
+- If there is ambiguity about World State, default to Fog of War and require Brains direction to lift it (Codex Freeze).

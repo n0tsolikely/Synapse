@@ -3,10 +3,10 @@ Version: v1.2
 Last Updated: 2026-02-06
 Status: Governance Law (changes require Governance Control Sync)
 
-Maintainer: Hands (Peter) with Brains (Ash)
+Maintainer: Brains (Peter) with Hands (Ash)
 Audience:
 - Any AI session conducting Control Sync
-- Any human operator (Hands) who wants deterministic session starts
+- Any human operator (Brains) who wants deterministic session starts
 
 ================================================================================
 0) PURPOSE
@@ -39,7 +39,7 @@ Hard rule:
 
 If any canonical directory is missing:
 - STOP
-- Disclosure Gate MUST notify Hands
+- Disclosure Gate MUST notify Brains
 
 ----------------------------------------
 1.2 Identify Subject + Mode (Continuing vs New)
@@ -51,7 +51,7 @@ If any canonical directory is missing:
 
 If Subject key/name is NOT known OR <Subject>_Data cannot be found:
 - STOP
-- Ask Hands the minimum entry questions (per CONTROL_SYNC law)
+- Ask Brains the minimum entry questions (per CONTROL_SYNC law)
 - DO NOT proceed into execution
 
 If New Subject:
@@ -68,13 +68,13 @@ If <Subject>_Data exists:
     - <Subject>_Data/Buffs/<SUBJECT>_SESSION_START_CHECK.txt
 
 [ ] Resolve + read Latest Rehydration Pack artifacts (latest Bootstrap Prompt + latest Continuity Lock)
-    - “latest” MUST be resolved via SYNAPSE_STATE.yaml (or explicit Hands instruction)
+    - “latest” MUST be resolved via SYNAPSE_STATE.yaml (or explicit Brains instruction)
     - DO NOT guess which file is latest
 
 If any required subject-state artifact is missing:
 - state the missing artifact explicitly
-- Disclosure Gate MUST notify Hands
-- execution authority MUST NOT advance until Hands resolves the gap
+- Disclosure Gate MUST notify Brains
+- execution authority MUST NOT advance until Brains resolves the gap
 
 ----------------------------------------
 1.4 Snapshot review (MANDATORY)
@@ -103,12 +103,12 @@ If executing (Fog Lifted):
 If marker is missing:
 - STOP execution
 - remain in Fog of War
-- Disclosure Gate MUST notify Hands
+- Disclosure Gate MUST notify Brains
 
 Fog of War sanity check:
 [ ] If World State is Fog of War, Accepted/ MUST be empty.
     - If Accepted/ contains quests, the state is INVALID.
-    - STOP and Disclosure Gate MUST notify Hands.
+    - STOP and Disclosure Gate MUST notify Brains.
 
 ----------------------------------------
 1.6 Review state surfaces (no generation)
@@ -123,9 +123,9 @@ Hard prohibition during review:
 - DO NOT accept quests during review (acceptance occurs in 1.8 only)
 
 ----------------------------------------
-1.7 Decide scope (Hands authority)
+1.7 Decide scope (Brains authority)
 ----------------------------------------
-[ ] Hands decides today/session scope:
+[ ] Brains decides today/session scope:
     - which quests will be accepted
     - which raids/dungeons are in focus
     - any explicit deferrals (and why)
@@ -172,8 +172,8 @@ Hard rule:
 ----------------------------------------
 1.10 End Control Sync explicitly
 ----------------------------------------
-Control Sync continues until Hands ends it.
-[ ] Hands explicitly ended Control Sync
+Control Sync continues until Brains ends it.
+[ ] Brains explicitly ended Control Sync
 [ ] Snapshot from 1.9 exists on disk
 
 Only after 1.10 completes:

@@ -30,7 +30,7 @@ Minimum subject artifacts (common):
 - Bootstrap Prompt
 - Control Sync Snapshot
 - `SYNAPSE_STATE.yaml`
-- Hands
+- Brains
 
 Guessing “latest” by timestamp, filename pattern, or intuition is prohibited.
 

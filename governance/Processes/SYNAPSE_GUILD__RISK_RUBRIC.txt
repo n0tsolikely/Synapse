@@ -4,7 +4,7 @@ Last Updated: 2026-02-12
 Status: Governance Law
 
 Purpose:
-Classify work by blast radius and reversibility so Hands does NOT need to approve
+Classify work by blast radius and reversibility so Brains does NOT need to approve
 _every_ quest, while still preventing big, messy, destructive, or irreversible
 changes from being executed implicitly.
 
@@ -20,8 +20,8 @@ Deterministic Decision Procedure (mandatory):
 3) Else → Risk = R0.
 
 Enforcement:
-- R0/R1: may execute without Hands confirmation (still requires Audits + Truth Gate).
-- R2: MUST NOT execute without Hands confirmation via Consent Gate.
+- R0/R1: may execute without Brains confirmation (still requires Audits + Truth Gate).
+- R2: MUST NOT execute without Brains confirmation via Consent Gate.
   See: Processes/SYNAPSE_GUILD__CONSENT_GATE.txt
 
 ================================================================================
@@ -41,7 +41,7 @@ Common examples:
 - Clarify docs (non-lock narrative docs)
 
 Consent:
-- Auto-execute (no Hands confirmation required).
+- Auto-execute (no Brains confirmation required).
 
 ================================================================================
 R1 — BROAD BUT REVERSIBLE
@@ -59,7 +59,7 @@ Automatic R1 triggers (treat as R1 even if not declared):
 - Interface changes that require coordinated updates but remain reversible.
 
 Consent:
-- Auto-execute (no Hands confirmation required).
+- Auto-execute (no Brains confirmation required).
 
 R1 requirements (must appear in the Quest/Audits):
 - Verification Plan (what will be run/checked to prove success).
@@ -96,7 +96,7 @@ Automatic R2 triggers (treat as R2 even if not declared):
 
 Consent:
 - HARD STOP.
-- Requires Hands confirmation via a Confirmation Artifact containing:
+- Requires Brains confirmation via a Confirmation Artifact containing:
   CONFIRM: YES
 - See: Processes/SYNAPSE_GUILD__CONSENT_GATE.txt
 

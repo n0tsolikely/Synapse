@@ -31,12 +31,12 @@ A large file is allowed if it remains a single, bounded responsibility.
 
 ## Rules (non-negotiable)
 ### 1) Separation requirement
-When adding a new capability, Brains MUST place it in its own bounded module/section/artifact with a clear name and responsibility.
+When adding a new capability, Hands MUST place it in its own bounded module/section/artifact with a clear name and responsibility.
 
-If full separation is not yet possible, Brains MUST create a **named seam** (interface/contract/heading) and keep implementations behind that seam.
+If full separation is not yet possible, Hands MUST create a **named seam** (interface/contract/heading) and keep implementations behind that seam.
 
 ### 2) No dumping rule
-Brains MUST NOT:
+Hands MUST NOT:
 - add unrelated behavior to an existing artifact "because it was already open"
 - create or grow a catch-all sink (e.g., utils/helpers/misc) that absorbs unrelated capabilities
 
@@ -47,9 +47,9 @@ If the correct architecture is not fully known yet:
 - defer wiring to explicit integration work
 
 ### 4) No opportunistic refactors
-Brains MUST NOT do cleanup refactors during a Quest unless:
+Hands MUST NOT do cleanup refactors during a Quest unless:
 - the Quest explicitly includes the refactor in scope, OR
-- Hands explicitly approves (Consent Gate / Control Sync as appropriate)
+- Brains explicitly approves (Consent Gate / Control Sync as appropriate)
 
 ## Allowed exceptions (deliberate, labeled)
 ### Prototypes / throwaways
@@ -63,7 +63,7 @@ If the prototype graduates, a Quest MUST exist to modularize it (separate capabi
 ## Enforcement (how this shows up)
 - Quests SHOULD state any relevant architecture constraints (including this lock) in the Verification Plan.
 - Execution Audits SHOULD call out structural drift.
-- If a God artifact emerges, Brains MUST:
+- If a God artifact emerges, Hands MUST:
   - fix it in-scope if small + safe, OR
   - create a follow-up Quest to correct it, OR
-  - escalate to Hands if it implies redesign.
+  - escalate to Brains if it implies redesign.

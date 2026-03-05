@@ -3,7 +3,7 @@ Version: v1.5
 Last Updated: 2026-02-18
 Status: Governance Law (changes require Governance Control Sync)
 
-Maintainer: Hands (Peter) with Brains (Ash)
+Maintainer: Brains (Peter) with Hands (Ash)
 Audience:
 - New Synapse Guild members (human)
 - Any AI session participating in execution, governance, or rehydration
@@ -157,8 +157,8 @@ Purpose:
 Capture what actually happened during execution.
 
 Mandatory trigger:
-When Hands ends a work session (“stop”, “done”, “end session”, or equivalent),
-Brains MUST write an End‑of‑Day Snapshot.
+When Brains ends a work session (“stop”, “done”, “end session”, or equivalent),
+Hands MUST write an End‑of‑Day Snapshot.
 
 If no execution occurred:
 - the End‑of‑Day Snapshot MUST explicitly state that no execution occurred
@@ -253,7 +253,7 @@ In Dailies:
 Rules (hard):
 - The Dailies loop MUST include:
   - a Snapshot at the end of the Control Sync (Control Sync Snapshot or General Snapshot per Section 5)
-  - an End‑of‑Day Snapshot when Hands ends the work session
+  - an End‑of‑Day Snapshot when Brains ends the work session
 
 Execution without Snapshots causes drift.
 Drift invalidates continuity.
@@ -287,7 +287,7 @@ Snapshots are text files stored inside the Subject data folder.
 Canonical rules:
 - Snapshots belong to the Subject, not to Governance.
 - Governance defines the law; <Subject>_Data stores the artifacts.
-- If the required Snapshot directories do not exist, Brains MUST create them
+- If the required Snapshot directories do not exist, Hands MUST create them
   (or trigger Disclosure Gate if creation is not possible).
 
 ----------------------------------------

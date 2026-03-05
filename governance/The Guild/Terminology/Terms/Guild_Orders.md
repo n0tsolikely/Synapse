@@ -12,7 +12,7 @@ Guild Orders prevent scope drift and preserve intent across handoff by convertin
 ## When It Applies
 - After Codex Freeze (Fog Lifted)
 - Before Raids, Dungeons, and Quest acceptance/execution
-- Whenever Hands re-scopes the build window (via Control Sync)
+- Whenever Brains re-scopes the build window (via Control Sync)
 
 ## What It Enables
 - Raid creation (execution state for the Orders)

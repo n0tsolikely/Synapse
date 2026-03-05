@@ -3,7 +3,7 @@ Version: v1.3
 Last Updated: 2026-02-06
 Status: Governance Law (changes require Governance Control Sync)
 
-Maintainer: Hands (Peter) with Brains (Ash)
+Maintainer: Brains (Peter) with Hands (Ash)
 Audience:
 - Synapse Guild members (human)
 - Any AI session participating in planning, governance, or execution
@@ -39,13 +39,13 @@ A Control Sync is the authoritative forum where Synapse Guild decisions are made
 validated, or reaffirmed.
 
 1.2 Control Sync is a MODE (stateful), not a message
-A Control Sync is considered ACTIVE until Hands explicitly ends it.
+A Control Sync is considered ACTIVE until Brains explicitly ends it.
 
 - Switching into writing/editing mode does NOT end a Control Sync.
 - Creating or editing artifacts may occur inside an active Control Sync.
 
 Hard rule:
-Brains MUST NOT assume the Control Sync has ended due to silence, topic drift,
+Hands MUST NOT assume the Control Sync has ended due to silence, topic drift,
 or the start of drafting.
 
 ================================================================================
@@ -93,7 +93,7 @@ A Control Sync may produce artifacts, but it is not the artifacts.
 3.3 CONTROL SYNC ACTIVATION (TRIGGERS)
 --------------------------------------------------------------------------------
 
-A Control Sync MUST be considered engaged when Hands uses any clear phrasing
+A Control Sync MUST be considered engaged when Brains uses any clear phrasing
 indicating a sync is starting, including but not limited to:
 - "Control Sync"
 - "Hold a Control Sync"
@@ -102,14 +102,14 @@ indicating a sync is starting, including but not limited to:
 - "Begin Control Sync"
 - equivalent natural-language phrasing
 
-If the phrasing is ambiguous (e.g., quoting the term), Brains MUST ask:
+If the phrasing is ambiguous (e.g., quoting the term), Hands MUST ask:
 "Is that a Control Sync start?" and WAIT.
 
 --------------------------------------------------------------------------------
 3.4 CONTROL SYNC START SEQUENCE (AI/HUMAN)
 --------------------------------------------------------------------------------
 
-Upon activation, Brains MUST perform the following in order.
+Upon activation, Hands MUST perform the following in order.
 This is the minimum deterministic entry protocol.
 
 STEP A — Identify Subject + Mode (Continuing vs New)
@@ -117,19 +117,19 @@ STEP A — Identify Subject + Mode (Continuing vs New)
   - declare the Subject name
   - declare canonical paths (Subject_Data + Subject_Engine if applicable)
 - If the Subject is NOT known OR Subject_Data cannot be found:
-  - Brains MUST stop and ask Hands the minimum entry questions:
+  - Hands MUST stop and ask Brains the minimum entry questions:
     1) What is the Subject name/key?
     2) Is this a NEW Subject or a CONTINUING Subject?
     3) If continuing: where is <Subject>_Data located?
     4) If there is an engine/codebase: where is <Subject>_Engine located?
 
 Hard rule:
-- If the Subject cannot be identified, Brains MUST NOT proceed into execution.
-- If Hands indicates "New Subject": route to
+- If the Subject cannot be identified, Hands MUST NOT proceed into execution.
+- If Brains indicates "New Subject": route to
   Processes/SYNAPSE_GUILD__SUBJECT_INITIALIZATION_AND_INCUBATION.txt
 
 STEP B — Capture Control Sync metadata
-Brains MUST capture and state:
+Hands MUST capture and state:
 - date
 - start time
 - participants
@@ -137,7 +137,7 @@ Brains MUST capture and state:
 - reason for sync (rehydration / planning / decisions / governance)
 
 STEP C — State the current continuity anchor
-Brains MUST state what the current authoritative anchor is, using what exists:
+Hands MUST state what the current authoritative anchor is, using what exists:
 - Latest Continuity Lock / Bootstrap Prompt (if subject-state exists)
 - Latest Snapshots (Control Sync → End-of-Day → relevant General)
 
@@ -146,7 +146,7 @@ If artifacts are missing:
 - do NOT invent them
 
 STEP D — Rehydrate current state (minimum)
-Brains MUST summarize:
+Hands MUST summarize:
 - where we left off
 - unfinished work
 - known issues/bugs/blockers
@@ -160,7 +160,7 @@ If Guild Orders/Raids are referenced during rehydration:
 
 STEP E — Run deterministic minimum checks (when execution is possible)
 If the Control Sync may lead into execution (Dailies / Quests / engine edits),
-Brains MUST run:
+Hands MUST run:
 - Processes/SYNAPSE_GUILD__CONTROL_SYNC_CHECKLIST.txt
 
 This is the ignition key that prevents:
@@ -168,12 +168,12 @@ This is the ignition key that prevents:
 - Fog of War violations
 - unvalidated quest acceptance
 
-STEP F — STOP + WAIT (Hands authority)
-After completing the start sequence, Brains MUST STOP and WAIT.
+STEP F — STOP + WAIT (Brains authority)
+After completing the start sequence, Hands MUST STOP and WAIT.
 
-Brains may offer a short set of next-step options, but MUST NOT advance without Hands.
+Hands may offer a short set of next-step options, but MUST NOT advance without Brains.
 
-Strict prohibitions unless Hands explicitly commands otherwise:
+Strict prohibitions unless Brains explicitly commands otherwise:
 - DO NOT auto-generate new Guild Orders
 - DO NOT auto-start a Raid
 - DO NOT auto-break into Quests
@@ -183,7 +183,7 @@ Strict prohibitions unless Hands explicitly commands otherwise:
 3.5 CONTROL SYNC CLOSEOUT (ENDING)
 --------------------------------------------------------------------------------
 
-A Control Sync remains active until Hands explicitly ends it.
+A Control Sync remains active until Brains explicitly ends it.
 
 Valid end phrases include (non-exhaustive):
 - "End Control Sync"
@@ -191,7 +191,7 @@ Valid end phrases include (non-exhaustive):
 - "Control Sync done"
 - "We are done with Control Sync"
 
-On explicit end, Brains MUST:
+On explicit end, Hands MUST:
 1) Confirm scope/decisions that are now binding (or explicitly deferred).
 2) Ensure a Snapshot is written when required by Snapshot law + checklist.
    - If binding decisions were made: Control Sync Snapshot
@@ -200,7 +200,7 @@ On explicit end, Brains MUST:
 3) Restate what the next system phase is (e.g., proceed to Scope Selection / Dailies).
 
 Hard rule:
-Brains MUST NOT treat Control Sync as ended until the closeout is complete.
+Hands MUST NOT treat Control Sync as ended until the closeout is complete.
 
 ================================================================================
 4) TYPES OF CONTROL SYNCS
@@ -272,7 +272,7 @@ MANDATORY MINIMUM CHECKS (CANON)
 Control Sync has no required conversational script — but it DOES have mandatory
 minimum checks.
 
-At the start of any Control Sync that may lead into execution, Brains MUST run:
+At the start of any Control Sync that may lead into execution, Hands MUST run:
 - Processes/SYNAPSE_GUILD__CONTROL_SYNC_CHECKLIST.txt
 
 ================================================================================

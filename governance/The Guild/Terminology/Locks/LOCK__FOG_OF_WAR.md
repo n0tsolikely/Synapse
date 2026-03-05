@@ -15,7 +15,7 @@ Fog of War MUST be treated as ACTIVE unless **Codex Freeze is proven** per:
 Minimum proof check (non-negotiable):
 - the marker file exists on disk at:
   - `<Subject>_Data/Codex/CODEX_FREEZE.md`
-- and the marker contains explicit Hands approval (per the Codex Freeze lock)
+- and the marker contains explicit Brains approval (per the Codex Freeze lock)
 
 If proof cannot be produced in the current canonical working tree:
 - Fog of War remains ACTIVE (default)
@@ -38,11 +38,11 @@ Forbidden (no exceptions):
 
 Forbidden by default:
 - Creating `<Subject>_Engine/` during Fog of War
-  - Exception: allowed only if Hands explicitly orders it OR Hands provides an existing Engine to treat as canonical
+  - Exception: allowed only if Brains explicitly orders it OR Brains provides an existing Engine to treat as canonical
   - This exception does NOT lift Fog of War
 
 ## Exit condition (Fog Lifted)
-Fog of War ends ONLY when Codex Freeze is proven (marker file + Hands approval).
+Fog of War ends ONLY when Codex Freeze is proven (marker file + Brains approval).
 
 If Codex Freeze becomes stale, missing, unreadable, or contradictory:
 - Fog of War MUST be treated as ACTIVE again immediately (Disclosure Gate)

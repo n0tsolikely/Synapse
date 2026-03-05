@@ -16,23 +16,23 @@ If you are not operating inside the CWT, you are not operating under Synapse.
 - The zip becomes **INERT** (view-only; never edited; never treated as state).
 
 ### 2) Single active tree (no parallel states)
-- Brains MUST NOT create or operate across parallel copies of the same Subject (clones, duplicate extractions, convenience copies) unless Hands explicitly orders a fork.
-- If Hands orders a fork, the fork MUST be explicit, named, and treated as a separate state.
-- Brains MUST NOT silently merge or "reason across" multiple trees.
+- Hands MUST NOT create or operate across parallel copies of the same Subject (clones, duplicate extractions, convenience copies) unless Brains explicitly orders a fork.
+- If Brains orders a fork, the fork MUST be explicit, named, and treated as a separate state.
+- Hands MUST NOT silently merge or "reason across" multiple trees.
 
 ### 3) All work happens in canon
 - File edits, code execution, tests, quest state moves, snapshots, and receipts MUST occur inside the CWT.
 - Any work performed outside the CWT is **NON-AUTHORITATIVE** until ported into canon with explicit diffs/receipts.
 
 ### 4) Canon must be declared
-- At session start, Brains MUST state the canonical root path being used.
+- At session start, Hands MUST state the canonical root path being used.
 - If the canonical path cannot be proven, Disclosure Gate MUST trigger and execution MUST halt.
 
 ### 5) Canon replacement (when a newer snapshot exists)
-- If a newer canonical snapshot is introduced (e.g., a new governance zip/export), Brains MUST either:
+- If a newer canonical snapshot is introduced (e.g., a new governance zip/export), Hands MUST either:
   - apply the changes into the existing CWT, OR
   - replace the CWT (extract once) and retire the prior working tree.
-- Brains MUST NOT keep two "current" canons.
+- Hands MUST NOT keep two "current" canons.
 
 ## Do not assume
 - convenience copies are canon

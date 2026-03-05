@@ -6,7 +6,7 @@ Status: Governance Law (changes require Governance Control Sync)
 Audience:
 - Any AI session using SYNAPSE_STATE.yaml for routing/rehydration
 - Any runtime implementation of Synapse
-- Hands reviewing whether routing/state manifests are safe to rely on
+- Brains reviewing whether routing/state manifests are safe to rely on
 
 ================================================================================
 0) PURPOSE
@@ -43,7 +43,7 @@ Minimum requirement:
   `Schemas/SUBJECT_STATE.schema.json`.
 
 1.3 Proof requirement (anti-handwaving)
-Brains MUST NOT claim that routing/state manifests are valid unless a validation
+Hands MUST NOT claim that routing/state manifests are valid unless a validation
 receipt exists for the current manifest contents.
 
 ================================================================================

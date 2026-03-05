@@ -41,7 +41,7 @@ Machine-check:
 - One canonical `<Subject>_Data/`.
 - One canonical `<Subject>_Engine/`.
 
-If multiple competing copies exist, the system MUST HALT until Hands selects canon.
+If multiple competing copies exist, the system MUST HALT until Brains selects canon.
 
 ---
 
@@ -59,8 +59,8 @@ This is the **Incubation Phase**.
 
 ### 1.1 Entering Incubation
 The system enters Incubation when:
-- Hands wants to start something new, OR
-- Hands is describing an idea and no Codex exists for the subject.
+- Brains wants to start something new, OR
+- Brains is describing an idea and no Codex exists for the subject.
 
 Incubation is the default state when a Codex does not exist.
 
@@ -103,7 +103,7 @@ The structure is domain-agnostic. Examples:
 
 Rule:
 - the system MUST avoid parallel conflicting versions of the same concept.
-- if conflicts exist, they MUST be called out explicitly and resolved by Hands.
+- if conflicts exist, they MUST be called out explicitly and resolved by Brains.
 
 ### 1.6 Periodic Crystallization (continuity anchors)
 To prevent long-session blur, the system MUST periodically crystallize:
@@ -122,7 +122,7 @@ Crystallize at minimum:
 - when explicitly requested
 
 ### 1.7 Stress Testing (optional; Fog of War safe)
-At any point during Incubation, Hands MAY request a stress test.
+At any point during Incubation, Brains MAY request a stress test.
 
 Definition:
 - a stress test is a structured thought experiment that runs the subject end-to-end (or long-horizon) to discover missing laws, edge cases, contradictions, or unasked questions.
@@ -136,9 +136,9 @@ Rules:
 
 ## 2. FROM IDEA TO MAP — TABLE OF CONTENTS (TOC)
 
-Incubation ends only when Hands explicitly directs TOC/Codex creation.
+Incubation ends only when Brains explicitly directs TOC/Codex creation.
 
-Hands intent examples:
+Brains intent examples:
 - “Make the TOC”
 - “Write the Codex”
 - “Freeze the map”
@@ -220,7 +220,7 @@ When all TOC sections are written, the system MUST:
 - audit the stitched Codex for completeness and internal consistency
 - resolve any discovered gaps before freezing
 
-Only after completion audit passes may Hands freeze the Codex.
+Only after completion audit passes may Brains freeze the Codex.
 
 ---
 
@@ -230,7 +230,7 @@ Codex Freeze is the execution gate.
 It transitions World State from Fog of War to Fog Lifted.
 
 Codex Freeze is valid only when:
-- Hands explicitly declares the Codex frozen, AND
+- Brains explicitly declares the Codex frozen, AND
 - the marker file exists: `<Subject>_Data/Codex/CODEX_FREEZE.md`
 
 Without the marker:

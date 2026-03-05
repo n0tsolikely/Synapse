@@ -31,20 +31,20 @@ If the Snapshot cannot be written (missing Subject, missing permissions, environ
 - execution authority MUST NOT advance
 
 ### End-of-Day closeout
-When Hands ends a work session ("stop", "done", "end session", or equivalent), Brains MUST write an **End-of-Day Snapshot**.
+When Brains ends a work session ("stop", "done", "end session", or equivalent), Hands MUST write an **End-of-Day Snapshot**.
 
 If no execution occurred:
 - the End-of-Day Snapshot MUST explicitly state that no execution occurred
 - it MUST reference the most recent Control Sync Snapshot (if one exists)
 
 ## Required ordering on rehydration
-When resuming a Subject, Brains MUST review, in this order:
+When resuming a Subject, Hands MUST review, in this order:
 1) the most recent **Control Sync Snapshot** (intent + binding decisions)
 2) then the most recent **End-of-Day Snapshot** (execution reality)
 
 If either required Snapshot cannot be found/proven:
 - Disclosure Gate MUST trigger
-- Brains MUST NOT assume what happened
+- Hands MUST NOT assume what happened
 
 This ordering prevents false assumptions.
 

@@ -78,7 +78,7 @@ def write_focus_lock(
     engine_root: str | Path,
     cwt: Path | None = None,
     home: Path | None = None,
-    selected_by: str = "Hands",
+    selected_by: str = "Brains",
     selection_method: str = "interactive",
     write_home_lock: bool = True,
 ) -> dict[str, Any]:
@@ -185,7 +185,7 @@ def resolve_subject(
         "data_root": str(Path(data_root).expanduser().resolve()),
         "engine_root": str(Path(engine_root).expanduser().resolve()),
         "selected_at": str(base.get("selected_at") or _now_iso()),
-        "selected_by": str(base.get("selected_by") or "Hands"),
+        "selected_by": str(base.get("selected_by") or "Brains"),
         "selection_method": selection_method,
         "source_detail": source,
         "repo_lockfile": str(repo_focus_lock_path(cwt).resolve()),
