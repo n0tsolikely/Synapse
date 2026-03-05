@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Synapse OS runtime CLI."""
+"""Synapse runtime CLI."""
 
 import argparse
 import sys

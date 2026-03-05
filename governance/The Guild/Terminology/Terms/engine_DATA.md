@@ -9,7 +9,7 @@
 - `<Subject>_Data/` contains Codex, TOC, Snapshots, Quest Board, Audits, Guild Orders, Buffs, Rehydration artifacts, Talent Tree, etc.
 
 ## Governance pack
-The Synapse OS Governance Pack (this pack) is governance law + processes.
+The Synapse Governance Pack (this pack) is governance law + processes.
 - It is not a Subject’s Engine and it is not a Subject’s Data.
 - It may be injected into a session to govern behavior.
 

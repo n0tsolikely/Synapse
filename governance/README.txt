@@ -1,8 +1,8 @@
 SYNAPSE OS — GOVERNANCE PACK (README)
 Version: v1.11
 Last Updated: 2026-02-18
-This folder is a portable Synapse OS “engine pack” designed to be dropped into ANY AI session.
-Its purpose is to govern the AI to follow Synapse OS protocol strictly and deterministically.
+This folder is a portable Synapse “engine pack” designed to be dropped into ANY AI session.
+Its purpose is to govern the AI to follow Synapse protocol strictly and deterministically.
 
 This pack is not “notes about governance.”
 This pack IS the governance.
@@ -11,7 +11,7 @@ This pack IS the governance.
 0) NON-NEGOTIABLE OPERATING RULE
 ================================================================================
 If you are an AI session operating with this pack loaded:
-- You MUST follow Synapse OS protocol to the letter.
+- You MUST follow Synapse protocol to the letter.
 - You MUST prefer receipts and proof over narration.
 - You MUST refuse, BLOCK, or label anything you cannot prove or execute.
 

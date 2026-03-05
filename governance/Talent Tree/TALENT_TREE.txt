@@ -9,7 +9,7 @@ When this file exists at:
 …it is the authoritative, human-readable ledger of unlocked capabilities for that Subject.
 
 Governance note:
-- The copy of this file inside the Synapse OS Governance Pack is a TEMPLATE ONLY.
+- The copy of this file inside the Synapse Governance Pack is a TEMPLATE ONLY.
 - Chat is not an update. If the file is not written on disk, the Talent Tree is not updated.
 
 Update trigger:

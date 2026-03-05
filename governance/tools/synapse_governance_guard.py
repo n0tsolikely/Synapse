@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Synapse OS — Governance Guard (subject-agnostic).
+"""Synapse — Governance Guard (subject-agnostic).
 
 Version: v0.4
 Last Updated: 2026-02-24
@@ -11,7 +11,7 @@ It is a deterministic governance helper that:
 
 Why this exists:
 - Agents love claiming "done" with no receipts.
-- Synapse OS requires proof artifacts and structured audits.
+- Synapse requires proof artifacts and structured audits.
 
 Design posture:
 - Deterministic.

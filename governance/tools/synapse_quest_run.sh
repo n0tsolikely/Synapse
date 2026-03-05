@@ -17,8 +17,8 @@ set -euo pipefail
 DATA_ROOT="${DATA_ROOT:-/home/notsolikely/Ashby_Data}"
 ENGINE_ROOT="${ENGINE_ROOT:-/home/notsolikely/Ashby_Engine}"
 SUBJECT="${SUBJECT:-STUART}"
-GUARD="${GUARD:-/home/notsolikely/Synapse_OS/governance/tools/synapse_governance_guard.py}"
-SNAPSHOT_WRITER="${SNAPSHOT_WRITER:-/home/notsolikely/Synapse_OS/governance/tools/synapse_snapshot_writer.py}"
+GUARD="${GUARD:-/home/notsolikely/Synapse/governance/tools/synapse_governance_guard.py}"
+SNAPSHOT_WRITER="${SNAPSHOT_WRITER:-/home/notsolikely/Synapse/governance/tools/synapse_snapshot_writer.py}"
 RUNTIME_DIR="$DATA_ROOT/.governance_runtime"
 WAVE_FILE="$RUNTIME_DIR/quest_wave_receipts.tsv"
 

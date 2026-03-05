@@ -5,13 +5,13 @@ Status: Governance Law (changes require Governance Control Sync)
 
 Audience:
 - Any AI session using SYNAPSE_STATE.yaml for routing/rehydration
-- Any runtime implementation of Synapse OS
+- Any runtime implementation of Synapse
 - Hands reviewing whether routing/state manifests are safe to rely on
 
 ================================================================================
 0) PURPOSE
 ================================================================================
-Synapse OS uses YAML manifests as deterministic routing + state pointers.
+Synapse uses YAML manifests as deterministic routing + state pointers.
 
 If these manifests drift silently (fields renamed, structures changed, partial
 writes), the runtime can:

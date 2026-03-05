@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Synapse OS — Snapshot Writer (subject-agnostic).
+"""Synapse — Snapshot Writer (subject-agnostic).
 
 Version: v0.3
 Last Updated: 2026-02-18
@@ -729,7 +729,7 @@ def cmd_status(args: argparse.Namespace) -> int:
 # -------------------------
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="Synapse OS snapshot writer (deterministic, subject-agnostic).")
+    p = argparse.ArgumentParser(description="Synapse snapshot writer (deterministic, subject-agnostic).")
 
     p.add_argument("--data-root", default="~/Ashby_Data", help="Canonical <Subject>_Data root")
     p.add_argument("--subject", help="Subject name (recommended; required if cannot be inferred)")

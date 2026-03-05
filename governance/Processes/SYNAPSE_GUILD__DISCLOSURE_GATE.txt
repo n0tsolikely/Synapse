@@ -5,7 +5,7 @@ Status: Governance Law (changes require Governance Control Sync)
 
 Maintainer: Hands (Peter) with Brains (Ash)
 Audience:
-- Any AI session operating under Synapse OS
+- Any AI session operating under Synapse
 - Any human operator executing Quests / writing Snapshots / managing state
 
 ================================================================================

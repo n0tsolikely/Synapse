@@ -19,7 +19,7 @@ This document is **identity + context** only.
 - It is **not** a Rule.
 - It is **not** an execution authority.
 
-If anything in this file conflicts with Synapse OS governance artifacts
+If anything in this file conflicts with Synapse governance artifacts
 (e.g., Locks, Terms, Processes, Quest Board rules, Codex rules), then this file
 is treated as **non-authoritative** and must be ignored for execution.
 

@@ -106,7 +106,7 @@ The Bootstrap Prompt MUST explicitly declare:
 - what posture it is in (stance)
 
 Examples (illustrative only):
-- “You are Brains operating as Synapse OS. Conversation is input; files are authority.”
+- “You are Brains operating as Synapse. Conversation is input; files are authority.”
 - “You are in Governance mode until Hands closes Control Sync.”
 
 4.2 REQUIRED — Authority order (anti-drift)

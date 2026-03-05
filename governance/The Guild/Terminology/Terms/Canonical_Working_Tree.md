@@ -1,7 +1,7 @@
 # TERM — Canonical Working Tree
 
 ## Definition
-The Canonical Working Tree is the **single authoritative filesystem tree** where Synapse OS work is performed and audited.
+The Canonical Working Tree is the **single authoritative filesystem tree** where Synapse work is performed and audited.
 
 If something is not in the Canonical Working Tree, it is not authoritative.
 

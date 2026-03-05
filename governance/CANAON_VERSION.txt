@@ -1,4 +1,4 @@
-Synapse OS Governance
+Synapse Governance
 Canon Version: 11
 Date: 2026-02-24
 Notes:

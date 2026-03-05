@@ -1,7 +1,7 @@
 # TERM — World State
 
 ## Definition
-World State is a **binary legality flag** that governs what Synapse OS is allowed to do for a Subject.
+World State is a **binary legality flag** that governs what Synapse is allowed to do for a Subject.
 
 - **Fog of War**: exploration / incubation. **Execution is illegal.**
 - **Fog Lifted**: Codex is frozen. **Execution is legal** (under Dailies + gates).

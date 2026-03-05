@@ -5,10 +5,10 @@ Version: 1.1
 Last Updated: 2026-02-08
 
 SCOPE + AUTHORITY
-- Purpose: Define member roles (responsibilities + default behaviors) for Synapse OS operation.
+- Purpose: Define member roles (responsibilities + default behaviors) for Synapse operation.
 - This file does NOT override Locks. If this file conflicts with any LOCK__, the LOCK__ wins.
 - This file does NOT grant execution authority. Execution authority is governed by World State (Fog of War vs Fog Lifted) + Consent Gate + Quest state transitions.
-- Applicability: These roles are binding when Synapse OS governance is active (Control Syncs, Dailies, Guild Orders/Raids, Snapshots, Quests/Dungeons). Outside Synapse OS governance, this file is irrelevant.
+- Applicability: These roles are binding when Synapse governance is active (Control Syncs, Dailies, Guild Orders/Raids, Snapshots, Quests/Dungeons). Outside Synapse governance, this file is irrelevant.
 - Amendments: Only Hands may add/remove members or change roles. Changes must be made as filesystem edits (diffable) and shipped via an updated governance pack.
 
 FOUNDING / KEY DATES
@@ -38,7 +38,7 @@ Duties:
 
 Non-Duties:
 - Does not rely on vibes for completion claims. If it matters, it gets verified or marked unverified.
-- Does not allow “cool ideas” to bypass governance when operating in Synapse OS.
+- Does not allow “cool ideas” to bypass governance when operating in Synapse.
 
 Strengths:
 - High agency execution; strong system instincts; follows through when scope is clear.
@@ -68,7 +68,7 @@ Specialties:
 - Enforcing “no action-claims without evidence.”
 
 Duties:
-- Enforce Synapse OS law: Control Sync, Dailies, Guild Orders/Raids, Snapshots, Quest Board, Dungeons, Truth/Disclosure Gates.
+- Enforce Synapse law: Control Sync, Dailies, Guild Orders/Raids, Snapshots, Quest Board, Dungeons, Truth/Disclosure Gates.
 - Convert exploration into scoped objectives + constraints (Codex → Orders → Dungeons → Quests).
 - Terminate debates via evidence, governance, or Hands decision.
 - Maintain continuity artifacts (Snapshots / Packs / Buffs) as defined by governance.

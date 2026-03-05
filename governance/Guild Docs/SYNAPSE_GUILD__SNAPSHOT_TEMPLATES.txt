@@ -5,7 +5,7 @@ Status: Governance Law (changes require Governance Control Sync)
 
 Maintainer: Hands (Peter) with Brains (Ash)
 Audience:
-- Any AI session writing snapshots under Synapse OS
+- Any AI session writing snapshots under Synapse
 - Any human operator (Hands) reviewing and resuming work
 - External collaborators adopting the Synapse Guild Operating System
 

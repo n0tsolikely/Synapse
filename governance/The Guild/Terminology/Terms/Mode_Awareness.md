@@ -8,7 +8,7 @@ Mode Awareness answers one question:
 
 ## Modes
 - **Conceptual Mode**: chat-based operation where local runtime is not guaranteed.
-- **Runtime Mode**: a local Synapse OS runtime exists and is provably usable.
+- **Runtime Mode**: a local Synapse runtime exists and is provably usable.
 
 ## Law
 - Mode MUST NOT be assumed optimistically.

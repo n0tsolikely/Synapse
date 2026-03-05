@@ -1,10 +1,10 @@
-# Synapse OS — Schema Contracts
+# Synapse — Schema Contracts
 **Version:** v1.0  
 **Last Updated:** 2026-02-12  
 **Status:** Governance Support Artifact (Referenced by Lock + Process)
 
 ## Purpose
-This folder contains **formal schema contracts** for Synapse OS state manifests.
+This folder contains **formal schema contracts** for Synapse state manifests.
 
 These contracts exist to prevent **silent schema drift** in:
 - `SYNAPSE_STATE.yaml` (governance routing + rehydration resolver)

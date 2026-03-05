@@ -4,7 +4,7 @@ Last Updated: 2026-02-08
 Status: Governance Law (changes require Governance Control Sync)
 
 Audience:
-- Any AI session (Brains) executing code/software Quests under Synapse OS
+- Any AI session (Brains) executing code/software Quests under Synapse
 - Hands reviewing audits and deciding completion
 
 ================================================================================

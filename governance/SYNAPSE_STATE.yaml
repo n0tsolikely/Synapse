@@ -3,7 +3,7 @@
 # Last Updated: 2026-02-18
 #
 # PURPOSE
-# - Deterministic rehydration + routing manifest for Synapse OS.
+# - Deterministic rehydration + routing manifest for Synapse.
 # - Mirrors README.txt → REQUIRED READ ORDER and resolves "latest" subject artifacts.
 #
 # AUTHORITY + SAFETY
@@ -29,7 +29,7 @@ schema_version: 2
 
 governance_pack:
   # Expected default when the Governance Pack is extracted into the workspace root.
-  root: "Synapse_OS_Governance(AI)"
+  root: "Synapse_Governance(AI)"
 subject_data:
   # One or more canonical {ACTIVE_SUBJECT}_Data roots.
   # NOTE: Each root MUST itself be the {ACTIVE_SUBJECT}_Data directory (no wrapper folders).

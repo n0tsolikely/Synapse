@@ -5,7 +5,7 @@ Last Updated: 2026-02-06
 Status: Governance Law (changes require Governance Control Sync)
 
 
-This document defines Synapse OS as a deterministic **pipeline with nested loops**.
+This document defines Synapse as a deterministic **pipeline with nested loops**.
 
 - **Outer pipeline loop (project lifecycle):**
   Idea → Incubation → TOC → Codex → Codex Freeze → Build (Guild Orders → Dungeons → Quests) → Completion/Iterate
@@ -345,5 +345,5 @@ QUEST MINI-LOOP ENFORCEMENT NOTE (HARD)
 ================================================================================
 During EXECUTE + VERIFY:
 - Run ALL terminal commands through:
-  /home/notsolikely/Synapse_OS/governance/tools/synapse_quest_run.sh
+  /home/notsolikely/Synapse/governance/tools/synapse_quest_run.sh
 - This is mandatory so 06_TESTS.txt contains real CMD receipts.

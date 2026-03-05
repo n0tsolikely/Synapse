@@ -7,7 +7,7 @@ That working state is the **Canonical Working Tree (CWT)**.
 
 All execution, edits, audits, diffs, and "it exists" claims are valid only if they refer to artifacts inside the CWT.
 
-If you are not operating inside the CWT, you are not operating under Synapse OS.
+If you are not operating inside the CWT, you are not operating under Synapse.
 
 ## Rules (non-negotiable)
 ### 1) Extraction makes canon

@@ -1,12 +1,12 @@
-\# Synapse OS (Governance \& Runtime Spine)
+\# Synapse (Governance \& Runtime Spine)
 
 
 
-This repository is the \*\*canonical source of truth\*\* for Synapse OS.
+This repository is the \*\*canonical source of truth\*\* for Synapse.
 
 
 
-Synapse OS is \*\*not\*\* a traditional operating system yet.
+Synapse is \*\*not\*\* a traditional operating system yet.
 
 It is a \*\*governance-first execution framework\*\* designed to control how intelligence
 
@@ -68,7 +68,7 @@ It is a \*\*governance-first execution framework\*\* designed to control how int
 
 \## Status
 
-This repository currently represents \*\*Synapse OS v0 (governance-only)\*\*.
+This repository currently represents \*\*Synapse v0 (governance-only)\*\*.
 
 Runtime enforcement will be added incrementally without changing the core laws.
 

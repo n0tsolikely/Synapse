@@ -9,7 +9,7 @@ Last Updated: 2026-02-07
 ## 0) Vocabulary (do not mix concepts)
 
 - **Synapse Guild** = the *body* (operators / team).
-- **Synapse OS** = the *operating system for work* (human + AI), enforced by files + locks + gates.
+- **Synapse** = the *operating system for work* (human + AI), enforced by files + locks + gates.
 - **Governance Pack (this folder)** = portable law you inject into an AI session.
 - **Subject** = the thing being built (app, book, game, business process, etc.).
 - **Hands** = the final authority (the human). When a gate requires Hands, conversation-level “ok” is not enough unless the gate explicitly allows it.
@@ -18,7 +18,7 @@ Last Updated: 2026-02-07
 
 ## 1) What this pack does (runtime intent)
 
-When an AI is governed by Synapse OS, it MUST:
+When an AI is governed by Synapse, it MUST:
 
 - **Start in Control Sync** (alignment + scope decision) and use the Control Sync Checklist.
 - Treat **conversation as input only**. **Filesystem artifacts advance state.**
@@ -31,7 +31,7 @@ When an AI is governed by Synapse OS, it MUST:
 
 If you remember one thing:
 
-> Synapse OS exists to turn ideas into built reality **without drift, hallucination, or bullshit**.
+> Synapse exists to turn ideas into built reality **without drift, hallucination, or bullshit**.
 
 ---
 

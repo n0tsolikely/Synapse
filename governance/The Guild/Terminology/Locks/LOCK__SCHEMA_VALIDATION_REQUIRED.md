@@ -2,7 +2,7 @@
 **Locked:** 2026-02-12 00:00:00 (America/Toronto assumed)
 
 ## Canon meaning
-Synapse OS relies on YAML state manifests for deterministic routing and rehydration.
+Synapse relies on YAML state manifests for deterministic routing and rehydration.
 
 This lock prevents **silent schema drift** by requiring formal schema validation
 before the manifests are trusted for execution.

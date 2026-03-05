@@ -1,7 +1,7 @@
 # Terminology
 **Updated:** 2026-02-14
 
-This folder defines canonical meanings for Synapse OS terms.
+This folder defines canonical meanings for Synapse terms.
 
 Terminology exists to prevent drift, “helpful” reinterpretation, and cross-session ambiguity.
 

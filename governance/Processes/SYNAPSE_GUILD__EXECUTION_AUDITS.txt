@@ -4,7 +4,7 @@ Last Updated: 2026-02-14
 Status: Governance Law (changes require Governance Control Sync)
 
 Audience:
-- Any AI session executing Quests under Synapse OS
+- Any AI session executing Quests under Synapse
 - Any human operator (Hands) reviewing or resuming execution
 - Any collaborator requiring provable execution truth
 
@@ -479,7 +479,7 @@ Hard law:
 - Running commands "naked" (outside the wrapper) is forbidden because it breaks receipts.
 
 Canonical wrapper:
-- /home/notsolikely/Synapse_OS/governance/tools/synapse_quest_run.sh
+- /home/notsolikely/Synapse/governance/tools/synapse_quest_run.sh
   (If the Subject is not Ashby/STUART, you may override DATA_ROOT/ENGINE_ROOT env vars.)
 
 Wrapper must guarantee:

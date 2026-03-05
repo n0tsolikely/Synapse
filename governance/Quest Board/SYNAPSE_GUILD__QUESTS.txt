@@ -241,7 +241,7 @@ They define *what must be true* when work is finished.
 
 A Quest is not considered COMPLETED unless its execution is provable.
 
-Synapse OS enforces this via Execution Audits.
+Synapse enforces this via Execution Audits.
 
 Canonical rule:
 - Every executed Quest MUST have the mandatory Execution Audit phases:

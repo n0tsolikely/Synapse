@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Synapse OS — SYNAPSE_STATE.yaml Schema",
+  "title": "Synapse — SYNAPSE_STATE.yaml Schema",
   "type": "object",
   "required": ["schema_version", "governance_pack", "subject_data", "required_read_order", "rehydration"],
   "properties": {

@@ -1,10 +1,10 @@
-# AGENTS.md — Synapse OS Governed Execution (AI11)
+# AGENTS.md — Synapse Governed Execution (AI11)
 # =============================================================================
 # INSTALL (do this once)
 # 1) Put this file at:  /home/notsolikely/AGENTS.md
 # 2) OPTIONAL (recommended): symlink it into the roots you run Codex from:
 #      ln -sf /home/notsolikely/AGENTS.md /home/notsolikely/.codex/AGENTS.md
-#      ln -sf /home/notsolikely/AGENTS.md /home/notsolikely/Synapse_OS/AGENTS.md
+#      ln -sf /home/notsolikely/AGENTS.md /home/notsolikely/Synapse/AGENTS.md
 #      ln -sf /home/notsolikely/AGENTS.md /home/notsolikely/Ashby_Engine/AGENTS.md
 #      ln -sf /home/notsolikely/AGENTS.md /home/notsolikely/Ashby_Data/AGENTS.md
 #
@@ -26,23 +26,23 @@
 0) CANONICAL ROOTS (WSL) — DO NOT GUESS PATHS
 ================================================================================
 
-# Synapse OS
-SYNAPSE_OS_ROOT=/home/notsolikely/Synapse_OS
-GOVERNANCE_ROOT=/home/notsolikely/Synapse_OS/governance
+# Synapse
+SYNAPSE_OS_ROOT=/home/notsolikely/Synapse
+GOVERNANCE_ROOT=/home/notsolikely/Synapse/governance
 
 # Engine/Data split (example subject roots)
 ENGINE_ROOT=/home/notsolikely/Ashby_Engine
 DATA_ROOT=/home/notsolikely/Ashby_Data
 
 # Doctor (governance validity gate)
-SYNAPSE_DOCTOR_CMD=python3 /home/notsolikely/Synapse_OS/runtime/synapse.py doctor --governance-root /home/notsolikely/Synapse_OS/governance
+SYNAPSE_DOCTOR_CMD=python3 /home/notsolikely/Synapse/runtime/synapse.py doctor --governance-root /home/notsolikely/Synapse/governance
 
 # Governance tools
-TOOL_SNAPSHOT_PRIMARY=/home/notsolikely/Synapse_OS/governance/tools/synapse_snapshot_writer.py
-TOOL_SNAPSHOT_LEGACY=/home/notsolikely/Synapse_OS/governance/tools/stuart_session_runtime.py
+TOOL_SNAPSHOT_PRIMARY=/home/notsolikely/Synapse/governance/tools/synapse_snapshot_writer.py
+TOOL_SNAPSHOT_LEGACY=/home/notsolikely/Synapse/governance/tools/stuart_session_runtime.py
 
-TOOL_GUARD_PRIMARY=/home/notsolikely/Synapse_OS/governance/tools/synapse_governance_guard.py
-TOOL_GUARD_LEGACY=/home/notsolikely/Synapse_OS/governance/tools/stuart_governance_guard.py
+TOOL_GUARD_PRIMARY=/home/notsolikely/Synapse/governance/tools/synapse_governance_guard.py
+TOOL_GUARD_LEGACY=/home/notsolikely/Synapse/governance/tools/stuart_governance_guard.py
 
 # NOTE:
 # - If a PRIMARY tool exists, it is the canonical one.
@@ -295,7 +295,7 @@ CONSENT UX (NO MANUAL FILE EDITING):
      - token-tests (network + real tokens; no model downloads)
      - schema-change (quest-specific; no network)
   3) If YES, agent MUST run:
-     /home/notsolikely/Synapse_OS/governance/tools/synapse_consent.sh <mode>
+     /home/notsolikely/Synapse/governance/tools/synapse_consent.sh <mode>
      to write the on-disk confirmation artifact, then proceed.
   4) If NO, remain BLOCKED and do not proceed that path.
 
@@ -308,7 +308,7 @@ MANDATORY QUEST RUNNER WRAPPER
 ================================================================================
 
 - ALL quest execution commands MUST be run via:
-  /home/notsolikely/Synapse_OS/governance/tools/synapse_quest_run.sh
+  /home/notsolikely/Synapse/governance/tools/synapse_quest_run.sh
 - Running commands outside the wrapper is forbidden because it breaks receipts.
 
 
@@ -364,7 +364,7 @@ rules — it strengthens them.
 
 MANDATORY EXECUTION PATH
 - ALL quest execution commands MUST be run via:
-  /home/notsolikely/Synapse_OS/governance/tools/synapse_quest_run.sh
+  /home/notsolikely/Synapse/governance/tools/synapse_quest_run.sh
 - Running shell commands directly is considered a PROCEDURE VIOLATION.
 - If a command is executed outside the wrapper, STOP and re-run it through the wrapper.
 - No quest may progress toward completion without wrapper receipts.

@@ -19,7 +19,7 @@ LOCK PRECEDENCE:
 
 ## 0) PRIME PURPOSE
 
-Synapse OS must support a true beginning:
+Synapse must support a true beginning:
 - Hands has an idea
 - there is no Subject workspace yet (no <Subject>_Data)
 - there is no frozen Codex yet (Fog of War)

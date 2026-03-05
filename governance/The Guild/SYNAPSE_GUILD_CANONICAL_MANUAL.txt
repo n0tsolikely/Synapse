@@ -12,7 +12,7 @@ This document is governance law for the Synapse Guild Operating System.
 Changes require a Governance Control Sync.
 
 > **Terminology Authority Notice**  
-> All Synapse OS terminology is defined in `The Guild/Terminology/`.  
+> All Synapse terminology is defined in `The Guild/Terminology/`.  
 > Where a term has an authoritative lock (`Terminology/Locks/`), the lock definition overrides all other descriptions.  
 > The Canonical Manual must not redefine locked terminology.
 

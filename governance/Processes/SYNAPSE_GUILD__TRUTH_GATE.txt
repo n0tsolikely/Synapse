@@ -4,7 +4,7 @@ Last Updated: 2026-02-13
 Status: Governance Law (changes require Governance Control Sync)
 
 Audience:
-- Any AI session operating under Synapse OS governance
+- Any AI session operating under Synapse governance
 - Any human operator (Hands) who requires provable truth and non-silent divergence
 
 ================================================================================

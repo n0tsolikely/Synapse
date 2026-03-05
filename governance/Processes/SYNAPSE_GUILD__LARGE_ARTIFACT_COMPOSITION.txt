@@ -5,7 +5,7 @@ Version: v1.2
 Last Updated: 2026-02-07
 Status: Governance Law
 Applies To: Codex Writing, TOC Generation, Large Specifications, Large Code Artifacts
-Audience: Any AI or human executing work under Synapse OS
+Audience: Any AI or human executing work under Synapse
 
 ================================================================================
 0) PURPOSE
@@ -323,7 +323,7 @@ B) During Incubation / TOC / Codex Writing (Fog of War)
   - where the installed final artifact lives in <Subject>_Data/
 
 C) During Governance Pack maintenance
-- Record chunking usage in the Governance Control Sync snapshot for Synapse OS (outside this pack).
+- Record chunking usage in the Governance Control Sync snapshot for Synapse (outside this pack).
 
 Chunking without receipts violates Truth Gate.
 
