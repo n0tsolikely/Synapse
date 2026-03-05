@@ -345,5 +345,5 @@ QUEST MINI-LOOP ENFORCEMENT NOTE (HARD)
 ================================================================================
 During EXECUTE + VERIFY:
 - Run ALL terminal commands through:
-  $SYNAPSE_ROOT/governance/tools/synapse_quest_run.sh
+  $SYNAPSE_ROOT/runtime/tools/synapse_quest_run.sh
 - This is mandatory so 06_TESTS.txt contains real CMD receipts.

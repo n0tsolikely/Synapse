@@ -4,7 +4,7 @@ set -euo pipefail
 # require_r2_confirmation.sh
 # Governance-level hard Consent Gate for R2 actions.
 #
-# This belongs in Synapse/governance/tools (UNIVERSAL layer),
+# This belongs in Synapse/runtime/tools (UNIVERSAL layer),
 # not subject Data.
 
 CONF_DIR=""
