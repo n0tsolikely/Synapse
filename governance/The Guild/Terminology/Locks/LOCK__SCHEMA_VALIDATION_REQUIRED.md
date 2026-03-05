@@ -22,7 +22,7 @@ If a Subject has:
 - `Schemas/SUBJECT_STATE.schema.json`
 
 ### 3) No validation receipt = no execution authority
-Brains MUST NOT claim deterministic routing correctness without a validation receipt.
+Hands MUST NOT claim deterministic routing correctness without a validation receipt.
 
 If validation FAILS OR cannot be performed in the current execution surface:
 - Disclosure Gate MUST trigger

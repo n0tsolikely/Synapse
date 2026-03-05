@@ -3,7 +3,7 @@ Version: v1.2
 Last Updated: 2026-02-07
 Status: Governance Law (changes require Governance Control Sync)
 
-Maintainer: Hands (Peter) with Brains (Ash)
+Maintainer: Brains (Peter) with Hands (Ash)
 Audience:
 - Any AI session starting fresh without prior chat history
 - Synapse Guild members authoring rehydration flows
@@ -106,8 +106,8 @@ The Bootstrap Prompt MUST explicitly declare:
 - what posture it is in (stance)
 
 Examples (illustrative only):
-- “You are Brains operating as Synapse. Conversation is input; files are authority.”
-- “You are in Governance mode until Hands closes Control Sync.”
+- “You are Hands operating as Synapse. Conversation is input; files are authority.”
+- “You are in Governance mode until Brains closes Control Sync.”
 
 4.2 REQUIRED — Authority order (anti-drift)
 The Bootstrap Prompt MUST state the authority order it will obey.
@@ -125,7 +125,7 @@ The Bootstrap Prompt MUST explicitly constrain behavior by stating:
 At minimum, it MUST address:
 - whether execution is permitted
 - whether scope decisions are permitted (or require Control Sync)
-- whether it must wait for Hands
+- whether it must wait for Brains
 
 4.4 REQUIRED — What MUST NOT be re-litigated
 The Bootstrap Prompt MUST instruct the AI not to redesign settled decisions.
@@ -145,7 +145,7 @@ The Bootstrap Prompt MUST specify exactly what the AI does first after rehydrati
 
 If the Bootstrap Prompt does not contain an explicit first action:
 - default behavior is WAIT (do not proceed)
-- request Hands to provide/repair the Bootstrap Prompt
+- request Brains to provide/repair the Bootstrap Prompt
 
 ================================================================================
 5) BUFFS INTEGRATION (SESSION STARTUP LAW)
@@ -214,7 +214,7 @@ If `<Subject>_Data/` exists and a session is resuming work:
   (see `Continuity/SYNAPSE_GUILD__REHYDRATION_PACK_CHECKLIST.txt`)
 
 A Bootstrap Prompt MAY be omitted only if:
-- Hands explicitly declares: “Exploration only; no state changes; no execution.”
+- Brains explicitly declares: “Exploration only; no state changes; no execution.”
 - AND the session will not create, modify, move, or complete any artifacts
 
 In that exception case:

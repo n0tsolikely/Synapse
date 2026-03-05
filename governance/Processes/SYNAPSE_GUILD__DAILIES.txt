@@ -63,7 +63,7 @@ Machine‑check:
 
 Dailies begin only after:
 1) Control Sync has started and completed its start sequence
-2) Hands has decided today/session scope (inside the Control Sync)
+2) Brains has decided today/session scope (inside the Control Sync)
 3) World State permits execution (Fog Lifted + Codex Freeze marker)
 
 Hard rule:
@@ -189,7 +189,7 @@ A) Verification Audit (MANDATORY)
 - If outputs are large, store as separate receipt files and reference them.
 
 Truth Gate reminder:
-- Brains MUST NOT claim tests/commands ran unless evidence exists.
+- Hands MUST NOT claim tests/commands ran unless evidence exists.
 - Narration is not proof.
 (See: `Processes/SYNAPSE_GUILD__TRUTH_GATE.txt`)
 
@@ -205,7 +205,7 @@ C) State Transition (FILESYSTEM STATE MACHINE)
 - If abandoned:
   - move quest file to `<Subject>_Data/Quest Board/Abandoned/`
 - If incomplete:
-  - keep in `Accepted/` (or pause explicitly under Hands direction)
+  - keep in `Accepted/` (or pause explicitly under Brains direction)
 
 Hard rule:
 - A quest may NOT be moved to Completed without required audits AND an explicit
@@ -220,8 +220,8 @@ D) Talent Update (WHEN APPLICABLE)
 3.5 STEP 5 — SYSTEM VERIFICATION (END‑OF‑SESSION)
 --------------------------------------------------------------------------------
 
-After all in‑scope quests have completed their Quest Mini‑Loop (or when Hands
-requests), Brains MUST perform system‑level verification.
+After all in‑scope quests have completed their Quest Mini‑Loop (or when Brains
+requests), Hands MUST perform system‑level verification.
 
 System Verification has THREE distinct checks (do not blur them):
 
@@ -231,7 +231,7 @@ A) Codex Alignment Check (MANDATORY; ALWAYS)
   - CODEX_ALIGNMENT: ALIGNED | DRIFT
 - If DRIFT is detected:
   - record evidence (what violates what),
-  - escalate to Hands (do not silently accept drift).
+  - escalate to Brains (do not silently accept drift).
 
 B) Build Manual Alignment Check (CONDITIONAL)
 - If a Build Manual exists for the Subject, verify today’s changes align with it.
@@ -300,7 +300,7 @@ C) Latest Rehydration Pack update (when applicable)
 3.7 STEP 7 — STOP / REPEAT
 --------------------------------------------------------------------------------
 
-- Stop when Hands ends the day.
+- Stop when Brains ends the day.
 - Resume tomorrow with a new Control Sync.
 
 ================================================================================

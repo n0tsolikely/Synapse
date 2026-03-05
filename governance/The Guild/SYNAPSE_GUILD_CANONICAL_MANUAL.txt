@@ -1,7 +1,7 @@
 SYNAPSE GUILD — CANONICAL OPERATING MANUAL (v1.5)
 Last Updated: 2026-02-07
 
-Maintainer: Hands (Peter) with Brains (Ash)
+Maintainer: Brains (Peter) with Hands (Ash)
 Audience:
 - New Synapse Guild members (human)
 - Drift recovery (returning after time away)
@@ -71,31 +71,31 @@ We use a body metaphor so responsibilities remain intuitive and scalable.
 
 Every member has:
 1) A functional role (engineer, integrator, designer, etc.)
-2) A body-part role (Brains, Hands, Eyes, etc.) describing their contribution
+2) A body-part role (Hands, Brains, Eyes, etc.) describing their contribution
 
 Core roles (current):
 
-Brains:
+Hands:
 - Architect/strategist.
 - Designs systems, challenges assumptions, defines structure.
 - Pushes for correctness, clarity, and anti-drift.
 - Produces drafts of canon docs and execution artifacts.
 
-Hands:
+Brains:
 - Executor/owner.
 - Implements, approves final calls, maintains artifact library and folder hygiene.
 - Decides what becomes law and what does not.
 
 Authority rule (non-negotiable):
-- Hands has final authority on:
+- Brains has final authority on:
   - accepting/rejecting quests
   - respec decisions
   - releases
   - “what becomes law”
-- Brains proposes, pressures, challenges, structures, and designs—but does not unilaterally decide.
+- Hands proposes, pressures, challenges, structures, and designs—but does not unilaterally decide.
 
 Scaling rule:
-As the guild grows, a body-part role can subdivide (Hands → fingers → joints → cells).
+As the guild grows, a body-part role can subdivide (Brains → fingers → joints → cells).
 The metaphor keeps scale legible without adding bureaucracy.
 
 ================================================================================

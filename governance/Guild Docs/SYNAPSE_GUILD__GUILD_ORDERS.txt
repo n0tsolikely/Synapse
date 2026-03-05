@@ -3,7 +3,7 @@ Version: v1.3
 Last Updated: 2026-02-14
 Status: Governance Law (changes require Governance Control Sync)
 
-Maintainer: Hands (Peter) with Brains (Ash)
+Maintainer: Brains (Peter) with Hands (Ash)
 Audience:
 - New Synapse Guild members (human)
 - Any AI session participating in planning or execution
@@ -178,7 +178,7 @@ Vision Delta rules:
   new instance/channel (example: adding a Discord Door alongside Telegram).
   Required:
   - Anchor to the governing Codex intent class.
-  - Declare a codification path via SIDE-QUEST: VISION_VARIATION_CODIFY (Hands authority).
+  - Declare a codification path via SIDE-QUEST: VISION_VARIATION_CODIFY (Brains authority).
 - SHIFT (blocked): the work changes what the Subject IS. Execution MUST NOT proceed.
   Resolve via Control Sync (Codex update and/or Orders revision) before continuing.
 
@@ -256,7 +256,7 @@ State is defined by location:
 
 Drafting rule (removes the “missing pre-active state” ambiguity):
 - A new Guild Orders document MUST be authored in PAUSED.
-- It may move to ACTIVE only when Hands starts the Raid.
+- It may move to ACTIVE only when Brains starts the Raid.
 
 Multi-raid rule:
 - Multiple raids may exist at once.
@@ -298,11 +298,11 @@ They do not replace or override these other artifacts.
 Guild Orders are the canonical scope artifact for build execution.
 
 Rule:
-- If Hands intends to execute work across multiple Quests, multiple sessions, or
+- If Brains intends to execute work across multiple Quests, multiple sessions, or
   multiple operators, Guild Orders MUST exist.
 
 If the intended work is truly trivial and isolated:
-- Hands MAY choose to execute it as a single Quest without creating a full
+- Brains MAY choose to execute it as a single Quest without creating a full
   Guild Orders document, BUT that exception MUST be explicitly declared in
   Control Sync and recorded in the Control Sync Snapshot.
 
@@ -323,7 +323,7 @@ Canonical lifecycle:
 - Scope statement + Done definition are written.
 - Dungeons are written using the minimum Dungeon spec.
 
-3) Hands starts the Raid
+3) Brains starts the Raid
 - Guild Orders file moves PAUSED → ACTIVE.
 - Control Sync records the start.
 

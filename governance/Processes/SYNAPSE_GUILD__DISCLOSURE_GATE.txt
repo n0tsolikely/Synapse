@@ -3,7 +3,7 @@ Version: v1.1
 Last Updated: 2026-02-14
 Status: Governance Law (changes require Governance Control Sync)
 
-Maintainer: Hands (Peter) with Brains (Ash)
+Maintainer: Brains (Peter) with Hands (Ash)
 Audience:
 - Any AI session operating under Synapse
 - Any human operator executing Quests / writing Snapshots / managing state
@@ -16,7 +16,7 @@ Disclosure Gate exists to prevent silent failure, hidden drift, and “discover 
 
 It enforces one thing:
 
-Hands MUST be explicitly notified (with evidence) when uncertainty, missing artifacts,
+Brains MUST be explicitly notified (with evidence) when uncertainty, missing artifacts,
 or Truth Gate blocks change the next safe action.
 
 Disclosure Gate is NOT optional posture.
@@ -60,7 +60,7 @@ Disclosure Gate is the mandatory operator notification required when:
 - vision delta cannot be safely classified (ALIGNED vs VARIATION vs SHIFT)
 
 Rule:
-If Brains is unsure whether Disclosure Gate applies, it applies.
+If Hands is unsure whether Disclosure Gate applies, it applies.
 
 ================================================================================
 2) CANON TRIGGERS (NON-EXHAUSTIVE)
@@ -88,11 +88,11 @@ C) Proof / Verification Blocked
 D) Ambiguity That Changes Next Safe Action
 - multiple “latest” candidates (snapshots, packs, audits) and pick rule cannot resolve deterministically
 - ambiguous risk classification / missing consent artifact
-- ambiguous ownership of decision (Hands vs Brains vs governance)
+- ambiguous ownership of decision (Brains vs Hands vs governance)
 
 E) Codex / Build Manual Anchor Failure (anti-drift)
 - a Quest requires Codex anchors but none can be found/justified
-- “anchor search” fails and Brains is tempted to guess
+- “anchor search” fails and Hands is tempted to guess
 - build manual or codex references required by law cannot be produced
 
 F) Schema / Manifest Problems
@@ -134,7 +134,7 @@ A Disclosure Gate event MUST produce a disclosure message containing, at minimum
 - Safe options:
   2–5 legal next actions that can be taken under the current state.
 
-- Decision needed from Hands:
+- Decision needed from Brains:
   The minimal approval/choice required to continue.
 
 -------------------------
@@ -149,7 +149,7 @@ Provable:
 Status Labels:
 Impact:
 Safe Options:
-Decision Needed From Hands:
+Decision Needed From Brains:
 
 ================================================================================
 4) DISCLOSURE PROTOCOL (WHAT TO DO, IN ORDER)
@@ -176,17 +176,17 @@ Examples of legal receipts:
 Do NOT:
 - rewrite artifacts
 - generate new canon artifacts “just to make it pass”
-- move folders around unless Hands explicitly approves
+- move folders around unless Brains explicitly approves
 
 4) DISCLOSE IMMEDIATELY
 - Produce the Disclosure Gate message (Section 3 template).
-- Request the smallest possible decision from Hands.
+- Request the smallest possible decision from Brains.
 
 ================================================================================
 5) WHERE DISCLOSURES MUST BE RECORDED (AUDITABILITY LAW)
 ================================================================================
 
-Disclosure Gate is satisfied by notifying Hands in-session, but when it affects work state,
+Disclosure Gate is satisfied by notifying Brains in-session, but when it affects work state,
 it MUST be recorded durably in Subject_Data artifacts.
 
 Recording rules:
@@ -216,7 +216,7 @@ C) If Disclosure changes the “resume point” for future sessions:
 6) CANON RESOLUTION PATHS (WHAT HANDS MAY CHOOSE)
 ================================================================================
 
-Disclosure Gate does NOT decide. Hands decides.
+Disclosure Gate does NOT decide. Brains decides.
 
 Common legal resolutions:
 
@@ -242,7 +242,7 @@ Common legal resolutions:
   do a Control Sync and update binding artifacts.
 
 - REPAIR STATE (WITH RECEIPTS):
-  Repair broken naming, folder placement, or manifest fields ONLY with explicit Hands approval,
+  Repair broken naming, folder placement, or manifest fields ONLY with explicit Brains approval,
   and capture receipts for every change.
 
 ================================================================================
@@ -251,12 +251,12 @@ Common legal resolutions:
 
 7.1 CODEX_ANCHORS_MISSING (Quest or Pre-Quest)
 Condition:
-- Quest requires Codex Anchors (DRAFT or FINAL) and Brains cannot find/justify them.
+- Quest requires Codex Anchors (DRAFT or FINAL) and Hands cannot find/justify them.
 
 Required behavior:
 - Quest MUST be BLOCKED.
 - No execution.
-- Hands must choose:
+- Brains must choose:
   A) SIDE-QUEST: CODEX_ANCHOR_FIX, OR
   B) CONTROL SYNC (Codex expansion / law addition)
 
@@ -267,7 +267,7 @@ Condition:
 Required behavior:
 - Trigger Disclosure Gate.
 - Present candidates with provable metadata (filenames, dates, paths).
-- Hands chooses, or Hands authorizes a new deterministic rule.
+- Brains chooses, or Brains authorizes a new deterministic rule.
 
 7.3 SCHEMA VALIDATION FAIL (manifests)
 Condition:
@@ -276,7 +276,7 @@ Condition:
 Required behavior:
 - Trigger Disclosure Gate.
 - Block execution that depends on the manifest.
-- Repair manifest/schema only with receipts and Hands approval.
+- Repair manifest/schema only with receipts and Brains approval.
 
 7.4 VISION_VARIATION_NEEDS_APPROVAL (Quest or Pre-Quest)
 Condition:
@@ -284,20 +284,20 @@ Condition:
 - Guild Orders introduce a new instance/channel within an existing Codex intent class (e.g., Discord Door alongside Telegram Door).
 
 Required behavior:
-- Trigger Disclosure Gate (this is a Hands decision point).
+- Trigger Disclosure Gate (this is a Brains decision point).
 - Disclosure MUST include:
   - Codex anchors supporting the intent class
   - what the variation is
   - proposed placement (layer + target paths)
   - proposed codification path (Side-Quest or Control Sync)
 
-Hands must choose:
+Brains must choose:
 A) APPROVE VARIATION (for this Quest) + require a Codification Side-Quest declared/created, OR
 B) CONTROL SYNC (update Codex/law) before execution, OR
 C) REJECT / DEFER
 
 Execution rule:
-- No execution may proceed without a recorded Hands decision AND a declared codification path.
+- No execution may proceed without a recorded Brains decision AND a declared codification path.
 
 7.5 VISION_SHIFT_BLOCKED (Quest or Pre-Quest)
 Condition:
@@ -308,7 +308,7 @@ Condition:
 Required behavior:
 - Trigger Disclosure Gate.
 - Quest MUST be BLOCKED. No execution.
-- Hands must choose:
+- Brains must choose:
   A) CONTROL SYNC + Codex update (explicit vision change), then re-plan Quests, OR
   B) Modify request to fit existing vision, OR
   C) Drop the request
@@ -334,7 +334,7 @@ A Disclosure Gate event is compliant only if ALL are true:
 [ ] Status labels declared (BLOCKED/UNVERIFIED/UNKNOWN as appropriate)
 [ ] Impact declared
 [ ] 2–5 safe options offered
-[ ] Decision requested from Hands
+[ ] Decision requested from Brains
 [ ] Durable record created when disclosure affects work state (Audit/Snapshot/Continuity Lock)
 
 ================================================================================

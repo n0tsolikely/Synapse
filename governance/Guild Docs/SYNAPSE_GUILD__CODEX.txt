@@ -33,7 +33,7 @@ While Fog of War is active:
 
 Fog is lifted ONLY by Codex Freeze.
 Gate condition (must both be true):
-1) Hands explicitly declares the Codex frozen, AND
+1) Brains explicitly declares the Codex frozen, AND
 2) the marker file exists:
    - <Subject>_Data/Codex/CODEX_FREEZE.md
 
@@ -60,7 +60,7 @@ Minimum expected Codex artifacts:
 - <Subject>_Data/Codex/<Subject>_Codex_Full.txt
   - deterministic stitch of TOC + all section files
 - <Subject>_Data/Codex/CODEX_FREEZE.md
-  - exists only after Hands declares Codex Freeze
+  - exists only after Brains declares Codex Freeze
 
 Section numbering law:
 - TOC numbering is the canonical reference ID.
@@ -209,10 +209,10 @@ Codex Freeze is illegal until:
 - stitch verification is performed
 
 Freeze procedure:
-1) Hands explicitly declares the Codex frozen
+1) Brains explicitly declares the Codex frozen
 2) write: <Subject>_Data/Codex/CODEX_FREEZE.md
    - include date/time
-   - include Hands approval
+   - include Brains approval
 
 If CODEX_FREEZE.md does not exist, execution remains forbidden.
 
@@ -230,7 +230,7 @@ Rules:
   - what downstream work is affected
 
 If the Codex is already frozen and the change affects structure, constraints, or meaning:
-- Hands must explicitly re-authorize
+- Brains must explicitly re-authorize
 - update CODEX_FREEZE.md accordingly
 
 ================================================================================
@@ -255,7 +255,7 @@ Vision Delta (classification rule used during Quest creation and Pre-Quest align
   Codex intent class (example: add Discord alongside Telegram).
   Required:
   - Declare it as Vision Delta = VARIATION.
-  - Obtain Hands authority and codify it via SIDE-QUEST: VISION_VARIATION_CODIFY.
+  - Obtain Brains authority and codify it via SIDE-QUEST: VISION_VARIATION_CODIFY.
 - SHIFT (blocked): the work changes what the Subject IS (identity/purpose).
   Required:
   - Declare it as Vision Delta = SHIFT.

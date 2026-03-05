@@ -5,7 +5,7 @@ Version: v1.2
 Last Updated (America/Toronto): 2026-02-18
 Status: Governance Law (changes require Governance Control Sync)
 
-Maintainer: Hands (Peter) with Brains (Ash)
+Maintainer: Brains (Peter) with Hands (Ash)
 Audience:
 - Synapse Guild members (human)
 - Any AI session operating in long-form planning, incubation, governance, or execution
@@ -102,7 +102,7 @@ If a durable artifact cannot be produced: Disclosure Gate MUST trigger.
 4) ACTIVATION TRIGGERS (CANON)
 ================================================================================
 
-Draftshots MUST be considered requested when Hands uses clear phrasing indicating
+Draftshots MUST be considered requested when Brains uses clear phrasing indicating
 Draftshot creation or update, including but not limited to:
 - “Create Draftshot”
 - “Generate Draftshot”
@@ -112,7 +112,7 @@ Draftshot creation or update, including but not limited to:
 - “Add this to the Draftshot”
 - equivalent natural-language phrasing
 
-If phrasing is ambiguous, Brains MUST ask:
+If phrasing is ambiguous, Hands MUST ask:
 “Is that a Draftshot create/update request?” and WAIT.
 
 ================================================================================
@@ -123,7 +123,7 @@ Draftshots have exactly four lifecycle states:
 - NONE (no Draftshot exists for the session)
 - ACTIVE (being maintained)
 - CONSUMED (converted into a canonical artifact; no longer the active anchor)
-- ABANDONED (explicitly discarded by Hands)
+- ABANDONED (explicitly discarded by Brains)
 
 --------------------------------------------------------------------------------
 5.1 ONE ACTIVE DRAFTSHOT PER SESSION (HARD)
@@ -131,10 +131,10 @@ Draftshots have exactly four lifecycle states:
 
 There MUST be at most one ACTIVE Draftshot per session.
 
-If Hands requests a new Draftshot while one is already ACTIVE, Brains MUST ask:
+If Brains requests a new Draftshot while one is already ACTIVE, Hands MUST ask:
 - “Replace the active Draftshot, or keep using it?”
 
-If Hands says “replace”:
+If Brains says “replace”:
 - mark the old Draftshot ABANDONED (do not delete history)
 - create the new Draftshot as ACTIVE
 
@@ -143,9 +143,9 @@ If Hands says “replace”:
 --------------------------------------------------------------------------------
 
 Trigger:
-- Hands requests Draftshot creation.
+- Brains requests Draftshot creation.
 
-Brains MUST:
+Hands MUST:
 1) Assign filename:
    DRAFTSHOT__YYYY-MM-DD__<optional_context>__REV1.txt
    - Context token optional (e.g., CONTROL_SYNC, INCUBATION, GENERAL).
@@ -158,13 +158,13 @@ Brains MUST:
 --------------------------------------------------------------------------------
 
 Trigger:
-- Hands requests Draftshot update.
+- Brains requests Draftshot update.
 
 Delta rule (HARD):
-- Brains MUST only capture and summarize content since the last Draftshot revision.
-- Brains MUST NOT re-summarize, rewrite, or reorder previously captured sections.
+- Hands MUST only capture and summarize content since the last Draftshot revision.
+- Hands MUST NOT re-summarize, rewrite, or reorder previously captured sections.
 
-Brains MUST:
+Hands MUST:
 1) Increment revision number (REV2, REV3, ...).
 2) Append new information into the Draftshot under the proper sections.
 3) Update the running log.
@@ -179,12 +179,12 @@ Correction rule:
 --------------------------------------------------------------------------------
 
 Triggers (non-exhaustive):
-- Hands: “Turn Draftshot into a Snapshot”
-- Hands closes an active Control Sync (Control Sync Snapshot required)
-- Hands ends the day/session (End-of-Day Snapshot required)
+- Brains: “Turn Draftshot into a Snapshot”
+- Brains closes an active Control Sync (Control Sync Snapshot required)
+- Brains ends the day/session (End-of-Day Snapshot required)
 - Any command that requires a canonical Snapshot per Snapshot law
 
-When consuming a Draftshot, Brains MUST:
+When consuming a Draftshot, Hands MUST:
 1) Use latest Draftshot as base.
 2) Add ONLY the delta since the last Draftshot update.
 3) Produce the required canonical Snapshot type and naming per Snapshot law.
@@ -215,7 +215,7 @@ Rationale:
 Draftshots exist specifically to prevent end-of-session reconstruction drift and
 token-limit loss. Any rewrite defeats the purpose.
 
-If Brains cannot preserve the Draftshot body verbatim (tooling limits, missing base,
+If Hands cannot preserve the Draftshot body verbatim (tooling limits, missing base,
 etc.): Disclosure Gate MUST trigger.
 
 ================================================================================
@@ -283,14 +283,14 @@ Mark the Draftshot ABANDONED. Do not delete or rewrite it.
 ================================================================================
 
 If any of the following occurs, Disclosure Gate MUST trigger:
-- Brains cannot produce a durable artifact (download/export) for a Draftshot create/update.
-- Brains cannot determine whether a Draftshot is ACTIVE.
-- Brains cannot safely compute the delta since the last Draftshot revision.
-- Brains cannot preserve Draftshot body verbatim during consumption.
+- Hands cannot produce a durable artifact (download/export) for a Draftshot create/update.
+- Hands cannot determine whether a Draftshot is ACTIVE.
+- Hands cannot safely compute the delta since the last Draftshot revision.
+- Hands cannot preserve Draftshot body verbatim during consumption.
 
 When Disclosure Gate triggers:
-- Brains MUST halt canonical claims.
-- Brains MUST clearly state what can and cannot be proven.
+- Hands MUST halt canonical claims.
+- Hands MUST clearly state what can and cannot be proven.
 
 ================================================================================
 END OF DOCUMENT
@@ -300,7 +300,7 @@ END OF DOCUMENT
 AI11 AMENDMENT — DRAFTSHOTS AS LIVING FORMALIZATIONS (MEETING MINUTES)
 ================================================================================
 Last Updated (UTC): 2026-02-18 21:49:27 UTC
-Authority: Governance Control Sync (Hands)
+Authority: Governance Control Sync (Brains)
 
 This amendment clarifies and upgrades Draftshot behavior without deleting or shrinking prior canon text.
 

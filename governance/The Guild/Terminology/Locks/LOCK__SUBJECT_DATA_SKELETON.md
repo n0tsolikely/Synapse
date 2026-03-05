@@ -122,8 +122,8 @@ The `Codex/` directory MUST exist. Specific Codex files have strict meaning:
 - `TOC_DRAFT.md` — optional during incubation.
 - `<Subject>_Codex_Full.txt` — exists once a stitched Codex exists (draft or final).
 - `CODEX_FREEZE.md` — **world-state marker**:
-  - MUST NOT exist before Hands freezes the Codex.
-  - MUST exist after Hands freezes the Codex.
+  - MUST NOT exist before Brains freezes the Codex.
+  - MUST exist after Brains freezes the Codex.
 
 ---
 

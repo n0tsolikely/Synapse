@@ -1,13 +1,13 @@
 # TERM — Control Sync
 
 ## Definition
-A Control Sync is a structured alignment mode where Brains and Hands:
+A Control Sync is a structured alignment mode where Hands and Brains:
 - rehydrate state (what is true)
 - review continuity artifacts
 - make decisions
 - declare scope for the current execution window
 
-A Control Sync persists until explicitly ended by the authority role (Hands).
+A Control Sync persists until explicitly ended by the authority role (Brains).
 
 Conversation can be the medium, but Control Sync authority is recorded only in artifacts
 (e.g., Snapshots, Guild Orders, Quest state moves).
@@ -25,8 +25,8 @@ Prevent drift by ensuring the next actions are bound to:
 - during both Fog of War and Fog Lifted
 
 ## Invocation
-- Hands can open Control Sync by explicitly stating “Control Sync”.
-- If the Subject is unknown or ambiguous, Brains MUST ask for the Subject key/scope before proceeding.
+- Brains can open Control Sync by explicitly stating “Control Sync”.
+- If the Subject is unknown or ambiguous, Hands MUST ask for the Subject key/scope before proceeding.
 
 ## What It Enables
 - scope commitment (what will be done now)

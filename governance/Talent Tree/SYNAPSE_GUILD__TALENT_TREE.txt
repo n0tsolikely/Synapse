@@ -3,7 +3,7 @@ Version: v1.1
 Last Updated: 2026-02-08
 Status: Governance Law (changes require Governance Control Sync)
 
-Maintainer: Hands with Brains
+Maintainer: Brains with Hands
 Audience:
 - New Synapse Guild members (human)
 - Any AI session participating in planning, execution, or rehydration

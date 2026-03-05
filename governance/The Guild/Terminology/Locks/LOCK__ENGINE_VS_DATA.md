@@ -22,7 +22,7 @@ The following artifacts MUST NOT be stored inside `<Subject>_Engine/`:
 - `Snapshots/` (Control Sync / End of Day / General)
 - continuity artifacts (e.g., `Buffs/`, `Latest Rehydration Pack/`, confirmations)
 
-If any of the above are found inside `<Subject>_Engine/`, Brains MUST:
+If any of the above are found inside `<Subject>_Engine/`, Hands MUST:
 - STOP
 - trigger Disclosure Gate
 - relocate artifacts into `<Subject>_Data/` with explicit receipts/diffs
@@ -36,13 +36,13 @@ Default rule:
 - New Subjects start **Data-only**.
 - `<Subject>_Engine/` is created at **Build Kickoff (post‑Codex Freeze)**.
 
-Brains MUST NOT create `<Subject>_Engine/` during Fog of War unless:
-- Hands explicitly orders it, OR
-- Hands provides an existing Engine/repo and requests it be treated as canonical.
+Hands MUST NOT create `<Subject>_Engine/` during Fog of War unless:
+- Brains explicitly orders it, OR
+- Brains provides an existing Engine/repo and requests it be treated as canonical.
 
 (See: `Processes/SYNAPSE_GUILD__SUBJECT_INITIALIZATION_AND_INCUBATION.txt`)
 
 ### 4) If unsure: stop
-If Brains cannot classify an artifact as Engine vs Data:
+If Hands cannot classify an artifact as Engine vs Data:
 - do not guess
 - trigger Disclosure Gate

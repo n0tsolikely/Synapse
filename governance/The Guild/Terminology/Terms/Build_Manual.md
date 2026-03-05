@@ -13,10 +13,10 @@ The Codex defines **WHAT** the system is.
 The Build Manual defines **HOW** it should be built.
 
 ## Purpose
-Reduce ambiguity and drift by making the intended build path repeatable for any compliant operator (Brains or Hands).
+Reduce ambiguity and drift by making the intended build path repeatable for any compliant operator (Hands or Brains).
 
 ## When It Applies
-- If a Build Manual exists for a Subject, Brains follows it as the default HOW guidance (unless superseded by Control Sync).
+- If a Build Manual exists for a Subject, Hands follows it as the default HOW guidance (unless superseded by Control Sync).
 - In Dailies Step 5:
   - **Codex Alignment** is always required.
   - **Build Manual Alignment** is required only if a Build Manual exists.

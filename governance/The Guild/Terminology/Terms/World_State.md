@@ -18,10 +18,10 @@ World State MUST be derivable from artifacts without guesswork:
 
 ## Enforcement notes
 - If World State is **Fog of War**:
-  - Brains MUST NOT accept quests.
-  - Brains MUST NOT execute Guild Orders / Raids / Quests.
+  - Hands MUST NOT accept quests.
+  - Hands MUST NOT execute Guild Orders / Raids / Quests.
   - Allowed work is Incubation: exploration, discovery capture, TOC/Codex drafting, non-executing Control Sync.
 - If required artifacts conflict (e.g., `CODEX_FREEZE.md` exists but the Codex is missing/contradictory):
   - This is an **INCONSISTENT STATE**.
   - Disclosure Gate MUST trigger.
-  - Default to **Fog of War** until Hands resolves the inconsistency.
+  - Default to **Fog of War** until Brains resolves the inconsistency.

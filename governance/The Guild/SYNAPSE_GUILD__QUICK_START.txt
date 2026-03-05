@@ -12,7 +12,7 @@ Last Updated: 2026-02-07
 - **Synapse** = the *operating system for work* (human + AI), enforced by files + locks + gates.
 - **Governance Pack (this folder)** = portable law you inject into an AI session.
 - **Subject** = the thing being built (app, book, game, business process, etc.).
-- **Hands** = the final authority (the human). When a gate requires Hands, conversation-level “ok” is not enough unless the gate explicitly allows it.
+- **Brains** = the final authority (the human). When a gate requires Brains, conversation-level “ok” is not enough unless the gate explicitly allows it.
 
 ---
 
@@ -58,7 +58,7 @@ You have an idea but no frozen Codex.
 - No Codex exists yet
 - `CODEX_FREEZE.md` does not exist
 
-**Action:** run **Subject Initialization + Incubation** under Fog of War until a Codex exists and Hands authorizes Codex Freeze.
+**Action:** run **Subject Initialization + Incubation** under Fog of War until a Codex exists and Brains authorizes Codex Freeze.
 
 **Important:** Under Fog of War, you MAY draft Quests on the Board, but you MUST NOT accept or execute Quests.
 
@@ -77,10 +77,10 @@ Authoritative spine:
 - Generate a **TOC**.
 - Write the **Codex** section-by-section (TOC-first, numbered).
 - Stitch + verify the Codex for completeness and internal consistency.
-- Perform **Codex Freeze** (Fog Lifted) only when Hands authorizes it (by writing `CODEX_FREEZE.md`).
+- Perform **Codex Freeze** (Fog Lifted) only when Brains authorizes it (by writing `CODEX_FREEZE.md`).
 
 ### 3.2 Build kickoff (Fog Lifted; post-freeze)
-- Hands chooses build scope (v1 slice / demo slice / chapter range / etc.).
+- Brains chooses build scope (v1 slice / demo slice / chapter range / etc.).
 - Generate **Guild Orders** → break into **Dungeons** → break into **atomic Quests**.
 - Populate the **Quest Board**.
 
@@ -105,7 +105,7 @@ Scope change rule:
 ### Truth Gate + Disclosure Gate
 - No “done” without receipts.
 - No claims of executed commands/tests without raw output (no simulated runs).
-- If uncertainty affects next steps, you MUST disclose it to Hands.
+- If uncertainty affects next steps, you MUST disclose it to Brains.
 
 See: `Processes/SYNAPSE_GUILD__TRUTH_GATE.txt`
 
@@ -138,7 +138,7 @@ See: `Processes/SYNAPSE_GUILD__LARGE_ARTIFACT_COMPOSITION.txt`
 4) Start **Control Sync** and run:
    - `Processes/SYNAPSE_GUILD__CONTROL_SYNC.txt`
    - `Processes/SYNAPSE_GUILD__CONTROL_SYNC_CHECKLIST.txt`
-5) Do not accept Quests or execute anything until Hands explicitly ends Control Sync.
+5) Do not accept Quests or execute anything until Brains explicitly ends Control Sync.
 6) When Control Sync ends, write the required snapshot file immediately.
 
 ---

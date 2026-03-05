@@ -58,7 +58,7 @@ subject_data:
 
     # If inference yields multiple candidates or none:
     # - do not guess
-    # - ask Hands
+    # - ask Brains
     if_ambiguous: "ask_hands"
 
   # Directories containing any of these substrings are ignored when scanning roots.

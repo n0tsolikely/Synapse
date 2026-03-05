@@ -12,11 +12,11 @@ Fog is lifted ONLY when ALL of the following are true:
 1) **Marker file exists on disk** at:
    - `<Subject>_Data/Codex/CODEX_FREEZE.md`
 
-2) **Hands approval is proven by the marker content**.
+2) **Brains approval is proven by the marker content**.
    - Chat statements ("freeze it") are not sufficient.
    - The marker MUST contain:
      - a freeze timestamp (date/time)
-     - an explicit Hands approval line (e.g., `Hands: <name>` or `Hands Approval: YES`)
+     - an explicit Brains approval line (e.g., `Brains: <name>` or `Brains Approval: YES`)
 
 3) **Codex Freeze is not contradicting known Codex reality**.
    If the current Codex structure/constraints/meaning have changed since the marker was written
@@ -58,7 +58,7 @@ Codex changes are allowed, but MUST be deliberate:
 - the Control Sync Snapshot MUST record what changed and why
 
 If a Codex change affects structure, constraints, or meaning:
-- Hands must explicitly re-authorize Freeze
+- Brains must explicitly re-authorize Freeze
 - `<Subject>_Data/Codex/CODEX_FREEZE.md` MUST be updated
 
 If the marker cannot be updated or cannot be proven:

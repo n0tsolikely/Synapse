@@ -11,7 +11,7 @@ Allowed values:
   - Allowed only with explicit anchoring and a codification path.
 - **SHIFT**
   - Changes what the system *is* (primary purpose/identity mutation).
-  - Execution is blocked until Hands explicitly updates vision via Control Sync / Codex changes.
+  - Execution is blocked until Brains explicitly updates vision via Control Sync / Codex changes.
 
 Default rule:
 - If unsure, treat as **SHIFT** (fail closed) and trigger Disclosure Gate.
@@ -29,13 +29,13 @@ Default rule:
 ## Do Not Assume
 - “User asked for it” automatically makes it ALIGNED.
 - VARIATION means “invent architecture freely.”
-- SHIFT can proceed without Hands decision + Codex update.
+- SHIFT can proceed without Brains decision + Codex update.
 
 ## Interactions
 - Codex Anchors + Constraint Summary: anchor VARIATION to the correct intent class.
 - Repo Orientation: prevents VARIATION from creating duplicates or parallel systems.
 - Disclosure Gate: triggers when classification is ambiguous.
-- Side Quests: VARIATION requires a codification Side‑Quest (approved by Hands) to make the expansion first‑class.
+- Side Quests: VARIATION requires a codification Side‑Quest (approved by Brains) to make the expansion first‑class.
 
 ## Authority
 → `Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt`  

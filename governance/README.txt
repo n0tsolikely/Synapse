@@ -251,7 +251,7 @@ If the Subject does NOT exist yet (no <Subject>_Data, no Codex):
 - You MUST initialize the Subject Data skeleton immediately.
 - You then enter Incubation (pre-Codex exploration + capture).
   Processes/SYNAPSE_GUILD__SUBJECT_INITIALIZATION_AND_INCUBATION.txt
-  - Incubation is dialog-driven; do NOT generate TOC/Codex until Hands indicates readiness.
+  - Incubation is dialog-driven; do NOT generate TOC/Codex until Brains indicates readiness.
     (See Processes/SYNAPSE_GUILD__THE_LOOP.txt + LOCK__FOG_OF_WAR.md)
 - When ready, you build the TOC (Legend) and Codex (Map).
 - Execution remains gated until Codex Freeze (Fog Lifted).

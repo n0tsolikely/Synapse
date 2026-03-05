@@ -3,10 +3,10 @@ Version: v1.3
 Last Updated: 2026-02-18
 Status: Governance Law (changes require Governance Control Sync)
 
-Maintainer: Hands (Peter) with Brains (Ash)
+Maintainer: Brains (Peter) with Hands (Ash)
 Audience:
 - Any AI session writing snapshots under Synapse
-- Any human operator (Hands) reviewing and resuming work
+- Any human operator (Brains) reviewing and resuming work
 - External collaborators adopting the Synapse Guild Operating System
 
 ================================================================================
@@ -112,8 +112,8 @@ Filename (canon):
 
 
 Mandatory trigger (canon):
-- When Hands ends a work session (“stop”, “done”, “end session”, or equivalent),
-  Brains MUST write an End-of-Day Snapshot.
+- When Brains ends a work session (“stop”, “done”, “end session”, or equivalent),
+  Hands MUST write an End-of-Day Snapshot.
 - If no execution occurred:
   - this Snapshot MUST explicitly state that no execution occurred
   - it MUST reference the latest Control Sync Snapshot (if one occurred)

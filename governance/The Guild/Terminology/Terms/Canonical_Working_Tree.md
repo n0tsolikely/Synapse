@@ -16,4 +16,4 @@ Prevents parallel states, hidden forks, and contradictory truths.
 ## Violation handling
 If multiple competing trees/copies exist (duplicate extracted packs, copied `<Subject>_Data`, copied `<Subject>_Engine`):
 - Disclosure Gate MUST trigger.
-- Brains MUST NOT proceed until Hands selects the canonical tree.
+- Hands MUST NOT proceed until Brains selects the canonical tree.

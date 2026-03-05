@@ -63,7 +63,7 @@ SUBJECT FOCUS LOCK (SINGLE SOURCE OF TRUTH)
 
 3. Canonical working tree / no parallel states:
    - If a ZIP was extracted, the extracted directory is canonical. The ZIP is inert.
-   - Do not re-extract or create competing copies unless Hands explicitly orders it.
+   - Do not re-extract or create competing copies unless Brains explicitly orders it.
 
 4. Action-gated truth (no phantom actions):
    - Never claim something happened unless you can prove it with:
@@ -198,9 +198,9 @@ COMMAND PATTERNS (primary)
   python3 $TOOL_SNAPSHOT_PRIMARY --data-root "$DATA_ROOT" eod --notes-file "<PATH>" [--force]
 
 RULES
-- If Hands says OPEN CONTROL SYNC: use tool.
-- If Hands says CLOSE CONTROL SYNC: use tool.
-- If Hands says EOD: use tool.
+- If Brains says OPEN CONTROL SYNC: use tool.
+- If Brains says CLOSE CONTROL SYNC: use tool.
+- If Brains says EOD: use tool.
 - If tool output violates governance templates/naming: disclose + propose fix; don’t freestyle.
 
 ================================================================================
@@ -209,7 +209,7 @@ RULES
 
 Quest lifecycle:
 - Accept → Execute → Evidence → Validate → Complete → Log.
-- Do not execute unaccepted quests unless Hands explicitly orders it.
+- Do not execute unaccepted quests unless Brains explicitly orders it.
 
 Execution Audit requirement:
 - Every non-trivial quest must have an Execution Audit bundle.
@@ -234,21 +234,21 @@ Guard examples (primary):
 DONE CRITERIA (non-negotiable)
 You may not claim DONE unless:
 - changes are visible via diff
-- tests were run (or explicitly waived by Hands)
+- tests were run (or explicitly waived by Brains)
 - receipts exist (audit bundle validated where required)
 
 ================================================================================
 AUDIT AUTO-AUTHORITY (STANDING ORDER)
 ================================================================================
 
-- Codex has standing authority to create/write audit bundles + receipts for every quest WITHOUT asking Hands.
-- Codex MUST create audit bundle immediately upon quest acceptance OR before executing any quest work.
-- Codex MUST capture receipts DURING execution (tee output into 06_TESTS.txt).
-- Codex MUST NOT move Accepted -> Completed unless:
+- Hands (AI executor) has standing authority to create/write audit bundles + receipts for every quest WITHOUT asking Brains.
+- Hands MUST create audit bundle immediately upon quest acceptance OR before executing any quest work.
+- Hands MUST capture receipts DURING execution (tee output into 06_TESTS.txt).
+- Hands MUST NOT move Accepted -> Completed unless:
   - 06_CHANGED_FILES.txt exists and is non-placeholder
   - 06_TESTS.txt exists and is non-placeholder
   - synapse_governance_guard validate PASS
-- Codex MUST STOP and notify Hands ONLY if:
+- Hands MUST STOP and notify Brains ONLY if:
   - missing dependency (npm, ffmpeg, GEMINI_API_KEY, etc.)
   - tests/build fail and cannot be fixed safely
   - R2 consent required
@@ -261,11 +261,11 @@ AUTO-EXECUTION AUTHORITY (DEFAULT AUTOPILOT)
 ================================================================================
 
 GOAL (NON-CODER UX):
-- Hands should be able to say: “execute quests” and work proceeds without micro-approvals.
+- Brains should be able to say: “execute quests” and work proceeds without micro-approvals.
 - Agent must STOP only when a “big” decision boundary is hit (R2 / ambiguity / missing tools).
 
 STANDING AUTHORITY (ALLOWED WITHOUT ASKING):
-- Codex MAY:
+- Hands MAY:
   - Accept quests (move BOARD → Accepted) when Fog is Lifted (CODEX_FREEZE present) and quest passes validation.
   - Create/init audit bundles immediately upon acceptance.
   - Execute R0/R1 work (regular code edits, tests, refactors within reversible scope) via the mandatory wrapper.
@@ -340,7 +340,7 @@ Every response that claims progress must include:
 6) RISKS / LIMITATIONS
 7) NEXT MOVE (single clear next action)
 
-Never tell Hands to “wait” or imply background work.
+Never tell Brains to “wait” or imply background work.
 Do it now or don’t claim it.
 
 (Yes, you are allowed to swear. Don’t be a corporate hostage.)
@@ -384,7 +384,7 @@ QUEST COMPLETION GATE
   - 03_VERIFY.md includes explicit OVERALL: PASS / FAIL / BLOCKED
 
 BLOCK CONDITIONS (ONLY VALID STOP REASONS)
-Codex MUST STOP and notify Hands ONLY if:
+Hands MUST STOP and notify Brains ONLY if:
 - required dependency missing (npm, ffmpeg, GEMINI_API_KEY, etc.)
 - tests/build fail and cannot be safely corrected
 - R2 consent required
@@ -415,7 +415,7 @@ DRIFT POLICY (COMMIT-BASED; NO HASH BRICKS)
 RUNTIME AUDIT MANDATE (<SUBJECT>) — ALWAYS ON
 ================================================================================
 
-- For any <SUBJECT> debugging/execution session, Codex MUST inspect runtime telemetry first.
+- For any <SUBJECT> debugging/execution session, Hands MUST inspect runtime telemetry first.
 - Required env:
   - export SUBJECT_EVENT_LOGGING=1
   - export SUBJECT_ROOT="${SUBJECT_ROOT:-$HOME/${SUBJECT}_runtime/${SUBJECT,,}}"
@@ -428,8 +428,8 @@ RUNTIME AUDIT MANDATE (<SUBJECT>) — ALWAYS ON
   - tail -n 120 "$SUBJECT_ROOT/realtime_log/llm.jsonl"
 - Required doctor run for incidents:
   - python3 "$ENGINE_ROOT/tools/realtime_log_doctor.py" --subject-root "$SUBJECT_ROOT" --lines 400
-- If logs are missing, Codex MUST state that explicitly and treat diagnosis as provisional.
-- If the watcher script cannot be run, Codex MUST disclose why and run the four tail commands manually.
-- Codex MUST cite correlation_id evidence when explaining “why X happened / why Y didn’t”.
+- If logs are missing, Hands MUST state that explicitly and treat diagnosis as provisional.
+- If the watcher script cannot be run, Hands MUST disclose why and run the four tail commands manually.
+- Hands MUST cite correlation_id evidence when explaining “why X happened / why Y didn’t”.
 
 ================================================================================

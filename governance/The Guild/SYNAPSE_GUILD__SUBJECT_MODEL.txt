@@ -3,7 +3,7 @@ Version: v1.4
 Last Updated: 2026-02-09
 Status: Governance Law (changes require Governance Control Sync)
 
-Maintainer: Hands (Peter) with Brains (Ash)
+Maintainer: Brains (Peter) with Hands (Ash)
 Audience:
 - Any operator (human or AI) applying Synapse Governance to ANY domain
 
@@ -24,7 +24,7 @@ This model is NOT optional:
 A SUBJECT is any bounded body of work that evolves over time.
 
 A Subject MUST have a stable Subject Key (slug) used for directory naming.
-- Subject Key is confirmed by Hands during Subject Initialization.
+- Subject Key is confirmed by Brains during Subject Initialization.
 - Subject Key MUST NOT drift once a Subject exists.
 
 Examples (non-exhaustive): <SUBJECT>, <SUBJECT>, a novel, a game, an essay, a website, homework.

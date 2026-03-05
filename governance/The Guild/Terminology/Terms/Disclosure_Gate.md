@@ -25,7 +25,7 @@ A disclosure MUST include:
 
 ## Do Not Assume
 - do not spam “all good” messages
-- do not log silently without telling Hands
+- do not log silently without telling Brains
 - do not guess to fill gaps
 - do not proceed as if nothing happened
 

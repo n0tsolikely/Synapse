@@ -78,4 +78,4 @@ Violations are treated as architectural drift.
 If drift is detected:
 - fix in-scope if small + safe, OR
 - create a dedicated refactor Quest, OR
-- escalate to Hands if redesign is implied.
+- escalate to Brains if redesign is implied.

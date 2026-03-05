@@ -1,7 +1,7 @@
 # TERM — Talent Tree
 
 ## Definition
-The Talent Tree is the Subject’s capability ledger: a curated index of what has been proven (via Completed Quests) that Brains can reliably do for this Subject.
+The Talent Tree is the Subject’s capability ledger: a curated index of what has been proven (via Completed Quests) that Hands can reliably do for this Subject.
 
 ## Artifact
 The Talent Tree is a filesystem artifact.
@@ -18,7 +18,7 @@ Canonical location (Subject):
 - Enable deterministic planning (what is safe to attempt without rediscovery).
 
 ## Law
-- Talents are awarded only as a result of Completed Quests (or explicit Hands directive recorded in a Snapshot).
+- Talents are awarded only as a result of Completed Quests (or explicit Brains directive recorded in a Snapshot).
 - A Talent entry MUST reference proof:
   - Quest ID
   - Audit bundle path (or Snapshot path) that evidences the capability

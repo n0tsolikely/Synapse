@@ -3,10 +3,10 @@ Version: v1.5
 Last Updated: 2026-02-14
 Status: Governance Law (changes require Governance Control Sync)
 
-Maintainer: Hands (Peter) with Brains (Ash)
+Maintainer: Brains (Peter) with Hands (Ash)
 Audience:
 - Any AI session creating, accepting, or completing Quests
-- Any human operator (Hands) who requires deterministic execution state
+- Any human operator (Brains) who requires deterministic execution state
 
 ================================================================================
 0) PURPOSE
@@ -42,7 +42,7 @@ State transitions include:
 1.2 Failure behavior (deterministic)
 If validation FAILS:
 - Truth Gate blocks advancement
-- Disclosure Gate MUST notify Hands
+- Disclosure Gate MUST notify Brains
 - the Quest file MUST be corrected before proceeding
 
 (See: Processes/SYNAPSE_GUILD__TRUTH_GATE.txt)
@@ -344,7 +344,7 @@ Before moving a Quest into Accepted/:
 
 If any box cannot be checked:
 - STOP
-- Disclosure Gate MUST notify Hands
+- Disclosure Gate MUST notify Brains
 - Fix the Quest file or defer acceptance
 
 ================================================================================
@@ -366,7 +366,7 @@ A Quest may only be moved to Completed/ if:
     - the maximum feasible substitute checks ran (with receipts)
     - operator-run verification commands are provided
     - the Blocked Verification Ledger was created/updated (and its path is stated)
-    - Disclosure Gate notified Hands
+    - Disclosure Gate notified Brains
 [ ] FAIL is never eligible for completion (fix or abandon)
 [ ] Outcome note recorded (what is now true)
 [ ] Quest declares Talent Point Awarded: YES/NO

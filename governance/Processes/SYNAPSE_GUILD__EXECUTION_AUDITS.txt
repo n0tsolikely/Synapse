@@ -5,7 +5,7 @@ Status: Governance Law (changes require Governance Control Sync)
 
 Audience:
 - Any AI session executing Quests under Synapse
-- Any human operator (Hands) reviewing or resuming execution
+- Any human operator (Brains) reviewing or resuming execution
 - Any collaborator requiring provable execution truth
 
 ================================================================================
@@ -276,7 +276,7 @@ Verification is a deterministic checklist against Codex invariants.
 
 2.3.3 PATCH DISCIPLINE AND DRIFT DETECTION
 
-During Quest execution, Brains MAY apply minor corrective patches without spawning a new Quest ONLY IF all of the following are true:
+During Quest execution, Hands MAY apply minor corrective patches without spawning a new Quest ONLY IF all of the following are true:
 
 - The change is small and local (e.g. typo, import fix, single-line logic correction).
 - The change is directly required to complete the current Quest.
@@ -286,7 +286,7 @@ During Quest execution, Brains MAY apply minor corrective patches without spawni
 
 Such patches MUST be recorded in the Quest Evidence.
 
-If ANY of the following occur, a DRIFT EVENT is detected and Brains MUST immediately halt execution and open an EMERGENCY CONTROL SYNC:
+If ANY of the following occur, a DRIFT EVENT is detected and Hands MUST immediately halt execution and open an EMERGENCY CONTROL SYNC:
 
 - The fix requires refactoring or non-local changes.
 - Multiple fixes cascade from an initial fix (“fixing fixes”).
@@ -294,7 +294,7 @@ If ANY of the following occur, a DRIFT EVENT is detected and Brains MUST immedia
 - New prerequisite work is required outside the Quest’s scope.
 - Continuing execution would violate Codex laws or architectural invariants.
 
-During the Emergency Control Sync, Brains MUST explain the drift and propose Side Quests or plan corrections BEFORE any further execution.
+During the Emergency Control Sync, Hands MUST explain the drift and propose Side Quests or plan corrections BEFORE any further execution.
 
 No execution may continue beyond a Drift Event without auditable authorization.
 
@@ -420,7 +420,7 @@ Execution Audits are the primary proof artifacts.
 If required audits are missing:
 - Quest state may not advance
 - Completion is forbidden
-- Disclosure Gate must notify Hands
+- Disclosure Gate must notify Brains
 - Execution pauses until compliance is restored
 
 ================================================================================

@@ -5,18 +5,18 @@
 A **Control Sync** is the Synapse Guild’s alignment + decision forum.
 It is a **mode** (stateful), not a casual message.
 
-A Control Sync is ACTIVE only when Hands explicitly starts it, and remains ACTIVE until Hands explicitly ends it.
+A Control Sync is ACTIVE only when Brains explicitly starts it, and remains ACTIVE until Brains explicitly ends it.
 Topic drift, silence, or drafting does not end it.
 
-The phrase **“Control Sync”** from Hands MUST be treated as sufficient instruction to start a Control Sync.
+The phrase **“Control Sync”** from Brains MUST be treated as sufficient instruction to start a Control Sync.
 
 ## Activation (start)
-A Control Sync MUST be considered started when Hands uses clear start language, including:
+A Control Sync MUST be considered started when Brains uses clear start language, including:
 - “Control Sync”
 - “Begin Control Sync” / “Start Control Sync”
 - equivalent natural-language phrasing
 
-If the phrase is ambiguous (quoted, hypothetical, or unclear), Brains MUST ask:
+If the phrase is ambiguous (quoted, hypothetical, or unclear), Hands MUST ask:
 > “Is that a Control Sync start?”
 …then WAIT.
 
@@ -34,7 +34,7 @@ Allowed:
 - surface reality, clarify constraints, and make decisions
 - draft artifacts as **PROPOSED** (until they exist on disk)
 
-Prohibited unless Hands explicitly directs AND receipts exist:
+Prohibited unless Brains explicitly directs AND receipts exist:
 - claiming execution occurred
 - silently advancing workflow states (Quest acceptance/completion/abandonment)
 - starting a Raid / accepting Quests outside the legal world state
@@ -50,7 +50,7 @@ Outside Control Sync, these actions are INVALID.
 
 ## End rule (closeout is artifact-based)
 A Control Sync closes only when:
-1) Hands explicitly ends it, AND
+1) Brains explicitly ends it, AND
 2) exactly one Control Sync-closeout Snapshot artifact exists on disk (per **LOCK__SNAPSHOTS**)
 
 If the required Snapshot cannot be written/proven:

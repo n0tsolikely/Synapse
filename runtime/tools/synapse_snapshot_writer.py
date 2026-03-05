@@ -747,7 +747,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     p_open = sub.add_parser("control-open", help="Open Control Sync mode.")
-    p_open.add_argument("--participants", default="Hands, Brains")
+    p_open.add_argument("--participants", default="Brains, Hands")
     p_open.add_argument("--reason", default="alignment + decisions")
     p_open.add_argument("--topic", default="")
     p_open.set_defaults(func=cmd_control_open)

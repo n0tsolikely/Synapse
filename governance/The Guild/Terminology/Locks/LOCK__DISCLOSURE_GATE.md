@@ -2,14 +2,14 @@
 **Locked:** 2026-02-07 22:40:00 (America/Montreal assumed)
 
 ## Canon meaning
-Disclosure Gate enforces: **Hands must be notified** when uncertainty, missing artifacts, or Truth Gate blocks
+Disclosure Gate enforces: **Brains must be notified** when uncertainty, missing artifacts, or Truth Gate blocks
 change the next safe action.
 
 Silence is a violation.
 Disclosure MUST occur before proceeding.
 
 ## Default rule
-If Brains is unsure whether Disclosure Gate applies, it applies.
+If Hands is unsure whether Disclosure Gate applies, it applies.
 
 ## Trigger events (non-exhaustive)
 Disclosure Gate MUST trigger when any of the following are true:
@@ -28,7 +28,7 @@ A disclosure MUST include, at minimum:
 - **Status labels:** what is BLOCKED / UNVERIFIED / UNKNOWN (use Truth Gate labels)
 - **Impact:** what cannot safely proceed and why
 - **Safe options:** 2–5 next actions that are legal under current state
-- **Decision needed from Hands:** the minimal approval/choice required to continue
+- **Decision needed from Brains:** the minimal approval/choice required to continue
 
 ## Ordering
 - Disclose BEFORE taking any action that changes state.

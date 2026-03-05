@@ -20,7 +20,7 @@ LOCK PRECEDENCE:
 ## 0) PRIME PURPOSE
 
 Synapse must support a true beginning:
-- Hands has an idea
+- Brains has an idea
 - there is no Subject workspace yet (no <Subject>_Data)
 - there is no frozen Codex yet (Fog of War)
 - nothing gets lost
@@ -42,7 +42,7 @@ A Subject MUST be identified by two values:
 - Subject key (slug; filesystem-safe namespace)
 
 Hard rule:
-- The Subject key is a binding namespace choice. It MUST be explicitly confirmed by Hands.
+- The Subject key is a binding namespace choice. It MUST be explicitly confirmed by Brains.
 
 Slug constraints (minimum; deterministic):
 - ASCII
@@ -61,16 +61,16 @@ The Subject key is used for folder naming:
 
 ### 1.2 Create canonical Subject root (Data-first rule)
 
-If it does not already exist, Brains MUST create:
+If it does not already exist, Hands MUST create:
 - `<Subject>_Data/`  (stateful continuity + governance artifacts + idea capture)
 
-Default rule (non-negotiable unless Hands overrides):
+Default rule (non-negotiable unless Brains overrides):
 - New Subjects start with **Data only**.
 - `<Subject>_Engine/` is created at **Build Kickoff (post‑Codex Freeze)**.
 
-Brains MUST NOT create `<Subject>_Engine/` during Fog of War unless one of the following is true:
-- Hands provides an existing engine/repo and requests it be treated as canonical, OR
-- Hands explicitly requests an Engine be created before Codex Freeze.
+Hands MUST NOT create `<Subject>_Engine/` during Fog of War unless one of the following is true:
+- Brains provides an existing engine/repo and requests it be treated as canonical, OR
+- Brains explicitly requests an Engine be created before Codex Freeze.
 
 Clarification:
 - “Engine” does NOT mean “code only.”
@@ -116,7 +116,7 @@ Minimum required structure (restated for convenience; lock wins on conflict):
   Codex/
     TOC.md
     TOC_DRAFT.md            # optional during incubation
-    CODEX_FREEZE.md         # exists only after Hands freezes the Codex
+    CODEX_FREEZE.md         # exists only after Brains freezes the Codex
     Sections/
     <Subject>_Codex_Full.txt
 
@@ -180,7 +180,7 @@ Goal:
 World State is Fog of War unless Codex Freeze has occurred.
 
 Gate condition for Fog Lifted (both must be true):
-1) Hands explicitly declares the Codex frozen, AND
+1) Brains explicitly declares the Codex frozen, AND
 2) the marker file exists:
    - `<Subject>_Data/Codex/CODEX_FREEZE.md`
 
@@ -212,7 +212,7 @@ Allowed (scaffolding; not execution):
 
 ### 2.4 Continuous capture obligation (No Loss Rule)
 
-During incubation, Brains MUST continuously capture:
+During incubation, Hands MUST continuously capture:
 - decisions
 - constraints
 - requirements
@@ -228,7 +228,7 @@ Capture location (deterministic):
 
 ### 2.5 Structural coherence obligation (domain-agnostic)
 
-Brains MUST actively detect and maintain emerging structure.
+Hands MUST actively detect and maintain emerging structure.
 
 This means:
 - identify recurring conceptual clusters (whatever they are for the subject)
@@ -255,7 +255,7 @@ Minimum required cadence (deterministic):
 - update crystals immediately before generating the TOC
 - update crystals before ending a session if meaningful incubation occurred without a Control Sync
 
-If Brains cannot write/update crystals:
+If Hands cannot write/update crystals:
 - Disclosure Gate MUST trigger
 - do NOT proceed as if capture succeeded
 
@@ -277,13 +277,13 @@ Snapshot location (canonical):
 
 ## 3) EXIT CONDITIONS — TOC + CODEX FORMATION → CODEX FREEZE
 
-Incubation ends only when Hands explicitly commands formalization, such as:
+Incubation ends only when Brains explicitly commands formalization, such as:
 - “Generate the TOC”
 - “Write the Codex”
 - “Freeze the map”
 - “We’re ready to build”
 
-When this occurs, Brains MUST follow Codex law:
+When this occurs, Hands MUST follow Codex law:
 - `Guild Docs/SYNAPSE_GUILD__CODEX.txt`
 
 Minimum deterministic sequence (high-level):
@@ -295,9 +295,9 @@ Minimum deterministic sequence (high-level):
 4) Audit each section against the TOC (numbering + scope + completeness; no placeholders)
 5) Stitch TOC + sections into `<Subject>_Codex_Full.txt`
 6) Verify the stitch (no gaps, no duplicates, clean end)
-7) If Hands approves: write the Codex Freeze marker:
+7) If Brains approves: write the Codex Freeze marker:
    - `<Subject>_Data/Codex/CODEX_FREEZE.md`
-   - include date/time + Hands approval
+   - include date/time + Brains approval
 
 Hard rule:
 - Execution remains forbidden until Codex Freeze is declared AND the marker exists.
