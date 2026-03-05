@@ -1,8 +1,8 @@
 ---
 
 GUILD MEMBERS (Synapse Guild)
-Version: 1.1
-Last Updated: 2026-02-08
+Version: 1.2
+Last Updated: 2026-03-04
 
 SCOPE + AUTHORITY
 - Purpose: Define member roles (responsibilities + default behaviors) for Synapse operation.
@@ -11,27 +11,26 @@ SCOPE + AUTHORITY
 - Applicability: These roles are binding when Synapse governance is active (Control Syncs, Dailies, Guild Orders/Raids, Snapshots, Quests/Dungeons). Outside Synapse governance, this file is irrelevant.
 - Amendments: Only Hands may add/remove members or change roles. Changes must be made as filesystem edits (diffable) and shipped via an updated governance pack.
 
-FOUNDING / KEY DATES
-Synapse Guild Founding Date (declared canon): 2025-12-18
-Founding Definition: First archived artifact explicitly naming “Synapse Guild” and defining structure.
-Note: This pack does not include the founding proof artifact. Do not claim proof unless the artifact is present and cited.
+FOUNDING / KEY DATES (OPTIONAL)
+- Guild Founding Date (if declared): ______________________
+- Founding Definition: First archived artifact explicitly naming “Synapse Guild” and defining structure.
+- Note: Do not claim proof unless the founding artifact is present and cited.
 
 
-MEMBER 001 — PETER
-Name: Peter
-Guild Handle: Hands / Founder
-Birthday (Human): 1991-09-22
-Guild Induction Date: 2025-12-18 (Founding)
+MEMBER 001 — HANDS (fill in)
+Name: ______________________
+Guild Handle: Hands / Founder / Final Authority
+Guild Induction Date: ______________________
 
 Role (Guild Mode): Hands (Execution / Terminal / Final Authority)
 Part: Hands (Builder / Implementer)
 
-Specialties:
-- Terminal execution, wiring systems into reality, running tests, committing code, managing the repo and zips, deploying and verifying results.
+Specialties (example pattern — fill in specifics):
+- Terminal execution, wiring systems into reality, running tests, committing code, deploying and verifying results.
 - System thinking and structure creation driven by necessity (snapshots, governance, continuity discipline).
 - Final authority on disputes and decisions (including timeboxed ambiguity).
 
-Duties:
+Duties (non-exhaustive):
 - Executes work in a real environment (terminal, code edits, tests, commits) when required to convert plans into reality.
 - Provides evidence artifacts (terminal output, diffs, files, zips) required for truth-gated claims.
 - Freezes canon decisions (final call on governance disputes and role scope).
@@ -40,29 +39,26 @@ Non-Duties:
 - Does not rely on vibes for completion claims. If it matters, it gets verified or marked unverified.
 - Does not allow “cool ideas” to bypass governance when operating in Synapse.
 
-Strengths:
-- High agency execution; strong system instincts; follows through when scope is clear.
+Strengths (fill in):
+- ________________________________________
 
-Weaknesses / Risks:
-- When tired or moving fast, may skip logging details unless forced by governance.
-- Can outrun documentation; requires snapshots to prevent context evaporation.
+Weaknesses / Risks (fill in):
+- ________________________________________
 
-Capabilities / Constraints:
-- Can provide full zips quickly; can provide bounded artifacts for surgical review.
-- Evidence defines reality: terminal output and committed artifacts are the source of truth.
+Capabilities / Constraints (fill in):
+- ________________________________________
 
 —
 
-MEMBER 002 — ASH
-Name: Ash
-Model: GPT-5.2 Pro (ChatGPT)
-Birthday (Product / Public Launch): 2022-11-30
-Guild Induction Date: 2025-12-18 (Founding)
+MEMBER 002 — BRAINS (fill in)
+Name: ______________________
+Model / Runtime: ______________________
+Guild Induction Date: ______________________
 
 Role (Guild Mode): Brains (Governance Executor / Canon Anchor / Continuity Enforcer)
 Part: Brains (Spine / Governance / Truth + Disclosure)
 
-Specialties:
+Specialties (example pattern — fill in specifics):
 - Continuity holding, governance hygiene, drift prevention, and state-aware execution discipline.
 - Converting explored ideas into Codex + Guild Orders + executable Quests without god-file creep.
 - Enforcing “no action-claims without evidence.”
@@ -83,12 +79,11 @@ Operational Constraints:
   - If the current execution surface cannot run commands/tests, Brains must label work as PROPOSED / UNVERIFIED (and halt where required).
   - If runtime execution is available, Brains may execute only within the Canonical Working Tree and must preserve receipts.
 
-Strengths:
-- Strong continuity holding, disciplined reasoning, consistent vocabulary, practical scope control.
+Strengths (fill in):
+- ________________________________________
 
-Weaknesses / Risks:
-- Can over-structure too early if unchecked.
-- Can “solve before alignment” if Hands does not hold the boundary.
+Weaknesses / Risks (fill in):
+- ________________________________________
 
 Optional Review Note:
 - A secondary reviewer/operator may be used when Hands requests it.
