@@ -1,0 +1,105 @@
+SYNAPSE GUILD ORDERS TEMPLATE — SELF-CONTAINED
+Version: v1.0
+Last Updated: 2026-03-05
+Status: Template
+
+Purpose:
+- Fast, complete Guild Orders creation without hidden dependencies.
+- Subject-agnostic by design.
+
+================================================================================
+0) DEFINITIONS (CANONICAL SHORT FORM)
+================================================================================
+
+- Guild Orders:
+  - Authoritative statement of WHAT is being built now and DONE criteria.
+- Raid:
+  - Active execution run of one Guild Orders artifact.
+  - State by location: ACTIVE / PAUSED / COMPLETED.
+- Dungeon:
+  - Major scope slice within Guild Orders.
+  - Decomposes into one or more Quests.
+- Quest:
+  - Atomic executable unit with deterministic verification.
+
+================================================================================
+1) HEADER
+================================================================================
+
+- Subject: <SUBJECT>
+- Guild Orders ID: GO-<YYYYMMDD>-<slug>
+- Status: PAUSED|ACTIVE|COMPLETED
+- Owner(s): <names>
+- Date Opened: <YYYY-MM-DD>
+- Date Updated: <YYYY-MM-DD>
+
+================================================================================
+2) SCOPE + NON-GOALS
+================================================================================
+
+- Scope:
+  - <What is in>
+- Non-Goals:
+  - <What is explicitly out>
+
+================================================================================
+3) GLOBAL CONSTRAINTS
+================================================================================
+
+- Architecture constraints:
+  - <boundaries/invariants>
+- Operational constraints:
+  - <time/risk/tooling limits>
+- Compliance/safety constraints:
+  - <if any>
+
+================================================================================
+4) RAID-LEVEL VERIFICATION
+================================================================================
+
+- Raid Done Definition:
+  - <What must be true to mark COMPLETED>
+- Raid Verification Method:
+  - <tests/checklists/proofs>
+- Required receipts:
+  - raw command output
+  - changed-file list/diff
+  - artifact paths
+
+================================================================================
+5) DUNGEONS (REPEATABLE BLOCK)
+================================================================================
+
+Dungeon ID: DUNGEON_<N>
+- Title: <name>
+- Objective: <world-state change>
+- Scope: <in>
+- Non-Goals: <out>
+- Dependencies: <other dungeons/external requirements>
+- Constraints: <special limits>
+- Interfaces/Boundaries: <contracts/adapters/data boundaries>
+- Verification:
+  - acceptance criteria
+  - evidence required
+- Stop Conditions (block immediately):
+  - ambiguity that changes intended behavior
+  - missing required dependency/token/consent
+  - contradiction vs codex/invariants
+- Quest decomposition notes:
+  - expected quest families (not full quest list)
+
+================================================================================
+6) EXECUTION POLICY
+================================================================================
+
+- R0/R1: execute automatically in EXECUTE mode.
+- R2+: explicit consent once per batch.
+- No silent scope expansion.
+- If contradiction found, pause and resolve via Control Sync.
+
+================================================================================
+7) CHANGE LOG
+================================================================================
+
+- <YYYY-MM-DD> <who> <what changed>
+

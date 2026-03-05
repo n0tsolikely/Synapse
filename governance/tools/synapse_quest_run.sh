@@ -67,6 +67,20 @@ require_explicit_subject_source() {
   return 0
 }
 
+enforce_elastic_gate() {
+  local risk="$1"
+  local action="$2"
+  local out
+  if ! out="$(python3 "$SYNAPSE_ROOT/runtime/synapse.py" enforce --risk "$risk" --tool "synapse_quest_run.sh" --action "$action" 2>&1)"; then
+    echo "$out" >&2
+    return 2
+  fi
+  if [[ -n "$out" ]]; then
+    echo "$out" >&2
+  fi
+  return 0
+}
+
 _resolve_subject_context
 RUNTIME_DIR="$DATA_ROOT/.governance_runtime"
 WAVE_FILE="$RUNTIME_DIR/quest_wave_receipts.tsv"
@@ -237,6 +251,10 @@ maybe_require_r2() {
     return 0
   fi
 
+  if ! enforce_elastic_gate "R2" "r2_command_preflight"; then
+    return 2
+  fi
+
   if ! require_explicit_subject_source "R2-gated command"; then
     return 2
   fi
@@ -373,6 +391,9 @@ auto_eod_if_wave_finished() {
   if [ "${REQUIRE_EOD_ON_EMPTY_ACCEPTED:-YES}" != "YES" ]; then
     return 0
   fi
+  if ! enforce_elastic_gate "R2" "auto_eod_snapshot"; then
+    return 5
+  fi
   if ! require_explicit_subject_source "automatic EOD snapshot write"; then
     return 5
   fi
@@ -423,6 +444,7 @@ auto_eod_if_wave_finished() {
 }
 
 cmd_init() {
+  enforce_elastic_gate "R1" "init_bundle" || { echo "BLOCKED: elastic gate denied init"; exit 3; }
   python_check || { echo "BLOCKED: python3 unusable"; exit 3; }
   local qid="$1"
   local qfile
@@ -443,6 +465,7 @@ cmd_init() {
 }
 
 cmd_cmd() {
+  enforce_elastic_gate "R1" "run_command" || { echo "BLOCKED: elastic gate denied command execution"; exit 3; }
   python_check || { echo "BLOCKED: python3 unusable"; exit 3; }
   local qid="$1"; shift
   local cmd_str="$*"
@@ -483,6 +506,7 @@ cmd_cmd() {
 }
 
 cmd_finalize() {
+  enforce_elastic_gate "R1" "finalize_bundle" || { echo "BLOCKED: elastic gate denied finalize"; exit 3; }
   local qid="$1"
 
   local qfile
@@ -518,6 +542,9 @@ cmd_finalize() {
 
 cmd_complete() {
   local qid="$1"
+  if ! enforce_elastic_gate "R2" "accepted_to_completed"; then
+    exit 5
+  fi
   if ! require_explicit_subject_source "quest state transition (Accepted -> Completed)"; then
     exit 5
   fi
