@@ -346,7 +346,7 @@ def _print_failures(failures: Iterable[str]) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Synapse governance guard for quest execution (subject-agnostic).")
-    p.add_argument("--data-root", default="~/Ashby_Data", help="Canonical <Subject>_Data root")
+    p.add_argument("--data-root", default="~/Subject_Data", help="Canonical <Subject>_Data root")
     p.add_argument("--subject", help="Subject name (required for validating snapshot filenames if data root isn't <Subject>_Data)")
 
     sub = p.add_subparsers(dest="cmd", required=True)

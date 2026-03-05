@@ -5,8 +5,8 @@
 # 2) OPTIONAL (recommended): symlink it into the roots you run Codex from:
 #      ln -sf $HOME/AGENTS.md $HOME/.codex/AGENTS.md
 #      ln -sf $HOME/AGENTS.md $HOME/Synapse/AGENTS.md
-#      ln -sf $HOME/AGENTS.md $HOME/Ashby_Engine/AGENTS.md
-#      ln -sf $HOME/AGENTS.md $HOME/Ashby_Data/AGENTS.md
+#      ln -sf $HOME/AGENTS.md $HOME/${SUBJECT}_Engine/AGENTS.md
+#      ln -sf $HOME/AGENTS.md $HOME/${SUBJECT}_Data/AGENTS.md
 #
 # SCOPE NOTE
 # - Instructions apply to the directory tree rooted where this file lives.
@@ -29,20 +29,21 @@
 # Synapse
 SYNAPSE_ROOT=${SYNAPSE_ROOT:-$HOME/Synapse}
 GOVERNANCE_ROOT=${GOVERNANCE_ROOT:-$SYNAPSE_ROOT/governance}
+SUBJECT=${SUBJECT:-Subject}   # REQUIRED: set to active subject key before execution
 
 # Engine/Data split (example subject roots)
-ENGINE_ROOT=${ENGINE_ROOT:-$HOME/Ashby_Engine}
-DATA_ROOT=${DATA_ROOT:-$HOME/Ashby_Data}
+ENGINE_ROOT=${ENGINE_ROOT:-$HOME/${SUBJECT}_Engine}
+DATA_ROOT=${DATA_ROOT:-$HOME/${SUBJECT}_Data}
 
 # Doctor (governance validity gate)
 SYNAPSE_DOCTOR_CMD=python3 "$SYNAPSE_ROOT/runtime/synapse.py" doctor --governance-root "$GOVERNANCE_ROOT"
 
 # Governance tools
 TOOL_SNAPSHOT_PRIMARY=$SYNAPSE_ROOT/governance/tools/synapse_snapshot_writer.py
-TOOL_SNAPSHOT_LEGACY=$SYNAPSE_ROOT/governance/tools/stuart_session_runtime.py
+TOOL_SNAPSHOT_LEGACY=$SYNAPSE_ROOT/governance/tools/synapse_snapshot_writer_legacy.py
 
 TOOL_GUARD_PRIMARY=$SYNAPSE_ROOT/governance/tools/synapse_governance_guard.py
-TOOL_GUARD_LEGACY=$SYNAPSE_ROOT/governance/tools/stuart_governance_guard.py
+TOOL_GUARD_LEGACY=$SYNAPSE_ROOT/governance/tools/synapse_governance_guard_legacy.py
 
 # NOTE:
 # - If a PRIMARY tool exists, it is the canonical one.
@@ -91,6 +92,7 @@ You are NOT authorized to modify files until BOOT RITUAL is complete.
 
 STEP A — Assert roots exist (no guessing)
 - Verify these exist (or STOP):
+  - SUBJECT (must be explicit; if Subject placeholder remains, ask Hands)
   - SYNAPSE_ROOT
   - GOVERNANCE_ROOT
   - ENGINE_ROOT
@@ -313,10 +315,10 @@ MANDATORY QUEST RUNNER WRAPPER
 
 
 ================================================================================
-6) ASHBY + STUART ARCHITECTURE INVARIANTS (ENFORCE OR STOP)
+6) SUBJECT ARCHITECTURE INVARIANTS (ENFORCE OR STOP)
 ================================================================================
 
-ASHBY (platform spine)
+<SUBJECT> platform spine
 - No god files.
 - Thin router/orchestrator.
 - Separate WHAT from HOW:
@@ -325,7 +327,7 @@ ASHBY (platform spine)
 - Brand/vendor logic isolated in adapters.
 - Action-gated truth for external effects.
 
-STUART (meetings module)
+<SUBJECT> module
 - Deterministic pipeline stages with explicit artifacts per stage.
 - Formalization is loss-minimized restructuring, not “summarize and drop context.”
 - Speaker identity overlays require evidence; do not invent names.

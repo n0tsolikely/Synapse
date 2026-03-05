@@ -8,7 +8,7 @@ This script **fails fast** unless a valid confirmation artifact exists on disk a
 
 ### Network egress for dependency installs only (NO tokens)
 ```bash
-Ashby_Data/tools/require_r2_confirmation.sh \
+$SYNAPSE_ROOT/governance/tools/require_r2_confirmation.sh \
   --confirmations-dir "$DATA_ROOT/confirmations" \
   --confirm-file "CONFIRM_R2__DUNGEON_6__2026-03-01__network_deps_only.txt" \
   --need-egress YES --need-tokens NO --need-model-downloads NO
@@ -16,7 +16,7 @@ Ashby_Data/tools/require_r2_confirmation.sh \
 
 ### Token-backed tests allowed (YES tokens)
 ```bash
-Ashby_Data/tools/require_r2_confirmation.sh \
+$SYNAPSE_ROOT/governance/tools/require_r2_confirmation.sh \
   --confirmations-dir "$DATA_ROOT/confirmations" \
   --confirm-file "CONFIRM_R2__DUNGEON_6__2026-03-01__token_tests_allowed.txt" \
   --need-egress YES --need-tokens YES --need-model-downloads NO
@@ -33,8 +33,8 @@ Add a **mandatory preflight** in synapse_quest_run.sh before any step that could
 Example snippet:
 ```bash
 # Before networked step:
-Ashby_Data/tools/require_r2_confirmation.sh \
-  --confirmations-dir "$ASHBY_DATA/confirmations" \
+$SYNAPSE_ROOT/governance/tools/require_r2_confirmation.sh \
+  --confirmations-dir "$DATA_ROOT/confirmations" \
   --confirm-file "$R2_CONFIRM_FILE" \
   --need-egress YES --need-tokens "$NEED_TOKENS" --need-model-downloads NO
 ```

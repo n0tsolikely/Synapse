@@ -31,7 +31,7 @@ Execution Packs exist to solve a brutal reality:
 Execution Packs convert a long, nuanced Control Sync into a deterministic, resumable,
 anti-drift execution state.
 
-This is governance law. It applies across all projects (Ashby, Stuart, games, anything).
+This is governance law. It applies across all projects (<SUBJECT>, <SUBJECT>, games, anything).
 
 ================================================================================
 0.1) ARTIFACT LAW (BINDING)
@@ -253,7 +253,7 @@ MVEP checklist:
 
 6.1 Identity
 - What is this pack called?
-- What scope does it govern? (System: Ashby / Module: Stuart / Other)
+- What scope does it govern? (System: <SUBJECT> / Module: <SUBJECT> / Other)
 - What triggered it? (one paragraph)
 
 6.2 Objective
@@ -430,8 +430,8 @@ or for single-file packs:
 EXEC_PACK__<SCOPE>__<TOPIC>__YYYY-MM-DD__vX.txt
 
 Examples:
-- EXEC_PACK__ASHBY__BATCH_0_ENGINE_EXPANSION__2026-01-13__v1/
-- EXEC_PACK__STUART__V1_CONTRACTS_AND_PIPELINE__2026-01-13__v1/
+- EXEC_PACK__<SUBJECT>__BATCH_0_ENGINE_EXPANSION__2026-01-13__v1/
+- EXEC_PACK__<SUBJECT>__V1_CONTRACTS_AND_PIPELINE__2026-01-13__v1/
 
 Archive convention:
 When complete, move the entire pack folder into Archived unchanged.
@@ -446,17 +446,17 @@ Archived packs must be preserved, not edited.
 
 These are examples to demonstrate that packs are situational by design.
 
-12.1 Ashby “Batch 0 Engine Expansion” pack (platform substrate)
+12.1 <SUBJECT> “Batch 0 Engine Expansion” pack (platform substrate)
 Trigger:
-Stuart could not be built cleanly because Ashby lacked platform primitives.
+<SUBJECT> could not be built cleanly because <SUBJECT> lacked platform primitives.
 Constraint:
-No Stuart-specific code in core. Additive changes only. No router refactor.
+No <SUBJECT>-specific code in core. Additive changes only. No router refactor.
 Contents:
 StorageAdapter, Results, Profiles/Consent, Truth spine, Module registry, Meetings session stub.
 Outcome:
 Pack archived after primitives implemented and smoke tests passed.
 
-12.2 Stuart v1 contracts pack (module build invariants)
+12.2 <SUBJECT> v1 contracts pack (module build invariants)
 Trigger:
 Long design conversation with high drift risk and many subtle invariants.
 Constraint:
@@ -465,7 +465,7 @@ Contents:
 Artifact versioning, error taxonomy/resume, ID conventions, retrieval/indexing contract,
 truth/evidence contract, profile/adapter matrix, architecture mapping.
 Outcome:
-Pack remains active until Stuart v1 raid is completed; then archived.
+Pack remains active until <SUBJECT> v1 raid is completed; then archived.
 
 12.3 Hypothetical game build pack (design-to-implementation freeze)
 Trigger:

@@ -49,8 +49,8 @@ Slug constraints (minimum; deterministic):
 - NO spaces
 - Allowed characters: A–Z a–z 0–9 _ -
 - Examples:
-  - ✅ Stuart
-  - ✅ ashby_os
+  - ✅ <SUBJECT>
+  - ✅ subject_os
   - ✅ VideoGame-V1
   - ❌ “My Project” (contains spaces; must be rewritten)
   - ❌ “weird/thing” (contains slash; must be rewritten)

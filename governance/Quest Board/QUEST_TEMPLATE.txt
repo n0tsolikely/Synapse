@@ -30,7 +30,7 @@ Title:
 # REQUIRED. Short, clear name describing the Quest.
 
 Subject:
-# REQUIRED. The bounded body of work (Ashby / Stuart / Book / Game / etc).
+# REQUIRED. The bounded body of work (<SUBJECT> / <SUBJECT> / Book / Game / etc).
 
 Origin:
 # REQUIRED. Where this Quest came from (Control Sync date, discovered during execution, etc).

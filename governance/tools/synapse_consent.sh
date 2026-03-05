@@ -12,13 +12,20 @@ set -euo pipefail
 #   synapse_consent.sh schema-change --quest-id QUEST_154 [--scope DUNGEON_6]
 #
 # Environment:
-#   DATA_ROOT (default $HOME/Ashby_Data)
+#   SUBJECT (default Subject)
+#   DATA_ROOT (default $HOME/${SUBJECT}_Data)
 
 export TZ="${TZ:-America/Toronto}"
 
-DATA_ROOT="${DATA_ROOT:-$HOME/Ashby_Data}"
+SUBJECT="${SUBJECT:-Subject}"
+DATA_ROOT="${DATA_ROOT:-$HOME/${SUBJECT}_Data}"
 CONF_DIR="$DATA_ROOT/confirmations"
 TODAY="$(date +%F)"
+
+if [[ "$SUBJECT" == "Subject" ]]; then
+  echo "FAIL: SUBJECT is not set. Export SUBJECT=<SUBJECT> before writing confirmations." >&2
+  exit 2
+fi
 
 die() { echo "FAIL: $*" >&2; exit 2; }
 

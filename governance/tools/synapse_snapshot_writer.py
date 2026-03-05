@@ -20,7 +20,7 @@ Why this exists:
   content blocks from plain text files.
 
 Design constraints:
-- Subject-agnostic (STUART, ASHBY, etc.)
+- Subject-agnostic (<SUBJECT>, etc.)
 - No suffix-after-date in filenames.
 - Same-day duplicates use __02 / __03 counters BEFORE the date token.
 """
@@ -92,7 +92,7 @@ def _infer_subject(data_root: Path, explicit: Optional[str]) -> str:
     # 2) If Control Sync state already exists
     st = _load_state(_runtime_state_path(data_root))
     sub = (st.get("subject") or "").strip()
-    if sub and sub.upper() != "ASHBY / STUART":
+    if sub and sub.upper() != "<SUBJECT>":
         return sub
 
     return "UNKNOWN_SUBJECT"
@@ -731,7 +731,7 @@ def cmd_status(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Synapse snapshot writer (deterministic, subject-agnostic).")
 
-    p.add_argument("--data-root", default="~/Ashby_Data", help="Canonical <Subject>_Data root")
+    p.add_argument("--data-root", default="~/Subject_Data", help="Canonical <Subject>_Data root")
     p.add_argument("--subject", help="Subject name (recommended; required if cannot be inferred)")
     p.add_argument(
         "--draftshot",

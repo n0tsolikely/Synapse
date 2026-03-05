@@ -12,17 +12,22 @@ set -euo pipefail
 # - Record changed files into 06_CHANGED_FILES.txt at finalize.
 # - Run synapse_governance_guard.py validate at finalize.
 #
-# Defaults are for Ashby/STUART; override via env vars for other subjects.
+# Defaults are subject-driven; override via env vars as needed.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SYNAPSE_ROOT="${SYNAPSE_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
-DATA_ROOT="${DATA_ROOT:-$HOME/Ashby_Data}"
-ENGINE_ROOT="${ENGINE_ROOT:-$HOME/Ashby_Engine}"
-SUBJECT="${SUBJECT:-STUART}"
+SUBJECT="${SUBJECT:-Subject}"
+DATA_ROOT="${DATA_ROOT:-$HOME/${SUBJECT}_Data}"
+ENGINE_ROOT="${ENGINE_ROOT:-$HOME/${SUBJECT}_Engine}"
 GUARD="${GUARD:-$SYNAPSE_ROOT/governance/tools/synapse_governance_guard.py}"
 SNAPSHOT_WRITER="${SNAPSHOT_WRITER:-$SYNAPSE_ROOT/governance/tools/synapse_snapshot_writer.py}"
 RUNTIME_DIR="$DATA_ROOT/.governance_runtime"
 WAVE_FILE="$RUNTIME_DIR/quest_wave_receipts.tsv"
+
+if [[ "$SUBJECT" == "Subject" ]]; then
+  echo "BLOCKED: SUBJECT is not set. Export SUBJECT=<SUBJECT> before running quest execution." >&2
+  exit 2
+fi
 
 slugify() {
   echo "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/_/g; s/^_+|_+$//g'

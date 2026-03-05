@@ -480,7 +480,7 @@ Hard law:
 
 Canonical wrapper:
 - $SYNAPSE_ROOT/governance/tools/synapse_quest_run.sh
-  (If the Subject is not Ashby/STUART, you may override DATA_ROOT/ENGINE_ROOT env vars.)
+  (If the Subject is not <SUBJECT>/<SUBJECT>, you may override DATA_ROOT/ENGINE_ROOT env vars.)
 
 Wrapper must guarantee:
 - Creates the audit bundle as needed using the quest filename date (no "today" bundle drift).
