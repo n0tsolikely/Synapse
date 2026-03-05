@@ -14,15 +14,15 @@ This preserves auditability (files exist) without manual file editing.
 
 Dependency installs only (no tokens):
 ```bash
-$SYNAPSE_ROOT/governance/tools/synapse_consent.sh deps-only --scope DUNGEON_6
+$SYNAPSE_ROOT/runtime/tools/synapse_consent.sh deps-only --scope DUNGEON_6
 ```
 
 Token-backed tests allowed:
 ```bash
-$SYNAPSE_ROOT/governance/tools/synapse_consent.sh token-tests --scope DUNGEON_6
+$SYNAPSE_ROOT/runtime/tools/synapse_consent.sh token-tests --scope DUNGEON_6
 ```
 
 Schema/state change for one quest (no network):
 ```bash
-$SYNAPSE_ROOT/governance/tools/synapse_consent.sh schema-change --quest-id QUEST_154 --scope DUNGEON_6
+$SYNAPSE_ROOT/runtime/tools/synapse_consent.sh schema-change --quest-id QUEST_154 --scope DUNGEON_6
 ```

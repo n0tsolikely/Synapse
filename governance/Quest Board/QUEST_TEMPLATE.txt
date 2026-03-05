@@ -300,7 +300,7 @@ EXECUTION METHOD (MANDATORY)
 ================================================================================
 All execution commands MUST be run via the Synapse quest runner wrapper so receipts are captured DURING execution:
 
-- $SYNAPSE_ROOT/governance/tools/synapse_quest_run.sh
+- $SYNAPSE_ROOT/runtime/tools/synapse_quest_run.sh
 
 Minimum receipts required by governance validation:
 - 06_TESTS.txt (must include at least one CMD: line)

@@ -107,20 +107,20 @@ Always route through canonical governance docs first, then tool/validator.
   - Template: `governance/Guild Docs/SYNAPSE_GUILD__GUILD_ORDERS_TEMPLATE__SELF_CONTAINED.txt`
 
 - Quests / execution receipts:
-  - Tool: `governance/tools/synapse_quest_run.sh`
-  - Validator: `governance/tools/synapse_governance_guard.py`
+  - Tool: `runtime/tools/synapse_quest_run.sh`
+  - Validator: `runtime/tools/synapse_governance_guard.py`
 
 - Consent:
-  - Tool: `governance/tools/synapse_consent.sh`
+  - Tool: `runtime/tools/synapse_consent.sh`
 
 - Snapshots:
-  - Tool: `governance/tools/synapse_snapshot_writer.py`
+  - Tool: `runtime/tools/synapse_snapshot_writer.py`
 
 - Incubation/Codex scaffolding:
   - Tool: `python3 runtime/synapse.py scaffold-subject`
 
 - Codex gates:
-  - Tool: `governance/tools/synapse_codex_gate.py`
+  - Tool: `runtime/tools/synapse_codex_gate.py`
 
 ================================================================================
 6) Incubation Scribe Rules

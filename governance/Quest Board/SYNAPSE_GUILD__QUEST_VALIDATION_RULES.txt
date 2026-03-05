@@ -440,7 +440,7 @@ To prevent audit fabrication-by-accident, the system requires a deterministic wr
 
 Hard law:
 - Every quest that executes terminal commands MUST run them via the Synapse quest runner wrapper:
-  $SYNAPSE_ROOT/governance/tools/synapse_quest_run.sh
+  $SYNAPSE_ROOT/runtime/tools/synapse_quest_run.sh
 
 Validation requirements (enforced by synapse_governance_guard.py):
 - 06_TESTS.txt MUST:
