@@ -36,6 +36,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+SYNAPSE_ROOT = SCRIPT_DIR.parent.parent
+RUNTIME_ROOT = SYNAPSE_ROOT / "runtime"
+if str(RUNTIME_ROOT) not in sys.path:
+    sys.path.insert(0, str(RUNTIME_ROOT))
+
+from synapse_runtime.subject_resolver import SubjectResolutionError, resolve_subject
+
 
 # -------------------------
 # helpers
@@ -76,26 +84,24 @@ def _save_state(path: Path, state: dict) -> None:
     path.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def _infer_subject(data_root: Path, explicit: Optional[str]) -> str:
-    """Infer subject if not explicitly provided.
+def _resolve_context(args: argparse.Namespace, *, high_risk: bool) -> tuple[Path, str, str]:
+    try:
+        ctx = resolve_subject(
+            subject_flag=args.subject,
+            data_root_flag=args.data_root,
+            allow_switch=False,
+        )
+    except SubjectResolutionError as exc:
+        raise RuntimeError(str(exc)) from exc
 
-    Best-effort only. If this returns UNKNOWN_SUBJECT, caller should require --subject.
-    """
-    if explicit and explicit.strip():
-        return explicit.strip()
+    selection_method = str(ctx.get("selection_method") or "")
+    if high_risk and selection_method not in {"flag", "lockfile"}:
+        raise RuntimeError(
+            "high-risk action requires explicit subject source (flag or lockfile). "
+            f"selection_method={selection_method}"
+        )
 
-    # 1) If data_root is named <SUBJECT>_Data
-    name = data_root.name
-    if name.endswith("_Data") and len(name) > 5:
-        return name[:-5]
-
-    # 2) If Control Sync state already exists
-    st = _load_state(_runtime_state_path(data_root))
-    sub = (st.get("subject") or "").strip()
-    if sub and sub.upper() != "<SUBJECT>":
-        return sub
-
-    return "UNKNOWN_SUBJECT"
+    return Path(str(ctx["data_root"])).expanduser().resolve(), str(ctx["subject"]), selection_method
 
 
 def _codex_freeze_status(data_root: Path) -> tuple[str, str]:
@@ -490,7 +496,11 @@ def _write_general_snapshot(
 # -------------------------
 
 def cmd_control_open(args: argparse.Namespace) -> int:
-    data_root = Path(args.data_root).expanduser().resolve()
+    try:
+        data_root, subject, _sel = _resolve_context(args, high_risk=False)
+    except RuntimeError as exc:
+        print(f"FAIL: {exc}")
+        return 2
     state_path = _runtime_state_path(data_root)
     now = _now_local()
 
@@ -499,11 +509,6 @@ def cmd_control_open(args: argparse.Namespace) -> int:
         print("FAIL: Control Sync already active.")
         print(f"- started_at: {state.get('started_at')}")
         print(f"- subject: {state.get('subject')}")
-        return 2
-
-    subject = _infer_subject(data_root, args.subject)
-    if subject == "UNKNOWN_SUBJECT" and not args.subject:
-        print("FAIL: subject could not be inferred; pass --subject")
         return 2
 
     new_state = {
@@ -524,7 +529,11 @@ def cmd_control_open(args: argparse.Namespace) -> int:
 
 
 def cmd_control_close(args: argparse.Namespace) -> int:
-    data_root = Path(args.data_root).expanduser().resolve()
+    try:
+        data_root, subject, _sel = _resolve_context(args, high_risk=True)
+    except RuntimeError as exc:
+        print(f"FAIL: {exc}")
+        return 2
     state_path = _runtime_state_path(data_root)
     state = _load_state(state_path)
 
@@ -534,11 +543,6 @@ def cmd_control_close(args: argparse.Namespace) -> int:
 
     now = _now_local()
     day = now.date().isoformat()
-
-    subject = _infer_subject(data_root, args.subject or state.get("subject"))
-    if subject == "UNKNOWN_SUBJECT":
-        print("FAIL: subject could not be inferred; pass --subject")
-        return 2
 
     out_dir = data_root / "Snapshots" / "Control Sync"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -600,14 +604,13 @@ def cmd_control_close(args: argparse.Namespace) -> int:
 
 
 def cmd_eod(args: argparse.Namespace) -> int:
-    data_root = Path(args.data_root).expanduser().resolve()
+    try:
+        data_root, subject, _sel = _resolve_context(args, high_risk=True)
+    except RuntimeError as exc:
+        print(f"FAIL: {exc}")
+        return 2
     now = _now_local()
     day = now.date().isoformat()
-
-    subject = _infer_subject(data_root, args.subject)
-    if subject == "UNKNOWN_SUBJECT" and not args.subject:
-        print("FAIL: subject could not be inferred; pass --subject")
-        return 2
 
     out_dir = data_root / "Snapshots" / "End of Day"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -661,14 +664,13 @@ def cmd_eod(args: argparse.Namespace) -> int:
 
 
 def cmd_general(args: argparse.Namespace) -> int:
-    data_root = Path(args.data_root).expanduser().resolve()
+    try:
+        data_root, subject, _sel = _resolve_context(args, high_risk=True)
+    except RuntimeError as exc:
+        print(f"FAIL: {exc}")
+        return 2
     now = _now_local()
     day = now.date().isoformat()
-
-    subject = _infer_subject(data_root, args.subject)
-    if subject == "UNKNOWN_SUBJECT" and not args.subject:
-        print("FAIL: subject could not be inferred; pass --subject")
-        return 2
 
     out_dir = data_root / "Snapshots" / "General"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -713,7 +715,11 @@ def cmd_general(args: argparse.Namespace) -> int:
 
 
 def cmd_status(args: argparse.Namespace) -> int:
-    data_root = Path(args.data_root).expanduser().resolve()
+    try:
+        data_root, _subject, _sel = _resolve_context(args, high_risk=False)
+    except RuntimeError as exc:
+        print(f"FAIL: {exc}")
+        return 2
     state_path = _runtime_state_path(data_root)
     state = _load_state(state_path)
     if not state:
@@ -731,8 +737,8 @@ def cmd_status(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Synapse snapshot writer (deterministic, subject-agnostic).")
 
-    p.add_argument("--data-root", default="~/Subject_Data", help="Canonical <Subject>_Data root")
-    p.add_argument("--subject", help="Subject name (recommended; required if cannot be inferred)")
+    p.add_argument("--data-root", help="Canonical <Subject>_Data root (optional; resolved from focus lock if omitted)")
+    p.add_argument("--subject", help="Subject name override")
     p.add_argument(
         "--draftshot",
         help="Optional Draftshot file path. If omitted, auto-detects single ACTIVE Draftshot under Snapshots/Draft Shots.",

@@ -73,7 +73,7 @@ def _check_required_read_order(governance_root: Path, state: dict, paths: list[s
     return results
 
 
-def run_doctor(governance_root_arg: str) -> int:
+def run_doctor(governance_root_arg: str, subject_receipt: dict | None = None) -> int:
     cwt = detect_canonical_working_tree()
     governance_root = resolve_governance_root(cwt, governance_root_arg)
 
@@ -101,6 +101,15 @@ def run_doctor(governance_root_arg: str) -> int:
     file_items_ok = all(item.ok for item in read_order_checks if item.kind == "FILE")
     overall_pass = governance_root_exists and schema_valid and file_items_ok
 
+    if subject_receipt is not None:
+        print("=== RESOLVED SUBJECT RECEIPT ===")
+        print(f"subject: {subject_receipt.get('subject')}")
+        print(f"data_root: {subject_receipt.get('data_root')}")
+        print(f"engine_root: {subject_receipt.get('engine_root')}")
+        print(f"selected_at: {subject_receipt.get('selected_at')}")
+        print(f"selected_by: {subject_receipt.get('selected_by')}")
+        print(f"selection_method: {subject_receipt.get('selection_method')}")
+        print(f"source_detail: {subject_receipt.get('source_detail')}")
     print("=== SYNAPSE DOCTOR REPORT ===")
     print(f"CWT: {cwt}")
     print(f"Governance root: {governance_root}")

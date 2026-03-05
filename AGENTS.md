@@ -29,11 +29,13 @@
 # Synapse
 SYNAPSE_ROOT=${SYNAPSE_ROOT:-$HOME/Synapse}
 GOVERNANCE_ROOT=${GOVERNANCE_ROOT:-$SYNAPSE_ROOT/governance}
-SUBJECT=${SUBJECT:-Subject}   # REQUIRED: set to active subject key before execution
-
-# Engine/Data split (example subject roots)
-ENGINE_ROOT=${ENGINE_ROOT:-$HOME/${SUBJECT}_Engine}
-DATA_ROOT=${DATA_ROOT:-$HOME/${SUBJECT}_Data}
+# Subject focus is resolved by lockfile priority:
+# 1) --subject flag
+# 2) .synapse/ACTIVE_SUBJECT.json (repo)
+# 3) ~/.synapse/ACTIVE_SUBJECT.json (home)
+# 4) SUBJECT env
+# 5) infer if exactly one *_Data exists
+# 6) otherwise run focus command
 
 # Doctor (governance validity gate)
 SYNAPSE_DOCTOR_CMD=python3 "$SYNAPSE_ROOT/runtime/synapse.py" doctor --governance-root "$GOVERNANCE_ROOT"
@@ -83,6 +85,10 @@ TOOL_GUARD_LEGACY=$SYNAPSE_ROOT/governance/tools/synapse_governance_guard_legacy
    - Stop, disclose uncertainty, propose a patch/plan.
    - Do NOT silently improvise.
 
+8. Subject switch law:
+   - Active subject may only be changed with `python3 "$SYNAPSE_ROOT/runtime/synapse.py" focus`.
+   - No silent subject switching from env inference during execution.
+
 
 ================================================================================
 2) BOOT RITUAL (MANDATORY — EVERY SESSION BEFORE WORK)
@@ -92,35 +98,38 @@ You are NOT authorized to modify files until BOOT RITUAL is complete.
 
 STEP A — Assert roots exist (no guessing)
 - Verify these exist (or STOP):
-  - SUBJECT (must be explicit; if Subject placeholder remains, ask Hands)
   - SYNAPSE_ROOT
   - GOVERNANCE_ROOT
-  - ENGINE_ROOT
-  - DATA_ROOT
 
-STEP B — Run Doctor (governance validity gate)
+STEP B — Set Subject Focus Lock (mandatory)
+- Run:
+  python3 "$SYNAPSE_ROOT/runtime/synapse.py" focus
+- This is the only supported subject switch path.
+
+STEP C — Run Doctor (governance validity gate)
 - Run:
   ${SYNAPSE_DOCTOR_CMD}
+- Doctor must resolve subject first unless --no-subject is explicitly used.
 
 - If FAIL:
   - print full output
   - STOP (no execution)
 
-STEP C — Read canonical routing law (NO SKIPPING)
+STEP D — Read canonical routing law (NO SKIPPING)
 Open/read, in order:
 1) $GOVERNANCE_ROOT/README.txt
 2) $GOVERNANCE_ROOT/INDEX.txt
 3) $GOVERNANCE_ROOT/SYNAPSE_STATE.yaml
 
-STEP D — REQUIRED READ ORDER (deterministic)
+STEP E — REQUIRED READ ORDER (deterministic)
 - Use SYNAPSE_STATE.yaml → required_read_order.
 - For each required item, in order:
   - If it’s a path: open/read it end-to-end.
   - If it’s a subject pointer (Latest Rehydration Pack / Continuity Lock / Buffs):
-    - resolve it under DATA_ROOT exactly as specified (no guessing).
+    - resolve it only under the currently focused <SUBJECT>_Data root.
     - if missing/ambiguous: STOP + Disclosure Gate.
 
-STEP E — Load CURRENT REALITY (GPS)
+STEP F — Load CURRENT REALITY (GPS)
 - After reading the latest Continuity Lock:
   - treat it as authoritative “GPS”:
     - current state
@@ -131,6 +140,7 @@ STEP E — Load CURRENT REALITY (GPS)
 
 BOOT RITUAL RECEIPT REQUIREMENT
 - After completing Boot Ritual, output a short receipt:
+  - resolved subject receipt (subject, data_root, engine_root, selection_method)
   - Doctor PASS
   - files read (README/INDEX/SYNAPSE_STATE + required items)
   - active Continuity Lock path + timestamp/REV if present
