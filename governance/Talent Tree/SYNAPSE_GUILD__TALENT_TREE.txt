@@ -265,7 +265,7 @@ Each Talent entry MUST include:
 - Name
 - Unlocked On (date)
 - Source Quest
-- Scope (Ashby / Stuart / System / Other)
+- Scope (<SUBJECT> / <SUBJECT> / System / Other)
 - Description (what capability now exists)
 - Implications (what future work must respect)
 - Notes (optional)

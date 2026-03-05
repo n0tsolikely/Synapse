@@ -316,9 +316,9 @@ Where <SnapshotType> is one of:
 - General
 
 Examples:
-- STUART_Control_Sync_Snapshot_2026-02-02.txt
-- STUART_End_of_Day_Snapshot_2026-02-02.txt
-- STUART_General_Snapshot_2026-02-02.txt
+- <SUBJECT>_Control_Sync_Snapshot_2026-02-02.txt
+- <SUBJECT>_End_of_Day_Snapshot_2026-02-02.txt
+- <SUBJECT>_General_Snapshot_2026-02-02.txt
 
 Strict filename termination rule (hard):
 - Snapshot filenames MUST end with the date token: YYYY-MM-DD.txt

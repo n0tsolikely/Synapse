@@ -27,7 +27,7 @@ A Subject MUST have a stable Subject Key (slug) used for directory naming.
 - Subject Key is confirmed by Hands during Subject Initialization.
 - Subject Key MUST NOT drift once a Subject exists.
 
-Examples (non-exhaustive): Ashby, Stuart, a novel, a game, an essay, a website, homework.
+Examples (non-exhaustive): <SUBJECT>, <SUBJECT>, a novel, a game, an essay, a website, homework.
 
 1.2 <Subject>_Engine
 The Engine is the thing itself (the product / deliverable).
@@ -138,7 +138,7 @@ Recommended location for a Subject's structure blueprint:
 - <Subject>_Data/Blueprint/Subject_Structure.md
 
 2.3 Examples are allowed, defaults are not
-Ashby/Stuart may be referenced as examples, but no universal rule may assume those subjects.
+<SUBJECT> may be referenced as examples, but no universal rule may assume those subjects.
 
 2.4 Canonical Working Tree (anti-parallel-state)
 Work MUST occur in the canonical working tree.

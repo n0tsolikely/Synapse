@@ -1,12 +1,12 @@
 # AGENTS.md — Synapse Governed Execution (AI11)
 # =============================================================================
 # INSTALL (do this once)
-# 1) Put this file at:  /home/notsolikely/AGENTS.md
+# 1) Put this file at:  $HOME/AGENTS.md
 # 2) OPTIONAL (recommended): symlink it into the roots you run Codex from:
-#      ln -sf /home/notsolikely/AGENTS.md /home/notsolikely/.codex/AGENTS.md
-#      ln -sf /home/notsolikely/AGENTS.md /home/notsolikely/Synapse/AGENTS.md
-#      ln -sf /home/notsolikely/AGENTS.md /home/notsolikely/Ashby_Engine/AGENTS.md
-#      ln -sf /home/notsolikely/AGENTS.md /home/notsolikely/Ashby_Data/AGENTS.md
+#      ln -sf $HOME/AGENTS.md $HOME/.codex/AGENTS.md
+#      ln -sf $HOME/AGENTS.md $HOME/Synapse/AGENTS.md
+#      ln -sf $HOME/AGENTS.md $HOME/${SUBJECT}_Engine/AGENTS.md
+#      ln -sf $HOME/AGENTS.md $HOME/${SUBJECT}_Data/AGENTS.md
 #
 # SCOPE NOTE
 # - Instructions apply to the directory tree rooted where this file lives.
@@ -27,22 +27,25 @@
 ================================================================================
 
 # Synapse
-SYNAPSE_OS_ROOT=/home/notsolikely/Synapse
-GOVERNANCE_ROOT=/home/notsolikely/Synapse/governance
-
-# Engine/Data split (example subject roots)
-ENGINE_ROOT=/home/notsolikely/Ashby_Engine
-DATA_ROOT=/home/notsolikely/Ashby_Data
+SYNAPSE_ROOT=${SYNAPSE_ROOT:-$HOME/Synapse}
+GOVERNANCE_ROOT=${GOVERNANCE_ROOT:-$SYNAPSE_ROOT/governance}
+# Subject focus is resolved by lockfile priority:
+# 1) --subject flag
+# 2) .synapse/ACTIVE_SUBJECT.json (repo)
+# 3) ~/.synapse/ACTIVE_SUBJECT.json (home)
+# 4) SUBJECT env
+# 5) infer if exactly one *_Data exists
+# 6) otherwise run focus command
 
 # Doctor (governance validity gate)
-SYNAPSE_DOCTOR_CMD=python3 /home/notsolikely/Synapse/runtime/synapse.py doctor --governance-root /home/notsolikely/Synapse/governance
+SYNAPSE_DOCTOR_CMD=python3 "$SYNAPSE_ROOT/runtime/synapse.py" doctor --governance-root "$GOVERNANCE_ROOT"
 
 # Governance tools
-TOOL_SNAPSHOT_PRIMARY=/home/notsolikely/Synapse/governance/tools/synapse_snapshot_writer.py
-TOOL_SNAPSHOT_LEGACY=/home/notsolikely/Synapse/governance/tools/stuart_session_runtime.py
+TOOL_SNAPSHOT_PRIMARY=$SYNAPSE_ROOT/governance/tools/synapse_snapshot_writer.py
+TOOL_SNAPSHOT_LEGACY=$SYNAPSE_ROOT/governance/tools/synapse_snapshot_writer_legacy.py
 
-TOOL_GUARD_PRIMARY=/home/notsolikely/Synapse/governance/tools/synapse_governance_guard.py
-TOOL_GUARD_LEGACY=/home/notsolikely/Synapse/governance/tools/stuart_governance_guard.py
+TOOL_GUARD_PRIMARY=$SYNAPSE_ROOT/governance/tools/synapse_governance_guard.py
+TOOL_GUARD_LEGACY=$SYNAPSE_ROOT/governance/tools/synapse_governance_guard_legacy.py
 
 # NOTE:
 # - If a PRIMARY tool exists, it is the canonical one.
@@ -82,6 +85,10 @@ TOOL_GUARD_LEGACY=/home/notsolikely/Synapse/governance/tools/stuart_governance_g
    - Stop, disclose uncertainty, propose a patch/plan.
    - Do NOT silently improvise.
 
+8. Subject switch law:
+   - Active subject may only be changed with `python3 "$SYNAPSE_ROOT/runtime/synapse.py" focus`.
+   - No silent subject switching from env inference during execution.
+
 
 ================================================================================
 2) BOOT RITUAL (MANDATORY — EVERY SESSION BEFORE WORK)
@@ -91,34 +98,38 @@ You are NOT authorized to modify files until BOOT RITUAL is complete.
 
 STEP A — Assert roots exist (no guessing)
 - Verify these exist (or STOP):
-  - SYNAPSE_OS_ROOT
+  - SYNAPSE_ROOT
   - GOVERNANCE_ROOT
-  - ENGINE_ROOT
-  - DATA_ROOT
 
-STEP B — Run Doctor (governance validity gate)
+STEP B — Set Subject Focus Lock (mandatory)
+- Run:
+  python3 "$SYNAPSE_ROOT/runtime/synapse.py" focus
+- This is the only supported subject switch path.
+
+STEP C — Run Doctor (governance validity gate)
 - Run:
   ${SYNAPSE_DOCTOR_CMD}
+- Doctor must resolve subject first unless --no-subject is explicitly used.
 
 - If FAIL:
   - print full output
   - STOP (no execution)
 
-STEP C — Read canonical routing law (NO SKIPPING)
+STEP D — Read canonical routing law (NO SKIPPING)
 Open/read, in order:
 1) $GOVERNANCE_ROOT/README.txt
 2) $GOVERNANCE_ROOT/INDEX.txt
 3) $GOVERNANCE_ROOT/SYNAPSE_STATE.yaml
 
-STEP D — REQUIRED READ ORDER (deterministic)
+STEP E — REQUIRED READ ORDER (deterministic)
 - Use SYNAPSE_STATE.yaml → required_read_order.
 - For each required item, in order:
   - If it’s a path: open/read it end-to-end.
   - If it’s a subject pointer (Latest Rehydration Pack / Continuity Lock / Buffs):
-    - resolve it under DATA_ROOT exactly as specified (no guessing).
+    - resolve it only under the currently focused <SUBJECT>_Data root.
     - if missing/ambiguous: STOP + Disclosure Gate.
 
-STEP E — Load CURRENT REALITY (GPS)
+STEP F — Load CURRENT REALITY (GPS)
 - After reading the latest Continuity Lock:
   - treat it as authoritative “GPS”:
     - current state
@@ -129,6 +140,7 @@ STEP E — Load CURRENT REALITY (GPS)
 
 BOOT RITUAL RECEIPT REQUIREMENT
 - After completing Boot Ritual, output a short receipt:
+  - resolved subject receipt (subject, data_root, engine_root, selection_method)
   - Doctor PASS
   - files read (README/INDEX/SYNAPSE_STATE + required items)
   - active Continuity Lock path + timestamp/REV if present
@@ -295,7 +307,7 @@ CONSENT UX (NO MANUAL FILE EDITING):
      - token-tests (network + real tokens; no model downloads)
      - schema-change (quest-specific; no network)
   3) If YES, agent MUST run:
-     /home/notsolikely/Synapse/governance/tools/synapse_consent.sh <mode>
+     $SYNAPSE_ROOT/governance/tools/synapse_consent.sh <mode>
      to write the on-disk confirmation artifact, then proceed.
   4) If NO, remain BLOCKED and do not proceed that path.
 
@@ -308,15 +320,15 @@ MANDATORY QUEST RUNNER WRAPPER
 ================================================================================
 
 - ALL quest execution commands MUST be run via:
-  /home/notsolikely/Synapse/governance/tools/synapse_quest_run.sh
+  $SYNAPSE_ROOT/governance/tools/synapse_quest_run.sh
 - Running commands outside the wrapper is forbidden because it breaks receipts.
 
 
 ================================================================================
-6) ASHBY + STUART ARCHITECTURE INVARIANTS (ENFORCE OR STOP)
+6) SUBJECT ARCHITECTURE INVARIANTS (ENFORCE OR STOP)
 ================================================================================
 
-ASHBY (platform spine)
+<SUBJECT> platform spine
 - No god files.
 - Thin router/orchestrator.
 - Separate WHAT from HOW:
@@ -325,7 +337,7 @@ ASHBY (platform spine)
 - Brand/vendor logic isolated in adapters.
 - Action-gated truth for external effects.
 
-STUART (meetings module)
+<SUBJECT> module
 - Deterministic pipeline stages with explicit artifacts per stage.
 - Formalization is loss-minimized restructuring, not “summarize and drop context.”
 - Speaker identity overlays require evidence; do not invent names.
@@ -364,7 +376,7 @@ rules — it strengthens them.
 
 MANDATORY EXECUTION PATH
 - ALL quest execution commands MUST be run via:
-  /home/notsolikely/Synapse/governance/tools/synapse_quest_run.sh
+  $SYNAPSE_ROOT/governance/tools/synapse_quest_run.sh
 - Running shell commands directly is considered a PROCEDURE VIOLATION.
 - If a command is executed outside the wrapper, STOP and re-run it through the wrapper.
 - No quest may progress toward completion without wrapper receipts.

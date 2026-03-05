@@ -41,7 +41,7 @@ subject_data:
   # - This SYNAPSE_STATE.yaml lives with the GOVERNANCE pack and is universal.
   # - Subject-specific state/config (if any) MUST live inside each subject's data root
   #   per Terminology Locks (e.g., Subject Data Skeleton). Do NOT hardcode a specific
-  #   subject (like Ashby) into this governance-level file.
+  #   subject (like <SUBJECT>) into this governance-level file.
   # - This governance file may resolve ACTIVE_SUBJECT, but it does not define the
   #   per-subject YAML schema. That schema belongs to the Subject Model / subject docs.
 

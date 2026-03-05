@@ -12,13 +12,62 @@ set -euo pipefail
 # - Record changed files into 06_CHANGED_FILES.txt at finalize.
 # - Run synapse_governance_guard.py validate at finalize.
 #
-# Defaults are for Ashby/STUART; override via env vars for other subjects.
+# Defaults are subject-driven; override via env vars as needed.
 
-DATA_ROOT="${DATA_ROOT:-/home/notsolikely/Ashby_Data}"
-ENGINE_ROOT="${ENGINE_ROOT:-/home/notsolikely/Ashby_Engine}"
-SUBJECT="${SUBJECT:-STUART}"
-GUARD="${GUARD:-/home/notsolikely/Synapse/governance/tools/synapse_governance_guard.py}"
-SNAPSHOT_WRITER="${SNAPSHOT_WRITER:-/home/notsolikely/Synapse/governance/tools/synapse_snapshot_writer.py}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SYNAPSE_ROOT="${SYNAPSE_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
+SUBJECT="${SUBJECT:-}"
+DATA_ROOT="${DATA_ROOT:-}"
+ENGINE_ROOT="${ENGINE_ROOT:-}"
+GUARD="${GUARD:-$SYNAPSE_ROOT/governance/tools/synapse_governance_guard.py}"
+SNAPSHOT_WRITER="${SNAPSHOT_WRITER:-$SYNAPSE_ROOT/governance/tools/synapse_snapshot_writer.py}"
+SELECTION_METHOD=""
+SOURCE_DETAIL=""
+
+_resolve_subject_context() {
+  local args
+  args=(resolve-subject --shell)
+  if [[ -n "${SUBJECT:-}" ]]; then
+    args+=(--subject "$SUBJECT")
+  fi
+  if [[ -n "${DATA_ROOT:-}" ]]; then
+    args+=(--data-root "$DATA_ROOT")
+  fi
+  if [[ -n "${ENGINE_ROOT:-}" ]]; then
+    args+=(--engine-root "$ENGINE_ROOT")
+  fi
+
+  local out
+  if ! out="$(python3 "$SYNAPSE_ROOT/runtime/synapse.py" "${args[@]}" 2>&1)"; then
+    echo "BLOCKED: subject resolution failed." >&2
+    echo "$out" >&2
+    echo "Hint: run 'python3 $SYNAPSE_ROOT/runtime/synapse.py focus' first." >&2
+    exit 2
+  fi
+
+  while IFS='=' read -r k v; do
+    case "$k" in
+      SUBJECT) SUBJECT="$v" ;;
+      DATA_ROOT) DATA_ROOT="$v" ;;
+      ENGINE_ROOT) ENGINE_ROOT="$v" ;;
+      SELECTION_METHOD) SELECTION_METHOD="$v" ;;
+      SOURCE_DETAIL) SOURCE_DETAIL="$v" ;;
+    esac
+  done <<< "$out"
+}
+
+require_explicit_subject_source() {
+  local reason="$1"
+  if [[ "$SELECTION_METHOD" != "flag" && "$SELECTION_METHOD" != "lockfile" ]]; then
+    echo "BLOCKED: $reason requires explicit subject source (flag or lockfile)." >&2
+    echo "Current subject source: selection_method=$SELECTION_METHOD source_detail=$SOURCE_DETAIL" >&2
+    echo "Run: python3 $SYNAPSE_ROOT/runtime/synapse.py focus" >&2
+    return 2
+  fi
+  return 0
+}
+
+_resolve_subject_context
 RUNTIME_DIR="$DATA_ROOT/.governance_runtime"
 WAVE_FILE="$RUNTIME_DIR/quest_wave_receipts.tsv"
 
@@ -188,6 +237,10 @@ maybe_require_r2() {
     return 0
   fi
 
+  if ! require_explicit_subject_source "R2-gated command"; then
+    return 2
+  fi
+
   if [[ -z "${R2_CONFIRM_FILE:-}" ]]; then
     echo "R2 BLOCKED: command matches R2 trigger heuristic but R2_CONFIRM_FILE is not set." >&2
     echo "Set: export R2_CONFIRM_FILE='CONFIRM_R2__...txt' (must exist in $DATA_ROOT/confirmations)" >&2
@@ -319,6 +372,9 @@ auto_eod_if_wave_finished() {
   fi
   if [ "${REQUIRE_EOD_ON_EMPTY_ACCEPTED:-YES}" != "YES" ]; then
     return 0
+  fi
+  if ! require_explicit_subject_source "automatic EOD snapshot write"; then
+    return 5
   fi
   if [ ! -f "$SNAPSHOT_WRITER" ]; then
     echo "BLOCKED: SNAPSHOT_WRITER not found at $SNAPSHOT_WRITER" >&2
@@ -462,6 +518,9 @@ cmd_finalize() {
 
 cmd_complete() {
   local qid="$1"
+  if ! require_explicit_subject_source "quest state transition (Accepted -> Completed)"; then
+    exit 5
+  fi
   cmd_finalize "$qid"
 
   local qfile
@@ -495,6 +554,10 @@ cmd_complete() {
 
 main() {
   local action="${1:-}"; local qid="${2:-}"
+  if [[ "$action" == "-h" || "$action" == "--help" ]]; then
+    usage
+    exit 0
+  fi
   if [ -z "$action" ] || [ -z "$qid" ]; then
     usage
     exit 2

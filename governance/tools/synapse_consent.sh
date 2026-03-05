@@ -12,11 +12,60 @@ set -euo pipefail
 #   synapse_consent.sh schema-change --quest-id QUEST_154 [--scope DUNGEON_6]
 #
 # Environment:
-#   DATA_ROOT (default /home/notsolikely/Ashby_Data)
+#   SUBJECT (default Subject)
+#   DATA_ROOT (default $HOME/${SUBJECT}_Data)
 
 export TZ="${TZ:-America/Toronto}"
 
-DATA_ROOT="${DATA_ROOT:-/home/notsolikely/Ashby_Data}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SYNAPSE_ROOT="${SYNAPSE_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
+SUBJECT="${SUBJECT:-}"
+DATA_ROOT="${DATA_ROOT:-}"
+ENGINE_ROOT="${ENGINE_ROOT:-}"
+SELECTION_METHOD=""
+SOURCE_DETAIL=""
+
+_resolve_subject_context() {
+  local args
+  args=(resolve-subject --shell)
+  if [[ -n "${SUBJECT:-}" ]]; then
+    args+=(--subject "$SUBJECT")
+  fi
+  if [[ -n "${DATA_ROOT:-}" ]]; then
+    args+=(--data-root "$DATA_ROOT")
+  fi
+  if [[ -n "${ENGINE_ROOT:-}" ]]; then
+    args+=(--engine-root "$ENGINE_ROOT")
+  fi
+
+  local out
+  if ! out="$(python3 "$SYNAPSE_ROOT/runtime/synapse.py" "${args[@]}" 2>&1)"; then
+    echo "FAIL: subject resolution failed." >&2
+    echo "$out" >&2
+    echo "Hint: run 'python3 $SYNAPSE_ROOT/runtime/synapse.py focus' first." >&2
+    exit 2
+  fi
+  while IFS='=' read -r k v; do
+    case "$k" in
+      SUBJECT) SUBJECT="$v" ;;
+      DATA_ROOT) DATA_ROOT="$v" ;;
+      ENGINE_ROOT) ENGINE_ROOT="$v" ;;
+      SELECTION_METHOD) SELECTION_METHOD="$v" ;;
+      SOURCE_DETAIL) SOURCE_DETAIL="$v" ;;
+    esac
+  done <<< "$out"
+}
+
+_resolve_subject_context
+
+require_explicit_subject_source() {
+  if [[ "$SELECTION_METHOD" != "flag" && "$SELECTION_METHOD" != "lockfile" ]]; then
+    echo "FAIL: high-risk action requires explicit subject source (flag or lockfile); selection_method=$SELECTION_METHOD source_detail=$SOURCE_DETAIL" >&2
+    exit 2
+  fi
+}
+
+require_explicit_subject_source
 CONF_DIR="$DATA_ROOT/confirmations"
 TODAY="$(date +%F)"
 
@@ -82,6 +131,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "$cmd" in
+  -h|--help)
+    usage
+    exit 0
+    ;;
   deps-only)
     fname="CONFIRM_R2__${scope}__${TODAY}__network_deps_only.txt"
     path="$CONF_DIR/$fname"

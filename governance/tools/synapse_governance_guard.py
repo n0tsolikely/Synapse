@@ -35,6 +35,14 @@ import sys
 from pathlib import Path
 from typing import Iterable, List, Optional, Tuple
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+SYNAPSE_ROOT = SCRIPT_DIR.parent.parent
+RUNTIME_ROOT = SYNAPSE_ROOT / "runtime"
+if str(RUNTIME_ROOT) not in sys.path:
+    sys.path.insert(0, str(RUNTIME_ROOT))
+
+from synapse_runtime.subject_resolver import SubjectResolutionError, resolve_subject
+
 
 REQUIRED_BUNDLE_FILES = [
     "00_SUMMARY.md",
@@ -112,6 +120,26 @@ def _infer_subject_from_data_root(data_root: Path, explicit: Optional[str]) -> s
     if name.endswith("_Data") and len(name) > 5:
         return name[:-5]
     return "UNKNOWN_SUBJECT"
+
+
+def _resolve_context(args: argparse.Namespace, *, high_risk: bool) -> tuple[Path, str, str]:
+    try:
+        ctx = resolve_subject(
+            subject_flag=args.subject,
+            data_root_flag=args.data_root,
+            allow_switch=False,
+        )
+    except SubjectResolutionError as exc:
+        raise RuntimeError(str(exc)) from exc
+
+    selection_method = str(ctx.get("selection_method") or "")
+    if high_risk and selection_method not in {"flag", "lockfile"}:
+        raise RuntimeError(
+            "high-risk action requires explicit subject source (flag or lockfile). "
+            f"selection_method={selection_method}"
+        )
+
+    return Path(str(ctx["data_root"])).expanduser().resolve(), str(ctx["subject"]), selection_method
 
 
 def _snapshot_name_regex(subject: str) -> re.Pattern:
@@ -209,7 +237,11 @@ def _outcome_md_ok(bundle: Path) -> Tuple[bool, str]:
 
 
 def cmd_init_bundle(args: argparse.Namespace) -> int:
-    data_root = Path(args.data_root).expanduser().resolve()
+    try:
+        data_root, _subject, _sel = _resolve_context(args, high_risk=False)
+    except RuntimeError as exc:
+        print(f"FAIL: {exc}")
+        return 2
     accepted_dir = data_root / "Quest Board" / "Accepted"
     audits_dir = data_root / "Audits" / "Execution"
 
@@ -271,10 +303,13 @@ def cmd_init_bundle(args: argparse.Namespace) -> int:
 
 
 def cmd_validate(args: argparse.Namespace) -> int:
-    data_root = Path(args.data_root).expanduser().resolve()
+    try:
+        data_root, subject, _sel = _resolve_context(args, high_risk=True)
+    except RuntimeError as exc:
+        print(f"FAIL: {exc}")
+        return 2
     bundle = Path(args.bundle).expanduser().resolve()
     quest_id = args.quest_id.strip().upper()
-    subject = _infer_subject_from_data_root(data_root, args.subject)
 
     failures: List[str] = []
 
@@ -346,7 +381,7 @@ def _print_failures(failures: Iterable[str]) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Synapse governance guard for quest execution (subject-agnostic).")
-    p.add_argument("--data-root", default="~/Ashby_Data", help="Canonical <Subject>_Data root")
+    p.add_argument("--data-root", help="Canonical <Subject>_Data root")
     p.add_argument("--subject", help="Subject name (required for validating snapshot filenames if data root isn't <Subject>_Data)")
 
     sub = p.add_subparsers(dest="cmd", required=True)

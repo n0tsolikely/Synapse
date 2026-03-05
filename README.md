@@ -1,83 +1,23 @@
-\# Synapse (Governance \& Runtime Spine)
+# Synapse
 
+Synapse is a governance-first execution system for continuity across AI sessions.
 
+## Purpose
+- Preserve project continuity with deterministic artifacts, not chat memory.
+- Enforce proof-backed execution (truth gate, audits, snapshots).
+- Let any compliant operator rehydrate and continue work safely.
 
-This repository is the \*\*canonical source of truth\*\* for Synapse.
+## Canonical Routing
+Read these first, in order:
+1. `governance/README.txt`
+2. `governance/INDEX.txt`
+3. `governance/SYNAPSE_STATE.yaml`
 
+Then follow `required_read_order` in `governance/SYNAPSE_STATE.yaml`.
 
+## Repo Layout
+- `governance/` - Synapse laws, processes, schemas, and governance tools.
+- `runtime/` - Synapse runtime/doctor CLI and supporting code.
 
-Synapse is \*\*not\*\* a traditional operating system yet.
-
-It is a \*\*governance-first execution framework\*\* designed to control how intelligence
-
-(AI systems, tools, or humans) is allowed to plan, act, verify, and persist work.
-
-
-
-\## What this repo is
-
-\- A \*\*constitutional spine\*\* for governed execution
-
-\- A versioned, auditable set of \*\*laws, processes, and constraints\*\*
-
-\- The foundation that future runtimes must \*\*enforce\*\*, not reinterpret
-
-\- Designed to be readable and executable by \*\*humans and AI\*\*
-
-
-
-\## What this repo is not
-
-\- Not a finished runtime
-
-\- Not a chatbot prompt pack
-
-\- Not a demo or product
-
-\- Not an AI model
-
-
-
-\## Core principles
-
-\- \*\*Governance before execution\*\*
-
-\- \*\*No drift, no silent changes\*\*
-
-\- \*\*Action-gated truth\*\* (no claim without evidence)
-
-\- \*\*Snapshots as canonical history\*\*
-
-\- \*\*Continuity across sessions\*\*
-
-
-
-\## Repository structure
-
-\- `governance/`  
-
-&nbsp; The laws, processes, and system definitions that describe \*how Synapse must operate\*.
-
-
-
-\- `runtime/`  
-
-&nbsp; Reserved for the future Synapse runtime kernel that will enforce governance in code.
-
-
-
-\## Status
-
-This repository currently represents \*\*Synapse v0 (governance-only)\*\*.
-
-Runtime enforcement will be added incrementally without changing the core laws.
-
-
-
----
-
-
-
-This system is built first and foremost as a \*\*personal operating system for thinking,
-
-building, and executing projects\*\*. Any future productization is a secondary outcome.
+## Status
+Current state: governance spine active, runtime enforcement in progress.

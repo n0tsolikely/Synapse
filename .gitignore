@@ -34,6 +34,7 @@ venv/
 runtime/logs/
 runtime/tmp/
 runtime/artifacts/
+.synapse/
 *.log
 
 # Secrets / credentials
