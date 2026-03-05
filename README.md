@@ -2,6 +2,11 @@
 
 Synapse is a governance-first execution system for maintaining **deterministic continuity across AI sessions and projects**.
 
+## Example system using Synapse (active build)
+Synapse is currently being used as the governance layer to build:
+- **Ashby_Engine** (runtime): https://github.com/n0tsolikely/Ashby_Engine
+- **Ashby_Data** (canonical state/docs): https://github.com/n0tsolikely/Ashby_Data
+
 It provides a structured framework for turning ideas into governed execution using artifacts such as:
 
 - Codex documentation
