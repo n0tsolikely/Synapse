@@ -241,14 +241,14 @@ You may not claim DONE unless:
 AUDIT AUTO-AUTHORITY (STANDING ORDER)
 ================================================================================
 
-- Codex has standing authority to create/write audit bundles + receipts for every quest WITHOUT asking Brains.
-- Codex MUST create audit bundle immediately upon quest acceptance OR before executing any quest work.
-- Codex MUST capture receipts DURING execution (tee output into 06_TESTS.txt).
-- Codex MUST NOT move Accepted -> Completed unless:
+- Hands (AI executor) has standing authority to create/write audit bundles + receipts for every quest WITHOUT asking Brains.
+- Hands MUST create audit bundle immediately upon quest acceptance OR before executing any quest work.
+- Hands MUST capture receipts DURING execution (tee output into 06_TESTS.txt).
+- Hands MUST NOT move Accepted -> Completed unless:
   - 06_CHANGED_FILES.txt exists and is non-placeholder
   - 06_TESTS.txt exists and is non-placeholder
   - synapse_governance_guard validate PASS
-- Codex MUST STOP and notify Brains ONLY if:
+- Hands MUST STOP and notify Brains ONLY if:
   - missing dependency (npm, ffmpeg, GEMINI_API_KEY, etc.)
   - tests/build fail and cannot be fixed safely
   - R2 consent required
@@ -265,7 +265,7 @@ GOAL (NON-CODER UX):
 - Agent must STOP only when a “big” decision boundary is hit (R2 / ambiguity / missing tools).
 
 STANDING AUTHORITY (ALLOWED WITHOUT ASKING):
-- Codex MAY:
+- Hands MAY:
   - Accept quests (move BOARD → Accepted) when Fog is Lifted (CODEX_FREEZE present) and quest passes validation.
   - Create/init audit bundles immediately upon acceptance.
   - Execute R0/R1 work (regular code edits, tests, refactors within reversible scope) via the mandatory wrapper.
@@ -384,7 +384,7 @@ QUEST COMPLETION GATE
   - 03_VERIFY.md includes explicit OVERALL: PASS / FAIL / BLOCKED
 
 BLOCK CONDITIONS (ONLY VALID STOP REASONS)
-Codex MUST STOP and notify Brains ONLY if:
+Hands MUST STOP and notify Brains ONLY if:
 - required dependency missing (npm, ffmpeg, GEMINI_API_KEY, etc.)
 - tests/build fail and cannot be safely corrected
 - R2 consent required
@@ -415,7 +415,7 @@ DRIFT POLICY (COMMIT-BASED; NO HASH BRICKS)
 RUNTIME AUDIT MANDATE (<SUBJECT>) — ALWAYS ON
 ================================================================================
 
-- For any <SUBJECT> debugging/execution session, Codex MUST inspect runtime telemetry first.
+- For any <SUBJECT> debugging/execution session, Hands MUST inspect runtime telemetry first.
 - Required env:
   - export SUBJECT_EVENT_LOGGING=1
   - export SUBJECT_ROOT="${SUBJECT_ROOT:-$HOME/${SUBJECT}_runtime/${SUBJECT,,}}"
@@ -428,8 +428,8 @@ RUNTIME AUDIT MANDATE (<SUBJECT>) — ALWAYS ON
   - tail -n 120 "$SUBJECT_ROOT/realtime_log/llm.jsonl"
 - Required doctor run for incidents:
   - python3 "$ENGINE_ROOT/tools/realtime_log_doctor.py" --subject-root "$SUBJECT_ROOT" --lines 400
-- If logs are missing, Codex MUST state that explicitly and treat diagnosis as provisional.
-- If the watcher script cannot be run, Codex MUST disclose why and run the four tail commands manually.
-- Codex MUST cite correlation_id evidence when explaining “why X happened / why Y didn’t”.
+- If logs are missing, Hands MUST state that explicitly and treat diagnosis as provisional.
+- If the watcher script cannot be run, Hands MUST disclose why and run the four tail commands manually.
+- Hands MUST cite correlation_id evidence when explaining “why X happened / why Y didn’t”.
 
 ================================================================================
