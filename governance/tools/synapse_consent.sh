@@ -57,6 +57,15 @@ _resolve_subject_context() {
 }
 
 _resolve_subject_context
+
+require_explicit_subject_source() {
+  if [[ "$SELECTION_METHOD" != "flag" && "$SELECTION_METHOD" != "lockfile" ]]; then
+    echo "FAIL: high-risk action requires explicit subject source (flag or lockfile); selection_method=$SELECTION_METHOD source_detail=$SOURCE_DETAIL" >&2
+    exit 2
+  fi
+}
+
+require_explicit_subject_source
 CONF_DIR="$DATA_ROOT/confirmations"
 TODAY="$(date +%F)"
 
