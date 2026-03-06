@@ -15,14 +15,39 @@ class SubjectResolutionError(RuntimeError):
     """Raised when subject cannot be resolved deterministically."""
 
 
+PLACEHOLDER_SUBJECTS = {
+    "",
+    "subject",
+    "<subject>",
+}
+
+
 def _now_iso() -> str:
     return dt.datetime.now().astimezone().isoformat()
+
+
+def _is_placeholder_subject(value: str) -> bool:
+    return value.strip().lower() in PLACEHOLDER_SUBJECTS
+
+
+is_placeholder_subject = _is_placeholder_subject
+
+
+def _placeholder_subject_error(value: str, source: str) -> SubjectResolutionError:
+    return SubjectResolutionError(
+        f"{source} resolved to reserved placeholder subject '{value}'. "
+        "Run `python3 runtime/synapse.py engage` or "
+        "`python3 runtime/synapse.py focus --subject <SUBJECT>` to set a real subject."
+    )
 
 
 def _subject_from_data_dir(path: Path) -> str | None:
     name = path.name
     if name.endswith("_Data") and len(name) > 5:
-        return name[:-5]
+        subject = name[:-5]
+        if _is_placeholder_subject(subject):
+            return None
+        return subject
     return None
 
 
@@ -49,6 +74,31 @@ def repo_focus_lock_path(cwt: Path | None = None) -> Path:
 def home_focus_lock_path(home: Path | None = None) -> Path:
     home = home or Path.home()
     return home / ".synapse" / "ACTIVE_SUBJECT.json"
+
+
+def load_active_focus_lock(cwt: Path | None = None, home: Path | None = None) -> dict[str, Any] | None:
+    cwt = cwt or detect_canonical_working_tree()
+    home = (home or Path.home()).resolve()
+
+    repo_path = repo_focus_lock_path(cwt)
+    repo_lock = _load_lock(repo_path)
+    if repo_lock:
+        return {
+            **repo_lock,
+            "source_detail": "lockfile_repo",
+            "lockfile_path": str(repo_path.resolve()),
+        }
+
+    home_path = home_focus_lock_path(home)
+    home_lock = _load_lock(home_path)
+    if home_lock:
+        return {
+            **home_lock,
+            "source_detail": "lockfile_home",
+            "lockfile_path": str(home_path.resolve()),
+        }
+
+    return None
 
 
 def detect_subject_candidates(home: Path | None = None) -> list[dict[str, str]]:
@@ -80,19 +130,23 @@ def write_focus_lock(
     home: Path | None = None,
     selected_by: str = "Brains",
     selection_method: str = "interactive",
+    source_detail: str = "focus_lock_write",
     write_home_lock: bool = True,
 ) -> dict[str, Any]:
     cwt = cwt or detect_canonical_working_tree()
     home = (home or Path.home()).resolve()
+    subject = str(subject).strip()
+    if _is_placeholder_subject(subject):
+        raise _placeholder_subject_error(subject or "<empty>", "Focus lock write")
 
     receipt: dict[str, Any] = {
-        "subject": str(subject),
+        "subject": subject,
         "data_root": str(Path(data_root).expanduser().resolve()),
         "engine_root": str(Path(engine_root).expanduser().resolve()),
         "selected_at": _now_iso(),
         "selected_by": selected_by,
         "selection_method": selection_method,
-        "source_detail": "focus_lock_write",
+        "source_detail": source_detail,
     }
 
     repo_lock = repo_focus_lock_path(cwt)
@@ -126,11 +180,21 @@ def resolve_subject(
     home = (home or Path.home()).resolve()
     env_map = env or os.environ
 
-    repo_lock = _load_lock(repo_focus_lock_path(cwt))
-    home_lock = _load_lock(home_focus_lock_path(home))
+    repo_lock_path = repo_focus_lock_path(cwt)
+    home_lock_path = home_focus_lock_path(home)
+    repo_lock = _load_lock(repo_lock_path)
+    home_lock = _load_lock(home_lock_path)
+
+    if repo_lock and _is_placeholder_subject(str(repo_lock.get("subject") or "")):
+        raise _placeholder_subject_error(str(repo_lock.get("subject") or "<empty>"), f"Repo focus lock ({repo_lock_path})")
+    if home_lock and _is_placeholder_subject(str(home_lock.get("subject") or "")):
+        raise _placeholder_subject_error(str(home_lock.get("subject") or "<empty>"), f"Home focus lock ({home_lock_path})")
+
     active_lock = repo_lock or home_lock
 
     requested_subject = (subject_flag or "").strip()
+    if requested_subject and _is_placeholder_subject(requested_subject):
+        raise _placeholder_subject_error(requested_subject, "Subject flag")
     if active_lock and requested_subject and requested_subject != active_lock.get("subject") and not allow_switch:
         raise SubjectResolutionError(
             f"Active subject lock is '{active_lock.get('subject')}'. "
@@ -138,6 +202,8 @@ def resolve_subject(
         )
 
     env_subject = (env_map.get("SUBJECT") or "").strip()
+    if env_subject and _is_placeholder_subject(env_subject):
+        raise _placeholder_subject_error(env_subject, "SUBJECT env")
 
     source = ""
     base: dict[str, Any] | None = None
@@ -170,13 +236,11 @@ def resolve_subject(
     subject = str(base.get("subject") or "").strip()
     if not subject:
         raise SubjectResolutionError("Resolved subject is empty.")
+    if _is_placeholder_subject(subject):
+        raise _placeholder_subject_error(subject, f"Resolved subject from {source}")
 
-    if source in {"lockfile_repo", "lockfile_home"}:
-        data_root = str(base.get("data_root") or "")
-        engine_root = str(base.get("engine_root") or "")
-    else:
-        data_root = str(data_root_flag or base.get("data_root") or (home / f"{subject}_Data"))
-        engine_root = str(engine_root_flag or base.get("engine_root") or (home / f"{subject}_Engine"))
+    data_root = str(data_root_flag or base.get("data_root") or (home / f"{subject}_Data"))
+    engine_root = str(engine_root_flag or base.get("engine_root") or (home / f"{subject}_Engine"))
 
     selection_method = "lockfile" if source.startswith("lockfile") else source
 

@@ -1,4 +1,4 @@
-SYNAPSE OS — SUBJECT INITIALIZATION + INCUBATION (FOG OF WAR) (CANON)
+SYNAPSE — SUBJECT INITIALIZATION + INCUBATION (FOG OF WAR) (CANON)
 Version: v1.4
 Last Updated: 2026-02-09
 Status: Governance Law (changes require Governance Control Sync)
@@ -12,7 +12,7 @@ LOCK PRECEDENCE:
   - Especially: The Guild/Terminology/Locks/LOCK__SUBJECT_DATA_SKELETON.md
   - Especially: The Guild/Terminology/Locks/LOCK__CODEX_FREEZE_FOG_LIFTED.md
 
-# SYNAPSE OS — SUBJECT INITIALIZATION + INCUBATION (FOG OF WAR)
+# SYNAPSE — SUBJECT INITIALIZATION + INCUBATION (FOG OF WAR)
 *(Beginning State / Idea Formation / Non-Executable Execution State)*
 
 ---
@@ -30,6 +30,15 @@ This document defines:
 1) how to initialize a Subject workspace from nothing (create <Subject>_Data)
 2) how incubation behaves while World State is Fog of War (pre-freeze)
 3) how the system transitions from captured ideas → TOC → Codex → Codex Freeze deterministically
+
+Startup clarification:
+- `<SUBJECT>` is documentation notation only.
+- Literal `Subject` / `<SUBJECT>` must never be used as a real active runtime subject.
+- Active subject selection comes from:
+  - `python3 runtime/synapse.py engage`
+  - `python3 runtime/synapse.py focus`
+  - `python3 runtime/synapse.py resolve-subject`
+- If a prior focus lock exists, startup should continue, switch, or create a subject rather than silently defaulting to placeholder values.
 
 ---
 

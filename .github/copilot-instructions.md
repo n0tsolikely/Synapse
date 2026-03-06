@@ -1,2 +1,10 @@
-Follow `EXECUTOR.md` as the canonical repository instructions.
-Obey Synapse governance modes and receipt requirements.
+# Synapse Copilot Shim
+
+Canonical contract: `./EXECUTOR.md`
+
+Synapse governs execution, continuity, subject focus, receipts, audits, and drift.
+It does not require replacing an existing runtime persona or identity.
+
+Optional persona and integration docs:
+- `docs/PERSONAS.md`
+- `docs/INTEGRATIONS.md`

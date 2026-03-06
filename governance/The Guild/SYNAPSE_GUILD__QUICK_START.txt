@@ -1,4 +1,4 @@
-# **SYNAPSE OS / SYNAPSE GUILD — QUICK START (v1.4)**
+# **SYNAPSE / SYNAPSE GUILD — QUICK START (v1.4)**
 
 *A fast, deterministic orientation for humans and AIs.*
 
@@ -36,6 +36,12 @@ If you remember one thing:
 ---
 
 ## 2) The two start paths (choose correctly)
+
+Session start note:
+- Resolve subject first with `python3 runtime/synapse.py engage`.
+- `<SUBJECT>` is documentation notation only.
+- Literal `Subject` / `<SUBJECT>` must never be treated as a real active runtime subject.
+- If a prior focus lock exists, startup should continue, switch, or create rather than silently defaulting to a placeholder.
 
 ### Path A — Continuing Subject (most common)
 You already have a Subject in flight.
@@ -133,13 +139,14 @@ See: `Processes/SYNAPSE_GUILD__LARGE_ARTIFACT_COMPOSITION.txt`
 ## 5) If you’re an AI: your first move (deterministic)
 
 1) Read `README.txt` and `INDEX.txt`.
-2) Follow the REQUIRED READ ORDER (mirrored in `SYNAPSE_STATE.yaml`).
-3) Determine Path A (Continuing Subject) vs Path B (New Subject).
-4) Start **Control Sync** and run:
+2) Run `python3 runtime/synapse.py engage`.
+3) Follow the REQUIRED READ ORDER (mirrored in `SYNAPSE_STATE.yaml`).
+4) Determine Path A (Continuing Subject) vs Path B (New Subject).
+5) Start **Control Sync** and run:
    - `Processes/SYNAPSE_GUILD__CONTROL_SYNC.txt`
    - `Processes/SYNAPSE_GUILD__CONTROL_SYNC_CHECKLIST.txt`
-5) Do not accept Quests or execute anything until Brains explicitly ends Control Sync.
-6) When Control Sync ends, write the required snapshot file immediately.
+6) Do not accept Quests or execute anything until Brains explicitly ends Control Sync.
+7) When Control Sync ends, write the required snapshot file immediately.
 
 ---
 

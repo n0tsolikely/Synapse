@@ -3,19 +3,29 @@
 # PURPOSE
 # - Canonical, executor-agnostic governance contract for this repo.
 # - Shims (AGENTS.md, CLAUDE.md, Copilot/Cursor/Cline/Continue/Roo/Windsurf/JetBrains) MUST point here.
-# - Paths are parameterized; no machine-specific defaults beyond $HOME.
+# - Synapse governs execution and continuity; it does not replace your runtime identity by default.
 # =============================================================================
 
 ================================================================================
-INSTALL / SYMLINK (optional for other runtimes)
+INSTALL / BRIDGE
 ================================================================================
 - This copy in the repo root is canonical.
-- If you need a workspace-wide copy, place it at `$HOME/AGENTS.md` and symlink into runtimes you use, e.g.:
-  - `ln -sf $HOME/AGENTS.md $HOME/.codex/AGENTS.md`
-  - `ln -sf $HOME/AGENTS.md $HOME/Synapse/AGENTS.md`
-  - `ln -sf $HOME/AGENTS.md $HOME/${SUBJECT}_Engine/AGENTS.md`
-  - `ln -sf $HOME/AGENTS.md $HOME/${SUBJECT}_Data/AGENTS.md`
+- Repo shims should stay tiny and point here.
+- Global runtime bridges should stay thin; do NOT drop the full Synapse contract into global executor startup files.
 - Scope: applies to the directory tree where it lives; nested instructions override; on conflict STOP and disclose.
+
+================================================================================
+RUNTIME / PERSONA COMPATIBILITY
+================================================================================
+
+- Synapse governs execution, continuity, proof requirements, subject focus, wrappers, receipts, audits, and drift.
+- Synapse does NOT require replacing the current agent/runtime persona or identity.
+- If a runtime already has a persona or identity system, keep it.
+- Synapse-managed persona overlays are OPTIONAL.
+- Persona affects style only. Governance wins on conflict.
+- Reference docs:
+  - `docs/PERSONAS.md`
+  - `docs/INTEGRATIONS.md`
 
 ================================================================================
 0) CANONICAL ROOTS — DO NOT GUESS PATHS
@@ -24,11 +34,12 @@ INSTALL / SYMLINK (optional for other runtimes)
 # Synapse
 SYNAPSE_ROOT=${SYNAPSE_ROOT:-$HOME/Synapse}
 GOVERNANCE_ROOT=${GOVERNANCE_ROOT:-$SYNAPSE_ROOT/governance}
-SUBJECT=${SUBJECT:-Subject}
 
-# Engine/Data split (example subject roots)
-ENGINE_ROOT=${ENGINE_ROOT:-$HOME/${SUBJECT}_Engine}
-DATA_ROOT=${DATA_ROOT:-$HOME/${SUBJECT}_Data}
+# Subject / Engine / Data are resolved at session start.
+# Use:
+# - `python3 runtime/synapse.py engage`
+# - `python3 runtime/synapse.py resolve-subject`
+# `<SUBJECT>` and literal `Subject` are documentation placeholders, not runtime defaults.
 
 # Doctor (governance validity gate)
 SYNAPSE_DOCTOR_CMD=python3 "$SYNAPSE_ROOT/runtime/synapse.py" doctor --governance-root "$GOVERNANCE_ROOT"
@@ -43,10 +54,52 @@ TOOL_GUARD_PRIMARY=$SYNAPSE_ROOT/runtime/tools/synapse_governance_guard.py
 SUBJECT FOCUS LOCK (SINGLE SOURCE OF TRUTH)
 ================================================================================
 
-- Subject selection is owned by the existing focus resolver in `runtime/synapse.py`.
-- Resolution order: `--subject` flag → focus lock file → `SUBJECT` env → infer only if exactly one `*_Data` exists → otherwise STOP and run `python3 runtime/synapse.py focus`.
+- Subject selection is owned by the runtime resolver in `runtime/synapse.py`.
+- Resolution order: `--subject` flag → focus lock file → `SUBJECT` env → infer only if exactly one `*_Data` exists → otherwise STOP and run `python3 runtime/synapse.py engage`.
 - No silent switching once set. Switching subjects MUST use the focus command.
-- Derived roots (ENGINE_ROOT, DATA_ROOT) come from the resolved subject; do not guess.
+- Literal placeholders such as `Subject` and `<SUBJECT>` are RESERVED and must never be treated as a real active subject.
+- Derived roots (ENGINE_ROOT, DATA_ROOT) come from the resolved subject; do not guess them.
+
+================================================================================
+CANONICAL TOOL SURFACE
+================================================================================
+
+Runtime CLI (`runtime/synapse.py`)
+- `doctor`: run deterministic governance checks; use `--no-subject` for governance-only work on the Synapse repo itself.
+- `engage`: session-start helper; resolve/continue/switch/create subject context without unsafe interactive fallthrough.
+- `focus`: explicitly set or switch the persistent active subject lock.
+- `resolve-subject`: deterministic subject receipt for scripts and wrappers.
+- `persona`: resolve the optional Synapse-managed persona overlay.
+- `mode`: get/set elastic governance mode.
+- `drift`: inspect governance drift status and show diff commands.
+- `acknowledge`: record the current governance commit as acknowledged.
+- `enforce`: internal execution gate helper for risk/consent checks.
+- `scaffold-subject`: create incubation and Codex scaffolding under the resolved Subject Data root.
+
+Runtime tools (`runtime/tools/`)
+- `synapse_snapshot_writer.py`: canonical snapshot writer for Control Sync, General, and End-of-Day receipts.
+- `synapse_governance_guard.py`: validate governed audit bundles and quest-state transitions.
+- `synapse_quest_run.sh`: mandatory wrapper for governed quest execution and live receipts.
+- `synapse_consent.sh`: record explicit R2 consent artifacts.
+- `require_r2_confirmation.sh`: helper gate for explicit high-risk confirmations.
+- `synapse_codex_gate.py`: Codex/canon gating helper when governed workflows require it.
+- `require_r2_confirmation_README.md`: helper/reference doc for the R2 confirmation gate.
+- `synapse_consent_README.md`: helper/reference doc for consent recording flow.
+
+================================================================================
+RUNTIME TOOL COMPATIBILITY
+================================================================================
+
+- External agents and runtimes may use their own read/edit/search/shell tools.
+- When Synapse defines a canonical governed operation, the Synapse tool/wrapper is mandatory.
+- Canonical governed operations include:
+  - subject resolution / focus
+  - doctor
+  - snapshots
+  - consent recording
+  - quest execution
+  - audit bundle validation
+  - codex/canon gating when applicable
 
 ================================================================================
 1) PRIME LAWS (HARD — NO EXCEPTIONS)
@@ -86,28 +139,41 @@ SUBJECT FOCUS LOCK (SINGLE SOURCE OF TRUTH)
 
 You are NOT authorized to modify files until BOOT RITUAL is complete.
 
-STEP A — Assert roots exist (no guessing)
+STEP A — Assert repo roots exist (no guessing)
 - Verify these exist (or STOP):
-  - SYNAPSE_ROOT
-  - GOVERNANCE_ROOT
-  - ENGINE_ROOT
-  - DATA_ROOT
+  - `$SYNAPSE_ROOT`
+  - `$GOVERNANCE_ROOT`
 
-STEP B — Run Doctor (governance validity gate)
+STEP B — Resolve session subject context
+- Preferred interactive:
+  - `python3 runtime/synapse.py engage`
+- Preferred non-interactive / receipt-friendly:
+  - `python3 runtime/synapse.py engage --shell`
+  - `python3 runtime/synapse.py resolve-subject --shell`
+- If working on Synapse governance itself (no subject work), explicitly allow:
+  - `python3 runtime/synapse.py doctor --governance-root "$GOVERNANCE_ROOT" --no-subject`
+
+STEP C — Assert resolved ENGINE_ROOT / DATA_ROOT only if subject work is intended
+- If subject work is intended, require resolved `ENGINE_ROOT` and `DATA_ROOT` from `engage` / `resolve-subject`.
+- If subject is unresolved for subject work: STOP.
+
+STEP D — Run Doctor (governance validity gate)
 - Run:
-  ${SYNAPSE_DOCTOR_CMD}
+  - `${SYNAPSE_DOCTOR_CMD}`
+- Or, for governance-only work on this repo:
+  - `python3 runtime/synapse.py doctor --governance-root "$GOVERNANCE_ROOT" --no-subject`
 
 - If FAIL:
   - print full output
   - STOP (no execution)
 
-STEP C — Read canonical routing law (NO SKIPPING)
+STEP E — Read canonical routing law (NO SKIPPING)
 Open/read, in order:
 1) $GOVERNANCE_ROOT/README.txt
 2) $GOVERNANCE_ROOT/INDEX.txt
 3) $GOVERNANCE_ROOT/SYNAPSE_STATE.yaml
 
-STEP D — REQUIRED READ ORDER (deterministic)
+STEP F — REQUIRED READ ORDER (deterministic)
 - Use SYNAPSE_STATE.yaml → required_read_order.
 - For each required item, in order:
   - If it’s a path: open/read it end-to-end.
@@ -115,7 +181,7 @@ STEP D — REQUIRED READ ORDER (deterministic)
     - resolve it under DATA_ROOT exactly as specified (no guessing).
     - if missing/ambiguous: STOP + Disclosure Gate.
 
-STEP E — Load CURRENT REALITY (GPS)
+STEP G — Load CURRENT REALITY (GPS)
 - After reading the latest Continuity Lock:
   - treat it as authoritative “GPS”:
     - current state
@@ -127,6 +193,10 @@ STEP E — Load CURRENT REALITY (GPS)
 BOOT RITUAL RECEIPT REQUIREMENT
 - After completing Boot Ritual, output a short receipt:
   - Doctor PASS
+  - subject
+  - selection_method
+  - source_detail
+  - active focus lock path if available
   - files read (README/INDEX/SYNAPSE_STATE + required items)
   - active Continuity Lock path + timestamp/REV if present
 

@@ -1,0 +1,6 @@
+DEFAULT
+
+# Other valid values:
+# ASH
+# NONE
+# PATH:docs/personas/PERSONA__ASH.md

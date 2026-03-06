@@ -7,6 +7,14 @@ Maintainer: Brains (Peter) with Hands (Ash)
 Audience:
 - Any operator (human or AI) applying Synapse Governance to ANY domain
 
+Startup clarification:
+- `<SUBJECT>` is documentation notation only.
+- Literal `Subject` / `<SUBJECT>` must never be treated as a real active runtime subject.
+- Active subject selection comes from:
+  - `python3 runtime/synapse.py engage`
+  - `python3 runtime/synapse.py focus`
+  - `python3 runtime/synapse.py resolve-subject`
+
 ================================================================================
 0) PURPOSE
 ================================================================================
@@ -28,6 +36,8 @@ A Subject MUST have a stable Subject Key (slug) used for directory naming.
 - Subject Key MUST NOT drift once a Subject exists.
 
 Examples (non-exhaustive): <SUBJECT>, <SUBJECT>, a novel, a game, an essay, a website, homework.
+Documentation note:
+- `<SUBJECT>` is a notation placeholder only, not a runtime default.
 
 1.2 <Subject>_Engine
 The Engine is the thing itself (the product / deliverable).
