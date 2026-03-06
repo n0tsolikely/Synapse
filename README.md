@@ -9,7 +9,7 @@ Bring your own agent.
 Bring your own persona.
 Synapse adds governance.
 
-This is **not** the other Synapse projects you may have seen. This repo is specifically about governed execution, continuity artifacts, subject focus, receipts, audits, and drift handling for real project work.
+This Synapse is **not** Matrix Synapse, Azure Synapse, or another generic agent framework. This repo is specifically about governed execution, continuity artifacts, subject focus, receipts, audits, and drift handling for real project work.
 
 ## What Synapse does
 
