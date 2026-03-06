@@ -214,7 +214,8 @@ Community / contact:
 ## Contributing
 
 Contributions, ideas, and issues are welcome.
-Formal contributing guidance is still lightweight, but the repo is public on purpose: it is meant to be tested, questioned, and improved.
+For project-specific guidance, see [`CONTRIBUTING.md`](CONTRIBUTING.md).
+The repo is public on purpose: it is meant to be tested, questioned, and improved.
 
 ## License
 
