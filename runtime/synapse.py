@@ -6,10 +6,13 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
+from synapse_runtime.cwt import detect_canonical_working_tree
 from synapse_runtime.doctor import run_doctor
 from synapse_runtime.persona import resolve_persona
 from synapse_runtime.repo_state import (
@@ -101,6 +104,48 @@ def build_parser() -> argparse.ArgumentParser:
     scaffold_parser.add_argument("--codex-only", action="store_true", help="Only scaffold Codex artifacts")
     scaffold_parser.add_argument("--force", action="store_true", help="Overwrite existing template files")
 
+    plan_parser = subparsers.add_parser(
+        "plan-sidequests",
+        help="Draft SIDE-QUEST files from a short plan (BOARD state only)",
+    )
+    plan_parser.add_argument("--item", action="append", default=[], help="Plan item (repeatable)")
+    plan_parser.add_argument("--items-file", help="Text file with one plan item per line")
+    plan_parser.add_argument("--subject", help="Optional subject override")
+    plan_parser.add_argument("--data-root", help="Override data root path")
+    plan_parser.add_argument("--engine-root", help="Override engine root path")
+    plan_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    plan_parser.add_argument(
+        "--quest-prefix",
+        choices=["SIDE-QUEST", "QUEST"],
+        default="SIDE-QUEST",
+        help="Quest ID prefix (default: SIDE-QUEST)",
+    )
+    plan_parser.add_argument("--priority", choices=["P0", "P1", "P2"], default="P1")
+    plan_parser.add_argument("--risk", default="R0", help="Risk class (R0/R1/R2)")
+    plan_parser.add_argument(
+        "--change-class",
+        choices=["TRIVIAL", "FEATURE", "STRUCTURAL"],
+        default="STRUCTURAL",
+        help="Quest Change Class (default: STRUCTURAL)",
+    )
+    plan_parser.add_argument(
+        "--vision-delta",
+        choices=["ALIGNED", "VARIATION", "SHIFT"],
+        default="ALIGNED",
+        help="Quest Vision Delta (default: ALIGNED)",
+    )
+    plan_parser.add_argument("--door-impact", default="NONE", help="Door Impact (default: NONE)")
+    plan_parser.add_argument(
+        "--testing-level",
+        default="DEFERRED TO 01_PREQUEST.md",
+        help="Testing Level value or 'DEFERRED TO 01_PREQUEST.md'",
+    )
+    plan_parser.add_argument("--origin", help="Override Origin field")
+    plan_parser.add_argument("--anchor", action="append", default=[], help="Codex anchor (repeatable)")
+    plan_parser.add_argument("--constraint", action="append", default=[], help="Codex constraint (repeatable)")
+    plan_parser.add_argument("--dry-run", action="store_true", help="Show planned quests without writing files")
+    plan_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
     return parser
 
 
@@ -170,6 +215,106 @@ def _print_noninteractive_engage_help(candidates: list[dict[str, str]]) -> None:
     print("Use one of:")
     print("- python3 runtime/synapse.py engage")
     print("- python3 runtime/synapse.py focus --subject <SUBJECT>")
+
+
+def _today_toronto() -> str:
+    try:
+        return dt.datetime.now(tz=ZoneInfo("America/Toronto")).date().isoformat()
+    except Exception:
+        return dt.date.today().isoformat()
+
+
+def _slugify(value: str, max_len: int = 48) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", value.strip().lower())
+    slug = slug.strip("-")
+    if not slug:
+        return "task"
+    return slug[:max_len].strip("-") or "task"
+
+
+def _load_quest_template(cwt: Path) -> str:
+    template_path = cwt / "governance" / "Quest Board" / "QUEST_TEMPLATE.txt"
+    if not template_path.exists():
+        raise FileNotFoundError(f"Quest template not found: {template_path}")
+    return template_path.read_text(encoding="utf-8")
+
+
+def _replace_line(lines: list[str], prefix: str, value: str) -> None:
+    for idx, line in enumerate(lines):
+        if line.startswith(prefix):
+            lines[idx] = f"{prefix} {value}".rstrip()
+            return
+
+
+def _insert_after_contains(lines: list[str], needle: str, content: str) -> None:
+    for idx, line in enumerate(lines):
+        if needle in line:
+            lines.insert(idx + 1, content)
+            return
+
+
+def _fill_quest_template(template: str, values: dict[str, str]) -> str:
+    lines = template.splitlines()
+
+    _replace_line(lines, "Quest ID:", values["quest_id"])
+    _replace_line(lines, "Title:", values["title"])
+    _replace_line(lines, "Subject:", values["subject"])
+    _replace_line(lines, "Origin:", values["origin"])
+    _replace_line(lines, "Priority:", values["priority"])
+    _replace_line(lines, "Links:", values["links"])
+    _replace_line(lines, "Codex Anchors (DRAFT):", values["codex_anchors"])
+    _replace_line(lines, "Codex Constraint Summary (DRAFT):", values["codex_constraints"])
+    _replace_line(lines, "Change Class:", values["change_class"])
+    _replace_line(lines, "Vision Delta:", values["vision_delta"])
+    _replace_line(lines, "System Context Statement:", values["system_context"])
+    _replace_line(lines, "Anti-Duplication Plan:", values["anti_dup"])
+    _replace_line(lines, "Placement Intent:", values["placement_intent"])
+    _replace_line(lines, "Atomicity Statement:", values["atomicity"])
+    _replace_line(lines, "Risk:", values["risk"])
+    _replace_line(lines, "Door Impact:", values["door_impact"])
+    _replace_line(lines, "Testing Level (TL):", values["testing_level"])
+    _replace_line(lines, "Talent Point Awarded:", values["talent_awarded"])
+
+    _insert_after_contains(lines, "Brief, concrete description", f"Description: {values['description']}")
+    _insert_after_contains(lines, "Avoid vague outcomes", f"Scope / Objective: {values['objective']}")
+    _insert_after_contains(lines, "Explicitly list what this Quest does NOT include", f"Out of Scope: {values['out_of_scope']}")
+    _insert_after_contains(lines, "If there are none, write: None", f"Dependencies: {values['dependencies']}")
+    _insert_after_contains(lines, "OR write: DEFERRED TO 01_PREQUEST.md", f"Verification Plan: {values['verification_plan']}")
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _next_quest_number(data_root: Path, prefix: str) -> int:
+    quest_dirs = [
+        data_root / "Quest Board",
+        data_root / "Quest Board" / "Accepted",
+        data_root / "Quest Board" / "Completed",
+        data_root / "Quest Board" / "Abandoned",
+    ]
+    pattern = re.compile(rf"{re.escape(prefix)}_(\d{{3}})")
+    highest = 0
+    for qdir in quest_dirs:
+        if not qdir.exists():
+            continue
+        for path in qdir.glob("*.txt"):
+            match = pattern.search(path.name)
+            if match:
+                highest = max(highest, int(match.group(1)))
+    return highest + 1
+
+
+def _load_plan_items(items: list[str], items_file: str | None) -> list[str]:
+    output = [item.strip() for item in items if item.strip()]
+    if items_file:
+        path = Path(items_file)
+        if not path.exists():
+            raise FileNotFoundError(f"Plan items file not found: {items_file}")
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            output.append(line)
+    return output
 
 
 def _input_line(prompt: str) -> str:
@@ -739,6 +884,125 @@ notes:
     return 0
 
 
+def cmd_plan_sidequests(args: argparse.Namespace) -> int:
+    try:
+        ctx = resolve_subject(
+            subject_flag=args.subject,
+            data_root_flag=args.data_root,
+            engine_root_flag=args.engine_root,
+            allow_switch=args.allow_switch,
+        )
+    except SubjectResolutionError as exc:
+        print(f"FAIL: {exc}")
+        print("Hint: run `python3 runtime/synapse.py engage` first.")
+        return 2
+
+    state = load_state()
+    if state.get("mode") == "INCUBATION":
+        print("BLOCKED: mode=INCUBATION. Quest drafting is not allowed during Incubation.")
+        print("Switch to PLAN or EXECUTE with `python3 runtime/synapse.py mode --set PLAN` if appropriate.")
+        return 2
+
+    try:
+        items = _load_plan_items(args.item, args.items_file)
+    except Exception as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    if not items:
+        print("FAIL: no plan items provided. Use --item or --items-file.")
+        return 2
+
+    cwt = detect_canonical_working_tree()
+    try:
+        template = _load_quest_template(cwt)
+    except Exception as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    data_root = Path(ctx["data_root"])
+    board_dir = data_root / "Quest Board"
+    board_dir.mkdir(parents=True, exist_ok=True)
+
+    prefix = args.quest_prefix
+    next_id = _next_quest_number(data_root, prefix)
+    today = _today_toronto()
+
+    anchors = [a.strip() for a in args.anchor if a.strip()]
+    constraints = [c.strip() for c in args.constraint if c.strip()]
+    codex_anchors = ", ".join(anchors) if anchors else "BLOCKED - CODEX_ANCHORS_MISSING"
+    codex_constraints = "; ".join(constraints) if constraints else "TBD - derive from anchors"
+
+    origin = args.origin or f"Plan decomposition (auto) - {today}"
+    results: list[dict[str, str]] = []
+
+    for offset, item in enumerate(items):
+        qnum = next_id + offset
+        qid = f"{prefix}_{qnum:03d}"
+        slug = _slugify(item)
+        filename = f"{qid}__{slug}__{today}.txt"
+        path = board_dir / filename
+        if path.exists():
+            print(f"FAIL: quest file already exists: {path}")
+            return 2
+
+        values = {
+            "quest_id": qid,
+            "title": item,
+            "subject": ctx["subject"],
+            "origin": origin,
+            "priority": args.priority,
+            "links": "None",
+            "codex_anchors": codex_anchors,
+            "codex_constraints": codex_constraints,
+            "change_class": args.change_class,
+            "vision_delta": args.vision_delta,
+            "system_context": "TBD - requires review before acceptance.",
+            "anti_dup": f"Run rg -n \"{slug}\" in repo and Subject_Data.",
+            "placement_intent": "Intended layer: unknown; Intended target path(s): unknown.",
+            "atomicity": "Atomic: yes - single independently verifiable outcome.",
+            "risk": args.risk,
+            "door_impact": args.door_impact,
+            "testing_level": args.testing_level,
+            "talent_awarded": "NO",
+            "description": f"Plan item: {item}",
+            "objective": f"Success when: {item}",
+            "out_of_scope": "Anything beyond the single plan item described above.",
+            "dependencies": "None",
+            "verification_plan": "DEFERRED TO 01_PREQUEST.md",
+        }
+
+        quest_text = _fill_quest_template(template, values)
+        if not args.dry_run:
+            path.write_text(quest_text, encoding="utf-8")
+
+        results.append(
+            {
+                "quest_id": qid,
+                "title": item,
+                "path": str(path),
+                "state": "BOARD",
+                "risk": args.risk,
+                "change_class": args.change_class,
+                "vision_delta": args.vision_delta,
+            }
+        )
+
+    if args.json:
+        print(json.dumps({"subject": ctx["subject"], "data_root": str(data_root), "quests": results}, indent=2))
+        return 0
+
+    print("=== SIDE-QUEST PLAN RECEIPT ===")
+    print(f"subject: {ctx['subject']}")
+    print(f"data_root: {data_root}")
+    print(f"quest_prefix: {prefix}")
+    print(f"created: {len(results)}")
+    for entry in results:
+        print(f"- {entry['quest_id']}: {entry['path']}")
+    print("note: quests were drafted on BOARD only; acceptance/execution requires Control Sync + validation.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -771,6 +1035,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_enforce(args)
     if args.command == "scaffold-subject":
         return cmd_scaffold_subject(args)
+    if args.command == "plan-sidequests":
+        return cmd_plan_sidequests(args)
 
     parser.error(f"Unknown command: {args.command}")
     return 1

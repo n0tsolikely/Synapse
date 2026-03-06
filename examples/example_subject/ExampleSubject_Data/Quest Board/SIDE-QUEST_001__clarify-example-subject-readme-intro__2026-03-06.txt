@@ -1,0 +1,314 @@
+QUEST TEMPLATE - SYNAPSE OS
+Version: v1.5
+Last Updated: 2026-02-14
+Status: Canon Template (must comply with Quest Validation Rules)
+
+(duplicate this file for each new Quest)
+
+CORE LAW Reminder:
+- Quest state is defined ONLY by WHERE THIS FILE LIVES (Quest Board folder), not by metadata.
+- This Quest file is the execution contract. It MUST be unambiguous enough to execute, audit, verify, and resume.
+- If any REQUIRED field is missing or ambiguous, the Quest MUST remain on BOARD (validation fails).
+- Verification is NOT optional:
+  - Execution MUST NOT begin until a Verification Plan exists.
+  - The Verification Plan may be recorded here OR deferred to the Pre-Quest Audit (01_PREQUEST.md).
+
+NOTE:
+- Do not “change status” in text. Move the file between folders.
+- Location wins over text. If this file claims a state that conflicts with its folder, the folder is authoritative.
+
+================================================================================
+IDENTITY (REQUIRED)
+================================================================================
+Quest ID: SIDE-QUEST_001
+# REQUIRED. Stable identifier. Must match filename prefix.
+# Examples:
+# - QUEST_015
+# - SIDE-QUEST_003
+
+Title: Clarify example subject README intro
+# REQUIRED. Short, clear name describing the Quest.
+
+Subject: ExampleSubject
+# REQUIRED. The bounded body of work (<SUBJECT> / <SUBJECT> / Book / Game / etc).
+
+Origin: Plan decomposition (auto) - 2026-03-06
+# REQUIRED. Where this Quest came from (Control Sync date, discovered during execution, etc).
+
+Priority: P1
+# REQUIRED.
+# P0 = blocking/foundational
+# P1 = important
+# P2 = nice-to-have
+
+Links: None
+# OPTIONAL but strongly recommended.
+# References to Codex sections, Guild Orders/Raid/Dungeon, related Quests, etc.
+
+================================================================================
+CODEX ANCHORS + CONSTRAINT SUMMARY (DRAFT)
+================================================================================
+Codex Anchors (DRAFT): BLOCKED - CODEX_ANCHORS_MISSING
+# REQUIRED at BOARD state.
+# Provide 2-7 stable anchors into the Subject Codex (section IDs or file/path anchors).
+# If missing at BOARD time, allowed placeholder:
+#   BLOCKED - CODEX_ANCHORS_MISSING
+# NOTE: A Quest MUST NOT move to ACCEPTED until anchors are resolved.
+
+Codex Constraint Summary (DRAFT): TBD - derive from anchors
+# REQUIRED at BOARD state.
+# 3-7 bullet constraints derived from the anchors above.
+# May be rough at BOARD time; must be finalized in 01_PREQUEST.md before execution.
+
+
+================================================================================
+QUEST CREATION VISION ALIGNMENT (REQUIRED)
+================================================================================
+Change Class: TRIVIAL
+# REQUIRED at BOARD state.
+# TRIVIAL: small contained change (docs / local refactor / low blast radius)
+# FEATURE: new behavior inside existing structure (no new doors/runtimes)
+# STRUCTURAL: changes system shape (new Door/runtime/adapter/module boundary/entrypoint)
+# If unsure, default to STRUCTURAL.
+
+Vision Delta: ALIGNED
+# REQUIRED at BOARD state.
+# ALIGNED: explicitly within existing Codex vision.
+# VARIATION: same intent class as Codex, new instance/channel (e.g., Discord Door alongside Telegram).
+# SHIFT: changes what the system IS (product identity/purpose). Execution must not proceed.
+
+System Context Statement: TBD - requires review before acceptance.
+# REQUIRED at BOARD state.
+# 1-3 sentences stating what system this Quest is inside and what it is building on.
+# Must include the relevant boundary statement (platform vs module) to avoid greenfield assumptions.
+
+If Vision Delta = VARIATION:
+# REQUIRED only if Vision Delta = VARIATION.
+# - Codex intent class it maps to: <e.g., Door: chat interface>
+# - Codification path: <SIDE-QUEST id or "TBD - requires Brains approval">
+# NOTE: Variations may be allowed to execute if anchored + oriented, but MUST spawn a Side-Quest to codify.
+
+If Vision Delta = SHIFT:
+# REQUIRED only if Vision Delta = SHIFT.
+# Write: BLOCKED - CONTROL_SYNC_REQUIRED
+# Briefly state what would need to change in Codex for this to become valid.
+
+Anti-Duplication Plan: Run rg -n "clarify-example-subject-readme-intro" in repo and Subject_Data.
+# REQUIRED at BOARD state.
+# What you will search for in the repo to ensure this is not already implemented (paths/keywords).
+# If unknown, say so.
+
+Placement Intent: Intended layer: unknown; Intended target path(s): unknown.
+# REQUIRED at BOARD state.
+# Intended layer: platform | module | adapter | door | runtime | interface
+# Intended target path(s) (or "unknown").
+
+
+================================================================================
+ATOMICITY CHECK (REQUIRED)
+================================================================================
+Atomicity Statement: Atomic: yes - single independently verifiable outcome.
+# REQUIRED.
+# Confirm this Quest is atomic (one independently completable + verifiable commitment).
+# If it cannot be finished and verified independently, it is NOT a Quest.
+# In that case: convert it to a Dungeon (or larger) and decompose.
+
+================================================================================
+RISK + CONSENT GATE (CONDITIONAL)
+================================================================================
+Risk: R0
+# OPTIONAL. Defaults to R0 if omitted.
+# R0 = safe/reversible
+# R1 = broad but reversible (touches many files / refactor with rollback)
+# R2 = high-risk (structural/destructive/big diff) - requires Brains confirmation
+# See: Processes/SYNAPSE_GUILD__CONSENT_GATE.txt
+
+R2 Confirmation Artifact (REQUIRED if Risk = R2):
+# REQUIRED ONLY IF Risk = R2.
+# confirmations/CONFIRM_R2__<quest_id>__YYYY-MM-DD__<slug>.txt
+# The file must exist and contain:
+# CONFIRM: YES
+
+================================================================================
+STATE (BY LOCATION; CANON)
+================================================================================
+Canonical Quest Board locations:
+- BOARD:     <Subject>_Data/Quest Board/
+- ACCEPTED:  <Subject>_Data/Quest Board/Accepted/
+- COMPLETED: <Subject>_Data/Quest Board/Completed/
+- ABANDONED: <Subject>_Data/Quest Board/Abandoned/
+
+================================================================================
+DESCRIPTION (REQUIRED)
+================================================================================
+# Brief, concrete description of what this Quest is and why it matters.
+Description: Plan item: Clarify example subject README intro
+
+================================================================================
+SCOPE / OBJECTIVE (REQUIRED)
+================================================================================
+# REQUIRED.
+# Success conditions: state what will be true when done.
+# Avoid vague outcomes like “improve” unless paired with concrete criteria.
+Scope / Objective: Success when: Clarify example subject README intro
+
+================================================================================
+OUT OF SCOPE (REQUIRED)
+================================================================================
+# REQUIRED.
+# Explicitly list what this Quest does NOT include (prevents scope creep).
+Out of Scope: Anything beyond the single plan item described above.
+
+================================================================================
+DEPENDENCIES (REQUIRED: LIST OR EXPLICIT NONE)
+================================================================================
+# REQUIRED.
+# List prerequisites required before this can be completed (Quests, assets, decisions, etc).
+# If there are none, write: None
+Dependencies: None
+
+================================================================================
+DOORS + TESTING LEVEL (CONDITIONAL: CODE/SOFTWARE)
+================================================================================
+Door Impact: NONE
+# REQUIRED for code/software subjects.
+# Allowed values (examples):
+# - NONE
+# - CLI
+# - API
+# - WEB
+# - TELEGRAM
+# - MULTIPLE
+# - OTHER: <describe>
+
+Testing Level (TL): DEFERRED TO 01_PREQUEST.md
+# REQUIRED for code/software subjects.
+# TL1 / TL2 / TL3 / TL4 (see: Processes/SYNAPSE_GUILD__VERIFICATION_LADDER.txt)
+# NOTE: TL selection is not moral - it is about what is verifiable at this stage.
+
+================================================================================
+VERIFICATION PLAN (REQUIRED BEFORE EXECUTION)
+================================================================================
+# REQUIRED BEFORE EXECUTION BEGINS.
+# You MAY record the plan here OR explicitly defer it to the Pre-Quest Audit.
+# Allowed values:
+# - Provide a concrete plan (preferred)
+# - OR write: DEFERRED TO 01_PREQUEST.md
+Verification Plan: DEFERRED TO 01_PREQUEST.md
+
+# For code/software subjects:
+# - Use this minimum structure (or record it in 01_PREQUEST.md):
+#
+#   Verification Commands (copy/paste safe):
+#   - <command>
+#
+#   PASS/FAIL/BLOCKED Criteria:
+#   - <what constitutes PASS>
+#   - <what constitutes FAIL>
+#   - <what would constitute BLOCKED + why>
+#
+#   Expected Artifacts / Outputs:
+#   - <path or type>
+#
+#   Receipts:
+#   - <where raw output will be pasted or stored>
+#
+# - PASS/FAIL/BLOCKED must follow Execution Audits + Verification Ladder.
+# For writing/design subjects:
+# - specify the Codex invariants to check (tone, rules, consistency, grammar/style constraints), and what evidence will be recorded.
+
+================================================================================
+EXECUTION NOTES (OPTIONAL)
+================================================================================
+# OPTIONAL.
+# Constraints, implementation notes, reminders, discovered caveats.
+# (Detailed step-by-step execution receipts belong in the Execution Audit bundle.)
+
+================================================================================
+TALENT POINTS (REQUIRED: YES/NO)
+================================================================================
+Talent Point Awarded: NO
+# REQUIRED.
+# No automatic assumption is allowed.
+
+If YES:
+# State the capability unlocked/expanded so it can be logged in the Talent Tree.
+
+================================================================================
+EXECUTION AUDIT BUNDLE (REQUIRED ONCE ACCEPTED)
+================================================================================
+Execution Audits are mandatory when executing a Quest.
+See: Processes/SYNAPSE_GUILD__EXECUTION_AUDITS.txt
+
+Validation gate:
+- A Quest may NOT be accepted unless it passes quest validation.
+See: Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt
+
+Audit Bundle Folder Path (required once ACCEPTED):
+# REQUIRED ONCE ACCEPTED.
+# <Subject>_Data/Audits/Execution/QUEST_###__YYYY-MM-DD__<short_slug>/
+
+Required files inside the bundle (canonical minimum):
+# 00_SUMMARY.md
+# 01_PREQUEST.md
+# 02_EXECUTION.md
+# 03_VERIFY.md
+# 04_OUTCOME.md
+
+MULTI-DAY / RETRY RULE:
+# If this Quest spans multiple Dailies (or requires retries), the audit bundle path above remains canonical.
+# Do NOT create a second audit bundle. Append new timestamped attempt entries inside the existing phase files.
+================================================================================
+AUDIT TRUTH PROHIBITION (HARD)
+================================================================================
+Rules:
+- It is forbidden to fabricate receipts or outcomes.
+- Any statement like “tests passed”, “build succeeded”, “13 passed”, etc. is prohibited unless the raw stdout/stderr is included verbatim in the audit bundle OR referenced as a file produced by the command run (with sha256).
+- Automation scripts may ONLY copy/attach real captured output files into the audit bundle. They may not generate “00_SUMMARY/01_PREQUEST/…” containing completion claims that are not provable.
+
+================================================================================
+AUTOMATION SAFE MODE (ALLOWED)
+================================================================================
+Rules:
+- Allowed automation = copy/attach receipts that already exist (e.g., /tmp/pytest_wave.txt, /tmp/npm_build_wave.txt) into the audit bundle as 06_TESTS.txt (verbatim).
+- Hard fail if required receipt files are missing.
+- Never hardcode dates. Use the existing audit bundle directory name. If bundle missing, STOP and require operator to create it intentionally.
+
+================================================================================
+OVERWRITE PROTECTION (HARD)
+================================================================================
+Rules:
+- Any automation that writes into an audit bundle must refuse if target files already exist (no stomping).
+- Required phase files must never be overwritten automatically.
+
+================================================================================
+REQUIRED MINIMUM AUDIT FILE SET (MANDATORY)
+================================================================================
+Required files:
+- 00_SUMMARY.md
+- 01_PREQUEST.md
+- 02_EXECUTION.md
+- 03_VERIFY.md
+- 04_OUTCOME.md
+- 06_CHANGED_FILES.txt
+- 06_TESTS.txt
+Optional files:
+- 06_GIT_STATUS_BEFORE.txt
+- 06_GIT_DIFF_NAME_ONLY.txt
+- 06_GIT_DIFF_STAT.txt
+Rules:
+- Do NOT claim optional files unless they are present.
+- 03_VERIFY.md must reference exact commands executed and contain raw outputs OR point to 06_TESTS.txt that contains raw outputs.
+
+================================================================================
+EXECUTION METHOD (MANDATORY)
+================================================================================
+All execution commands MUST be run via the Synapse quest runner wrapper so receipts are captured DURING execution:
+
+- $SYNAPSE_ROOT/runtime/tools/synapse_quest_run.sh
+
+Minimum receipts required by governance validation:
+- 06_TESTS.txt (must include at least one CMD: line)
+- 06_CHANGED_FILES.txt
+- 03_VERIFY.md with explicit outcome line (OVERALL: PASS/FAIL/BLOCKED) referencing 06_TESTS.txt
+- 04_OUTCOME.md with real outcome content

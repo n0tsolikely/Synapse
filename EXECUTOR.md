@@ -75,6 +75,7 @@ Runtime CLI (`runtime/synapse.py`)
 - `acknowledge`: record the current governance commit as acknowledged.
 - `enforce`: internal execution gate helper for risk/consent checks.
 - `scaffold-subject`: create incubation and Codex scaffolding under the resolved Subject Data root.
+- `plan-sidequests`: draft SIDE-QUEST files from a short plan (BOARD state only).
 
 Runtime tools (`runtime/tools/`)
 - `synapse_snapshot_writer.py`: canonical snapshot writer for Control Sync, General, and End-of-Day receipts.

@@ -20,6 +20,15 @@ Subject_Engine -> implementation code and runtime assets
 - `ExampleSubject_Data/Guild Orders/EXAMPLE_GUILD_ORDER.md` — a tiny order example
 - `ExampleSubject_Data/Codex/README.md` — a tiny codex placeholder
 
+## Side-Quest plan example
+
+This folder also includes a tiny example of plan to SIDE-QUEST drafting:
+- `ExampleSubject_Data/Quest Board/SIDE-QUEST_001__clarify-example-subject-readme-intro__2026-03-06.txt`
+- `ExampleSubject_Data/Quest Board/SIDE-QUEST_002__add-short-example-snapshot-note__2026-03-06.txt`
+- `ExampleSubject_Data/Quest Board/SIDE-QUEST_003__note-where-engine-code-lives-in-example__2026-03-06.txt`
+
+These are BOARD-state drafts only. They show how a short checklist becomes tracked work units.
+
 ## Diagram
 
 ```

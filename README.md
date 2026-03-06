@@ -168,6 +168,16 @@ Want a concrete example of what a governed project looks like? Start here:
 
 This is a tiny, intentionally minimal subject that shows the Subject_Data / Subject_Engine split and a few representative continuity artifacts.
 
+## Fast plan to SIDE-QUESTs (draft only)
+
+If you have a short checklist, you can draft tracked SIDE-QUESTs in BOARD state:
+
+```bash
+python3 runtime/synapse.py plan-sidequests --item "Do X" --item "Do Y"
+```
+
+This creates Quest files on the Quest Board. Acceptance and execution are still governed.
+
 ## Repo map
 
 ```text
