@@ -218,4 +218,4 @@ Formal contributing guidance is still lightweight, but the repo is public on pur
 
 ## License
 
-Synapse includes an MIT license. See [`LICENSE`](LICENSE).
+Synapse includes the Apache License, Version 2.0. See [`LICENSE`](LICENSE).
