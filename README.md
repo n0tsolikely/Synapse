@@ -161,6 +161,13 @@ If you want the shortest useful orientation path, start here:
 - [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md)
 - [`docs/PERSONAS.md`](docs/PERSONAS.md)
 
+## Example subject (minimal teaching skeleton)
+
+Want a concrete example of what a governed project looks like? Start here:
+- `examples/example_subject/README.md`
+
+This is a tiny, intentionally minimal subject that shows the Subject_Data / Subject_Engine split and a few representative continuity artifacts.
+
 ## Repo map
 
 ```text
