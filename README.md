@@ -215,6 +215,7 @@ Community / contact:
 
 Contributions, ideas, and issues are welcome.
 For project-specific guidance, see [`CONTRIBUTING.md`](CONTRIBUTING.md).
+For responsible security reporting, see [`SECURITY.md`](SECURITY.md).
 The repo is public on purpose: it is meant to be tested, questioned, and improved.
 
 ## License
