@@ -23,6 +23,9 @@ GUARD="${GUARD:-$SYNAPSE_ROOT/runtime/tools/synapse_governance_guard.py}"
 SNAPSHOT_WRITER="${SNAPSHOT_WRITER:-$SYNAPSE_ROOT/runtime/tools/synapse_snapshot_writer.py}"
 SELECTION_METHOD=""
 SOURCE_DETAIL=""
+SUBJECT_CONTEXT_READY="NO"
+RUNTIME_DIR=""
+WAVE_FILE=""
 
 _resolve_subject_context() {
   local args
@@ -54,6 +57,17 @@ _resolve_subject_context() {
       SOURCE_DETAIL) SOURCE_DETAIL="$v" ;;
     esac
   done <<< "$out"
+
+  RUNTIME_DIR="$DATA_ROOT/.governance_runtime"
+  WAVE_FILE="$RUNTIME_DIR/quest_wave_receipts.tsv"
+  SUBJECT_CONTEXT_READY="YES"
+}
+
+ensure_subject_context() {
+  if [[ "$SUBJECT_CONTEXT_READY" == "YES" ]]; then
+    return 0
+  fi
+  _resolve_subject_context
 }
 
 require_explicit_subject_source() {
@@ -80,10 +94,6 @@ enforce_elastic_gate() {
   fi
   return 0
 }
-
-_resolve_subject_context
-RUNTIME_DIR="$DATA_ROOT/.governance_runtime"
-WAVE_FILE="$RUNTIME_DIR/quest_wave_receipts.tsv"
 
 slugify() {
   echo "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/_/g; s/^_+|_+$//g'
@@ -444,6 +454,7 @@ auto_eod_if_wave_finished() {
 }
 
 cmd_init() {
+  ensure_subject_context
   enforce_elastic_gate "R1" "init_bundle" || { echo "BLOCKED: elastic gate denied init"; exit 3; }
   python_check || { echo "BLOCKED: python3 unusable"; exit 3; }
   local qid="$1"
@@ -465,6 +476,7 @@ cmd_init() {
 }
 
 cmd_cmd() {
+  ensure_subject_context
   enforce_elastic_gate "R1" "run_command" || { echo "BLOCKED: elastic gate denied command execution"; exit 3; }
   python_check || { echo "BLOCKED: python3 unusable"; exit 3; }
   local qid="$1"; shift
@@ -506,6 +518,7 @@ cmd_cmd() {
 }
 
 cmd_finalize() {
+  ensure_subject_context
   enforce_elastic_gate "R1" "finalize_bundle" || { echo "BLOCKED: elastic gate denied finalize"; exit 3; }
   local qid="$1"
 
@@ -541,6 +554,7 @@ cmd_finalize() {
 }
 
 cmd_complete() {
+  ensure_subject_context
   local qid="$1"
   if ! enforce_elastic_gate "R2" "accepted_to_completed"; then
     exit 5

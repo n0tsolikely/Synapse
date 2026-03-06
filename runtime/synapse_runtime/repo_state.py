@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -63,6 +64,13 @@ def _session_id(env: dict[str, str] | None = None) -> str:
     if val:
         return val
     return f"ppid:{os.getppid()}"
+
+
+def _risk_level(risk: str) -> int | None:
+    match = re.match(r"^R(\d+)", str(risk or "").strip().upper())
+    if not match:
+        return None
+    return int(match.group(1))
 
 
 def load_state(cwt: Path | None = None) -> dict[str, Any]:
@@ -180,7 +188,8 @@ def enforce_execution_gate(
     state = load_state(cwt)
     mode = str(state.get("mode") or DEFAULT_MODE)
     risk_norm = str(risk or "R1").upper()
-    high_risk = risk_norm.startswith("R2") or risk_norm.startswith("R3")
+    risk_level = _risk_level(risk_norm)
+    high_risk = risk_level is not None and risk_level >= 2
 
     if mode != "EXECUTE":
         return (
@@ -229,4 +238,3 @@ def enforce_execution_gate(
         f"Inspect:\n- {cmds[0]}\n- {cmds[1]}\n"
         "Acknowledge: python3 runtime/synapse.py acknowledge",
     )
-

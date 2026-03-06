@@ -24,6 +24,9 @@ DATA_ROOT="${DATA_ROOT:-}"
 ENGINE_ROOT="${ENGINE_ROOT:-}"
 SELECTION_METHOD=""
 SOURCE_DETAIL=""
+SUBJECT_CONTEXT_READY="NO"
+CONF_DIR=""
+TODAY=""
 
 _resolve_subject_context() {
   local args
@@ -54,9 +57,18 @@ _resolve_subject_context() {
       SOURCE_DETAIL) SOURCE_DETAIL="$v" ;;
     esac
   done <<< "$out"
+
+  CONF_DIR="$DATA_ROOT/confirmations"
+  TODAY="$(date +%F)"
+  SUBJECT_CONTEXT_READY="YES"
 }
 
-_resolve_subject_context
+ensure_subject_context() {
+  if [[ "$SUBJECT_CONTEXT_READY" == "YES" ]]; then
+    return 0
+  fi
+  _resolve_subject_context
+}
 
 require_explicit_subject_source() {
   if [[ "$SELECTION_METHOD" != "flag" && "$SELECTION_METHOD" != "lockfile" ]]; then
@@ -64,10 +76,6 @@ require_explicit_subject_source() {
     exit 2
   fi
 }
-
-require_explicit_subject_source
-CONF_DIR="$DATA_ROOT/confirmations"
-TODAY="$(date +%F)"
 
 die() { echo "FAIL: $*" >&2; exit 2; }
 
@@ -136,18 +144,24 @@ case "$cmd" in
     exit 0
     ;;
   deps-only)
+    ensure_subject_context
+    require_explicit_subject_source
     fname="CONFIRM_R2__${scope}__${TODAY}__network_deps_only.txt"
     path="$CONF_DIR/$fname"
     content=$'CONFIRM: YES\nALLOW_NETWORK_EGRESS: YES\nALLOW_REAL_TOKENS: NO\nALLOW_MODEL_DOWNLOADS: NO\nEND'
     confirm_write "$path" "$content"
     ;;
   token-tests)
+    ensure_subject_context
+    require_explicit_subject_source
     fname="CONFIRM_R2__${scope}__${TODAY}__token_tests_allowed.txt"
     path="$CONF_DIR/$fname"
     content=$'CONFIRM: YES\nALLOW_NETWORK_EGRESS: YES\nALLOW_REAL_TOKENS: YES\nALLOW_MODEL_DOWNLOADS: NO\nEND'
     confirm_write "$path" "$content"
     ;;
   schema-change)
+    ensure_subject_context
+    require_explicit_subject_source
     [[ -n "$quest_id" ]] || die "schema-change requires --quest-id QUEST_###"
     fname="CONFIRM_R2__${quest_id}__${TODAY}__schema_state_change.txt"
     path="$CONF_DIR/$fname"
