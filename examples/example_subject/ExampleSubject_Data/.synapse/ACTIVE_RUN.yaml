@@ -1,0 +1,16 @@
+active: false
+run_id: null
+subject: ExampleSubject
+title: null
+goal: null
+started_at: null
+updated_at: '2026-03-07T14:30:56.860591-05:00'
+status: idle
+plan:
+  items: []
+commands: []
+files_touched: []
+notes: []
+verification: []
+related_sidequests: []
+result_summary: null

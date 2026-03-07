@@ -75,6 +75,12 @@ Runtime CLI (`runtime/synapse.py`)
 - `acknowledge`: record the current governance commit as acknowledged.
 - `enforce`: internal execution gate helper for risk/consent checks.
 - `scaffold-subject`: create incubation and Codex scaffolding under the resolved Subject Data root.
+- `live-bootstrap`: scaffold the live subject-memory sidecar under Subject_Data.
+- `run-start`: start the active run record (live execution memory).
+- `run-update`: update the active run record with progress/notes.
+- `run-finalize`: archive the active run record into RUNS/.
+- `log-decision`: capture a discrete decision into DECISIONS/.
+- `render-rehydrate`: rebuild REHYDRATE.md from live sidecar state.
 - `plan-sidequests`: draft SIDE-QUEST files from a short plan (BOARD state only).
 
 Runtime tools (`runtime/tools/`)
