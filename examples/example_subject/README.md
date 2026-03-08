@@ -19,6 +19,7 @@ Subject_Engine -> implementation code and runtime assets
 - `ExampleSubject_Data/Quest Board/EXAMPLE_QUEST.md` — a tiny quest example
 - `ExampleSubject_Data/Guild Orders/EXAMPLE_GUILD_ORDER.md` — a tiny order example
 - `ExampleSubject_Data/Codex/README.md` — a tiny codex placeholder
+- `ExampleSubject_Data/.synapse/` — live subject-memory sidecar (VISION/STATE/ACTIVE_RUN/REHYDRATE)
 
 ## Side-Quest plan example
 
@@ -28,6 +29,14 @@ This folder also includes a tiny example of plan to SIDE-QUEST drafting:
 - `ExampleSubject_Data/Quest Board/SIDE-QUEST_003__note-where-engine-code-lives-in-example__2026-03-06.txt`
 
 These are BOARD-state drafts only. They show how a short checklist becomes tracked work units.
+
+## Live sidecar example
+
+The `.synapse/` folder under `ExampleSubject_Data` shows the Phase 1 live memory sidecar:
+- `VISION.md` (concise identity)
+- `STATE.yaml` (current truth snapshot)
+- `ACTIVE_RUN.yaml` (in-flight work record)
+- `REHYDRATE.md` (fast-entry summary)
 
 ## Diagram
 

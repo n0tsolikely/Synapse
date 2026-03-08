@@ -81,6 +81,7 @@ Synapse work happens around a **Subject**. The runtime resolves the active subje
 
 ### Continuity artifacts
 Synapse uses durable artifacts such as snapshots, audits, quest state, codex material, and subject data roots to preserve more than the latest chat. The aim is to keep not just the current location, but the trail of reasoning and execution that got there.
+The Phase 1 live sidecar lives under `Subject_Data/.synapse/` to keep active runs, decisions, and fast rehydrate notes in sync during execution.
 
 ### Execution gates
 Not every action should be treated the same. Synapse distinguishes between low-risk work, governed execution, and higher-risk operations that require stronger receipts or explicit consent.

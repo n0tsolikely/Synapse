@@ -1,0 +1,15 @@
+subject: ExampleSubject
+status: idle
+current_capabilities: []
+active_constraints: []
+current_priorities: []
+recent_changes:
+- '2026-03-07T14:30:10.040702-05:00 - Run started: Example run: live sidecar demo'
+- 2026-03-07T14:30:39.844493-05:00 - Run updated
+- 2026-03-07T14:30:44.524919-05:00 - Run updated
+- '2026-03-07T14:30:56.861577-05:00 - Run finalized: Example run: live sidecar demo'
+open_threads: []
+active_run_id: null
+last_rehydrate_at: '2026-03-07T20:43:40.876223-05:00'
+last_run_id: RUN-20260307-143010
+last_decision_id: DECISION__20260307-143048__add-live-sidecar-to-example-subject

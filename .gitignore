@@ -37,6 +37,10 @@ runtime/artifacts/
 .synapse/
 *.log
 
+# Example subject live sidecar (tracked for teaching purposes)
+!examples/example_subject/ExampleSubject_Data/.synapse/
+!examples/example_subject/ExampleSubject_Data/.synapse/**
+
 # Secrets / credentials
 *.pem
 *.key

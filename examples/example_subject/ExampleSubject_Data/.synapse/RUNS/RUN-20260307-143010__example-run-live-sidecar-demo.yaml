@@ -1,0 +1,36 @@
+active: false
+run_id: RUN-20260307-143010
+subject: ExampleSubject
+title: 'Example run: live sidecar demo'
+goal: Demonstrate live run capture
+started_at: '2026-03-07T14:30:10.039851-05:00'
+updated_at: '2026-03-07T14:30:56.859328-05:00'
+status: completed
+plan:
+  items:
+  - id: ITEM-001
+    text: Bootstrap live sidecar
+    status: DONE
+  - id: ITEM-002
+    text: Capture progress updates
+    status: DONE
+  - id: ITEM-003
+    text: Finalize and archive run
+    status: DONE
+  - id: ITEM-004
+    text: Log a decision
+    status: DONE
+commands:
+- python3 runtime/synapse.py live-bootstrap --subject ExampleSubject --data-root examples/example_subject/ExampleSubject_Data
+  --engine-root examples/example_subject/ExampleSubject_Engine --allow-switch
+files_touched:
+- examples/example_subject/ExampleSubject_Data/.synapse/ACTIVE_RUN.yaml
+notes:
+- Bootstrapped live sidecar and captured initial plan.
+- Added decision logging step.
+verification:
+- Active run updated with progress.
+related_sidequests:
+- SIDE-QUEST_001
+result_summary: Example live sidecar run finalized.
+finalized_at: '2026-03-07T14:30:56.859336-05:00'

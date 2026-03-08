@@ -15,6 +15,15 @@ from zoneinfo import ZoneInfo
 from synapse_runtime.cwt import detect_canonical_working_tree
 from synapse_runtime.doctor import run_doctor
 from synapse_runtime.persona import resolve_persona
+from synapse_runtime.live_memory import (
+    LiveMemoryError,
+    ensure_live_scaffold,
+    log_decision,
+    render_rehydrate,
+    run_finalize,
+    run_start,
+    run_update,
+)
 from synapse_runtime.repo_state import (
     acknowledge_head,
     drift_commands,
@@ -146,6 +155,92 @@ def build_parser() -> argparse.ArgumentParser:
     plan_parser.add_argument("--dry-run", action="store_true", help="Show planned quests without writing files")
     plan_parser.add_argument("--json", action="store_true", help="Print JSON output")
 
+    live_parser = subparsers.add_parser("live-bootstrap", help="Scaffold live subject-memory sidecar")
+    live_parser.add_argument("--subject", help="Optional subject override")
+    live_parser.add_argument("--data-root", help="Override data root path")
+    live_parser.add_argument("--engine-root", help="Override engine root path")
+    live_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    live_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
+    run_start_parser = subparsers.add_parser("run-start", help="Start or replace the active run record")
+    run_start_parser.add_argument("--title", required=True, help="Short run title/summary")
+    run_start_parser.add_argument("--goal", help="Optional mission or goal")
+    run_start_parser.add_argument("--plan-item", action="append", default=[], help="Plan item (repeatable)")
+    run_start_parser.add_argument("--items-file", help="Text file with one plan item per line")
+    run_start_parser.add_argument("--subject", help="Optional subject override")
+    run_start_parser.add_argument("--data-root", help="Override data root path")
+    run_start_parser.add_argument("--engine-root", help="Override engine root path")
+    run_start_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    run_start_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
+    run_update_parser = subparsers.add_parser("run-update", help="Update the active run record")
+    run_update_parser.add_argument("--add-item", action="append", default=[], help="Plan item to add (repeatable)")
+    run_update_parser.add_argument("--items-file", help="Text file with one plan item per line")
+    run_update_parser.add_argument(
+        "--set-item-status",
+        action="append",
+        default=[],
+        help="Update item status (ITEM-###:STATUS)",
+    )
+    run_update_parser.add_argument(
+        "--command",
+        dest="commands",
+        action="append",
+        default=[],
+        help="Command executed (repeatable)",
+    )
+    run_update_parser.add_argument("--file", action="append", default=[], help="File touched (repeatable)")
+    run_update_parser.add_argument("--note", action="append", default=[], help="Note or observation (repeatable)")
+    run_update_parser.add_argument(
+        "--verification",
+        action="append",
+        default=[],
+        help="Verification result or check (repeatable)",
+    )
+    run_update_parser.add_argument(
+        "--related-sidequest",
+        action="append",
+        default=[],
+        help="Related SIDE-QUEST id (repeatable)",
+    )
+    run_update_parser.add_argument("--status", help="Update overall run status")
+    run_update_parser.add_argument("--summary", help="Short summary of the update")
+    run_update_parser.add_argument("--subject", help="Optional subject override")
+    run_update_parser.add_argument("--data-root", help="Override data root path")
+    run_update_parser.add_argument("--engine-root", help="Override engine root path")
+    run_update_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    run_update_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
+    run_finalize_parser = subparsers.add_parser("run-finalize", help="Archive and close the active run record")
+    run_finalize_parser.add_argument("--status", default="completed", help="Final run status (default: completed)")
+    run_finalize_parser.add_argument("--summary", help="Final summary or outcome")
+    run_finalize_parser.add_argument("--subject", help="Optional subject override")
+    run_finalize_parser.add_argument("--data-root", help="Override data root path")
+    run_finalize_parser.add_argument("--engine-root", help="Override engine root path")
+    run_finalize_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    run_finalize_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
+    decision_parser = subparsers.add_parser("log-decision", help="Log a project decision (live memory)")
+    decision_parser.add_argument("--title", required=True, help="Decision title")
+    decision_parser.add_argument("--summary", required=True, help="Decision summary")
+    decision_parser.add_argument("--why", help="Rationale or why")
+    decision_parser.add_argument("--constraint", action="append", default=[], help="Constraint (repeatable)")
+    decision_parser.add_argument("--tradeoff", action="append", default=[], help="Tradeoff (repeatable)")
+    decision_parser.add_argument("--related-run", action="append", default=[], help="Related run id (repeatable)")
+    decision_parser.add_argument("--related-quest", action="append", default=[], help="Related quest id (repeatable)")
+    decision_parser.add_argument("--subject", help="Optional subject override")
+    decision_parser.add_argument("--data-root", help="Override data root path")
+    decision_parser.add_argument("--engine-root", help="Override engine root path")
+    decision_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    decision_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
+    rehydrate_parser = subparsers.add_parser("render-rehydrate", help="Render concise REHYDRATE.md")
+    rehydrate_parser.add_argument("--subject", help="Optional subject override")
+    rehydrate_parser.add_argument("--data-root", help="Override data root path")
+    rehydrate_parser.add_argument("--engine-root", help="Override engine root path")
+    rehydrate_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    rehydrate_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
     return parser
 
 
@@ -179,6 +274,20 @@ def _subject_receipt_to_shell(receipt: dict[str, Any]) -> None:
     print(f"ENGINE_ROOT={receipt['engine_root']}")
     print(f"SELECTION_METHOD={receipt['selection_method']}")
     print(f"SOURCE_DETAIL={receipt['source_detail']}")
+
+
+def _resolve_subject_from_args(args: argparse.Namespace) -> dict[str, Any] | None:
+    try:
+        return resolve_subject(
+            subject_flag=getattr(args, "subject", None),
+            data_root_flag=getattr(args, "data_root", None),
+            engine_root_flag=getattr(args, "engine_root", None),
+            allow_switch=getattr(args, "allow_switch", False),
+        )
+    except SubjectResolutionError as exc:
+        print(f"FAIL: {exc}")
+        print("Hint: run `python3 runtime/synapse.py engage` first.")
+        return None
 
 
 def _emit_subject_output(receipt: dict[str, Any], *, json_mode: bool, shell_mode: bool) -> None:
@@ -884,6 +993,190 @@ notes:
     return 0
 
 
+def cmd_live_bootstrap(args: argparse.Namespace) -> int:
+    ctx = _resolve_subject_from_args(args)
+    if not ctx:
+        return 2
+
+    result = ensure_live_scaffold(ctx["subject"], Path(ctx["data_root"]))
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return 0
+
+    print("=== LIVE BOOTSTRAP RECEIPT ===")
+    _print_subject_receipt(ctx)
+    print(f"live_root: {result['live_root']}")
+    if result["created"]:
+        print("created:")
+        for path in result["created"]:
+            print(f"- {path}")
+    if result["existing"]:
+        print("existing:")
+        for path in result["existing"]:
+            print(f"- {path}")
+    return 0
+
+
+def cmd_run_start(args: argparse.Namespace) -> int:
+    ctx = _resolve_subject_from_args(args)
+    if not ctx:
+        return 2
+
+    try:
+        items = _load_plan_items(args.plan_item, args.items_file)
+    except Exception as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    try:
+        result = run_start(
+            subject=ctx["subject"],
+            data_root=Path(ctx["data_root"]),
+            title=args.title,
+            goal=args.goal,
+            items=items,
+        )
+    except LiveMemoryError as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return 0
+
+    print("=== RUN STARTED ===")
+    print(f"run_id: {result['run_id']}")
+    print(f"run_path: {result['run_path']}")
+    if result.get("items"):
+        print("plan_items:")
+        for item in result["items"]:
+            print(f"- {item['id']}: {item['text']} ({item['status']})")
+    return 0
+
+
+def cmd_run_update(args: argparse.Namespace) -> int:
+    ctx = _resolve_subject_from_args(args)
+    if not ctx:
+        return 2
+
+    try:
+        items = _load_plan_items(args.add_item, args.items_file)
+    except Exception as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    try:
+        result = run_update(
+            subject=ctx["subject"],
+            data_root=Path(ctx["data_root"]),
+            add_items=items,
+            status_updates=args.set_item_status,
+            commands=args.commands,
+            files_touched=args.file,
+            notes=args.note,
+            verification=args.verification,
+            related_sidequests=args.related_sidequest,
+            status=args.status,
+            summary=args.summary,
+        )
+    except LiveMemoryError as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return 0
+
+    print("=== RUN UPDATED ===")
+    print(f"run_id: {result.get('run_id')}")
+    if result.get("added_items"):
+        print("added_items:")
+        for item in result["added_items"]:
+            print(f"- {item['id']}: {item['text']} ({item['status']})")
+    if result.get("status_updates"):
+        print("status_updates:")
+        for item_id, status in result["status_updates"]:
+            print(f"- {item_id}: {status}")
+    return 0
+
+
+def cmd_run_finalize(args: argparse.Namespace) -> int:
+    ctx = _resolve_subject_from_args(args)
+    if not ctx:
+        return 2
+
+    try:
+        result = run_finalize(
+            subject=ctx["subject"],
+            data_root=Path(ctx["data_root"]),
+            status=args.status,
+            summary=args.summary,
+        )
+        render_rehydrate(subject=ctx["subject"], data_root=Path(ctx["data_root"]))
+    except LiveMemoryError as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return 0
+
+    print("=== RUN FINALIZED ===")
+    print(f"run_id: {result.get('run_id')}")
+    print(f"archive_path: {result.get('archive_path')}")
+    return 0
+
+
+def cmd_log_decision(args: argparse.Namespace) -> int:
+    ctx = _resolve_subject_from_args(args)
+    if not ctx:
+        return 2
+
+    try:
+        result = log_decision(
+            subject=ctx["subject"],
+            data_root=Path(ctx["data_root"]),
+            title=args.title,
+            summary=args.summary,
+            why=args.why,
+            constraints=args.constraint,
+            tradeoffs=args.tradeoff,
+            related_runs=args.related_run,
+            related_quests=args.related_quest,
+        )
+    except LiveMemoryError as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return 0
+
+    print("=== DECISION LOGGED ===")
+    print(f"path: {result.get('decision_path')}")
+    return 0
+
+
+def cmd_render_rehydrate(args: argparse.Namespace) -> int:
+    ctx = _resolve_subject_from_args(args)
+    if not ctx:
+        return 2
+
+    try:
+        result = render_rehydrate(subject=ctx["subject"], data_root=Path(ctx["data_root"]))
+    except LiveMemoryError as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return 0
+
+    print("=== REHYDRATE RENDERED ===")
+    print(f"path: {result.get('rehydrate_path')}")
+    return 0
+
+
 def cmd_plan_sidequests(args: argparse.Namespace) -> int:
     try:
         ctx = resolve_subject(
@@ -1035,6 +1328,18 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_enforce(args)
     if args.command == "scaffold-subject":
         return cmd_scaffold_subject(args)
+    if args.command == "live-bootstrap":
+        return cmd_live_bootstrap(args)
+    if args.command == "run-start":
+        return cmd_run_start(args)
+    if args.command == "run-update":
+        return cmd_run_update(args)
+    if args.command == "run-finalize":
+        return cmd_run_finalize(args)
+    if args.command == "log-decision":
+        return cmd_log_decision(args)
+    if args.command == "render-rehydrate":
+        return cmd_render_rehydrate(args)
     if args.command == "plan-sidequests":
         return cmd_plan_sidequests(args)
 
