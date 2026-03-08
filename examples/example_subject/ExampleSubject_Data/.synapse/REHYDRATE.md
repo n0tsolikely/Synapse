@@ -1,14 +1,16 @@
 # Rehydrate
 
 Subject: ExampleSubject
-Last updated: 2026-03-07T14:30:56.863323-05:00
+Last updated: 2026-03-07T20:43:40.876040-05:00
 
 ## What this project is
 See VISION.md for the current concise identity.
 
 ## Current state
-- Active run id: None
-- Status: None
+- Status: idle
+- Active run: none
+- Last run: RUN-20260307-143010
+- Last decision: DECISION__20260307-143048__add-live-sidecar-to-example-subject
 
 ## Recent changes
 - 2026-03-07T14:30:10.040702-05:00 - Run started: Example run: live sidecar demo

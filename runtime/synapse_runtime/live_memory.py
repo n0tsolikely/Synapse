@@ -60,13 +60,15 @@ def live_root(data_root: Path) -> Path:
 def _default_state(subject: str) -> dict[str, Any]:
     return {
         "subject": subject,
-        "status": None,
+        "status": "idle",
         "current_capabilities": [],
         "active_constraints": [],
         "current_priorities": [],
         "recent_changes": [],
         "open_threads": [],
         "active_run_id": None,
+        "last_run_id": None,
+        "last_decision_id": None,
         "last_rehydrate_at": None,
     }
 
@@ -196,6 +198,10 @@ def _load_state(path: Path, subject: str) -> dict[str, Any]:
         return _default_state(subject)
     if data.get("subject") in (None, ""):
         data["subject"] = subject
+    defaults = _default_state(subject)
+    for key, value in defaults.items():
+        if key not in data:
+            data[key] = value
     return data
 
 
@@ -251,6 +257,20 @@ def _parse_status_updates(entries: Iterable[str]) -> list[tuple[str, str]]:
     return updates
 
 
+def _is_terminal_status(value: str | None) -> bool:
+    if not value:
+        return False
+    return value.strip().upper() in {"DONE", "COMPLETED", "SKIPPED", "CANCELED", "ABANDONED"}
+
+
+def _extract_run_id(filename: str) -> str:
+    return filename.split("__", 1)[0]
+
+
+def _extract_decision_id(filename: str) -> str:
+    return filename.split(".", 1)[0]
+
+
 def run_start(
     *,
     subject: str,
@@ -292,6 +312,8 @@ def run_start(
     _write_yaml(run_path, run_data)
 
     state["active_run_id"] = run_id
+    state["last_run_id"] = run_id
+    state["status"] = "active"
     _append_recent_change(state, f"Run started: {title}")
     _write_yaml(state_path, state)
 
@@ -372,6 +394,7 @@ def run_update(
 
     state = _load_state(state_path, subject)
     state["active_run_id"] = run_data.get("run_id")
+    state["status"] = "active"
     change_note = "Run updated"
     if summary:
         change_note = f"Run updated: {summary}"
@@ -402,6 +425,17 @@ def run_finalize(
     if not run_id:
         raise LiveMemoryError("No ACTIVE_RUN found to finalize.")
 
+    if status.strip().lower() == "completed":
+        plan_items = run_data.get("plan", {}).get("items", [])
+        open_items = [
+            item
+            for item in plan_items
+            if not _is_terminal_status(str(item.get("status") or ""))
+        ]
+        if open_items:
+            details = ", ".join(f"{item.get('id')}={item.get('status')}" for item in open_items)
+            raise LiveMemoryError(f"Cannot finalize as completed with open plan items: {details}")
+
     run_data["active"] = False
     run_data["status"] = status
     run_data["result_summary"] = summary or run_data.get("result_summary")
@@ -423,6 +457,8 @@ def run_finalize(
 
     state = _load_state(state_path, subject)
     state["active_run_id"] = None
+    state["last_run_id"] = run_id
+    state["status"] = "idle"
     _append_recent_change(state, f"Run finalized: {run_data.get('title')}")
     _write_yaml(state_path, state)
 
@@ -489,6 +525,12 @@ def log_decision(
 
     path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
+    state_path = live / "STATE.yaml"
+    state = _load_state(state_path, subject)
+    state["last_decision_id"] = _extract_decision_id(path.name)
+    _append_recent_change(state, f"Decision logged: {title}")
+    _write_yaml(state_path, state)
+
     return {"decision_path": str(path)}
 
 
@@ -508,6 +550,14 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
     recent_decisions = sorted(decisions_dir.glob("DECISION__*.md"))[-5:]
     recent_runs = sorted(runs_dir.glob("RUN-*.yaml"))[-3:]
 
+    active_run_id = active_run.get("run_id")
+    state["active_run_id"] = active_run_id
+    state["status"] = "active" if active_run_id else "idle"
+    if not state.get("last_run_id") and recent_runs:
+        state["last_run_id"] = _extract_run_id(recent_runs[-1].name)
+    if not state.get("last_decision_id") and recent_decisions:
+        state["last_decision_id"] = _extract_decision_id(recent_decisions[-1].name)
+
     lines = [
         "# Rehydrate",
         "",
@@ -518,14 +568,25 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
         "See VISION.md for the current concise identity.",
         "",
         "## Current state",
-        f"- Active run id: {state.get('active_run_id')}",
         f"- Status: {state.get('status')}",
-        "",
     ]
 
-    if active_run.get("run_id"):
+    if active_run_id:
+        lines.append(f"- Active run: {active_run_id}")
+    else:
+        lines.append("- Active run: none")
+
+    if state.get("last_run_id"):
+        lines.append(f"- Last run: {state.get('last_run_id')}")
+
+    if state.get("last_decision_id"):
+        lines.append(f"- Last decision: {state.get('last_decision_id')}")
+
+    lines.append("")
+
+    if active_run_id:
         lines.append("## Active run")
-        lines.append(f"- Run: {active_run.get('run_id')} — {active_run.get('title')}")
+        lines.append(f"- Run: {active_run_id} — {active_run.get('title')}")
         if active_run.get("goal"):
             lines.append(f"- Goal: {active_run.get('goal')}")
         items = active_run.get("plan", {}).get("items", [])

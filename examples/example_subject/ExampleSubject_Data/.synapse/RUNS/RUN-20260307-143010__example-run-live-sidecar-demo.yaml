@@ -16,10 +16,10 @@ plan:
     status: DONE
   - id: ITEM-003
     text: Finalize and archive run
-    status: DOING
+    status: DONE
   - id: ITEM-004
     text: Log a decision
-    status: TODO
+    status: DONE
 commands:
 - python3 runtime/synapse.py live-bootstrap --subject ExampleSubject --data-root examples/example_subject/ExampleSubject_Data
   --engine-root examples/example_subject/ExampleSubject_Engine --allow-switch
