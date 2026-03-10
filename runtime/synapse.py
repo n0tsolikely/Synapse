@@ -6,19 +6,33 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import os
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
+import time
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
+import yaml
+
 from synapse_runtime.cwt import detect_canonical_working_tree
 from synapse_runtime.doctor import run_doctor
+from synapse_runtime.governance_inventory import build_governance_inventory, write_governance_inventory
+from synapse_runtime.governance_model import ProposalKind, ProposalState
 from synapse_runtime.persona import resolve_persona
+from synapse_runtime.rehydration_pack import refresh_rehydration_pack
 from synapse_runtime.live_memory import (
     LiveMemoryError,
     ensure_live_scaffold,
+    list_proposals,
+    load_active_run_record,
     log_decision,
+    log_disclosure,
+    mark_proposal_state,
     render_rehydrate,
     run_finalize,
     run_start,
@@ -33,12 +47,14 @@ from synapse_runtime.repo_state import (
     set_mode,
     state_path,
 )
+from synapse_runtime.subject_bootstrap import initialize_subject_state, repo_subject_defaults
 from synapse_runtime.subject_resolver import (
     SubjectResolutionError,
     detect_subject_candidates,
     is_placeholder_subject,
     load_active_focus_lock,
     resolve_subject,
+    session_focus_lock_path,
     write_focus_lock,
 )
 
@@ -63,6 +79,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Skip subject resolution gates (governance-only checks)",
     )
 
+    gov_map_parser = subparsers.add_parser("governance-map", help="Build machine-readable governance inventory")
+    gov_map_parser.add_argument(
+        "--governance-root",
+        required=True,
+        help="Path to governance root (relative to canonical working tree or absolute path)",
+    )
+    gov_map_parser.add_argument("--output", help="Optional output path (.yaml or .json)")
+    gov_map_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
     engage_parser = subparsers.add_parser("engage", help="Resolve or select subject context for the current session")
     engage_parser.add_argument("--subject", help="Subject key to set directly")
     engage_parser.add_argument("--data-root", help="Override data root path")
@@ -71,6 +96,30 @@ def build_parser() -> argparse.ArgumentParser:
     engage_parser.add_argument("--json", action="store_true", help="Print JSON receipt")
     engage_parser.add_argument("--shell", action="store_true", help="Print shell assignments")
     engage_parser.add_argument("--no-home-lock", action="store_true", help="Do not write ~/.synapse/ACTIVE_SUBJECT.json")
+    engage_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
+    engage_parser.add_argument(
+        "--continue-active",
+        action="store_true",
+        help="Non-interactive only: explicitly continue the active subject lock",
+    )
+    engage_parser.add_argument(
+        "--adopt-current-repo",
+        action="store_true",
+        help="Set focus lock from current repo roots (ENGINE_ROOT=<git root>, DATA_ROOT=<git-root-parent>/<repo>_Data)",
+    )
+
+    attach_parser = subparsers.add_parser(
+        "attach-or-init",
+        help="Attach to existing subject or adopt/init current repo subject automatically",
+    )
+    attach_parser.add_argument("--subject", help="Subject key to set directly")
+    attach_parser.add_argument("--data-root", help="Override data root path")
+    attach_parser.add_argument("--engine-root", help="Override engine root path")
+    attach_parser.add_argument("--selected-by", default="Brains", help="Who made the selection (default: Brains)")
+    attach_parser.add_argument("--json", action="store_true", help="Print JSON receipt")
+    attach_parser.add_argument("--shell", action="store_true", help="Print shell assignments")
+    attach_parser.add_argument("--no-home-lock", action="store_true", help="Do not write ~/.synapse/ACTIVE_SUBJECT.json")
+    attach_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
 
     focus_parser = subparsers.add_parser("focus", help="Select and persist active subject focus lock")
     focus_parser.add_argument("--subject", help="Subject key to set directly (non-interactive)")
@@ -78,6 +127,7 @@ def build_parser() -> argparse.ArgumentParser:
     focus_parser.add_argument("--engine-root", help="Override engine root path")
     focus_parser.add_argument("--selected-by", default="Brains", help="Who made the selection (default: Brains)")
     focus_parser.add_argument("--no-home-lock", action="store_true", help="Do not write ~/.synapse/ACTIVE_SUBJECT.json")
+    focus_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
 
     res_parser = subparsers.add_parser("resolve-subject", help=argparse.SUPPRESS)
     res_parser.add_argument("--subject", help="Explicit subject key")
@@ -86,6 +136,7 @@ def build_parser() -> argparse.ArgumentParser:
     res_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
     res_parser.add_argument("--json", action="store_true", help="Print JSON receipt")
     res_parser.add_argument("--shell", action="store_true", help="Print shell assignments")
+    res_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
 
     persona_parser = subparsers.add_parser("persona", help="Resolve optional Synapse-managed persona overlay")
     persona_parser.add_argument("--json", action="store_true", help="Print JSON output")
@@ -160,6 +211,7 @@ def build_parser() -> argparse.ArgumentParser:
     live_parser.add_argument("--data-root", help="Override data root path")
     live_parser.add_argument("--engine-root", help="Override engine root path")
     live_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    live_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
     live_parser.add_argument("--json", action="store_true", help="Print JSON output")
 
     run_start_parser = subparsers.add_parser("run-start", help="Start or replace the active run record")
@@ -171,7 +223,22 @@ def build_parser() -> argparse.ArgumentParser:
     run_start_parser.add_argument("--data-root", help="Override data root path")
     run_start_parser.add_argument("--engine-root", help="Override engine root path")
     run_start_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    run_start_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
     run_start_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
+    session_start_parser = subparsers.add_parser("session-start", help="Auto-attach/init subject and start an ambient session run")
+    session_start_parser.add_argument("--title", help="Short run title/summary")
+    session_start_parser.add_argument("--goal", help="Optional mission or goal")
+    session_start_parser.add_argument("--plan-item", action="append", default=[], help="Plan item (repeatable)")
+    session_start_parser.add_argument("--items-file", help="Text file with one plan item per line")
+    session_start_parser.add_argument("--subject", help="Optional subject override")
+    session_start_parser.add_argument("--data-root", help="Override data root path")
+    session_start_parser.add_argument("--engine-root", help="Override engine root path")
+    session_start_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    session_start_parser.add_argument("--selected-by", default="Brains", help="Who made the selection (default: Brains)")
+    session_start_parser.add_argument("--no-home-lock", action="store_true", help="Do not write ~/.synapse/ACTIVE_SUBJECT.json")
+    session_start_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
+    session_start_parser.add_argument("--json", action="store_true", help="Print JSON output")
 
     run_update_parser = subparsers.add_parser("run-update", help="Update the active run record")
     run_update_parser.add_argument("--add-item", action="append", default=[], help="Plan item to add (repeatable)")
@@ -203,13 +270,47 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         help="Related SIDE-QUEST id (repeatable)",
     )
+    run_update_parser.add_argument(
+        "--related-quest",
+        action="append",
+        default=[],
+        help="Related QUEST id (repeatable)",
+    )
     run_update_parser.add_argument("--status", help="Update overall run status")
     run_update_parser.add_argument("--summary", help="Short summary of the update")
     run_update_parser.add_argument("--subject", help="Optional subject override")
     run_update_parser.add_argument("--data-root", help="Override data root path")
     run_update_parser.add_argument("--engine-root", help="Override engine root path")
     run_update_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    run_update_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
     run_update_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
+    session_tick_parser = subparsers.add_parser("session-tick", help="Capture ambient session activity and refresh the sidecar")
+    session_tick_parser.add_argument("--title", help="Session title if a run must be created")
+    session_tick_parser.add_argument("--goal", help="Session goal if a run must be created")
+    session_tick_parser.add_argument("--plan-item", action="append", default=[], help="Plan item (repeatable)")
+    session_tick_parser.add_argument("--items-file", help="Text file with one plan item per line")
+    session_tick_parser.add_argument("--command", dest="commands", action="append", default=[], help="Command executed (repeatable)")
+    session_tick_parser.add_argument("--file", action="append", default=[], help="File touched (repeatable)")
+    session_tick_parser.add_argument("--note", action="append", default=[], help="Note or observation (repeatable)")
+    session_tick_parser.add_argument("--discovery", action="append", default=[], help="Discovery entry (repeatable)")
+    session_tick_parser.add_argument("--verification", action="append", default=[], help="Verification result or check (repeatable)")
+    session_tick_parser.add_argument("--related-sidequest", action="append", default=[], help="Related SIDE-QUEST id (repeatable)")
+    session_tick_parser.add_argument("--related-quest", action="append", default=[], help="Related QUEST id (repeatable)")
+    session_tick_parser.add_argument("--status", help="Update overall run status")
+    session_tick_parser.add_argument("--summary", help="Short summary of the tick")
+    session_tick_parser.add_argument("--decision-title", help="Optional binding decision title to log during the tick")
+    session_tick_parser.add_argument("--decision-summary", help="Optional binding decision summary to log during the tick")
+    session_tick_parser.add_argument("--decision-why", help="Optional rationale for the binding decision")
+    session_tick_parser.add_argument("--capture-git", action="store_true", help="Capture current git status file list into the tick")
+    session_tick_parser.add_argument("--subject", help="Optional subject override")
+    session_tick_parser.add_argument("--data-root", help="Override data root path")
+    session_tick_parser.add_argument("--engine-root", help="Override engine root path")
+    session_tick_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    session_tick_parser.add_argument("--selected-by", default="Brains", help="Who made the selection (default: Brains)")
+    session_tick_parser.add_argument("--no-home-lock", action="store_true", help="Do not write ~/.synapse/ACTIVE_SUBJECT.json")
+    session_tick_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
+    session_tick_parser.add_argument("--json", action="store_true", help="Print JSON output")
 
     run_finalize_parser = subparsers.add_parser("run-finalize", help="Archive and close the active run record")
     run_finalize_parser.add_argument("--status", default="completed", help="Final run status (default: completed)")
@@ -218,6 +319,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_finalize_parser.add_argument("--data-root", help="Override data root path")
     run_finalize_parser.add_argument("--engine-root", help="Override engine root path")
     run_finalize_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    run_finalize_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
     run_finalize_parser.add_argument("--json", action="store_true", help="Print JSON output")
 
     decision_parser = subparsers.add_parser("log-decision", help="Log a project decision (live memory)")
@@ -232,14 +334,79 @@ def build_parser() -> argparse.ArgumentParser:
     decision_parser.add_argument("--data-root", help="Override data root path")
     decision_parser.add_argument("--engine-root", help="Override engine root path")
     decision_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    decision_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
     decision_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
+    disclosure_parser = subparsers.add_parser("log-disclosure", help="Log a Disclosure Gate event (live memory)")
+    disclosure_parser.add_argument("--trigger", required=True, help="What caused Disclosure Gate to trigger")
+    disclosure_parser.add_argument("--expected", required=True, help="What was expected to be true")
+    disclosure_parser.add_argument("--provable", required=True, help="What is actually provable now")
+    disclosure_parser.add_argument("--status-label", action="append", default=[], help="Truth Gate status label (repeatable)")
+    disclosure_parser.add_argument("--impact", required=True, help="What cannot safely proceed and why")
+    disclosure_parser.add_argument("--safe-option", action="append", default=[], help="Legal next action under current state (repeatable)")
+    disclosure_parser.add_argument("--decision-needed", required=True, help="Minimal Brains decision required to continue")
+    disclosure_parser.add_argument("--related-run", action="append", default=[], help="Related run id (repeatable)")
+    disclosure_parser.add_argument("--related-quest", action="append", default=[], help="Related quest id (repeatable)")
+    disclosure_parser.add_argument("--subject", help="Optional subject override")
+    disclosure_parser.add_argument("--data-root", help="Override data root path")
+    disclosure_parser.add_argument("--engine-root", help="Override engine root path")
+    disclosure_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    disclosure_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
+    disclosure_parser.add_argument("--json", action="store_true", help="Print JSON output")
 
     rehydrate_parser = subparsers.add_parser("render-rehydrate", help="Render concise REHYDRATE.md")
     rehydrate_parser.add_argument("--subject", help="Optional subject override")
     rehydrate_parser.add_argument("--data-root", help="Override data root path")
     rehydrate_parser.add_argument("--engine-root", help="Override engine root path")
     rehydrate_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    rehydrate_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
     rehydrate_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
+    continuity_parser = subparsers.add_parser("refresh-continuity", help="Seal current sidecar truth into the active rehydration pack")
+    continuity_parser.add_argument("--subject", help="Optional subject override")
+    continuity_parser.add_argument("--data-root", help="Override data root path")
+    continuity_parser.add_argument("--engine-root", help="Override engine root path")
+    continuity_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    continuity_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
+    continuity_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
+    formalize_parser = subparsers.add_parser("formalize", help="Formalize ambient proposals into canonical artifacts")
+    formalize_parser.add_argument("--proposal-id", help="Proposal id to formalize")
+    formalize_parser.add_argument(
+        "--kind",
+        choices=[kind.value for kind in ProposalKind],
+        help="Optional proposal kind filter",
+    )
+    formalize_parser.add_argument(
+        "--state",
+        choices=[state.value for state in ProposalState],
+        help="Optional proposal state filter when listing",
+    )
+    formalize_parser.add_argument("--list", action="store_true", help="List proposals instead of formalizing one")
+    formalize_parser.add_argument("--topic", help="Optional topic override for snapshot or guild-order formalization")
+    formalize_parser.add_argument("--subject", help="Optional subject override")
+    formalize_parser.add_argument("--data-root", help="Override data root path")
+    formalize_parser.add_argument("--engine-root", help="Override engine root path")
+    formalize_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    formalize_parser.add_argument("--selected-by", default="Brains", help="Who made the selection (default: Brains)")
+    formalize_parser.add_argument("--no-home-lock", action="store_true", help="Do not write ~/.synapse/ACTIVE_SUBJECT.json")
+    formalize_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
+    formalize_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
+    watch_parser = subparsers.add_parser("watch", help="Poll local state and continuously update the ambient sidecar")
+    watch_parser.add_argument("--interval", type=float, default=2.0, help="Polling interval in seconds (default: 2.0)")
+    watch_parser.add_argument("--iterations", type=int, default=1, help="Number of polls to run (default: 1)")
+    watch_parser.add_argument("--capture-git", action="store_true", help="Capture git working-tree changes on each poll")
+    watch_parser.add_argument("--title", help="Session title if a run must be created")
+    watch_parser.add_argument("--goal", help="Session goal if a run must be created")
+    watch_parser.add_argument("--subject", help="Optional subject override")
+    watch_parser.add_argument("--data-root", help="Override data root path")
+    watch_parser.add_argument("--engine-root", help="Override engine root path")
+    watch_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    watch_parser.add_argument("--selected-by", default="Brains", help="Who made the selection (default: Brains)")
+    watch_parser.add_argument("--no-home-lock", action="store_true", help="Do not write ~/.synapse/ACTIVE_SUBJECT.json")
+    watch_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
+    watch_parser.add_argument("--json", action="store_true", help="Print JSON output")
 
     return parser
 
@@ -260,6 +427,8 @@ def _print_subject_receipt(receipt: dict[str, Any]) -> None:
     print(f"selected_by: {receipt.get('selected_by')}")
     print(f"selection_method: {receipt.get('selection_method')}")
     print(f"source_detail: {receipt.get('source_detail')}")
+    if receipt.get("session_id"):
+        print(f"session_id: {receipt.get('session_id')}")
 
 
 def _print_mode_receipt(mode: str) -> None:
@@ -274,6 +443,8 @@ def _subject_receipt_to_shell(receipt: dict[str, Any]) -> None:
     print(f"ENGINE_ROOT={receipt['engine_root']}")
     print(f"SELECTION_METHOD={receipt['selection_method']}")
     print(f"SOURCE_DETAIL={receipt['source_detail']}")
+    if receipt.get("session_id"):
+        print(f"SESSION_ID={receipt['session_id']}")
 
 
 def _resolve_subject_from_args(args: argparse.Namespace) -> dict[str, Any] | None:
@@ -283,6 +454,7 @@ def _resolve_subject_from_args(args: argparse.Namespace) -> dict[str, Any] | Non
             data_root_flag=getattr(args, "data_root", None),
             engine_root_flag=getattr(args, "engine_root", None),
             allow_switch=getattr(args, "allow_switch", False),
+            session_id=getattr(args, "session_id", None),
         )
     except SubjectResolutionError as exc:
         print(f"FAIL: {exc}")
@@ -298,6 +470,147 @@ def _emit_subject_output(receipt: dict[str, Any], *, json_mode: bool, shell_mode
         print(json.dumps(receipt, indent=2, sort_keys=True))
         return
     _print_subject_receipt(receipt)
+
+
+def _resolved_session_id(args: argparse.Namespace) -> str | None:
+    raw = str(getattr(args, "session_id", None) or os.environ.get("SYNAPSE_SESSION_ID") or "").strip()
+    return raw or None
+
+
+def _session_run_overlay_path(session_id: str) -> Path:
+    return session_focus_lock_path(session_id, Path.home().resolve()).parent / "ACTIVE_RUN.json"
+
+
+def _write_session_run_overlay(session_id: str, payload: dict[str, Any]) -> str:
+    path = _session_run_overlay_path(session_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return str(path.resolve())
+
+
+def _clear_session_run_overlay(session_id: str) -> str:
+    path = _session_run_overlay_path(session_id)
+    if path.exists():
+        path.unlink()
+    return str(path.resolve())
+
+
+def _render_and_refresh_continuity(subject: str, data_root: Path, engine_root: Path) -> dict[str, Any]:
+    try:
+        rehydrate = render_rehydrate(subject=subject, data_root=data_root)
+        continuity = refresh_rehydration_pack(subject=subject, data_root=data_root, engine_root=engine_root)
+        return {"rehydrate": rehydrate, "continuity": continuity}
+    except Exception as exc:
+        raise LiveMemoryError(str(exc)) from exc
+
+
+def _core_subject_artifacts_present(receipt: dict[str, Any]) -> bool:
+    subject = str(receipt["subject"])
+    data_root = Path(str(receipt["data_root"])).expanduser().resolve()
+    if not data_root.exists():
+        return False
+    if not (data_root / "SUBJECT_STATE.yaml").exists():
+        return False
+    buff_prefix = subject.upper()
+    for name in (
+        f"{buff_prefix}_EXECUTION_PROTOCOL.txt",
+        f"{buff_prefix}_DATA_DIRECTORY_MAP.txt",
+        f"{buff_prefix}_SESSION_START_CHECK.txt",
+    ):
+        if not (data_root / "Buffs" / name).exists():
+            return False
+    rehydration_dir = data_root / "Latest Rehydration Pack"
+    if not rehydration_dir.exists():
+        return False
+    if not list(rehydration_dir.glob("*BOOTSTRAP_PROMPT*")):
+        return False
+    if not list(rehydration_dir.glob("*CONTINUITY_LOCK*")):
+        return False
+    return True
+
+
+def _maybe_persist_subject_cursor(receipt: dict[str, Any], args: argparse.Namespace, *, source_detail: str) -> dict[str, Any]:
+    selection_method = str(receipt.get("selection_method") or "").strip()
+    should_persist = selection_method in {"flag", "env", "inferred"} or source_detail == "attach_or_init"
+    if not should_persist:
+        return receipt
+    return write_focus_lock(
+        subject=receipt["subject"],
+        data_root=receipt["data_root"],
+        engine_root=receipt["engine_root"],
+        selected_by=getattr(args, "selected_by", "Brains"),
+        selection_method=selection_method or "auto_attach",
+        source_detail=source_detail,
+        write_home_lock=not getattr(args, "no_home_lock", False),
+        session_id=_resolved_session_id(args),
+    )
+
+
+def _resolve_or_attach_subject_from_args(args: argparse.Namespace) -> dict[str, Any] | None:
+    home = Path.home().resolve()
+    auto_initialized = False
+    init_receipt = {"created": [], "existing": []}
+    live_receipt = {"created": [], "existing": [], "live_root": "", "required_paths": {}}
+
+    try:
+        receipt = resolve_subject(
+            subject_flag=getattr(args, "subject", None),
+            data_root_flag=getattr(args, "data_root", None),
+            engine_root_flag=getattr(args, "engine_root", None),
+            allow_switch=getattr(args, "allow_switch", False),
+            session_id=_resolved_session_id(args),
+        )
+        receipt = _maybe_persist_subject_cursor(receipt, args, source_detail="attach_or_resume")
+    except SubjectResolutionError:
+        cwt = detect_canonical_working_tree()
+        if getattr(args, "subject", None):
+            selection = _apply_root_overrides({"subject": str(args.subject).strip()}, args, home)
+        else:
+            selection = _apply_root_overrides(repo_subject_defaults(cwt), args, home)
+        receipt = write_focus_lock(
+            subject=selection["subject"],
+            data_root=selection["data_root"],
+            engine_root=selection["engine_root"],
+            selected_by=getattr(args, "selected_by", "Brains"),
+            selection_method="auto_attach",
+            source_detail="attach_or_init",
+            write_home_lock=not getattr(args, "no_home_lock", False),
+            session_id=_resolved_session_id(args),
+        )
+
+    data_root = Path(str(receipt["data_root"])).expanduser().resolve()
+    engine_root = Path(str(receipt["engine_root"])).expanduser().resolve()
+    if not _core_subject_artifacts_present(receipt):
+        init_receipt = initialize_subject_state(receipt["subject"], data_root, engine_root)
+        auto_initialized = True
+    live_receipt = ensure_live_scaffold(receipt["subject"], data_root)
+    receipt["live_root"] = live_receipt.get("live_root")
+    receipt["required_paths"] = live_receipt.get("required_paths", {})
+    receipt["initialized_created"] = init_receipt.get("created", [])
+    receipt["initialized_existing"] = init_receipt.get("existing", [])
+    receipt["live_created"] = live_receipt.get("created", [])
+    receipt["live_existing"] = live_receipt.get("existing", [])
+    receipt["auto_initialized"] = auto_initialized
+    return receipt
+
+
+def _git_status_changed_files(cwt: Path) -> list[str]:
+    result = subprocess.run(
+        ["git", "status", "--short", "--untracked-files=all"],
+        cwd=str(cwt),
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return []
+    files: list[str] = []
+    for line in result.stdout.splitlines():
+        raw = line[3:].strip()
+        if not raw:
+            continue
+        files.append(raw)
+    return files
 
 
 def _print_noninteractive_focus_help(command_name: str, candidates: list[dict[str, str]]) -> None:
@@ -324,6 +637,15 @@ def _print_noninteractive_engage_help(candidates: list[dict[str, str]]) -> None:
     print("Use one of:")
     print("- python3 runtime/synapse.py engage")
     print("- python3 runtime/synapse.py focus --subject <SUBJECT>")
+
+
+def _print_noninteractive_engage_active_help(active_subject: str) -> None:
+    print("FAIL: non-interactive engage requires explicit intent when an active subject already exists.")
+    print(f"active_subject: {active_subject}")
+    print("Choose one:")
+    print("- continue active lock: python3 runtime/synapse.py engage --continue-active [--shell|--json]")
+    print("- new/change subject from current repo: python3 runtime/synapse.py engage --adopt-current-repo [--shell|--json]")
+    print("- interactive menu: python3 runtime/synapse.py engage")
 
 
 def _today_toronto() -> str:
@@ -433,10 +755,34 @@ def _input_line(prompt: str) -> str:
         raise SubjectResolutionError("Interactive selection cancelled (stdin closed).") from exc
 
 
+def _repo_adoption_defaults(cwt: Path) -> dict[str, str]:
+    repo_name = cwt.name.strip()
+    if not repo_name:
+        raise SubjectResolutionError("Cannot derive subject from current repository root (empty name).")
+    if is_placeholder_subject(repo_name):
+        raise SubjectResolutionError(
+            f"Current repository name '{repo_name}' resolves to a reserved placeholder subject. "
+            "Use `--subject <SUBJECT>` with explicit --data-root/--engine-root."
+        )
+    return {
+        "subject": repo_name,
+        "data_root": str((cwt.parent / f"{repo_name}_Data").resolve()),
+        "engine_root": str(cwt.resolve()),
+    }
+
+
+def _subject_default_roots(subject: str, cwt: Path, home: Path) -> tuple[Path, Path]:
+    if (cwt / ".git").exists():
+        return (cwt.parent / f"{subject}_Data").resolve(), cwt.resolve()
+    return (home / f"{subject}_Data").resolve(), cwt.resolve()
+
+
 def _apply_root_overrides(selected: dict[str, Any], args: argparse.Namespace, home: Path) -> dict[str, str]:
+    cwt = detect_canonical_working_tree()
     subject = str(selected["subject"]).strip()
-    data_root = args.data_root or selected.get("data_root") or str((home / f"{subject}_Data").resolve())
-    engine_root = args.engine_root or selected.get("engine_root") or str((home / f"{subject}_Engine").resolve())
+    default_data_root, default_engine_root = _subject_default_roots(subject, cwt, home)
+    data_root = args.data_root or selected.get("data_root") or str(default_data_root)
+    engine_root = args.engine_root or selected.get("engine_root") or str(default_engine_root)
     return {
         "subject": subject,
         "data_root": str(Path(str(data_root)).expanduser().resolve()),
@@ -473,13 +819,49 @@ def _create_subject_scaffold(home: Path) -> dict[str, str]:
     return {"subject": subject, "data_root": str(data_root), "engine_root": str(engine_root)}
 
 
+def _interactive_new_or_change_selection(home: Path, args: argparse.Namespace, candidates: list[dict[str, str]]) -> dict[str, Any] | None:
+    cwt = detect_canonical_working_tree()
+    repo_defaults = _repo_adoption_defaults(cwt)
+
+    print("New / Change subject:")
+    print(f"1) adopt current repo [{repo_defaults['subject']}]")
+    print("2) choose existing subject")
+    print("3) create new subject (legacy scaffold)")
+    print("4) cancel")
+    choice = _input_line("> ").strip()
+
+    if choice == "1":
+        return {
+            **_apply_root_overrides(repo_defaults, args, home),
+            "selection_method": "interactive",
+            "source_detail": "interactive_adopt_repo",
+        }
+    if choice == "2":
+        picked = _choose_subject_from_candidates(candidates)
+        return {
+            **_apply_root_overrides(picked, args, home),
+            "selection_method": "interactive",
+            "source_detail": "interactive_switch",
+        }
+    if choice == "3":
+        picked = _create_subject_scaffold(home)
+        return {
+            **_apply_root_overrides(picked, args, home),
+            "selection_method": "interactive",
+            "source_detail": "interactive_create",
+        }
+    if choice == "4":
+        return None
+    raise SubjectResolutionError("Invalid New / Change selection.")
+
+
 def _interactive_engage_selection(home: Path, args: argparse.Namespace) -> dict[str, Any] | None:
     candidates = detect_subject_candidates(home)
     current = None
     current_error = None
-    if load_active_focus_lock():
+    if load_active_focus_lock(session_id=getattr(args, "session_id", None)):
         try:
-            current = resolve_subject()
+            current = resolve_subject(session_id=getattr(args, "session_id", None))
         except SubjectResolutionError as exc:
             current_error = str(exc)
 
@@ -488,10 +870,9 @@ def _interactive_engage_selection(home: Path, args: argparse.Namespace) -> dict[
 
     if current:
         print("Session start:")
-        print(f"[Enter]/1) continue with {current['subject']}")
-        print("2) switch subject")
-        print("3) create new subject")
-        print("4) cancel")
+        print(f"[Enter]/1) Continue active subject {current['subject']}")
+        print("2) New / Change subject")
+        print("3) cancel")
         choice = _input_line("> ").strip()
         if choice in {"", "1"}:
             return {
@@ -500,11 +881,31 @@ def _interactive_engage_selection(home: Path, args: argparse.Namespace) -> dict[
                 "source_detail": current.get("source_detail", "lockfile"),
             }
         if choice == "2":
+            return _interactive_new_or_change_selection(home, args, candidates)
+        if choice == "3":
+            return None
+        raise SubjectResolutionError("Invalid session-start selection.")
+
+    repo_defaults = _repo_adoption_defaults(detect_canonical_working_tree())
+    if candidates:
+        print("Session start:")
+        print(f"1) adopt current repo [{repo_defaults['subject']}]")
+        print("2) choose existing subject")
+        print("3) create new subject (legacy scaffold)")
+        print("4) cancel")
+        choice = _input_line("> ").strip()
+        if choice == "1":
+            return {
+                **_apply_root_overrides(repo_defaults, args, home),
+                "selection_method": "interactive",
+                "source_detail": "interactive_adopt_repo",
+            }
+        if choice == "2":
             selected = _choose_subject_from_candidates(candidates)
             return {
                 **_apply_root_overrides(selected, args, home),
                 "selection_method": "interactive",
-                "source_detail": "interactive_switch",
+                "source_detail": "interactive_select",
             }
         if choice == "3":
             selected = _create_subject_scaffold(home)
@@ -517,42 +918,25 @@ def _interactive_engage_selection(home: Path, args: argparse.Namespace) -> dict[
             return None
         raise SubjectResolutionError("Invalid session-start selection.")
 
-    if candidates:
-        print("Session start:")
-        print("1) choose existing subject")
-        print("2) create new subject")
-        print("3) cancel")
-        choice = _input_line("> ").strip()
-        if choice == "1":
-            selected = _choose_subject_from_candidates(candidates)
-            return {
-                **_apply_root_overrides(selected, args, home),
-                "selection_method": "interactive",
-                "source_detail": "interactive_select",
-            }
-        if choice == "2":
-            selected = _create_subject_scaffold(home)
-            return {
-                **_apply_root_overrides(selected, args, home),
-                "selection_method": "interactive",
-                "source_detail": "interactive_create",
-            }
-        if choice == "3":
-            return None
-        raise SubjectResolutionError("Invalid session-start selection.")
-
     print("Session start:")
-    print("1) create new subject")
-    print("2) cancel")
+    print(f"1) adopt current repo [{repo_defaults['subject']}]")
+    print("2) create new subject (legacy scaffold)")
+    print("3) cancel")
     choice = _input_line("> ").strip()
     if choice == "1":
+        return {
+            **_apply_root_overrides(repo_defaults, args, home),
+            "selection_method": "interactive",
+            "source_detail": "interactive_adopt_repo",
+        }
+    if choice == "2":
         selected = _create_subject_scaffold(home)
         return {
             **_apply_root_overrides(selected, args, home),
             "selection_method": "interactive",
             "source_detail": "interactive_create",
         }
-    if choice == "2":
+    if choice == "3":
         return None
     raise SubjectResolutionError("Invalid session-start selection.")
 
@@ -566,7 +950,12 @@ def _write_subject_lock_from_selection(selection: dict[str, Any], args: argparse
         selection_method=selection["selection_method"],
         source_detail=selection["source_detail"],
         write_home_lock=not args.no_home_lock,
+        session_id=getattr(args, "session_id", None),
     )
+
+
+def _initialize_adopted_subject_state(subject: str, data_root: Path, engine_root: Path) -> dict[str, list[str]]:
+    return initialize_subject_state(subject, data_root, engine_root)
 
 
 def cmd_focus(args: argparse.Namespace) -> int:
@@ -584,6 +973,7 @@ def cmd_focus(args: argparse.Namespace) -> int:
                 selection_method="flag",
                 source_detail="flag",
                 write_home_lock=not args.no_home_lock,
+                session_id=args.session_id,
             )
             _print_subject_receipt(receipt)
             return 0
@@ -593,9 +983,9 @@ def cmd_focus(args: argparse.Namespace) -> int:
             return 2
 
         current = None
-        if load_active_focus_lock():
+        if load_active_focus_lock(session_id=args.session_id):
             try:
-                current = resolve_subject(allow_switch=False)
+                current = resolve_subject(allow_switch=False, session_id=args.session_id)
             except SubjectResolutionError as exc:
                 print(f"NOTE: {exc}")
 
@@ -670,6 +1060,10 @@ def cmd_engage(args: argparse.Namespace) -> int:
     home = Path.home().resolve()
 
     try:
+        if args.continue_active and args.adopt_current_repo:
+            print("FAIL: --continue-active and --adopt-current-repo are mutually exclusive.")
+            return 2
+
         if args.subject:
             selection = _apply_root_overrides({"subject": args.subject.strip()}, args, home)
             selection["selection_method"] = "flag"
@@ -678,20 +1072,51 @@ def cmd_engage(args: argparse.Namespace) -> int:
             _emit_subject_output(receipt, json_mode=args.json, shell_mode=args.shell)
             return 0
 
+        if args.continue_active:
+            active_lock = load_active_focus_lock(session_id=args.session_id)
+            if not active_lock:
+                print("FAIL: --continue-active requires an existing active subject lock.")
+                return 2
+            receipt = resolve_subject(allow_switch=False, session_id=args.session_id)
+            _emit_subject_output(receipt, json_mode=args.json, shell_mode=args.shell)
+            return 0
+
+        if args.adopt_current_repo:
+            repo_defaults = _repo_adoption_defaults(detect_canonical_working_tree())
+            selection = _apply_root_overrides(repo_defaults, args, home)
+            init_receipt = _initialize_adopted_subject_state(
+                selection["subject"],
+                Path(selection["data_root"]),
+                Path(selection["engine_root"]),
+            )
+            selection["selection_method"] = "flag"
+            selection["source_detail"] = "engage_adopt_repo"
+            receipt = _write_subject_lock_from_selection(selection, args)
+            receipt["initialized_created"] = init_receipt["created"]
+            receipt["initialized_existing"] = init_receipt["existing"]
+            _emit_subject_output(receipt, json_mode=args.json, shell_mode=args.shell)
+            return 0
+
         if _stdin_is_interactive():
             selection = _interactive_engage_selection(home, args)
             if selection is None:
                 print("CANCELLED")
                 return 130
+            if selection.get("source_detail") == "interactive_adopt_repo":
+                _initialize_adopted_subject_state(
+                    selection["subject"],
+                    Path(selection["data_root"]),
+                    Path(selection["engine_root"]),
+                )
             receipt = _write_subject_lock_from_selection(selection, args)
             _emit_subject_output(receipt, json_mode=args.json, shell_mode=args.shell)
             return 0
 
-        active_lock = load_active_focus_lock()
+        active_lock = load_active_focus_lock(session_id=args.session_id)
         if active_lock:
-            receipt = resolve_subject(allow_switch=False)
-            _emit_subject_output(receipt, json_mode=args.json, shell_mode=args.shell)
-            return 0
+            active_subject = str(active_lock.get("subject") or "(unknown)")
+            _print_noninteractive_engage_active_help(active_subject)
+            return 2
 
         candidates = detect_subject_candidates(home)
         if len(candidates) == 1:
@@ -711,6 +1136,58 @@ def cmd_engage(args: argparse.Namespace) -> int:
         return 2
 
 
+def cmd_governance_map(args: argparse.Namespace) -> int:
+    cwt = detect_canonical_working_tree()
+    governance_root = Path(args.governance_root)
+    if not governance_root.is_absolute():
+        governance_root = (cwt / governance_root).resolve()
+    payload = build_governance_inventory(governance_root)
+
+    output_path = None
+    if args.output:
+        output_path = Path(args.output)
+        if not output_path.is_absolute():
+            output_path = (cwt / output_path).resolve()
+        write_governance_inventory(output_path, payload)
+
+    if args.json or not output_path:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+
+    print("=== GOVERNANCE MAP RECEIPT ===")
+    print(f"governance_root: {payload['governance_root']}")
+    print(f"doc_count: {payload['summary']['doc_count']}")
+    print(f"contradiction_count: {payload['summary']['contradiction_count']}")
+    print(f"output: {output_path}")
+    return 0
+
+
+def cmd_attach_or_init(args: argparse.Namespace) -> int:
+    try:
+        receipt = _resolve_or_attach_subject_from_args(args)
+    except Exception as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    if args.shell or args.json:
+        _emit_subject_output(receipt, json_mode=args.json, shell_mode=args.shell)
+        return 0
+
+    print("=== ATTACH / INIT RECEIPT ===")
+    _print_subject_receipt(receipt)
+    print(f"auto_initialized: {'YES' if receipt.get('auto_initialized') else 'NO'}")
+    print(f"live_root: {receipt.get('live_root')}")
+    if receipt.get("initialized_created"):
+        print("initialized_created:")
+        for path in receipt["initialized_created"]:
+            print(f"- {path}")
+    if receipt.get("live_created"):
+        print("live_created:")
+        for path in receipt["live_created"]:
+            print(f"- {path}")
+    return 0
+
+
 def cmd_resolve_subject(args: argparse.Namespace) -> int:
     try:
         receipt = resolve_subject(
@@ -718,6 +1195,7 @@ def cmd_resolve_subject(args: argparse.Namespace) -> int:
             data_root_flag=args.data_root,
             engine_root_flag=args.engine_root,
             allow_switch=args.allow_switch,
+            session_id=args.session_id,
         )
     except SubjectResolutionError as exc:
         print(f"FAIL: {exc}", file=sys.stderr)
@@ -994,7 +1472,7 @@ notes:
 
 
 def cmd_live_bootstrap(args: argparse.Namespace) -> int:
-    ctx = _resolve_subject_from_args(args)
+    ctx = _resolve_or_attach_subject_from_args(args)
     if not ctx:
         return 2
 
@@ -1017,8 +1495,50 @@ def cmd_live_bootstrap(args: argparse.Namespace) -> int:
     return 0
 
 
+def _default_session_title(ctx: dict[str, Any]) -> str:
+    session_id = str(ctx.get("session_id") or _resolved_session_id(argparse.Namespace(session_id=None)) or "").strip()
+    suffix = f" [{session_id}]" if session_id else ""
+    return f"{ctx['subject']} Ambient Session{suffix}"
+
+
+def _write_session_overlay(ctx: dict[str, Any], run_payload: dict[str, Any] | None) -> str | None:
+    session_id = str(ctx.get("session_id") or "").strip()
+    if not session_id:
+        return None
+    payload = {
+        "subject": ctx["subject"],
+        "data_root": ctx["data_root"],
+        "engine_root": ctx["engine_root"],
+        "run_id": run_payload.get("run_id") if run_payload else None,
+        "run_path": run_payload.get("run_path") if run_payload else None,
+        "status": "active" if run_payload and run_payload.get("run_id") else "idle",
+        "updated_at": dt.datetime.now().astimezone().isoformat(),
+    }
+    return _write_session_run_overlay(session_id, payload)
+
+
+def _start_or_resume_session_run(ctx: dict[str, Any], *, title: str | None, goal: str | None, items: list[str]) -> dict[str, Any]:
+    active_run = load_active_run_record(subject=ctx["subject"], data_root=Path(ctx["data_root"]))
+    if active_run.get("run_id"):
+        return {
+            "run_id": active_run["run_id"],
+            "run_path": str(Path(ctx["data_root"]) / ".synapse" / "ACTIVE_RUN.yaml"),
+            "title": active_run.get("title"),
+            "goal": active_run.get("goal"),
+            "items": active_run.get("plan", {}).get("items", []),
+            "resumed": True,
+        }
+    return run_start(
+        subject=ctx["subject"],
+        data_root=Path(ctx["data_root"]),
+        title=title or _default_session_title(ctx),
+        goal=goal,
+        items=items,
+    )
+
+
 def cmd_run_start(args: argparse.Namespace) -> int:
-    ctx = _resolve_subject_from_args(args)
+    ctx = _resolve_or_attach_subject_from_args(args)
     if not ctx:
         return 2
 
@@ -1036,9 +1556,15 @@ def cmd_run_start(args: argparse.Namespace) -> int:
             goal=args.goal,
             items=items,
         )
+        continuity = _render_and_refresh_continuity(ctx["subject"], Path(ctx["data_root"]), Path(ctx["engine_root"]))
+        result.update(continuity)
     except LiveMemoryError as exc:
         print(f"FAIL: {exc}")
         return 2
+
+    overlay_path = _write_session_overlay(ctx, result)
+    if overlay_path:
+        result["session_overlay_path"] = overlay_path
 
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True))
@@ -1047,6 +1573,8 @@ def cmd_run_start(args: argparse.Namespace) -> int:
     print("=== RUN STARTED ===")
     print(f"run_id: {result['run_id']}")
     print(f"run_path: {result['run_path']}")
+    if overlay_path:
+        print(f"session_overlay: {overlay_path}")
     if result.get("items"):
         print("plan_items:")
         for item in result["items"]:
@@ -1054,8 +1582,47 @@ def cmd_run_start(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_session_start(args: argparse.Namespace) -> int:
+    ctx = _resolve_or_attach_subject_from_args(args)
+    if not ctx:
+        return 2
+
+    try:
+        items = _load_plan_items(args.plan_item, args.items_file)
+    except Exception as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    try:
+        result = _start_or_resume_session_run(
+            ctx,
+            title=args.title or _default_session_title(ctx),
+            goal=args.goal,
+            items=items,
+        )
+        result.update(_render_and_refresh_continuity(ctx["subject"], Path(ctx["data_root"]), Path(ctx["engine_root"])))
+    except LiveMemoryError as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    overlay_path = _write_session_overlay(ctx, result)
+    if overlay_path:
+        result["session_overlay_path"] = overlay_path
+
+    if args.json:
+        print(json.dumps({"subject": ctx, "run": result}, indent=2, sort_keys=True))
+        return 0
+
+    print("=== SESSION STARTED ===")
+    _print_subject_receipt(ctx)
+    print(f"run_id: {result.get('run_id')}")
+    if overlay_path:
+        print(f"session_overlay: {overlay_path}")
+    return 0
+
+
 def cmd_run_update(args: argparse.Namespace) -> int:
-    ctx = _resolve_subject_from_args(args)
+    ctx = _resolve_or_attach_subject_from_args(args)
     if not ctx:
         return 2
 
@@ -1076,12 +1643,18 @@ def cmd_run_update(args: argparse.Namespace) -> int:
             notes=args.note,
             verification=args.verification,
             related_sidequests=args.related_sidequest,
+            related_quests=args.related_quest,
             status=args.status,
             summary=args.summary,
         )
+        result.update(_render_and_refresh_continuity(ctx["subject"], Path(ctx["data_root"]), Path(ctx["engine_root"])))
     except LiveMemoryError as exc:
         print(f"FAIL: {exc}")
         return 2
+
+    overlay_path = _write_session_overlay(ctx, result)
+    if overlay_path:
+        result["session_overlay_path"] = overlay_path
 
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True))
@@ -1097,11 +1670,90 @@ def cmd_run_update(args: argparse.Namespace) -> int:
         print("status_updates:")
         for item_id, status in result["status_updates"]:
             print(f"- {item_id}: {status}")
+    if overlay_path:
+        print(f"session_overlay: {overlay_path}")
+    return 0
+
+
+def cmd_session_tick(args: argparse.Namespace) -> int:
+    ctx = _resolve_or_attach_subject_from_args(args)
+    if not ctx:
+        return 2
+
+    try:
+        items = _load_plan_items(args.plan_item, args.items_file)
+    except Exception as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    try:
+        _start_or_resume_session_run(
+            ctx,
+            title=args.title or _default_session_title(ctx),
+            goal=args.goal,
+            items=items,
+        )
+        files_touched = list(args.file)
+        if args.capture_git:
+            files_touched.extend(_git_status_changed_files(detect_canonical_working_tree()))
+        notes = list(args.note) + list(args.discovery)
+        result = run_update(
+            subject=ctx["subject"],
+            data_root=Path(ctx["data_root"]),
+            add_items=items,
+            status_updates=[],
+            commands=args.commands,
+            files_touched=files_touched,
+            notes=notes,
+            verification=args.verification,
+            related_sidequests=args.related_sidequest,
+            related_quests=args.related_quest,
+            status=args.status,
+            summary=args.summary,
+        )
+        decision_result = None
+        if args.decision_title and args.decision_summary:
+            decision_result = log_decision(
+                subject=ctx["subject"],
+                data_root=Path(ctx["data_root"]),
+                title=args.decision_title,
+                summary=args.decision_summary,
+                why=args.decision_why,
+                constraints=[],
+                tradeoffs=[],
+                related_runs=[str(result.get("run_id") or "")],
+                related_quests=args.related_quest,
+            )
+        continuity_result = _render_and_refresh_continuity(ctx["subject"], Path(ctx["data_root"]), Path(ctx["engine_root"]))
+    except LiveMemoryError as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    overlay_path = _write_session_overlay(ctx, result)
+    payload = {
+        "subject": ctx,
+        "run_update": result,
+        "decision": decision_result,
+        "rehydrate": continuity_result["rehydrate"],
+        "continuity": continuity_result["continuity"],
+        "session_overlay_path": overlay_path,
+    }
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+
+    print("=== SESSION TICK ===")
+    print(f"run_id: {result.get('run_id')}")
+    print(f"discoveries_path: {result.get('discoveries_path')}")
+    if decision_result:
+        print(f"decision_path: {decision_result.get('decision_path')}")
+    if overlay_path:
+        print(f"session_overlay: {overlay_path}")
     return 0
 
 
 def cmd_run_finalize(args: argparse.Namespace) -> int:
-    ctx = _resolve_subject_from_args(args)
+    ctx = _resolve_or_attach_subject_from_args(args)
     if not ctx:
         return 2
 
@@ -1112,10 +1764,16 @@ def cmd_run_finalize(args: argparse.Namespace) -> int:
             status=args.status,
             summary=args.summary,
         )
-        render_rehydrate(subject=ctx["subject"], data_root=Path(ctx["data_root"]))
+        result.update(_render_and_refresh_continuity(ctx["subject"], Path(ctx["data_root"]), Path(ctx["engine_root"])))
     except LiveMemoryError as exc:
         print(f"FAIL: {exc}")
         return 2
+
+    overlay_path = None
+    session_id = str(ctx.get("session_id") or "").strip()
+    if session_id:
+        overlay_path = _clear_session_run_overlay(session_id)
+        result["session_overlay_path"] = overlay_path
 
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True))
@@ -1124,11 +1782,13 @@ def cmd_run_finalize(args: argparse.Namespace) -> int:
     print("=== RUN FINALIZED ===")
     print(f"run_id: {result.get('run_id')}")
     print(f"archive_path: {result.get('archive_path')}")
+    if overlay_path:
+        print(f"session_overlay_cleared: {overlay_path}")
     return 0
 
 
 def cmd_log_decision(args: argparse.Namespace) -> int:
-    ctx = _resolve_subject_from_args(args)
+    ctx = _resolve_or_attach_subject_from_args(args)
     if not ctx:
         return 2
 
@@ -1144,6 +1804,7 @@ def cmd_log_decision(args: argparse.Namespace) -> int:
             related_runs=args.related_run,
             related_quests=args.related_quest,
         )
+        result.update(_render_and_refresh_continuity(ctx["subject"], Path(ctx["data_root"]), Path(ctx["engine_root"])))
     except LiveMemoryError as exc:
         print(f"FAIL: {exc}")
         return 2
@@ -1157,13 +1818,26 @@ def cmd_log_decision(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_render_rehydrate(args: argparse.Namespace) -> int:
-    ctx = _resolve_subject_from_args(args)
+def cmd_log_disclosure(args: argparse.Namespace) -> int:
+    ctx = _resolve_or_attach_subject_from_args(args)
     if not ctx:
         return 2
 
     try:
-        result = render_rehydrate(subject=ctx["subject"], data_root=Path(ctx["data_root"]))
+        result = log_disclosure(
+            subject=ctx["subject"],
+            data_root=Path(ctx["data_root"]),
+            trigger=args.trigger,
+            expected=args.expected,
+            provable=args.provable,
+            status_labels=args.status_label,
+            impact=args.impact,
+            safe_options=args.safe_option,
+            decision_needed=args.decision_needed,
+            related_runs=args.related_run,
+            related_quests=args.related_quest,
+        )
+        result.update(_render_and_refresh_continuity(ctx["subject"], Path(ctx["data_root"]), Path(ctx["engine_root"])))
     except LiveMemoryError as exc:
         print(f"FAIL: {exc}")
         return 2
@@ -1172,22 +1846,864 @@ def cmd_render_rehydrate(args: argparse.Namespace) -> int:
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0
 
+    print("=== DISCLOSURE LOGGED ===")
+    print(f"path: {result.get('disclosure_path')}")
+    return 0
+
+
+def cmd_render_rehydrate(args: argparse.Namespace) -> int:
+    ctx = _resolve_or_attach_subject_from_args(args)
+    if not ctx:
+        return 2
+
+    try:
+        result = _render_and_refresh_continuity(ctx["subject"], Path(ctx["data_root"]), Path(ctx["engine_root"]))
+    except LiveMemoryError as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    if args.json:
+        payload = dict(result["rehydrate"])
+        payload["continuity"] = result["continuity"]
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+
     print("=== REHYDRATE RENDERED ===")
-    print(f"path: {result.get('rehydrate_path')}")
+    print(f"path: {result['rehydrate'].get('rehydrate_path')}")
+    print(f"continuity_lock: {result['continuity'].get('continuity_lock_path')}")
+    return 0
+
+
+def cmd_refresh_continuity(args: argparse.Namespace) -> int:
+    ctx = _resolve_or_attach_subject_from_args(args)
+    if not ctx:
+        return 2
+
+    try:
+        result = refresh_rehydration_pack(
+            subject=ctx["subject"],
+            data_root=Path(ctx["data_root"]),
+            engine_root=Path(ctx["engine_root"]),
+        )
+    except Exception as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return 0
+
+    print("=== CONTINUITY REFRESHED ===")
+    print(f"bootstrap_prompt: {result.get('bootstrap_prompt_path')}")
+    print(f"continuity_lock: {result.get('continuity_lock_path')}")
+    return 0
+
+
+def _proposal_by_id(data_root: Path, proposal_id: str) -> dict[str, Any]:
+    for proposal in list_proposals(data_root=data_root):
+        if str(proposal.get("proposal_id") or "") == proposal_id:
+            return proposal
+    raise LiveMemoryError(f"Proposal not found: {proposal_id}")
+
+
+def _snapshot_writer(args: list[str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, str(Path(__file__).resolve().parent / "tools" / "synapse_snapshot_writer.py"), *args],
+        cwd=str(detect_canonical_working_tree()),
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _codex_gate(args: list[str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, str(Path(__file__).resolve().parent / "tools" / "synapse_codex_gate.py"), *args],
+        cwd=str(detect_canonical_working_tree()),
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _snapshot_path_from_output(output: str) -> str | None:
+    for line in output.splitlines():
+        if "snapshot:" in line:
+            return line.split("snapshot:", 1)[1].strip()
+    return None
+
+
+def _relative_to_root(root: Path, path: Path) -> str:
+    try:
+        return path.resolve().relative_to(root.resolve()).as_posix()
+    except Exception:
+        return str(path)
+
+
+def _formalize_snapshot(ctx: dict[str, Any], proposal: dict[str, Any], *, control_sync: bool) -> dict[str, Any]:
+    data_root = Path(ctx["data_root"])
+    active_run = load_active_run_record(subject=ctx["subject"], data_root=data_root)
+    commands = list(active_run.get("commands") or [])
+    files = list(active_run.get("files_touched") or [])
+    verification = list(active_run.get("verification") or [])
+    notes = list(active_run.get("notes") or [])
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp = Path(tmp_dir)
+        if control_sync:
+            decisions_file = tmp / "decisions.txt"
+            decisions_file.write_text(
+                f"- {proposal.get('title')}: {proposal.get('summary')}\n- Reason: {proposal.get('reason')}\n",
+                encoding="utf-8",
+            )
+            open_result = _snapshot_writer(
+                [
+                    "--subject",
+                    ctx["subject"],
+                    "--data-root",
+                    str(data_root),
+                    "control-open",
+                    "--participants",
+                    "Brains, Hands",
+                    "--reason",
+                    proposal.get("reason") or "ambient control-sync formalization",
+                    "--topic",
+                    proposal.get("title") or "",
+                ]
+            )
+            if open_result.returncode != 0 and "already active" not in (open_result.stdout + open_result.stderr):
+                raise LiveMemoryError(open_result.stdout + open_result.stderr)
+            close_result = _snapshot_writer(
+                [
+                    "--subject",
+                    ctx["subject"],
+                    "--data-root",
+                    str(data_root),
+                    "control-close",
+                    "--decisions-file",
+                    str(decisions_file),
+                    "--next-action",
+                    proposal.get("summary") or "",
+                    "--topic",
+                    proposal.get("title") or "",
+                ]
+            )
+            if close_result.returncode != 0:
+                raise LiveMemoryError(close_result.stdout + close_result.stderr)
+            artifact_path = _snapshot_path_from_output(close_result.stdout + close_result.stderr)
+            raw_output = close_result.stdout + close_result.stderr
+        else:
+            work_file = tmp / "work.txt"
+            completed_file = tmp / "completed.txt"
+            verification_file = tmp / "verification.txt"
+            resume_file = tmp / "resume.txt"
+            work_file.write_text(
+                "\n".join(
+                    [
+                        f"- Proposal: {proposal.get('proposal_id')}",
+                        f"- Summary: {proposal.get('summary')}",
+                        *(f"- Command: {item}" for item in commands),
+                        *(f"- File: {item}" for item in files),
+                        *(f"- Note: {item}" for item in notes),
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            completed_file.write_text(f"- {proposal.get('summary')}\n", encoding="utf-8")
+            verification_file.write_text("\n".join(f"- {item}" for item in verification) + ("\n" if verification else "- none\n"), encoding="utf-8")
+            resume_file.write_text(
+                f"- Review proposal {proposal.get('proposal_id')}\n- Next focus: {proposal.get('title')}\n",
+                encoding="utf-8",
+            )
+            eod_result = _snapshot_writer(
+                [
+                    "--subject",
+                    ctx["subject"],
+                    "--data-root",
+                    str(data_root),
+                    "eod",
+                    "--topic",
+                    proposal.get("title") or "",
+                    "--work-file",
+                    str(work_file),
+                    "--completed-file",
+                    str(completed_file),
+                    "--verification-file",
+                    str(verification_file),
+                    "--resume-file",
+                    str(resume_file),
+                ]
+            )
+            if eod_result.returncode != 0:
+                raise LiveMemoryError(eod_result.stdout + eod_result.stderr)
+            artifact_path = _snapshot_path_from_output(eod_result.stdout + eod_result.stderr)
+            raw_output = eod_result.stdout + eod_result.stderr
+
+    if not artifact_path:
+        raise LiveMemoryError("Snapshot writer did not report artifact path.")
+    proposal_receipt = mark_proposal_state(
+        data_root=data_root,
+        proposal_id=str(proposal["proposal_id"]),
+        state=ProposalState.FORMALIZED,
+        artifact_path=artifact_path,
+        note="Formalized via synapse formalize.",
+    )
+    return {"artifact_path": artifact_path, "proposal": proposal_receipt, "raw_output": raw_output}
+
+
+def _formalize_quest(ctx: dict[str, Any], proposal: dict[str, Any], *, prefix: str) -> dict[str, Any]:
+    if str(proposal.get("state") or "") == ProposalState.BLOCKED.value:
+        raise LiveMemoryError(f"Proposal {proposal['proposal_id']} is BLOCKED and cannot be formalized.")
+
+    data_root = Path(ctx["data_root"])
+    cwt = detect_canonical_working_tree()
+    template = _load_quest_template(cwt)
+    today = _today_toronto()
+    qid = f"{prefix}_{_next_quest_number(data_root, prefix):03d}"
+    slug = _slugify(str(proposal.get("title") or "proposal"))
+    board_dir = data_root / "Quest Board"
+    board_dir.mkdir(parents=True, exist_ok=True)
+    quest_path = board_dir / f"{qid}__{slug}__{today}.txt"
+
+    links = ", ".join(str(item) for item in proposal.get("evidence") or []) or "None"
+    values = {
+        "quest_id": qid,
+        "title": str(proposal.get("title") or qid),
+        "subject": ctx["subject"],
+        "origin": f"Ambient proposal {proposal['proposal_id']}",
+        "priority": "P1",
+        "links": links,
+        "codex_anchors": "BLOCKED - CODEX_ANCHORS_MISSING",
+        "codex_constraints": str(proposal.get("reason") or "TBD - derive from proposal evidence"),
+        "change_class": "STRUCTURAL",
+        "vision_delta": "ALIGNED",
+        "system_context": str(proposal.get("summary") or "Ambient run-derived execution candidate."),
+        "anti_dup": f"Run rg -n \"{slug}\" in repo and Subject_Data.",
+        "placement_intent": "Intended layer: runtime | Intended target path(s): derive from evidence.",
+        "atomicity": "Atomic: yes - single independently verifiable outcome.",
+        "risk": "R1",
+        "door_impact": "NONE",
+        "testing_level": "DEFERRED TO 01_PREQUEST.md",
+        "talent_awarded": "NO",
+        "description": str(proposal.get("summary") or proposal.get("title") or ""),
+        "objective": str(proposal.get("summary") or proposal.get("title") or ""),
+        "out_of_scope": "Any work beyond the ambiently captured proposal scope.",
+        "dependencies": "None",
+        "verification_plan": "DEFERRED TO 01_PREQUEST.md",
+    }
+    quest_path.write_text(_fill_quest_template(template, values), encoding="utf-8")
+    proposal_receipt = mark_proposal_state(
+        data_root=data_root,
+        proposal_id=str(proposal["proposal_id"]),
+        state=ProposalState.FORMALIZED,
+        artifact_path=str(quest_path),
+        note=f"Formalized into {qid}.",
+    )
+    return {"artifact_path": str(quest_path), "proposal": proposal_receipt}
+
+
+def _ensure_codex_build_state(data_root: Path) -> Path:
+    codex_dir = data_root / "Codex"
+    sections_dir = codex_dir / "Sections"
+    sections_dir.mkdir(parents=True, exist_ok=True)
+    build_state = codex_dir / "CODEX_BUILD_STATE.yaml"
+    if not build_state.exists():
+        build_state.write_text(
+            "schema_version: 1\noverall_status: IN_PROGRESS\nspec_completeness_gate:\n  status: NEEDS_DECISIONS\nconsistency_gate:\n  status: NEEDS_DECISIONS\nsections: []\nnotes: []\n",
+            encoding="utf-8",
+        )
+    return build_state
+
+
+def _formalize_codex(ctx: dict[str, Any], proposal: dict[str, Any]) -> dict[str, Any]:
+    data_root = Path(ctx["data_root"])
+    today = _today_toronto()
+    slug = _slugify(str(proposal.get("title") or "codex"))
+    section_path = data_root / "Codex" / "Sections" / f"CANDIDATE__{slug}__{today}.md"
+    section_path.parent.mkdir(parents=True, exist_ok=True)
+    section_path.write_text(
+        "\n".join(
+            [
+                f"# Codex Candidate - {proposal.get('title')}",
+                "",
+                f"- Proposal ID: {proposal.get('proposal_id')}",
+                f"- Formalized On: {today}",
+                "",
+                "## Summary",
+                str(proposal.get("summary") or ""),
+                "",
+                "## Reason",
+                str(proposal.get("reason") or ""),
+                "",
+                "## Codex Implications",
+                *(f"- {item}" for item in proposal.get("codex_implications") or []),
+                "",
+                "## Evidence",
+                *(f"- {item}" for item in proposal.get("evidence") or []),
+                "",
+            ]
+        ).rstrip()
+        + "\n",
+        encoding="utf-8",
+    )
+    build_state_path = _ensure_codex_build_state(data_root)
+    build_state = yaml.safe_load(build_state_path.read_text(encoding="utf-8")) or {}
+    sections = build_state.get("sections")
+    if not isinstance(sections, list):
+        sections = []
+    sections.append(
+        {
+            "section_path": _relative_to_root(data_root, section_path),
+            "status": "PROPOSED_FROM_AMBIENT",
+            "source_proposal_id": proposal.get("proposal_id"),
+            "updated_at": dt.datetime.now().astimezone().isoformat(),
+        }
+    )
+    build_state["sections"] = sections
+    build_state["overall_status"] = "IN_PROGRESS"
+    build_state_path.write_text(yaml.safe_dump(build_state, sort_keys=False), encoding="utf-8")
+    gate_result = _codex_gate(
+        [
+            "--subject",
+            ctx["subject"],
+            "--data-root",
+            str(data_root),
+            "consistency",
+            "--section",
+            str(section_path),
+            "--write-state",
+            "--update-anchor",
+        ]
+    )
+    if gate_result.returncode != 0:
+        raise LiveMemoryError(gate_result.stdout + gate_result.stderr)
+    proposal_receipt = mark_proposal_state(
+        data_root=data_root,
+        proposal_id=str(proposal["proposal_id"]),
+        state=ProposalState.FORMALIZED,
+        artifact_path=str(section_path),
+        note="Codex candidate shard written.",
+    )
+    return {
+        "artifact_path": str(section_path),
+        "proposal": proposal_receipt,
+        "raw_output": gate_result.stdout + gate_result.stderr,
+    }
+
+
+def _ensure_build_manual_root(data_root: Path, subject: str) -> tuple[Path, Path]:
+    build_dir = data_root / "Build_Manual"
+    updates_dir = build_dir / "Updates"
+    build_dir.mkdir(parents=True, exist_ok=True)
+    updates_dir.mkdir(parents=True, exist_ok=True)
+    manual_path = build_dir / "BUILD_MANUAL.md"
+    if not manual_path.exists():
+        manual_path.write_text(
+            "\n".join(
+                [
+                    "# Build Manual",
+                    "",
+                    f"- Subject: {subject}",
+                    "- Purpose: Define HOW to make the Codex true without redefining Codex law.",
+                    "- Authority: Subordinate to Codex. Conflicts require Control Sync.",
+                    "",
+                    "## Core Construction Rules",
+                    "- Review Codex and current Guild Orders before structural execution.",
+                    "- Keep implementation slices small enough to verify with receipts.",
+                    "- Preserve proof for every claimed command, test, and artifact transition.",
+                    "",
+                    "## Active Guidance Deltas",
+                    "- None yet.",
+                    "",
+                    "## Verification Expectations",
+                    "- Capture raw command/test receipts for each structural slice.",
+                    "- Do not promote ambient guidance into law without proof and review.",
+                    "",
+                    "## Formalization History",
+                    "- None yet.",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+    return manual_path, updates_dir
+
+
+def _formalize_build_manual(ctx: dict[str, Any], proposal: dict[str, Any]) -> dict[str, Any]:
+    data_root = Path(ctx["data_root"])
+    today = _today_toronto()
+    manual_path, updates_dir = _ensure_build_manual_root(data_root, ctx["subject"])
+    slug = _slugify(str(proposal.get("title") or "build-manual"))
+    update_path = updates_dir / f"UPDATE__{today}__{slug}.md"
+    evidence = [str(item) for item in proposal.get("evidence") or []]
+    codex_implications = [str(item) for item in proposal.get("codex_implications") or []]
+
+    update_lines = [
+        f"# Build Manual Update - {proposal.get('title')}",
+        "",
+        f"- Proposal ID: {proposal.get('proposal_id')}",
+        f"- Formalized On: {today}",
+        "",
+        "## Why this update exists",
+        str(proposal.get("reason") or ""),
+        "",
+        "## Current HOW delta",
+        str(proposal.get("summary") or ""),
+        "",
+        "## Sequencing guidance",
+        "- Reconfirm relevant Codex anchors before structural execution.",
+        "- Apply scaffolding or wiring changes before dependent feature work.",
+        "- Re-run verification receipts after each meaningful construction slice.",
+        "",
+        "## Verification expectations",
+        "- Preserve exact command and test output for the affected build path.",
+        "- Treat Build Manual guidance as subordinate to Codex and active Control Sync outputs.",
+    ]
+    if codex_implications:
+        update_lines.extend(["", "## Codex constraints", *[f"- {item}" for item in codex_implications]])
+    if evidence:
+        update_lines.extend(["", "## Evidence", *[f"- {item}" for item in evidence]])
+    update_lines.append("")
+    update_path.write_text("\n".join(update_lines), encoding="utf-8")
+
+    manual_text = manual_path.read_text(encoding="utf-8", errors="replace").rstrip()
+    delta_block = (
+        f"### {today} - {proposal.get('title')}\n"
+        f"- Summary: {proposal.get('summary')}\n"
+        f"- Reason: {proposal.get('reason')}\n"
+        f"- Update receipt: {update_path.relative_to(data_root).as_posix()}"
+    )
+    history_entry = f"- {today}: {proposal.get('title')} ({update_path.relative_to(data_root).as_posix()})"
+    if "## Active Guidance Deltas\n- None yet." in manual_text:
+        manual_text = manual_text.replace("## Active Guidance Deltas\n- None yet.", f"## Active Guidance Deltas\n{delta_block}", 1)
+    elif "## Verification Expectations" in manual_text and "## Active Guidance Deltas" in manual_text:
+        manual_text = manual_text.replace("## Verification Expectations", f"{delta_block}\n\n## Verification Expectations", 1)
+    else:
+        manual_text += f"\n\n## Active Guidance Deltas\n{delta_block}"
+    if "## Formalization History\n- None yet." in manual_text:
+        manual_text = manual_text.replace("## Formalization History\n- None yet.", f"## Formalization History\n{history_entry}", 1)
+    else:
+        manual_text += f"\n{history_entry}"
+    manual_path.write_text(manual_text.rstrip() + "\n", encoding="utf-8")
+
+    proposal_receipt = mark_proposal_state(
+        data_root=data_root,
+        proposal_id=str(proposal["proposal_id"]),
+        state=ProposalState.FORMALIZED,
+        artifact_path=str(manual_path),
+        note=f"Build Manual updated from {update_path.name}.",
+    )
+    return {
+        "artifact_path": str(manual_path),
+        "proposal": proposal_receipt,
+        "update_path": str(update_path),
+    }
+
+
+def _ensure_talent_files(data_root: Path) -> tuple[Path, Path]:
+    talent_dir = data_root / "Talent Tree"
+    talent_dir.mkdir(parents=True, exist_ok=True)
+    tree_path = talent_dir / "TALENT_TREE.txt"
+    log_path = talent_dir / "TALENT_LOG.txt"
+    templates_dir = detect_canonical_working_tree() / "governance" / "Talent Tree"
+    if not tree_path.exists():
+        shutil.copy2(templates_dir / "TALENT_TREE.txt", tree_path)
+    if not log_path.exists():
+        shutil.copy2(templates_dir / "TALENT_LOG.txt", log_path)
+    return tree_path, log_path
+
+
+def _next_talent_id(tree_text: str) -> str:
+    matches = [int(item) for item in re.findall(r"(?im)^TALENT ID:\s*T-(\d{3})\b", tree_text)]
+    next_num = (max(matches) if matches else 0) + 1
+    return f"T-{next_num:03d}"
+
+
+def _formalize_talent(ctx: dict[str, Any], proposal: dict[str, Any]) -> dict[str, Any]:
+    data_root = Path(ctx["data_root"])
+    tree_path, log_path = _ensure_talent_files(data_root)
+    tree_text = tree_path.read_text(encoding="utf-8", errors="replace")
+    talent_id = _next_talent_id(tree_text)
+    today = _today_toronto()
+    evidence = [str(item) for item in proposal.get("evidence") or []] or [f".synapse/RUNS/{proposal.get('source_id')}"]
+    source_ref = str(proposal.get("source_id") or "AMBIENT-RUN")
+    tree_entry = (
+        "\n"
+        f"TALENT ID: {talent_id}\n"
+        f"Name: {proposal.get('title')}\n"
+        f"Unlocked On: {today}\n"
+        f"Source Quest: {source_ref} + {evidence[0]}\n"
+        "Scope: Engine\n\n"
+        "Capability:\n"
+        f"{proposal.get('summary')}\n\n"
+        "Implications / Constraints:\n"
+        f"{proposal.get('reason')}\n\n"
+        "Evidence / Receipts:\n"
+        + "\n".join(f"- {item}" for item in evidence)
+        + "\n\nNotes:\n"
+        f"Formalized from ambient proposal {proposal.get('proposal_id')}.\n"
+    )
+    tree_path.write_text(tree_text.rstrip() + "\n" + tree_entry, encoding="utf-8")
+
+    log_entry = (
+        "\n"
+        f"Timestamp: {today} 00:00 (America/Toronto)\n"
+        f"Quest ID: {source_ref}\n"
+        f"Quest Path: {evidence[0]}\n"
+        "Quest Completed: YES\n"
+        "Talent Point Awarded: YES\n"
+        f"Talent Spent On: {talent_id} — {proposal.get('title')}\n"
+        "Evidence Paths:\n"
+        + "\n".join(f"- {item}" for item in evidence)
+        + "\n"
+        f"Notes: Formalized from ambient proposal {proposal.get('proposal_id')}.\n"
+    )
+    log_text = log_path.read_text(encoding="utf-8", errors="replace")
+    log_path.write_text(log_text.rstrip() + "\n" + log_entry, encoding="utf-8")
+
+    proposal_receipt = mark_proposal_state(
+        data_root=data_root,
+        proposal_id=str(proposal["proposal_id"]),
+        state=ProposalState.FORMALIZED,
+        artifact_path=str(tree_path),
+        note=f"Talent formalized as {talent_id}.",
+    )
+    return {"artifact_path": str(tree_path), "proposal": proposal_receipt, "talent_id": talent_id}
+
+
+def _derive_dungeons(ctx: dict[str, Any], proposal: dict[str, Any]) -> list[dict[str, str]]:
+    roots = [Path(ctx["engine_root"]), Path(ctx["data_root"])]
+    headings: list[str] = []
+    for evidence in proposal.get("evidence") or []:
+        candidate = None
+        for root in roots:
+            probe = Path(str(evidence))
+            if probe.is_absolute() and probe.exists():
+                candidate = probe
+                break
+            local = root / str(evidence)
+            if local.exists():
+                candidate = local
+                break
+        if candidate is None or candidate.suffix.lower() not in {".md", ".txt"}:
+            continue
+        text = candidate.read_text(encoding="utf-8", errors="replace")
+        for raw in text.splitlines():
+            line = raw.strip()
+            if line.startswith("#"):
+                heading = line.lstrip("#").strip()
+            elif line.startswith("- "):
+                heading = line[2:].strip()
+            else:
+                continue
+            if len(heading) < 8 or len(heading) > 96:
+                continue
+            if heading.lower() in {"summary", "notes", "scope", "non-goals", "purpose"}:
+                continue
+            if heading not in headings:
+                headings.append(heading)
+            if len(headings) >= 4:
+                break
+    if not headings:
+        headings.append(str(proposal.get("title") or "Ambient Scope Slice"))
+    return [
+        {
+            "id": f"DUNGEON_{idx:02d}",
+            "title": heading,
+            "objective": str(proposal.get("summary") or heading),
+            "scope": heading,
+            "non_goals": "Anything outside the current ambient proposal scope.",
+            "constraints": str(proposal.get("reason") or "Respect current Codex and runtime constraints."),
+        }
+        for idx, heading in enumerate(headings, start=1)
+    ]
+
+
+def _formalize_guild_orders(ctx: dict[str, Any], proposal: dict[str, Any], *, topic: str | None) -> dict[str, Any]:
+    data_root = Path(ctx["data_root"])
+    today = _today_toronto()
+    slug = _slugify(topic or str(proposal.get("title") or "guild-orders"))
+    orders_id = f"GO-{today.replace('-', '')}-{slug}"
+    orders_path = data_root / "Guild Orders" / "PAUSED" / f"{orders_id}.txt"
+    orders_path.parent.mkdir(parents=True, exist_ok=True)
+    dungeons = _derive_dungeons(ctx, proposal)
+
+    lines = [
+        "SYNAPSE GUILD ORDERS",
+        "",
+        f"- Subject: {ctx['subject']}",
+        f"- Guild Orders ID: {orders_id}",
+        "- Status: PAUSED",
+        "- Owner(s): Brains, Hands",
+        f"- Date Opened: {today}",
+        f"- Date Updated: {today}",
+        "",
+        "Scope:",
+        f"- {proposal.get('summary')}",
+        "Non-Goals:",
+        "- Any work outside the ambiently captured scope.",
+        "",
+        "Global Constraints:",
+        f"- {proposal.get('reason')}",
+        "",
+        "Raid Done Definition:",
+        f"- {proposal.get('summary')}",
+        "Raid Verification Method:",
+        "- Raw command output + changed-file receipts + governed artifacts.",
+        "",
+        "Dungeons:",
+    ]
+    for dungeon in dungeons:
+        lines.extend(
+            [
+                "",
+                f"Dungeon ID: {dungeon['id']}",
+                f"- Title: {dungeon['title']}",
+                f"- Objective: {dungeon['objective']}",
+                f"- Scope: {dungeon['scope']}",
+                f"- Non-Goals: {dungeon['non_goals']}",
+                "- Dependencies: None",
+                f"- Constraints: {dungeon['constraints']}",
+                "- Interfaces/Boundaries: derive from proposal evidence",
+                "- Verification:",
+                "  - acceptance criteria derived from proposal evidence",
+                "  - evidence required: receipts + artifact diffs",
+                "- Stop Conditions (block immediately):",
+                "  - contradiction vs codex/invariants",
+                "  - missing required dependency/token/consent",
+                "- Quest decomposition notes:",
+                "  - expected quest families derived from ambient evidence",
+            ]
+        )
+    lines.extend(
+        [
+            "",
+            "Execution Policy:",
+            "- R0/R1: execute automatically in EXECUTE mode.",
+            "- R2+: explicit consent once per batch.",
+            "- No silent scope expansion.",
+            "",
+            "Change Log:",
+            f"- {today} Synapse ambient formalization from proposal {proposal.get('proposal_id')}",
+            "",
+        ]
+    )
+    orders_path.write_text("\n".join(lines), encoding="utf-8")
+    proposal_receipt = mark_proposal_state(
+        data_root=data_root,
+        proposal_id=str(proposal["proposal_id"]),
+        state=ProposalState.FORMALIZED,
+        artifact_path=str(orders_path),
+        note=f"Guild Orders formalized as {orders_id}.",
+    )
+    return {"artifact_path": str(orders_path), "proposal": proposal_receipt, "orders_id": orders_id}
+
+
+def _formalize_disclosure(ctx: dict[str, Any], proposal: dict[str, Any]) -> dict[str, Any]:
+    data_root = Path(ctx["data_root"])
+    evidence = [str(item) for item in proposal.get("evidence") or []]
+    blockers = [str(item) for item in proposal.get("blockers") or []]
+    with tempfile.TemporaryDirectory(prefix="synapse-disclosure-") as tmpdir:
+        tmp = Path(tmpdir)
+        purpose_file = tmp / "purpose.txt"
+        content_file = tmp / "content.txt"
+        notes_file = tmp / "notes.txt"
+        purpose_file.write_text(
+            "Record a Disclosure Gate event durably because uncertainty changed the next safe action.\n",
+            encoding="utf-8",
+        )
+        content_lines = [
+            f"- Proposal: {proposal.get('proposal_id')}",
+            f"- Summary: {proposal.get('summary')}",
+            f"- Reason: {proposal.get('reason')}",
+        ]
+        if evidence:
+            content_lines.extend(["- Evidence:"] + [f"  - {item}" for item in evidence])
+        content_file.write_text("\n".join(content_lines) + "\n", encoding="utf-8")
+        notes_lines = ["- Disclosure formalized from ambient proposal."]
+        notes_lines.extend(f"- Blocker: {item}" for item in blockers)
+        notes_file.write_text("\n".join(notes_lines) + "\n", encoding="utf-8")
+        result = _snapshot_writer(
+            [
+                "--subject",
+                ctx["subject"],
+                "--data-root",
+                str(data_root),
+                "general",
+                "--topic",
+                proposal.get("title") or "Disclosure Gate Event",
+                "--purpose-file",
+                str(purpose_file),
+                "--content-file",
+                str(content_file),
+                "--notes-file",
+                str(notes_file),
+            ]
+        )
+    if result.returncode != 0:
+        raise LiveMemoryError(result.stdout + result.stderr)
+    artifact_path = _snapshot_path_from_output(result.stdout + result.stderr)
+    if not artifact_path:
+        raise LiveMemoryError("Snapshot writer did not report disclosure artifact path.")
+    proposal_receipt = mark_proposal_state(
+        data_root=data_root,
+        proposal_id=str(proposal["proposal_id"]),
+        state=ProposalState.FORMALIZED,
+        artifact_path=artifact_path,
+        note="Disclosure formalized into a General Snapshot.",
+    )
+    return {
+        "artifact_path": artifact_path,
+        "proposal": proposal_receipt,
+        "raw_output": result.stdout + result.stderr,
+    }
+
+
+def cmd_formalize(args: argparse.Namespace) -> int:
+    ctx = _resolve_or_attach_subject_from_args(args)
+    if not ctx:
+        return 2
+    data_root = Path(ctx["data_root"])
+    kind_filter = ProposalKind(args.kind) if args.kind else None
+    state_filter = ProposalState(args.state) if args.state else None
+
+    if args.list or not args.proposal_id:
+        proposals = list_proposals(data_root=data_root, kind=kind_filter, state=state_filter)
+        if args.json:
+            print(json.dumps({"subject": ctx, "proposals": proposals}, indent=2, sort_keys=True))
+            return 0
+        print("=== PROPOSALS ===")
+        for proposal in proposals:
+            print(
+                f"- {proposal.get('proposal_id')} [{proposal.get('state')}] "
+                f"{proposal.get('kind')} :: {proposal.get('title')}"
+            )
+        return 0
+
+    try:
+        proposal = _proposal_by_id(data_root, args.proposal_id)
+        kind = ProposalKind(str(proposal.get("kind")))
+        if kind == ProposalKind.SNAPSHOT:
+            result = _formalize_snapshot(ctx, proposal, control_sync=False)
+        elif kind == ProposalKind.CONTROL_SYNC:
+            result = _formalize_snapshot(ctx, proposal, control_sync=True)
+        elif kind == ProposalKind.QUEST:
+            result = _formalize_quest(ctx, proposal, prefix="QUEST")
+        elif kind == ProposalKind.SIDE_QUEST:
+            result = _formalize_quest(ctx, proposal, prefix="SIDE-QUEST")
+        elif kind == ProposalKind.CODEX:
+            result = _formalize_codex(ctx, proposal)
+        elif kind == ProposalKind.BUILD_MANUAL:
+            result = _formalize_build_manual(ctx, proposal)
+        elif kind == ProposalKind.TALENT:
+            result = _formalize_talent(ctx, proposal)
+        elif kind == ProposalKind.GUILD_ORDERS:
+            result = _formalize_guild_orders(ctx, proposal, topic=args.topic)
+        elif kind == ProposalKind.DISCLOSURE:
+            result = _formalize_disclosure(ctx, proposal)
+        else:
+            raise LiveMemoryError(f"Formalization is not implemented for proposal kind {kind.value}.")
+        continuity_refresh = _render_and_refresh_continuity(ctx["subject"], data_root, Path(ctx["engine_root"]))
+        payload = {
+            "subject": ctx,
+            "result": result,
+            "rehydrate": continuity_refresh["rehydrate"],
+            "continuity": continuity_refresh["continuity"],
+        }
+    except LiveMemoryError as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+
+    print("=== FORMALIZATION RECEIPT ===")
+    print(f"proposal_id: {args.proposal_id}")
+    print(f"artifact_path: {result.get('artifact_path')}")
+    return 0
+
+
+def cmd_watch(args: argparse.Namespace) -> int:
+    ctx = _resolve_or_attach_subject_from_args(args)
+    if not ctx:
+        return 2
+
+    iterations = max(1, int(args.iterations))
+    payloads: list[dict[str, Any]] = []
+    last_files: list[str] = []
+    for idx in range(iterations):
+        files = _git_status_changed_files(detect_canonical_working_tree()) if args.capture_git else []
+        changed_files = [item for item in files if item not in last_files]
+        tick_args = argparse.Namespace(
+            plan_item=[],
+            items_file=None,
+            commands=[],
+            file=changed_files,
+            note=[f"watch iteration {idx + 1}"],
+            discovery=[],
+            verification=[],
+            related_sidequest=[],
+            related_quest=[],
+            status="active",
+            summary=f"watch tick {idx + 1}",
+            decision_title=None,
+            decision_summary=None,
+            decision_why=None,
+            capture_git=False,
+            title=args.title,
+            goal=args.goal,
+            subject=ctx["subject"],
+            data_root=ctx["data_root"],
+            engine_root=ctx["engine_root"],
+            selected_by=args.selected_by,
+            no_home_lock=args.no_home_lock,
+            session_id=args.session_id,
+            json=False,
+        )
+        if changed_files or idx == 0:
+            try:
+                _start_or_resume_session_run(ctx, title=args.title or _default_session_title(ctx), goal=args.goal, items=[])
+                result = run_update(
+                    subject=ctx["subject"],
+                    data_root=Path(ctx["data_root"]),
+                    add_items=[],
+                    status_updates=[],
+                    commands=[],
+                    files_touched=changed_files,
+                    notes=[f"watch tick {idx + 1}"],
+                    verification=[],
+                    related_sidequests=[],
+                    related_quests=[],
+                    status="active",
+                    summary=f"watch tick {idx + 1}",
+                )
+                payloads.append(result)
+                _write_session_overlay(ctx, result)
+                _render_and_refresh_continuity(ctx["subject"], Path(ctx["data_root"]), Path(ctx["engine_root"]))
+            except LiveMemoryError as exc:
+                print(f"FAIL: {exc}")
+                return 2
+        last_files = files
+        if idx < iterations - 1:
+            time.sleep(max(args.interval, 0.1))
+
+    if args.json:
+        print(json.dumps({"subject": ctx, "ticks": payloads}, indent=2, sort_keys=True))
+        return 0
+
+    print("=== WATCH RECEIPT ===")
+    print(f"iterations: {iterations}")
+    print(f"captured_ticks: {len(payloads)}")
     return 0
 
 
 def cmd_plan_sidequests(args: argparse.Namespace) -> int:
     try:
-        ctx = resolve_subject(
-            subject_flag=args.subject,
-            data_root_flag=args.data_root,
-            engine_root_flag=args.engine_root,
-            allow_switch=args.allow_switch,
-        )
-    except SubjectResolutionError as exc:
+        ctx = _resolve_or_attach_subject_from_args(args)
+    except Exception as exc:
         print(f"FAIL: {exc}")
-        print("Hint: run `python3 runtime/synapse.py engage` first.")
         return 2
 
     state = load_state()
@@ -1310,8 +2826,12 @@ def main(argv: list[str] | None = None) -> int:
             print("Hint: run `python3 runtime/synapse.py engage` first, or use `doctor --no-subject` for governance-only work.")
             return 2
         return run_doctor(args.governance_root, receipt)
+    if args.command == "governance-map":
+        return cmd_governance_map(args)
     if args.command == "engage":
         return cmd_engage(args)
+    if args.command == "attach-or-init":
+        return cmd_attach_or_init(args)
     if args.command == "focus":
         return cmd_focus(args)
     if args.command == "resolve-subject":
@@ -1332,14 +2852,26 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_live_bootstrap(args)
     if args.command == "run-start":
         return cmd_run_start(args)
+    if args.command == "session-start":
+        return cmd_session_start(args)
     if args.command == "run-update":
         return cmd_run_update(args)
+    if args.command == "session-tick":
+        return cmd_session_tick(args)
     if args.command == "run-finalize":
         return cmd_run_finalize(args)
     if args.command == "log-decision":
         return cmd_log_decision(args)
+    if args.command == "log-disclosure":
+        return cmd_log_disclosure(args)
     if args.command == "render-rehydrate":
         return cmd_render_rehydrate(args)
+    if args.command == "refresh-continuity":
+        return cmd_refresh_continuity(args)
+    if args.command == "formalize":
+        return cmd_formalize(args)
+    if args.command == "watch":
+        return cmd_watch(args)
     if args.command == "plan-sidequests":
         return cmd_plan_sidequests(args)
 
