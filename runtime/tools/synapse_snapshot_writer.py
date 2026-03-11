@@ -89,7 +89,7 @@ def _resolve_context(args: argparse.Namespace, *, high_risk: bool) -> tuple[Path
         ctx = resolve_subject(
             subject_flag=args.subject,
             data_root_flag=args.data_root,
-            allow_switch=False,
+            allow_switch=bool(getattr(args, "allow_switch", False)),
         )
     except SubjectResolutionError as exc:
         raise RuntimeError(str(exc)) from exc
@@ -739,6 +739,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     p.add_argument("--data-root", help="Canonical <Subject>_Data root (optional; resolved from focus lock if omitted)")
     p.add_argument("--subject", help="Subject name override")
+    p.add_argument(
+        "--allow-switch",
+        action="store_true",
+        help="Allow explicit subject/data-root overrides to differ from the active focus lock",
+    )
     p.add_argument(
         "--draftshot",
         help="Optional Draftshot file path. If omitted, auto-detects single ACTIVE Draftshot under Snapshots/Draft Shots.",

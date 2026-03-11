@@ -75,7 +75,16 @@ class QuestAcceptanceTests(unittest.TestCase):
 
     def _open_control_sync(self):
         result = run_snapshot_writer(
-            ["--subject", self.subject, "--data-root", str(self.data_root), "control-open", "--participants", "Brains, Hands"],
+            [
+                "--subject",
+                self.subject,
+                "--data-root",
+                str(self.data_root),
+                "--allow-switch",
+                "control-open",
+                "--participants",
+                "Brains, Hands",
+            ],
             cwd=REPO_ROOT,
             home=self.home,
         )
