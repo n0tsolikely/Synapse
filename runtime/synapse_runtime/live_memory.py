@@ -22,6 +22,7 @@ from synapse_runtime.governance_model import (
     infer_interaction_mode,
     required_sidecar_paths,
 )
+from synapse_runtime.quest_acceptance import parse_quest_document, prequest_has_execution_readiness
 
 LIVE_DIRNAME = ".synapse"
 DEFAULT_TIMEZONE = ZoneInfo("America/Toronto")
@@ -86,6 +87,9 @@ def _default_state(subject: str) -> dict[str, Any]:
         "active_run_id": None,
         "last_run_id": None,
         "last_decision_id": None,
+        "governed_execution_ready": False,
+        "current_accepted_quest_id": None,
+        "current_accepted_audit_bundle_path": None,
         "last_rehydrate_at": None,
     }
 
@@ -114,6 +118,12 @@ def _default_manifold(subject: str) -> dict[str, Any]:
         "current_snapshot_candidate_path": None,
         "current_verification_status": None,
         "latest_verification_entries": [],
+        "accepted_quest_ids": [],
+        "accepted_quest_details": [],
+        "current_accepted_quest_id": None,
+        "current_accepted_quest_path": None,
+        "current_accepted_audit_bundle_path": None,
+        "governed_execution_ready": False,
         "last_updated_at": _now_iso(),
     }
 
@@ -411,6 +421,43 @@ def _parse_audit_bundle_path(subject: str, data_root: Path, quest_text: str) -> 
     return None
 
 
+def _load_accepted_quest_details(subject: str, data_root: Path) -> list[dict[str, Any]]:
+    accepted_dir = data_root / "Quest Board" / "Accepted"
+    details: list[dict[str, Any]] = []
+    if not accepted_dir.exists():
+        return details
+    for path in sorted(accepted_dir.glob("*.txt")):
+        try:
+            doc = parse_quest_document(subject=subject, data_root=data_root, path=path)
+        except Exception:
+            continue
+        bundle_path = doc.audit_bundle_path
+        execution_ready = False
+        if bundle_path and bundle_path.exists():
+            prequest = bundle_path / "01_PREQUEST.md"
+            if prequest.exists():
+                execution_ready = prequest_has_execution_readiness(prequest.read_text(encoding="utf-8", errors="replace"))
+        details.append(
+            {
+                "quest_id": doc.quest_id or path.stem,
+                "title": doc.title or path.stem,
+                "path": str(path.resolve()),
+                "audit_bundle_path": str(bundle_path.resolve()) if bundle_path else None,
+                "execution_ready": execution_ready,
+            }
+        )
+    return details
+
+
+def _select_current_accepted_quest(details: list[dict[str, Any]]) -> dict[str, Any] | None:
+    if not details:
+        return None
+    for item in details:
+        if item.get("execution_ready"):
+            return item
+    return details[0]
+
+
 def _disclosure_phase_path(bundle: Path, trigger: str, status_labels: list[str]) -> Path:
     text = f"{trigger} {' '.join(status_labels)}".lower()
     if any(marker in text for marker in ("verify", "verification", "test", "unverified")):
@@ -627,12 +674,24 @@ def _sync_sidecar(
     interaction_mode = str(getattr(inferred_mode, "value", inferred_mode) or "maintenance")
     session_id = active_run.get("session_id") or current_session_id()
     run_id = active_run.get("run_id")
+    accepted_details = _load_accepted_quest_details(subject, data_root)
+    current_accepted = _select_current_accepted_quest(accepted_details)
+    governed_execution_ready = bool(
+        current_accepted
+        and current_accepted.get("execution_ready")
+        and world_state.value == "fog_lifted"
+    )
 
     state["world_state"] = world_state.value
     state["active_phase"] = "execute" if run_id else ("incubation" if world_state.value == "fog_of_war" else "idle")
     state["active_modes"] = ["ambient", interaction_mode]
     state["active_run_id"] = run_id
     state["status"] = "active" if active_run.get("active") else "idle"
+    state["governed_execution_ready"] = governed_execution_ready
+    state["current_accepted_quest_id"] = current_accepted.get("quest_id") if current_accepted else None
+    state["current_accepted_audit_bundle_path"] = (
+        current_accepted.get("audit_bundle_path") if current_accepted else None
+    )
     if decisions_path is not None:
         state["last_decision_id"] = decisions_path.stem
     _write_yaml(state_path, state)
@@ -641,6 +700,14 @@ def _sync_sidecar(
     manifold["active_phase"] = state["active_phase"]
     manifold["active_modes"] = state["active_modes"]
     manifold["active_run_ids"] = [run_id] if run_id else []
+    manifold["accepted_quest_ids"] = [str(item.get("quest_id")) for item in accepted_details if item.get("quest_id")]
+    manifold["accepted_quest_details"] = accepted_details
+    manifold["current_accepted_quest_id"] = current_accepted.get("quest_id") if current_accepted else None
+    manifold["current_accepted_quest_path"] = current_accepted.get("path") if current_accepted else None
+    manifold["current_accepted_audit_bundle_path"] = (
+        current_accepted.get("audit_bundle_path") if current_accepted else None
+    )
+    manifold["governed_execution_ready"] = governed_execution_ready
     if session_id:
         manifold["active_session_ids"] = [session_id]
     if decisions_path is not None:
@@ -1390,6 +1457,56 @@ def log_disclosure(
     }
 
 
+def record_quest_acceptance(
+    *,
+    subject: str,
+    data_root: Path,
+    quest_id: str,
+    quest_title: str,
+    accepted_path: Path,
+    audit_bundle_path: Path,
+    control_sync_state_path: Path,
+) -> dict[str, Any]:
+    live = live_root(data_root)
+    ensure_live_scaffold(subject, data_root)
+    state_path = live / "STATE.yaml"
+    run_path = live / "ACTIVE_RUN.yaml"
+    discoveries_path = _daily_ledger_path(data_root, "DISCOVERIES")
+    run_data = _load_active_run(run_path, subject)
+
+    if run_data.get("run_id"):
+        related = list(run_data.get("related_quests") or [])
+        if quest_id not in related:
+            related.append(quest_id)
+            run_data["related_quests"] = related
+            run_data["updated_at"] = _now_iso()
+            _write_yaml(run_path, run_data)
+            _sync_run_ledger(live, run_data)
+            _write_yaml(run_path, run_data)
+
+    discovery_entry = {
+        "discovery_id": _entry_id("DISCOVERY"),
+        "logged_at": _now_iso(),
+        "kind": "governed_execution_readiness",
+        "summary": f"Quest accepted for governed execution: {quest_id} - {quest_title}",
+        "evidence": {
+            "accepted_path": str(accepted_path.resolve()),
+            "audit_bundle_path": str(audit_bundle_path.resolve()),
+            "control_sync_state_path": str(control_sync_state_path.resolve()),
+        },
+    }
+    _append_ledger_entry(discoveries_path, subject=subject, entry=discovery_entry)
+
+    state = _load_state(state_path, subject)
+    _append_recent_change(state, f"Quest accepted: {quest_id}")
+    _write_yaml(state_path, state)
+    sidecar = _sync_sidecar(subject=subject, data_root=data_root, active_run=run_data, discoveries_path=discoveries_path)
+    return {
+        "discoveries_path": str(discoveries_path),
+        "sidecar": sidecar,
+    }
+
+
 def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
     live = live_root(data_root)
     state_path = live / "STATE.yaml"
@@ -1447,9 +1564,12 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
         f"- World state: {state.get('world_state')}",
         f"- Active phase: {state.get('active_phase')}",
         f"- Active modes: {', '.join(state.get('active_modes') or []) or 'none'}",
+        f"- Governed execution ready: {'YES' if manifold.get('governed_execution_ready') else 'NO'}",
     ]
     if manifold.get("current_verification_status"):
         lines.append(f"- Verification status: {manifold.get('current_verification_status')}")
+    if manifold.get("accepted_quest_ids"):
+        lines.append(f"- Accepted quests: {', '.join(manifold.get('accepted_quest_ids') or [])}")
 
     if active_run_id:
         lines.append(f"- Active run: {active_run_id}")
@@ -1482,6 +1602,28 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
             lines.append(
                 f"- [{proposal.get('state')}] {proposal.get('kind')}: {proposal.get('proposal_id')} - {proposal.get('title')}"
             )
+        lines.append("")
+
+    if manifold.get("current_accepted_quest_id"):
+        lines.append("## Governed execution")
+        lines.append(
+            f"- Current accepted quest: {manifold.get('current_accepted_quest_id')}"
+            f" - {next((item.get('title') for item in manifold.get('accepted_quest_details', []) if item.get('quest_id') == manifold.get('current_accepted_quest_id')), '')}"
+        )
+        if manifold.get("current_accepted_quest_path"):
+            lines.append(f"- Accepted quest path: {manifold.get('current_accepted_quest_path')}")
+        if manifold.get("current_accepted_audit_bundle_path"):
+            lines.append(f"- Audit bundle: {manifold.get('current_accepted_audit_bundle_path')}")
+        lines.append(
+            f"- Ready to execute: {'YES' if manifold.get('governed_execution_ready') else 'NO'}"
+        )
+        extra = [
+            item.get("quest_id")
+            for item in manifold.get("accepted_quest_details", [])
+            if item.get("quest_id") != manifold.get("current_accepted_quest_id")
+        ]
+        if extra:
+            lines.append(f"- Additional accepted quests: {', '.join(str(item) for item in extra)}")
         lines.append("")
 
     if recent_decision_entries:

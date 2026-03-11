@@ -33,6 +33,7 @@ from synapse_runtime.live_memory import (
     log_decision,
     log_disclosure,
     mark_proposal_state,
+    record_quest_acceptance,
     render_rehydrate,
     run_finalize,
     run_start,
@@ -48,6 +49,7 @@ from synapse_runtime.repo_state import (
     state_path,
 )
 from synapse_runtime.subject_bootstrap import initialize_subject_state, repo_subject_defaults
+from synapse_runtime.quest_acceptance import QuestAcceptanceError, accept_quest
 from synapse_runtime.subject_resolver import (
     SubjectResolutionError,
     detect_subject_candidates,
@@ -369,6 +371,20 @@ def build_parser() -> argparse.ArgumentParser:
     continuity_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
     continuity_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
     continuity_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
+    accept_parser = subparsers.add_parser(
+        "accept-quest",
+        help="Validate a BOARD quest and move it into ACCEPTED governed execution readiness",
+    )
+    accept_parser.add_argument("quest", help="Quest ID or path to a BOARD quest file")
+    accept_parser.add_argument("--subject", help="Optional subject override")
+    accept_parser.add_argument("--data-root", help="Override data root path")
+    accept_parser.add_argument("--engine-root", help="Override engine root path")
+    accept_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    accept_parser.add_argument("--selected-by", default="Brains", help="Who made the selection (default: Brains)")
+    accept_parser.add_argument("--no-home-lock", action="store_true", help="Do not write ~/.synapse/ACTIVE_SUBJECT.json")
+    accept_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
+    accept_parser.add_argument("--json", action="store_true", help="Print JSON output")
 
     formalize_parser = subparsers.add_parser("formalize", help="Formalize ambient proposals into canonical artifacts")
     formalize_parser.add_argument("--proposal-id", help="Proposal id to formalize")
@@ -1899,6 +1915,53 @@ def cmd_refresh_continuity(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_accept_quest(args: argparse.Namespace) -> int:
+    ctx = _resolve_or_attach_subject_from_args(args)
+    if not ctx:
+        return 2
+
+    data_root = Path(ctx["data_root"])
+    engine_root = Path(ctx["engine_root"])
+    try:
+        acceptance = accept_quest(
+            subject=ctx["subject"],
+            data_root=data_root,
+            engine_root=engine_root,
+            quest_ref=args.quest,
+        )
+        sidecar = record_quest_acceptance(
+            subject=ctx["subject"],
+            data_root=data_root,
+            quest_id=str(acceptance["quest_id"]),
+            quest_title=str(acceptance["quest_title"]),
+            accepted_path=Path(str(acceptance["accepted_path"])),
+            audit_bundle_path=Path(str(acceptance["audit_bundle_path"])),
+            control_sync_state_path=Path(str(acceptance["control_sync_state_path"])),
+        )
+        continuity_refresh = _render_and_refresh_continuity(ctx["subject"], data_root, engine_root)
+        payload = {
+            "subject": ctx,
+            "acceptance": acceptance,
+            "sidecar": sidecar,
+            "rehydrate": continuity_refresh["rehydrate"],
+            "continuity": continuity_refresh["continuity"],
+        }
+    except (QuestAcceptanceError, LiveMemoryError) as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+
+    print("=== QUEST ACCEPTED ===")
+    print(f"quest_id: {acceptance.get('quest_id')}")
+    print(f"accepted_path: {acceptance.get('accepted_path')}")
+    print(f"audit_bundle_path: {acceptance.get('audit_bundle_path')}")
+    print(f"governed_execution_ready: {acceptance.get('governed_execution_ready')}")
+    return 0
+
+
 def _proposal_by_id(data_root: Path, proposal_id: str) -> dict[str, Any]:
     for proposal in list_proposals(data_root=data_root):
         if str(proposal.get("proposal_id") or "") == proposal_id:
@@ -2868,6 +2931,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_render_rehydrate(args)
     if args.command == "refresh-continuity":
         return cmd_refresh_continuity(args)
+    if args.command == "accept-quest":
+        return cmd_accept_quest(args)
     if args.command == "formalize":
         return cmd_formalize(args)
     if args.command == "watch":
