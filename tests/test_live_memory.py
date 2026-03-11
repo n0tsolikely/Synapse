@@ -289,6 +289,11 @@ class LiveMemoryFlowTests(unittest.TestCase):
         self.assertTrue(list((proposals_root / "codex").glob("*.yaml")))
         self.assertTrue(list((proposals_root / "talent").glob("*.yaml")))
         self.assertTrue(list((proposals_root / "guild_orders").glob("*.yaml")))
+        manifold = yaml.safe_load((self.data_root / ".synapse" / "MANIFOLD.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(manifold.get("current_verification_status"), "PASS")
+        rehydrate = (self.data_root / ".synapse" / "REHYDRATE.md").read_text(encoding="utf-8")
+        self.assertIn("## Recent verification", rehydrate)
+        self.assertIn("unit tests passed", rehydrate)
 
     def test_formalize_snapshot_codex_and_guild_orders_candidates(self):
         self._run_start(title="Capability work", plan_item="Ship runtime")

@@ -2,8 +2,8 @@
 set -euo pipefail
 
 # Synapse Quest Runner Wrapper (Deterministic Receipt Capture)
-# Version: v1.4
-# Last Updated: 2026-03-02
+# Version: v1.5
+# Last Updated: 2026-03-09
 #
 # Purpose:
 # - Ensure audit receipts are captured DURING execution (not fabricated after).
@@ -152,15 +152,85 @@ ensure_tests_header() {
       echo "WRAPPER: synapse_quest_run.sh"
       echo "ENGINE_ROOT: $ENGINE_ROOT"
       echo "DATA_ROOT: $DATA_ROOT"
+      echo "WRAPPER_VALIDATE_MARKER: YES"
       echo "---"
     } > "$tests"
   fi
+}
+
+ensure_validate_marker() {
+  local tests="$1"
+  if [ ! -f "$tests" ]; then
+    return 0
+  fi
+  if ! grep -Eq '^WRAPPER_VALIDATE_MARKER:[[:space:]]*YES[[:space:]]*$' "$tests"; then
+    echo "WRAPPER_VALIDATE_MARKER: YES" >> "$tests"
+  fi
+}
+
+_wrapper_sha256() {
+  local wrapper_path="$SCRIPT_DIR/synapse_quest_run.sh"
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$wrapper_path" | awk '{print $1}'
+    return 0
+  fi
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$wrapper_path" | awk '{print $1}'
+    return 0
+  fi
+  python3 - "$wrapper_path" <<'PY'
+import hashlib
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+print(hashlib.sha256(path.read_bytes()).hexdigest())
+PY
+}
+
+_commands_count() {
+  local tests="$1"
+  local count
+  count="$(grep -Ec '^[[:space:]]*CMD:[[:space:]]' "$tests" || true)"
+  echo "$count" | tr -d ' '
+}
+
+write_wrapper_proof() {
+  local bundle="$1"
+  local tests="$2"
+  local out="$bundle/06_WRAPPER_PROOF.json"
+  local wrapper_path="$SCRIPT_DIR/synapse_quest_run.sh"
+  local wrapper_sha
+  local commands_count
+  local bundle_real
+
+  wrapper_sha="$(_wrapper_sha256)"
+  commands_count="$(_commands_count "$tests")"
+  bundle_real="$(cd "$bundle" && pwd)"
+
+  python3 - "$out" "$wrapper_path" "$wrapper_sha" "$commands_count" "$bundle_real" <<'PY'
+import json
+import pathlib
+import sys
+
+out = pathlib.Path(sys.argv[1])
+payload = {
+    "schema_version": 1,
+    "wrapper": "synapse_quest_run.sh",
+    "wrapper_path": str(pathlib.Path(sys.argv[2]).resolve()),
+    "wrapper_sha256": sys.argv[3],
+    "commands_count": int(sys.argv[4]),
+    "bundle_path": str(pathlib.Path(sys.argv[5]).resolve()),
+}
+out.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY
 }
 
 run_cmd() {
   local tests="$1"; shift
   local cmd="$*"
   ensure_tests_header "$tests"
+  ensure_validate_marker "$tests"
 
   echo "CMD: $cmd" | tee -a "$tests"
   ( cd "$ENGINE_ROOT" && bash -lc "$cmd" ) 2>&1 | tee -a "$tests"
@@ -537,7 +607,9 @@ cmd_finalize() {
   changed="$b/06_CHANGED_FILES.txt"
 
   ensure_tests_header "$tests"
+  ensure_validate_marker "$tests"
   record_changed_files "$changed"
+  write_wrapper_proof "$b" "$tests"
 
   local allow_ooo_flag=""
   if [[ "${ALLOW_OUT_OF_ORDER:-NO}" == "YES" ]]; then

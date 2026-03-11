@@ -112,6 +112,8 @@ def _default_manifold(subject: str) -> dict[str, Any]:
         "current_build_manual_candidate_path": None,
         "current_disclosure_candidate_path": None,
         "current_snapshot_candidate_path": None,
+        "current_verification_status": None,
+        "latest_verification_entries": [],
         "last_updated_at": _now_iso(),
     }
 
@@ -530,6 +532,21 @@ def _read_ledger_entries(path: Path) -> list[dict[str, Any]]:
     return [entry for entry in entries if isinstance(entry, dict)]
 
 
+def _classify_verification_status(entries: Iterable[str]) -> str | None:
+    status: str | None = None
+    for raw in entries:
+        text = str(raw).strip().lower()
+        if not text:
+            continue
+        if any(token in text for token in ("blocked", "unable", "unverified")):
+            status = "BLOCKED"
+        if any(token in text for token in ("fail", "failed", "error")):
+            return "FAIL"
+        if any(token in text for token in ("pass", "passed", "ok", "success")) and status is None:
+            status = "PASS"
+    return status
+
+
 def _load_recent_daily_entries(data_root: Path, ledger_name: str, limit: int) -> list[dict[str, Any]]:
     ledger_dir = live_root(data_root) / ledger_name
     paths = sorted(ledger_dir.glob("*.yaml"))
@@ -644,7 +661,13 @@ def _sync_sidecar(
     build_manual_candidate_path = manifold.get("current_build_manual_candidate_path")
     disclosure_candidate_path = manifold.get("current_disclosure_candidate_path")
     snapshot_candidate_path = manifold.get("current_snapshot_candidate_path")
+    verification_entries = list(manifold.get("latest_verification_entries") or [])
+    verification_status = manifold.get("current_verification_status")
     if signal is not None:
+        if signal.verification:
+            verification_entries.extend(str(item) for item in signal.verification if str(item).strip())
+            verification_entries = verification_entries[-10:]
+            verification_status = _classify_verification_status(verification_entries) or verification_status
         promotions = evaluate_promotion(signal, data_root)
         promotion_payloads: list[dict[str, Any]] = []
         for promotion in promotions:
@@ -713,6 +736,8 @@ def _sync_sidecar(
     manifold["current_build_manual_candidate_path"] = build_manual_candidate_path
     manifold["current_disclosure_candidate_path"] = disclosure_candidate_path
     manifold["current_snapshot_candidate_path"] = snapshot_candidate_path
+    manifold["current_verification_status"] = verification_status
+    manifold["latest_verification_entries"] = verification_entries
     manifold["last_updated_at"] = _now_iso()
     _write_yaml(manifold_path, manifold)
 
@@ -1423,6 +1448,8 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
         f"- Active phase: {state.get('active_phase')}",
         f"- Active modes: {', '.join(state.get('active_modes') or []) or 'none'}",
     ]
+    if manifold.get("current_verification_status"):
+        lines.append(f"- Verification status: {manifold.get('current_verification_status')}")
 
     if active_run_id:
         lines.append(f"- Active run: {active_run_id}")
@@ -1467,6 +1494,12 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
         lines.append("## Recent discoveries")
         for entry in recent_discovery_entries:
             lines.append(f"- {entry.get('discovery_id')}: {entry.get('summary')}")
+        lines.append("")
+
+    if manifold.get("latest_verification_entries"):
+        lines.append("## Recent verification")
+        for entry in list(manifold.get("latest_verification_entries") or [])[-5:]:
+            lines.append(f"- {entry}")
         lines.append("")
 
     if recent_disclosure_entries:

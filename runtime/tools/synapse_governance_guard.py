@@ -30,6 +30,8 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
+import json
 import re
 import shutil
 import sys
@@ -53,6 +55,7 @@ REQUIRED_BUNDLE_FILES = [
     "04_OUTCOME.md",
     "06_TESTS.txt",
     "06_CHANGED_FILES.txt",
+    "06_WRAPPER_PROOF.json",
     "00_ACCEPTANCE_RECEIPT.txt",
     "90_ORIGINAL_QUEST__as_found.txt",
     "00_GOVERNANCE_PREFLIGHT.md",
@@ -61,16 +64,16 @@ REQUIRED_BUNDLE_FILES = [
 
 # 03_VERIFY must contain an explicit, machine-checkable outcome line.
 _VERIFY_OUTCOME_RX = re.compile(
-    r"(?im)^(?:[-*]\\s*)?(?:overall|determination|result|outcome|status)\\s*:\\s*(PASS|FAIL|BLOCKED)\\b"
+    r"(?im)^(?:[-*]\s*)?(?:overall|determination|result|outcome|status)\s*:\s*(PASS|FAIL|BLOCKED)\b"
 )
 
-_QUEST_TALENT_AWARDED_RX = re.compile(r"(?im)^Talent Point Awarded:\\s*(YES|NO)\\b")
-_OUTCOME_TALENT_AWARDED_RX = re.compile(r"(?im)^Talent Point Awarded:\\s*(YES|NO)\\b")
-_OUTCOME_TALENT_ID_RX = re.compile(r"(?im)^(?:Talent Spent On|Talent ID):\\s*(?:\\()?((?:T-\\d{3}))\\b")
+_QUEST_TALENT_AWARDED_RX = re.compile(r"(?im)^Talent Point Awarded:\s*(YES|NO)\b")
+_OUTCOME_TALENT_AWARDED_RX = re.compile(r"(?im)^Talent Point Awarded:\s*(YES|NO)\b")
+_OUTCOME_TALENT_ID_RX = re.compile(r"(?im)^(?:Talent Spent On|Talent ID):\s*(?:\()?((?:T-\d{3}))\b")
 
 
 def _extract_quest_num(name_or_id: str) -> int | None:
-    m = re.search(r"QUEST_(\\d{3})", name_or_id.upper())
+    m = re.search(r"QUEST_(\d{3})", name_or_id.upper())
     if not m:
         return None
     try:
@@ -82,7 +85,7 @@ def _extract_quest_num(name_or_id: str) -> int | None:
 def _accepted_quest_ids(accepted_dir: Path) -> list[str]:
     out: list[str] = []
     for p in sorted(accepted_dir.glob("QUEST_*.txt")):
-        m = re.match(r"(QUEST_\\d{3})__", p.name)
+        m = re.match(r"(QUEST_\d{3})__", p.name)
         if m:
             out.append(m.group(1))
     return out
@@ -166,7 +169,7 @@ def _extract_talent_id_from_outcome(outcome_text: str) -> str | None:
 def _split_talent_entries(talent_tree_text: str) -> list[tuple[str, str]]:
     """Return list of (talent_id, entry_text) blocks."""
 
-    rx = re.compile(r"(?im)^TALENT ID:\\s*(T-\\d{3})\\b")
+    rx = re.compile(r"(?im)^TALENT ID:\s*(T-\d{3})\b")
     matches = list(rx.finditer(talent_tree_text))
     if not matches:
         return []
@@ -194,11 +197,11 @@ def _entry_has_required_fields(entry_text: str, failures: List[str], *, context:
         if lab not in entry_text:
             failures.append(f"{context}: missing required field label: {lab}")
 
-    m_name = re.search(r"(?im)^Name:\\s*(.+)$", entry_text)
+    m_name = re.search(r"(?im)^Name:\s*(.+)$", entry_text)
     if not m_name or not m_name.group(1).strip() or m_name.group(1).strip().upper() in {"TBD", "<FILL>"}:
         failures.append(f"{context}: Name must be non-empty (no TBD/<fill>)")
 
-    m_date = re.search(r"(?im)^Unlocked On:\\s*(\\d{4}-\\d{2}-\\d{2})\\b", entry_text)
+    m_date = re.search(r"(?im)^Unlocked On:\s*(\d{4}-\d{2}-\d{2})\b", entry_text)
     if not m_date:
         failures.append(f"{context}: Unlocked On must be YYYY-MM-DD")
 
@@ -274,7 +277,7 @@ def _validate_talent_award(
 
     log_txt = _read_text(log_path)
     rx = re.compile(
-        rf"(?is)Quest ID:\\s*{re.escape(quest_id)}.*?Talent Point Awarded:\\s*YES.*?Talent Spent On:\\s*.*{re.escape(talent_id)}"
+        rf"(?is)Quest ID:\s*{re.escape(quest_id)}.*?Talent Point Awarded:\s*YES.*?Talent Spent On:\s*.*{re.escape(talent_id)}"
     )
     if not rx.search(log_txt):
         failures.append(f"TALENT_LOG.txt missing award entry for {quest_id} with Talent Spent On {talent_id}")
@@ -306,12 +309,12 @@ def _snapshot_name_regex(subject: str) -> re.Pattern:
     # <Subject>_End_of_Day_Snapshot__02_YYYY-MM-DD.txt
     # <Subject>_End_of_Day_Snapshot__03_YYYY-MM-DD.txt
     safe = re.escape(subject)
-    return re.compile(rf"^{safe}_End_of_Day_Snapshot(?:__\\d{{2}})?_\\d{{4}}-\\d{{2}}-\\d{{2}}\\.txt$")
+    return re.compile(rf"^{safe}_End_of_Day_Snapshot(?:__\d{{2}})?_\d{{4}}-\d{{2}}-\d{{2}}\.txt$")
 
 
 def _parse_date_from_quest_filename(quest_file: Path) -> str | None:
     """Extract YYYY-MM-DD from the final __YYYY-MM-DD.txt token."""
-    m = re.search(r"__(\\d{4}-\\d{2}-\\d{2})\\.txt$", quest_file.name)
+    m = re.search(r"__(\d{4}-\d{2}-\d{2})\.txt$", quest_file.name)
     if not m:
         return None
     return m.group(1)
@@ -347,12 +350,65 @@ def _proof_receipts_ok(bundle: Path) -> Tuple[bool, str]:
     # Enforce at least one recorded command receipt line.
     # This is the simplest non-LLM guardrail against "audit-only" bundles.
     # (If a quest truly has no commands, run a trivial cmd via wrapper like `echo ok`.)
-    if not re.search(r"(?m)^CMD:\\s", t):
+    if not re.search(r"(?m)^CMD:\s", t):
         return False, "06_TESTS.txt must contain at least one 'CMD:' receipt line (run commands via quest runner wrapper)"
+    if not re.search(r"(?m)^RC:\s", t):
+        return False, "06_TESTS.txt must contain at least one 'RC:' receipt line (run commands via quest runner wrapper)"
+    if not re.search(r"(?m)^WRAPPER_VALIDATE_MARKER:\s*YES\s*$", t):
+        return False, "06_TESTS.txt must contain 'WRAPPER_VALIDATE_MARKER: YES'"
 
     # Ensure changed-files receipt isn't empty.
     if not any(ln.strip() for ln in c.splitlines()):
         return False, "06_CHANGED_FILES.txt is empty"
+
+    return True, ""
+
+
+def _current_wrapper_sha256() -> tuple[bool, str]:
+    wrapper = SCRIPT_DIR / "synapse_quest_run.sh"
+    if not wrapper.is_file():
+        return False, f"missing wrapper script for proof validation: {wrapper}"
+    try:
+        digest = hashlib.sha256(wrapper.read_bytes()).hexdigest()
+    except Exception as exc:
+        return False, f"failed to hash wrapper script {wrapper}: {exc}"
+    return True, digest
+
+
+def _wrapper_proof_ok(bundle: Path) -> Tuple[bool, str]:
+    proof = bundle / "06_WRAPPER_PROOF.json"
+    if not proof.is_file():
+        return False, "missing required wrapper proof: 06_WRAPPER_PROOF.json"
+
+    try:
+        payload = json.loads(proof.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return False, f"06_WRAPPER_PROOF.json is not valid JSON: {exc}"
+
+    if not isinstance(payload, dict):
+        return False, "06_WRAPPER_PROOF.json must contain a JSON object"
+
+    wrapper_sha = str(payload.get("wrapper_sha256") or "").strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{64}", wrapper_sha):
+        return False, "06_WRAPPER_PROOF.json wrapper_sha256 must be a valid sha256 hex digest"
+
+    commands_count = payload.get("commands_count")
+    if not isinstance(commands_count, int):
+        return False, "06_WRAPPER_PROOF.json commands_count must be an integer"
+    if commands_count < 1:
+        return False, "06_WRAPPER_PROOF.json commands_count must be >= 1"
+
+    bundle_path = str(payload.get("bundle_path") or "").strip()
+    if not bundle_path:
+        return False, "06_WRAPPER_PROOF.json bundle_path is missing"
+    if Path(bundle_path).expanduser().resolve() != bundle.resolve():
+        return False, "06_WRAPPER_PROOF.json bundle_path does not match actual bundle path"
+
+    ok, wrapper_hash_or_error = _current_wrapper_sha256()
+    if not ok:
+        return False, wrapper_hash_or_error
+    if wrapper_sha != wrapper_hash_or_error:
+        return False, "06_WRAPPER_PROOF.json wrapper_sha256 does not match current synapse_quest_run.sh"
 
     return True, ""
 
@@ -404,7 +460,7 @@ def cmd_init_bundle(args: argparse.Namespace) -> int:
     audits_dir = data_root / "Audits" / "Execution"
 
     quest_id = args.quest_id.strip().upper()
-    if not re.fullmatch(r"QUEST_\\d{3}|SIDE-QUEST_\\d{3}", quest_id):
+    if not re.fullmatch(r"QUEST_\d{3}|SIDE-QUEST_\d{3}", quest_id):
         print(f"FAIL: invalid quest id format: {quest_id}")
         return 2
 
@@ -453,6 +509,17 @@ def cmd_init_bundle(args: argparse.Namespace) -> int:
                 (
                     "PLACEHOLDER: populate this file with real command output via "
                     "the Synapse quest runner wrapper. DO NOT LEAVE PLACEHOLDER.\n"
+                ),
+            )
+        elif fname == "06_WRAPPER_PROOF.json":
+            _write_if_missing(
+                bundle / fname,
+                (
+                    '{\n'
+                    '  "schema_version": 1,\n'
+                    '  "status": "PLACEHOLDER",\n'
+                    '  "note": "Synapse wrapper overwrites this during finalize."\n'
+                    '}\n'
                 ),
             )
         elif fname == "04_OUTCOME.md":
@@ -521,6 +588,9 @@ def cmd_validate(args: argparse.Namespace) -> int:
         _check((bundle / fname).is_file(), failures, f"missing required audit file: {fname}")
 
     ok, why = _proof_receipts_ok(bundle)
+    _check(ok, failures, why)
+
+    ok, why = _wrapper_proof_ok(bundle)
     _check(ok, failures, why)
 
     ok, why = _verify_md_ok(bundle)

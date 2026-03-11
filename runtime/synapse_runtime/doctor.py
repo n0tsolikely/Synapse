@@ -137,6 +137,23 @@ def _check_subject_state(governance_root: Path, subject_receipt: dict) -> list[R
         "SINGLE_FOUND" if len(continuity_files) == 1 else f"INVALID_COUNT:{len(continuity_files)}",
     )
 
+    world_state = derive_world_state(data_root).value
+    active_orders_dir = data_root / "Guild Orders" / "ACTIVE"
+    accepted_dir = data_root / "Quest Board" / "Accepted"
+    active_orders_count = len([path for path in active_orders_dir.glob("*") if path.is_file()]) if active_orders_dir.exists() else 0
+    accepted_count = len([path for path in accepted_dir.glob("*.txt") if path.is_file()]) if accepted_dir.exists() else 0
+    if world_state == "fog_of_war":
+        add(
+            f"{accepted_dir} (fog_of_war acceptance gate)",
+            accepted_count == 0,
+            "PASS" if accepted_count == 0 else f"FAIL_ACCEPTED_QUESTS_PRESENT:{accepted_count}",
+        )
+        add(
+            f"{active_orders_dir} (fog_of_war active-orders gate)",
+            active_orders_count == 0,
+            "PASS" if active_orders_count == 0 else f"FAIL_ACTIVE_ORDERS_PRESENT:{active_orders_count}",
+        )
+
     live_root = data_root / ".synapse"
     if not live_root.exists():
         add(str(live_root), True, "MISSING (UPGRADEABLE AMBIENT SIDECAR)")
@@ -173,7 +190,7 @@ def _subject_mode(subject_receipt: dict) -> str:
         return "invalid_subject_state"
     if world_state == "fog_of_war":
         if has_live:
-            return "ambient_attached_subject"
+            return "incubation_mode"
         return "legacy_manual_subject"
     if has_active_orders or has_accepted_quests:
         return "fully_governed_execution_ready"

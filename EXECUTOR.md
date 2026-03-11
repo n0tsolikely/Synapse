@@ -1,4 +1,4 @@
-# EXECUTOR.md — Synapse Executor Contract (AI11)
+# EXECUTOR.md — Synapse Executor Contract
 # =============================================================================
 # PURPOSE
 # - Canonical, executor-agnostic governance contract for this repo.
@@ -55,7 +55,9 @@ SUBJECT FOCUS LOCK (SINGLE SOURCE OF TRUTH)
 ================================================================================
 
 - Subject selection is owned by the runtime resolver in `runtime/synapse.py`.
-- Resolution order: `--subject` flag → focus lock file → `SUBJECT` env → infer only if exactly one `*_Data` exists → otherwise STOP and run `python3 runtime/synapse.py engage`.
+- Canonical continuity authority lives in `<Subject>_Data/` and `<Subject>_Data/.synapse/`.
+- External lockfiles are session/runtime cursors only (not canonical continuity).
+- Resolution order: `--subject` flag → session lock (`--session-id` / `SYNAPSE_SESSION_ID`) → legacy lockfile cursor → `SUBJECT` env → infer only if exactly one `*_Data` exists → otherwise STOP and run `python3 runtime/synapse.py engage`.
 - No silent switching once set. Switching subjects MUST use the focus command.
 - Literal placeholders such as `Subject` and `<SUBJECT>` are RESERVED and must never be treated as a real active subject.
 - Derived roots (ENGINE_ROOT, DATA_ROOT) come from the resolved subject; do not guess them.
@@ -66,7 +68,7 @@ CANONICAL TOOL SURFACE
 
 Runtime CLI (`runtime/synapse.py`)
 - `doctor`: run deterministic governance checks; use `--no-subject` for governance-only work on the Synapse repo itself.
-- `engage`: session-start helper; resolve/continue/switch/create subject context without unsafe interactive fallthrough.
+- `engage`: session-start helper; interactive continue/change flow, or explicit non-interactive intent (`--continue-active` / `--adopt-current-repo`).
 - `focus`: explicitly set or switch the persistent active subject lock.
 - `resolve-subject`: deterministic subject receipt for scripts and wrappers.
 - `persona`: resolve the optional Synapse-managed persona overlay.
@@ -155,8 +157,10 @@ STEP B — Resolve session subject context
 - Preferred interactive:
   - `python3 runtime/synapse.py engage`
 - Preferred non-interactive / receipt-friendly:
-  - `python3 runtime/synapse.py engage --shell`
   - `python3 runtime/synapse.py resolve-subject --shell`
+  - `python3 runtime/synapse.py engage --continue-active --shell`
+  - `python3 runtime/synapse.py engage --adopt-current-repo --shell`
+- Bare `engage --shell` is not allowed to silently reuse an existing active lock.
 - If working on Synapse governance itself (no subject work), explicitly allow:
   - `python3 runtime/synapse.py doctor --governance-root "$GOVERNANCE_ROOT" --no-subject`
 

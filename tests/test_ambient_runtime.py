@@ -102,6 +102,82 @@ class AmbientRuntimeTests(unittest.TestCase):
         self.assertTrue((data_root / ".synapse" / "MANIFOLD.yaml").exists())
         self.assertEqual(Path(payload["rehydrate_path"]).resolve(), data_root / ".synapse" / "REHYDRATE.md")
 
+    def test_doctor_reports_incubation_mode_for_fog_subject(self):
+        subject = "IncubatingSubject"
+        data_root = (self.root / f"{subject}_Data").resolve()
+        engine_root = self.repo.resolve()
+        initialize_subject_state(subject, data_root, engine_root)
+
+        engage = run_synapse(
+            [
+                "engage",
+                "--subject",
+                subject,
+                "--data-root",
+                str(data_root),
+                "--engine-root",
+                str(engine_root),
+                "--json",
+            ],
+            cwd=self.repo,
+            home=self.home,
+        )
+        self.assertEqual(engage.returncode, 0, engage.stdout + engage.stderr)
+
+        doctor = run_synapse(
+            [
+                "doctor",
+                "--governance-root",
+                str(REPO_ROOT / "governance"),
+                "--subject",
+                subject,
+            ],
+            cwd=self.repo,
+            home=self.home,
+        )
+        self.assertEqual(doctor.returncode, 0, doctor.stdout + doctor.stderr)
+        self.assertIn("subject_mode: incubation_mode", doctor.stdout + doctor.stderr)
+
+    def test_doctor_fails_illegal_fog_of_war_accepted_quest_state(self):
+        subject = "FogViolation"
+        data_root = (self.root / f"{subject}_Data").resolve()
+        engine_root = self.repo.resolve()
+        initialize_subject_state(subject, data_root, engine_root)
+        accepted_dir = data_root / "Quest Board" / "Accepted"
+        accepted_dir.mkdir(parents=True, exist_ok=True)
+        (accepted_dir / "QUEST_001__illegal__2026-03-10.txt").write_text("illegal accepted quest\n", encoding="utf-8")
+
+        engage = run_synapse(
+            [
+                "engage",
+                "--subject",
+                subject,
+                "--data-root",
+                str(data_root),
+                "--engine-root",
+                str(engine_root),
+                "--json",
+            ],
+            cwd=self.repo,
+            home=self.home,
+        )
+        self.assertEqual(engage.returncode, 0, engage.stdout + engage.stderr)
+
+        doctor = run_synapse(
+            [
+                "doctor",
+                "--governance-root",
+                str(REPO_ROOT / "governance"),
+                "--subject",
+                subject,
+            ],
+            cwd=self.repo,
+            home=self.home,
+        )
+        self.assertNotEqual(doctor.returncode, 0, doctor.stdout + doctor.stderr)
+        self.assertIn("FAIL_ACCEPTED_QUESTS_PRESENT:1", doctor.stdout + doctor.stderr)
+        self.assertIn("Overall Status: FAIL", doctor.stdout + doctor.stderr)
+
     def test_governance_map_writes_inventory_file(self):
         output = self.root / "governance_map.json"
         result = run_synapse(
