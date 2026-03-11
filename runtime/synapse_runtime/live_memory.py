@@ -15,6 +15,7 @@ from synapse_runtime.governance_model import (
     ArtifactType,
     DraftshotState,
     ProposalKind,
+    PromotionRecord,
     ProposalState,
     current_session_id,
     derive_world_state,
@@ -22,10 +23,19 @@ from synapse_runtime.governance_model import (
     infer_interaction_mode,
     required_sidecar_paths,
 )
+from synapse_runtime.quest_board import DEFAULT_REPO_ORIENTATION_BLOCKER, draft_quest_from_proposal
 from synapse_runtime.quest_acceptance import parse_quest_document, prequest_has_execution_readiness
 
 LIVE_DIRNAME = ".synapse"
 DEFAULT_TIMEZONE = ZoneInfo("America/Toronto")
+QUEST_PROPOSAL_KINDS = {ProposalKind.QUEST, ProposalKind.SIDE_QUEST}
+QUEST_STATE_RANK = {
+    ProposalState.AMBIENT.value: 0,
+    ProposalState.DRAFT.value: 1,
+    ProposalState.PROPOSED.value: 2,
+    ProposalState.READY.value: 3,
+    ProposalState.FORMALIZED.value: 4,
+}
 
 
 class LiveMemoryError(RuntimeError):
@@ -105,6 +115,7 @@ def _default_manifold(subject: str) -> dict[str, Any]:
         "active_run_ids": [],
         "active_order_candidates": [],
         "active_quest_candidates": [],
+        "quest_candidate_details": [],
         "pending_formalizations": [],
         "current_build_manual_candidate_backlog": [],
         "current_codex_shard_backlog": [],
@@ -548,6 +559,503 @@ def _entry_id(prefix: str) -> str:
     return f"{prefix}-{_now().strftime('%Y%m%d-%H%M%S-%f')}"
 
 
+def _unique_strings(values: Iterable[str]) -> list[str]:
+    results: list[str] = []
+    for value in values:
+        text = str(value).strip()
+        if text and text not in results:
+            results.append(text)
+    return results
+
+
+def _proposal_path(live: Path, kind: ProposalKind, proposal_id: str) -> Path:
+    return _proposal_dir(live, kind) / f"{proposal_id}.yaml"
+
+
+def _tokenize_text(value: str) -> set[str]:
+    return {token for token in re.findall(r"[a-z0-9]+", value.lower()) if len(token) >= 3}
+
+
+def _tokens_overlap(left: str, right: str) -> bool:
+    return len(_tokenize_text(left) & _tokenize_text(right)) >= 2
+
+
+def _open_plan_items(active_run: dict[str, Any]) -> list[str]:
+    plan = active_run.get("plan", {})
+    if not isinstance(plan, dict):
+        return []
+    items = plan.get("items")
+    if not isinstance(items, list):
+        return []
+    open_items: list[str] = []
+    closed_items: list[str] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        text = str(item.get("text") or "").strip()
+        if not text:
+            continue
+        if _is_terminal_status(str(item.get("status") or "")):
+            closed_items.append(text)
+        else:
+            open_items.append(text)
+    return open_items or closed_items[:1]
+
+
+def _top_level_scope_tokens(paths: Iterable[str]) -> list[str]:
+    tokens: list[str] = []
+    for raw in paths:
+        text = str(raw).strip()
+        if not text:
+            continue
+        path = Path(text)
+        token = path.name if path.is_absolute() else (path.parts[0] if path.parts else text)
+        if token and token not in tokens:
+            tokens.append(token)
+    return tokens
+
+
+def _candidate_title(signal: AmbientSignal, active_run: dict[str, Any]) -> str:
+    plan_items = _open_plan_items(active_run)
+    if plan_items:
+        return plan_items[0]
+    title = str(signal.title or "").strip()
+    if title and "ambient session" not in title.lower():
+        return title
+    summary = str(signal.summary or "").strip()
+    if summary:
+        return summary
+    for note in signal.notes:
+        text = str(note).strip()
+        if text:
+            return text
+    paths = _top_level_scope_tokens(signal.files_touched)
+    if paths:
+        return f"Work in {paths[0]}"
+    commands = [str(item).strip() for item in signal.commands if str(item).strip()]
+    if commands:
+        return f"Work around {commands[0].split()[0]}"
+    return "Untitled work cluster"
+
+
+def _candidate_summary(signal: AmbientSignal, active_run: dict[str, Any], title: str) -> str:
+    summary = str(signal.summary or "").strip()
+    if summary:
+        return summary
+    for note in signal.notes:
+        text = str(note).strip()
+        if text:
+            return text
+    plan_items = _open_plan_items(active_run)
+    if plan_items:
+        return f"Recorded work cluster around: {plan_items[0]}"
+    return title
+
+
+def _candidate_evidence_sources(signal: AmbientSignal, active_run: dict[str, Any]) -> list[str]:
+    sources: list[str] = []
+    if _open_plan_items(active_run):
+        sources.append("plan")
+    if signal.summary or signal.notes:
+        sources.append("note")
+    if signal.commands:
+        sources.append("command")
+    if signal.files_touched:
+        sources.append("file")
+    if signal.verification:
+        sources.append("verification")
+    if signal.related_quests:
+        sources.append("related_quest")
+    if signal.related_sidequests:
+        sources.append("related_sidequest")
+    if signal.source == "log-decision":
+        sources.append("decision")
+    if signal.source == "log-disclosure":
+        sources.append("disclosure")
+    return _unique_strings(sources)
+
+
+def _candidate_evidence(signal: AmbientSignal, summary: str) -> list[str]:
+    evidence = [str(item) for item in signal.files_touched if str(item).strip()]
+    evidence.extend(str(item) for item in signal.commands if str(item).strip())
+    evidence.extend(str(item) for item in signal.verification if str(item).strip())
+    if summary:
+        evidence.append(f"summary: {summary}")
+    if signal.source == "log-decision" and signal.title:
+        evidence.append(f"decision: {signal.title}")
+    if signal.source == "log-disclosure" and signal.title:
+        evidence.append(f"disclosure: {signal.title}")
+    return _unique_strings(evidence)[:20]
+
+
+def _accepted_scope_key(current_accepted: dict[str, Any] | None) -> str:
+    if not current_accepted:
+        return "ambient"
+    return str(current_accepted.get("quest_id") or current_accepted.get("title") or "active").strip() or "active"
+
+
+def _scope_classification(signal: AmbientSignal, current_accepted: dict[str, Any] | None) -> str:
+    if not current_accepted:
+        return "unknown"
+    current_id = str(current_accepted.get("quest_id") or "").strip()
+    current_title = str(current_accepted.get("title") or "").strip()
+    related_quests = [str(item).strip() for item in signal.related_quests if str(item).strip()]
+    if current_id and current_id in related_quests:
+        return "in_scope"
+    if related_quests and current_id and current_id not in related_quests:
+        return "out_of_scope"
+    if signal.related_sidequests:
+        return "out_of_scope"
+    text = " ".join(
+        [
+            str(signal.title or ""),
+            str(signal.summary or ""),
+            *[str(item) for item in signal.notes],
+            *[str(item) for item in signal.commands],
+            *[str(item) for item in signal.files_touched],
+        ]
+    )
+    if current_id and current_id.lower() in text.lower():
+        return "in_scope"
+    if current_title and _tokens_overlap(text, current_title):
+        return "in_scope"
+    if any(marker in text.lower() for marker in ("bug", "hotfix", "regression", "incident", "unexpected", "out-of-band")):
+        return "out_of_scope"
+    return "out_of_scope" if text.strip() else "unknown"
+
+
+def _candidate_cluster_id(signal: AmbientSignal, active_run: dict[str, Any], current_accepted: dict[str, Any] | None) -> str:
+    related_sidequests = [str(item).strip().upper() for item in signal.related_sidequests if str(item).strip()]
+    if related_sidequests:
+        return f"WORK_CLUSTER__{related_sidequests[0]}"
+    related_quests = [str(item).strip().upper() for item in signal.related_quests if str(item).strip()]
+    if related_quests:
+        return f"WORK_CLUSTER__{related_quests[0]}"
+    title = _candidate_title(signal, active_run)
+    scope = _accepted_scope_key(current_accepted)
+    title_token = _slugify(title)[:24] or "work"
+    scope_token = _slugify(scope)[:24] or "ambient"
+    if title != "Untitled work cluster":
+        return f"WORK_CLUSTER__{title_token}__{scope_token}".upper()
+    tokens = _top_level_scope_tokens(signal.files_touched)
+    path_token = _slugify(tokens[0])[:24] if tokens else "general"
+    return f"WORK_CLUSTER__{title_token}__{path_token}__{scope_token}".upper()
+
+
+def _candidate_fingerprint(
+    signal: AmbientSignal,
+    active_run: dict[str, Any],
+    *,
+    title: str,
+    summary: str,
+    scope_classification: str,
+) -> str:
+    parts = [
+        str(signal.source or ""),
+        title,
+        summary,
+        scope_classification,
+        "|".join(sorted(_candidate_evidence_sources(signal, active_run))),
+        "|".join(sorted(_unique_strings(signal.notes))),
+        "|".join(sorted(_unique_strings(signal.files_touched))),
+        "|".join(sorted(_unique_strings(signal.commands))),
+        "|".join(sorted(_unique_strings(signal.verification))),
+        "|".join(sorted(_unique_strings(signal.related_quests))),
+        "|".join(sorted(_unique_strings(signal.related_sidequests))),
+    ]
+    return " || ".join(parts)
+
+
+def _candidate_can_auto_formalize(record: dict[str, Any]) -> bool:
+    title = str(record.get("title") or "").strip()
+    summary = str(record.get("summary") or "").strip()
+    if not title or title in {"Untitled work cluster", "Quest Candidate", "Side Quest Candidate"}:
+        return False
+    if not summary:
+        return False
+    evidence_sources = record.get("evidence_sources")
+    if not isinstance(evidence_sources, list) or len(evidence_sources) < 3:
+        return False
+    signal_count = int(record.get("signal_count") or 0)
+    if signal_count < 2:
+        return False
+    related_files = record.get("related_files")
+    if not isinstance(related_files, list) or not related_files:
+        return False
+    return True
+
+
+def _candidate_state(existing_state: str | None, *, signal_count: int, evidence_source_count: int, can_auto_formalize: bool) -> str:
+    if existing_state == ProposalState.FORMALIZED.value:
+        return ProposalState.FORMALIZED.value
+    if can_auto_formalize and signal_count >= 2 and evidence_source_count >= 3:
+        next_state = ProposalState.READY.value
+    elif signal_count >= 2 or evidence_source_count >= 3:
+        next_state = ProposalState.PROPOSED.value
+    elif signal_count >= 2 or evidence_source_count >= 2:
+        next_state = ProposalState.DRAFT.value
+    else:
+        next_state = ProposalState.AMBIENT.value
+    if existing_state and QUEST_STATE_RANK.get(existing_state, -1) > QUEST_STATE_RANK.get(next_state, -1):
+        return existing_state
+    return next_state
+
+
+def _find_existing_quest_candidate(live: Path, cluster_id: str) -> dict[str, Any] | None:
+    for kind in QUEST_PROPOSAL_KINDS:
+        directory = _proposal_dir(live, kind)
+        if not directory.exists():
+            continue
+        for path in sorted(directory.glob("*.yaml")):
+            data = _read_yaml(path)
+            if not isinstance(data, dict):
+                continue
+            if str(data.get("cluster_id") or "") != cluster_id:
+                continue
+            data["path"] = str(path)
+            return data
+    return None
+
+
+def _should_skip_quest_candidate(
+    *,
+    data_root: Path,
+    signal: AmbientSignal,
+    current_accepted: dict[str, Any] | None,
+    scope_classification: str,
+) -> bool:
+    current_id = str(current_accepted.get("quest_id") or "").strip() if current_accepted else ""
+    related_quests = [str(item).strip() for item in signal.related_quests if str(item).strip()]
+    if current_id and scope_classification == "in_scope":
+        return True
+    for quest_id in related_quests:
+        if _find_quest_file(data_root, quest_id) is not None:
+            return True
+    for quest_id in signal.related_sidequests:
+        if _find_quest_file(data_root, str(quest_id).strip()) is not None:
+            return True
+    return False
+
+
+def _candidate_kind(signal: AmbientSignal, current_accepted: dict[str, Any] | None, scope_classification: str) -> ProposalKind:
+    text = " ".join(
+        [
+            str(signal.title or ""),
+            str(signal.summary or ""),
+            *[str(item) for item in signal.notes],
+            *[str(item) for item in signal.commands],
+            *[str(item) for item in signal.files_touched],
+        ]
+    ).lower()
+    if signal.related_sidequests or scope_classification == "out_of_scope":
+        return ProposalKind.SIDE_QUEST
+    if any(marker in text for marker in ("bug", "hotfix", "regression", "incident", "unexpected", "out-of-band")):
+        return ProposalKind.SIDE_QUEST
+    return ProposalKind.QUEST
+
+
+def _upsert_quest_candidate(
+    *,
+    live: Path,
+    subject: str,
+    data_root: Path,
+    source_id: str,
+    interaction_mode: str,
+    active_run: dict[str, Any],
+    signal: AmbientSignal,
+    promotion: PromotionRecord,
+    current_accepted: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    scope_classification = _scope_classification(signal, current_accepted)
+    if _should_skip_quest_candidate(
+        data_root=data_root,
+        signal=signal,
+        current_accepted=current_accepted,
+        scope_classification=scope_classification,
+    ):
+        return None
+
+    kind = _candidate_kind(signal, current_accepted, scope_classification)
+    cluster_id = _candidate_cluster_id(signal, active_run, current_accepted)
+    title = _candidate_title(signal, active_run)
+    summary = _candidate_summary(signal, active_run, title)
+    evidence_sources = _candidate_evidence_sources(signal, active_run)
+    evidence = _candidate_evidence(signal, summary)
+    related_files = _unique_strings(signal.files_touched)
+    related_run_ids = [] if source_id == "NO_RUN" else [source_id]
+    related_quest_ids = _unique_strings(signal.related_quests)
+    related_sidequest_ids = _unique_strings(signal.related_sidequests)
+    fingerprint = _candidate_fingerprint(
+        signal,
+        active_run,
+        title=title,
+        summary=summary,
+        scope_classification=scope_classification,
+    )
+
+    existing = _find_existing_quest_candidate(live, cluster_id)
+    existing_state = str(existing.get("state") or "") if existing else None
+    last_fingerprint = str(existing.get("last_signal_fingerprint") or "") if existing else ""
+    is_noop = existing is not None and last_fingerprint == fingerprint
+
+    signal_count = int(existing.get("signal_count") or 0) if existing else 0
+    if not is_noop:
+        signal_count += 1
+
+    merged_evidence_sources = _unique_strings([*(existing.get("evidence_sources") or [])] + evidence_sources) if existing else evidence_sources
+    merged_evidence = _unique_strings([*(existing.get("evidence") or [])] + evidence) if existing else evidence
+    merged_files = _unique_strings([*(existing.get("related_files") or [])] + related_files) if existing else related_files
+    merged_run_ids = _unique_strings([*(existing.get("related_run_ids") or [])] + related_run_ids) if existing else related_run_ids
+    merged_related_quests = _unique_strings([*(existing.get("related_quest_ids") or [])] + related_quest_ids) if existing else related_quest_ids
+    merged_related_sidequests = _unique_strings([*(existing.get("related_sidequest_ids") or [])] + related_sidequest_ids) if existing else related_sidequest_ids
+
+    payload: dict[str, Any] = {
+        "schema_version": 1,
+        "proposal_id": str(existing.get("proposal_id") or cluster_id) if existing else cluster_id,
+        "cluster_id": cluster_id,
+        "subject": subject,
+        "kind": kind.value,
+        "interaction_mode": interaction_mode,
+        "source_id": source_id,
+        "created_at": str(existing.get("created_at") or _now_iso()) if existing else _now_iso(),
+        "updated_at": _now_iso(),
+        "last_seen_at": str(existing.get("last_seen_at") or _now_iso()) if is_noop and existing else _now_iso(),
+        "title": title,
+        "summary": summary,
+        "description": summary,
+        "objective": summary,
+        "reason": promotion.reason,
+        "scope_classification": scope_classification,
+        "blockers": list(promotion.blockers),
+        "evidence": merged_evidence,
+        "evidence_sources": merged_evidence_sources,
+        "related_run_ids": merged_run_ids,
+        "related_files": merged_files,
+        "related_quest_ids": merged_related_quests,
+        "related_sidequest_ids": merged_related_sidequests,
+        "signal_count": signal_count,
+        "confidence_reason": "",
+        "codex_implications": list(promotion.codex_implications),
+        "change_class": "STRUCTURAL",
+        "vision_delta": "ALIGNED",
+        "priority": "P1",
+        "risk": "R0",
+        "door_impact": "NONE",
+        "testing_level": "DEFERRED TO 01_PREQUEST.md",
+        "verification_plan": "DEFERRED TO 01_PREQUEST.md",
+        "codex_anchors": "BLOCKED - CODEX_ANCHORS_MISSING",
+        "anti_dup": DEFAULT_REPO_ORIENTATION_BLOCKER,
+        "placement_intent": DEFAULT_REPO_ORIENTATION_BLOCKER,
+        "out_of_scope": "Any work beyond this clustered candidate scope.",
+        "dependencies": "None",
+        "talent_awarded": "NO",
+        "last_signal_fingerprint": fingerprint,
+    }
+    if existing and existing.get("formalized_artifact_path"):
+        payload["formalized_artifact_path"] = existing.get("formalized_artifact_path")
+
+    can_auto_formalize = _candidate_can_auto_formalize(payload)
+    payload["state"] = _candidate_state(
+        existing_state,
+        signal_count=signal_count,
+        evidence_source_count=len(merged_evidence_sources),
+        can_auto_formalize=can_auto_formalize,
+    )
+    payload["confidence_reason"] = (
+        f"signal_count={signal_count}; evidence_sources={len(merged_evidence_sources)}; "
+        f"scope={scope_classification}; auto_formalize={'yes' if can_auto_formalize else 'no'}"
+    )
+
+    proposal_path = _proposal_path(live, kind, payload["proposal_id"])
+    old_path = Path(str(existing["path"])) if existing and existing.get("path") else None
+    payload["path"] = str(proposal_path)
+    write_payload = dict(payload)
+    write_payload.pop("path", None)
+    _write_yaml(proposal_path, write_payload)
+    if old_path and old_path.resolve() != proposal_path.resolve() and old_path.exists():
+        old_path.unlink()
+    return payload
+
+
+def _collect_quest_candidate_details(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    details: list[dict[str, Any]] = []
+    for record in records:
+        kind = str(record.get("kind") or "")
+        if kind not in {ProposalKind.QUEST.value, ProposalKind.SIDE_QUEST.value}:
+            continue
+        details.append(
+            {
+                "proposal_id": str(record.get("proposal_id") or ""),
+                "cluster_id": str(record.get("cluster_id") or ""),
+                "kind": kind,
+                "state": str(record.get("state") or ""),
+                "title": str(record.get("title") or ""),
+                "summary": str(record.get("summary") or ""),
+                "scope_classification": str(record.get("scope_classification") or "unknown"),
+                "confidence_reason": str(record.get("confidence_reason") or ""),
+                "evidence_sources": list(record.get("evidence_sources") or []),
+                "related_run_ids": list(record.get("related_run_ids") or []),
+                "related_files": list(record.get("related_files") or []),
+                "related_quest_ids": list(record.get("related_quest_ids") or []),
+                "related_sidequest_ids": list(record.get("related_sidequest_ids") or []),
+                "formalized_artifact_path": record.get("formalized_artifact_path"),
+                "last_seen_at": record.get("last_seen_at"),
+                "signal_count": int(record.get("signal_count") or 0),
+            }
+        )
+    details.sort(key=lambda item: str(item.get("last_seen_at") or ""), reverse=True)
+    return details
+
+
+def _sync_candidate_backlog(manifold: dict[str, Any], records: list[dict[str, Any]]) -> None:
+    quest_details = _collect_quest_candidate_details(records)
+    manifold["quest_candidate_details"] = quest_details
+    manifold["active_quest_candidates"] = [item["proposal_id"] for item in quest_details if item.get("proposal_id")]
+    manifold["pending_formalizations"] = [
+        str(record.get("proposal_id") or "")
+        for record in records
+        if str(record.get("state") or "")
+        in {
+            ProposalState.PROPOSED.value,
+            ProposalState.READY.value,
+            ProposalState.BLOCKED.value,
+            ProposalState.ESCALATED.value,
+        }
+        and str(record.get("proposal_id") or "")
+    ]
+
+
+def _auto_formalize_ready_quest_candidates(*, subject: str, data_root: Path) -> list[dict[str, Any]]:
+    live = live_root(data_root)
+    results: list[dict[str, Any]] = []
+    for proposal in _load_proposal_records(live):
+        kind_text = str(proposal.get("kind") or "")
+        if kind_text not in {ProposalKind.QUEST.value, ProposalKind.SIDE_QUEST.value}:
+            continue
+        if str(proposal.get("state") or "") != ProposalState.READY.value:
+            continue
+        if str(proposal.get("formalized_artifact_path") or "").strip():
+            continue
+        prefix = "SIDE-QUEST" if kind_text == ProposalKind.SIDE_QUEST.value else "QUEST"
+        draft = draft_quest_from_proposal(subject=subject, data_root=data_root, proposal=proposal, prefix=prefix)
+        proposal_receipt = mark_proposal_state(
+            data_root=data_root,
+            proposal_id=str(proposal["proposal_id"]),
+            state=ProposalState.FORMALIZED,
+            artifact_path=str(draft["artifact_path"]),
+            note=f"Auto-formalized into {draft['quest_id']}.",
+        )
+        results.append(
+            {
+                "proposal_id": str(proposal.get("proposal_id") or ""),
+                "quest_id": draft["quest_id"],
+                "artifact_path": draft["artifact_path"],
+                "proposal": proposal_receipt,
+            }
+        )
+    return results
+
+
 def _run_ledger_path(live: Path, run_data: dict[str, Any]) -> Path:
     existing = str(run_data.get("ledger_path") or "").strip()
     if existing:
@@ -718,9 +1226,7 @@ def _sync_sidecar(
         manifold["current_disclosure_ledger_path"] = str(disclosures_path)
 
     proposal_paths: list[str] = []
-    pending = list(manifold.get("pending_formalizations") or [])
     build_manual_candidates = list(manifold.get("current_build_manual_candidate_backlog") or [])
-    quest_candidates = list(manifold.get("active_quest_candidates") or [])
     talent_candidates = list(manifold.get("current_talent_candidate_backlog") or [])
     codex_candidates = list(manifold.get("current_codex_shard_backlog") or [])
     disclosure_candidates = list(manifold.get("current_disclosure_candidate_backlog") or [])
@@ -736,9 +1242,43 @@ def _sync_sidecar(
             verification_entries = verification_entries[-10:]
             verification_status = _classify_verification_status(verification_entries) or verification_status
         promotions = evaluate_promotion(signal, data_root)
+        if not any(promotion.kind in QUEST_PROPOSAL_KINDS for promotion in promotions):
+            if signal.source in {"run-start", "run-update", "run-finalize"} and (
+                _open_plan_items(active_run)
+                or signal.commands
+                or signal.files_touched
+                or signal.notes
+                or signal.summary
+            ):
+                promotions.append(
+                    PromotionRecord(
+                        kind=ProposalKind.QUEST,
+                        state=ProposalState.AMBIENT,
+                        title=_candidate_title(signal, active_run),
+                        summary=_candidate_summary(signal, active_run, _candidate_title(signal, active_run)),
+                        reason="Active run signals indicate a bounded work unit that should be tracked as a quest candidate.",
+                    )
+                )
         promotion_payloads: list[dict[str, Any]] = []
+        quest_candidate_paths: list[str] = []
         for promotion in promotions:
             source_id = run_id or "NO_RUN"
+            if promotion.kind in QUEST_PROPOSAL_KINDS:
+                candidate = _upsert_quest_candidate(
+                    live=live,
+                    subject=subject,
+                    data_root=data_root,
+                    source_id=source_id,
+                    interaction_mode=interaction_mode,
+                    active_run=active_run,
+                    signal=signal,
+                    promotion=promotion,
+                    current_accepted=current_accepted,
+                )
+                if candidate is not None:
+                    quest_candidate_paths.append(str(candidate["path"]))
+                continue
+
             proposal_id = _proposal_id(promotion.kind, source_id, promotion.title)
             promotion_payloads.append(
                 {
@@ -755,11 +1295,7 @@ def _sync_sidecar(
                 }
             )
             if promotion.state in {ProposalState.PROPOSED, ProposalState.READY, ProposalState.BLOCKED, ProposalState.ESCALATED}:
-                if proposal_id not in pending:
-                    pending.append(proposal_id)
-            if promotion.kind in {ProposalKind.QUEST, ProposalKind.SIDE_QUEST}:
-                if proposal_id not in quest_candidates:
-                    quest_candidates.append(proposal_id)
+                pass
             if promotion.kind == ProposalKind.GUILD_ORDERS:
                 if proposal_id not in order_candidates:
                     order_candidates.append(proposal_id)
@@ -775,7 +1311,7 @@ def _sync_sidecar(
             if promotion.kind == ProposalKind.DISCLOSURE:
                 if proposal_id not in disclosure_candidates:
                     disclosure_candidates.append(proposal_id)
-        proposal_paths = _write_proposals(
+        proposal_paths = quest_candidate_paths + _write_proposals(
             live=live,
             subject=subject,
             source_id=run_id or "NO_RUN",
@@ -783,13 +1319,14 @@ def _sync_sidecar(
             promotions=promotion_payloads,
         )
 
+    proposal_records = _load_proposal_records(live)
+    _sync_candidate_backlog(manifold, proposal_records)
+
     manifold["active_order_candidates"] = order_candidates
-    manifold["active_quest_candidates"] = quest_candidates
     manifold["current_build_manual_candidate_backlog"] = build_manual_candidates
     manifold["current_talent_candidate_backlog"] = talent_candidates
     manifold["current_codex_shard_backlog"] = codex_candidates
     manifold["current_disclosure_candidate_backlog"] = disclosure_candidates
-    manifold["pending_formalizations"] = pending
     if signal is not None:
         build_manual_candidate_path = next(
             (path for path in proposal_paths if "/build_manual/" in path),
@@ -1514,6 +2051,8 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
     run_path = live / "ACTIVE_RUN.yaml"
     rehydrate_path = live / "REHYDRATE.md"
 
+    auto_formalizations = _auto_formalize_ready_quest_candidates(subject=subject, data_root=data_root)
+
     state = _load_state(state_path, subject)
     manifold = _load_manifold(manifold_path, subject)
     active_run = _load_active_run(run_path, subject)
@@ -1531,6 +2070,8 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
     recent_decision_entries = _load_recent_daily_entries(data_root, "DECISIONS", 5)
     recent_discovery_entries = _load_recent_daily_entries(data_root, "DISCOVERIES", 5)
     recent_disclosure_entries = _load_recent_daily_entries(data_root, "DISCLOSURES", 5)
+    _sync_candidate_backlog(manifold, proposals)
+    quest_candidate_details = list(manifold.get("quest_candidate_details") or [])
     pending_proposals = [
         proposal
         for proposal in proposals
@@ -1549,6 +2090,8 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
         state["last_run_id"] = _extract_run_id(recent_runs[-1].name)
     if not state.get("last_decision_id") and recent_decisions:
         state["last_decision_id"] = _extract_decision_id(recent_decisions[-1].name)
+    for item in auto_formalizations:
+        _append_recent_change(state, f"Quest auto-formalized: {item.get('quest_id')}")
 
     lines = [
         "# Rehydrate",
@@ -1602,6 +2145,22 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
             lines.append(
                 f"- [{proposal.get('state')}] {proposal.get('kind')}: {proposal.get('proposal_id')} - {proposal.get('title')}"
             )
+        lines.append("")
+
+    if quest_candidate_details:
+        lines.append("## Quest candidates")
+        for item in quest_candidate_details[:8]:
+            lines.append(
+                f"- [{item.get('state')}] {item.get('kind')} :: {item.get('title')} "
+                f"({item.get('proposal_id')})"
+            )
+            lines.append(
+                f"  scope={item.get('scope_classification')} "
+                f"signals={item.get('signal_count')} "
+                f"evidence={', '.join(item.get('evidence_sources') or []) or 'none'}"
+            )
+            if item.get("formalized_artifact_path"):
+                lines.append(f"  board_artifact={item.get('formalized_artifact_path')}")
         lines.append("")
 
     if manifold.get("current_accepted_quest_id"):
@@ -1698,6 +2257,7 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
 
     return {
         "rehydrate_path": str(rehydrate_path),
+        "auto_formalizations": auto_formalizations,
         "pending_formalization_count": len(pending_proposals),
         "recent_decision_count": len(recent_decision_entries),
         "recent_discovery_count": len(recent_discovery_entries),

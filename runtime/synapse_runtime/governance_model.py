@@ -345,14 +345,16 @@ def evaluate_promotion(signal: AmbientSignal, data_root: Path) -> list[Promotion
                 )
             )
 
-    if interaction in {InteractionMode.EXECUTION, InteractionMode.CAPABILITY_EXPANSION}:
+    if interaction in {InteractionMode.EXECUTION, InteractionMode.CAPABILITY_EXPANSION} or (
+        interaction == InteractionMode.EXPLORATION and signal.source in {"run-start", "run-update", "run-finalize"}
+    ):
         sidequest_markers = ("bug", "hotfix", "regression", "incident", "unexpected", "out-of-band")
         proposal_kind = ProposalKind.SIDE_QUEST if signal.related_sidequests or any(marker in text for marker in sidequest_markers) else ProposalKind.QUEST
-        state = ProposalState.PROPOSED if world_state == WorldState.FOG_LIFTED else ProposalState.BLOCKED
-        blockers = ("World State is Fog of War; quest cannot be formalized yet.",) if state == ProposalState.BLOCKED else ()
-        reason = "Execution signals indicate a concentrated work unit that should be tracked as a quest."
+        state = ProposalState.AMBIENT
+        blockers: tuple[str, ...] = ()
+        reason = "Recorded runtime signals indicate a concentrated work unit that should be tracked as a quest candidate."
         if interaction == InteractionMode.CAPABILITY_EXPANSION:
-            reason = "Capability-shaping work detected; quest and codex promotion should be considered."
+            reason = "Capability-shaping work detected; quest clustering and codex promotion should be considered."
         records.append(
             PromotionRecord(
                 kind=proposal_kind,

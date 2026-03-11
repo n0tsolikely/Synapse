@@ -290,8 +290,10 @@ class LiveMemoryFlowTests(unittest.TestCase):
         self.assertTrue(list((proposals_root / "talent").glob("*.yaml")))
         self.assertTrue(list((proposals_root / "guild_orders").glob("*.yaml")))
         manifold = yaml.safe_load((self.data_root / ".synapse" / "MANIFOLD.yaml").read_text(encoding="utf-8"))
+        self.assertTrue(manifold.get("quest_candidate_details"))
         self.assertEqual(manifold.get("current_verification_status"), "PASS")
         rehydrate = (self.data_root / ".synapse" / "REHYDRATE.md").read_text(encoding="utf-8")
+        self.assertIn("## Quest candidates", rehydrate)
         self.assertIn("## Recent verification", rehydrate)
         self.assertIn("unit tests passed", rehydrate)
 

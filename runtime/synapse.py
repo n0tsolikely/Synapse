@@ -50,6 +50,13 @@ from synapse_runtime.repo_state import (
 )
 from synapse_runtime.subject_bootstrap import initialize_subject_state, repo_subject_defaults
 from synapse_runtime.quest_acceptance import QuestAcceptanceError, accept_quest
+from synapse_runtime.quest_board import (
+    draft_quest_from_proposal,
+    fill_quest_template as _fill_quest_template_impl,
+    load_quest_template as _load_quest_template_impl,
+    next_quest_number as _next_quest_number_impl,
+    today_toronto as _today_toronto_impl,
+)
 from synapse_runtime.subject_resolver import (
     SubjectResolutionError,
     detect_subject_candidates,
@@ -665,10 +672,7 @@ def _print_noninteractive_engage_active_help(active_subject: str) -> None:
 
 
 def _today_toronto() -> str:
-    try:
-        return dt.datetime.now(tz=ZoneInfo("America/Toronto")).date().isoformat()
-    except Exception:
-        return dt.date.today().isoformat()
+    return _today_toronto_impl()
 
 
 def _slugify(value: str, max_len: int = 48) -> str:
@@ -680,10 +684,7 @@ def _slugify(value: str, max_len: int = 48) -> str:
 
 
 def _load_quest_template(cwt: Path) -> str:
-    template_path = cwt / "governance" / "Quest Board" / "QUEST_TEMPLATE.txt"
-    if not template_path.exists():
-        raise FileNotFoundError(f"Quest template not found: {template_path}")
-    return template_path.read_text(encoding="utf-8")
+    return _load_quest_template_impl(cwt)
 
 
 def _replace_line(lines: list[str], prefix: str, value: str) -> None:
@@ -701,53 +702,11 @@ def _insert_after_contains(lines: list[str], needle: str, content: str) -> None:
 
 
 def _fill_quest_template(template: str, values: dict[str, str]) -> str:
-    lines = template.splitlines()
-
-    _replace_line(lines, "Quest ID:", values["quest_id"])
-    _replace_line(lines, "Title:", values["title"])
-    _replace_line(lines, "Subject:", values["subject"])
-    _replace_line(lines, "Origin:", values["origin"])
-    _replace_line(lines, "Priority:", values["priority"])
-    _replace_line(lines, "Links:", values["links"])
-    _replace_line(lines, "Codex Anchors (DRAFT):", values["codex_anchors"])
-    _replace_line(lines, "Codex Constraint Summary (DRAFT):", values["codex_constraints"])
-    _replace_line(lines, "Change Class:", values["change_class"])
-    _replace_line(lines, "Vision Delta:", values["vision_delta"])
-    _replace_line(lines, "System Context Statement:", values["system_context"])
-    _replace_line(lines, "Anti-Duplication Plan:", values["anti_dup"])
-    _replace_line(lines, "Placement Intent:", values["placement_intent"])
-    _replace_line(lines, "Atomicity Statement:", values["atomicity"])
-    _replace_line(lines, "Risk:", values["risk"])
-    _replace_line(lines, "Door Impact:", values["door_impact"])
-    _replace_line(lines, "Testing Level (TL):", values["testing_level"])
-    _replace_line(lines, "Talent Point Awarded:", values["talent_awarded"])
-
-    _insert_after_contains(lines, "Brief, concrete description", f"Description: {values['description']}")
-    _insert_after_contains(lines, "Avoid vague outcomes", f"Scope / Objective: {values['objective']}")
-    _insert_after_contains(lines, "Explicitly list what this Quest does NOT include", f"Out of Scope: {values['out_of_scope']}")
-    _insert_after_contains(lines, "If there are none, write: None", f"Dependencies: {values['dependencies']}")
-    _insert_after_contains(lines, "OR write: DEFERRED TO 01_PREQUEST.md", f"Verification Plan: {values['verification_plan']}")
-
-    return "\n".join(lines).rstrip() + "\n"
+    return _fill_quest_template_impl(template, values)
 
 
 def _next_quest_number(data_root: Path, prefix: str) -> int:
-    quest_dirs = [
-        data_root / "Quest Board",
-        data_root / "Quest Board" / "Accepted",
-        data_root / "Quest Board" / "Completed",
-        data_root / "Quest Board" / "Abandoned",
-    ]
-    pattern = re.compile(rf"{re.escape(prefix)}_(\d{{3}})")
-    highest = 0
-    for qdir in quest_dirs:
-        if not qdir.exists():
-            continue
-        for path in qdir.glob("*.txt"):
-            match = pattern.search(path.name)
-            if match:
-                highest = max(highest, int(match.group(1)))
-    return highest + 1
+    return _next_quest_number_impl(data_root, prefix)
 
 
 def _load_plan_items(items: list[str], items_file: str | None) -> list[str]:
@@ -2120,50 +2079,15 @@ def _formalize_quest(ctx: dict[str, Any], proposal: dict[str, Any], *, prefix: s
         raise LiveMemoryError(f"Proposal {proposal['proposal_id']} is BLOCKED and cannot be formalized.")
 
     data_root = Path(ctx["data_root"])
-    cwt = detect_canonical_working_tree()
-    template = _load_quest_template(cwt)
-    today = _today_toronto()
-    qid = f"{prefix}_{_next_quest_number(data_root, prefix):03d}"
-    slug = _slugify(str(proposal.get("title") or "proposal"))
-    board_dir = data_root / "Quest Board"
-    board_dir.mkdir(parents=True, exist_ok=True)
-    quest_path = board_dir / f"{qid}__{slug}__{today}.txt"
-
-    links = ", ".join(str(item) for item in proposal.get("evidence") or []) or "None"
-    values = {
-        "quest_id": qid,
-        "title": str(proposal.get("title") or qid),
-        "subject": ctx["subject"],
-        "origin": f"Ambient proposal {proposal['proposal_id']}",
-        "priority": "P1",
-        "links": links,
-        "codex_anchors": "BLOCKED - CODEX_ANCHORS_MISSING",
-        "codex_constraints": str(proposal.get("reason") or "TBD - derive from proposal evidence"),
-        "change_class": "STRUCTURAL",
-        "vision_delta": "ALIGNED",
-        "system_context": str(proposal.get("summary") or "Ambient run-derived execution candidate."),
-        "anti_dup": f"Run rg -n \"{slug}\" in repo and Subject_Data.",
-        "placement_intent": "Intended layer: runtime | Intended target path(s): derive from evidence.",
-        "atomicity": "Atomic: yes - single independently verifiable outcome.",
-        "risk": "R1",
-        "door_impact": "NONE",
-        "testing_level": "DEFERRED TO 01_PREQUEST.md",
-        "talent_awarded": "NO",
-        "description": str(proposal.get("summary") or proposal.get("title") or ""),
-        "objective": str(proposal.get("summary") or proposal.get("title") or ""),
-        "out_of_scope": "Any work beyond the ambiently captured proposal scope.",
-        "dependencies": "None",
-        "verification_plan": "DEFERRED TO 01_PREQUEST.md",
-    }
-    quest_path.write_text(_fill_quest_template(template, values), encoding="utf-8")
+    draft = draft_quest_from_proposal(subject=ctx["subject"], data_root=data_root, proposal=proposal, prefix=prefix)
     proposal_receipt = mark_proposal_state(
         data_root=data_root,
         proposal_id=str(proposal["proposal_id"]),
         state=ProposalState.FORMALIZED,
-        artifact_path=str(quest_path),
-        note=f"Formalized into {qid}.",
+        artifact_path=str(draft["artifact_path"]),
+        note=f"Formalized into {draft['quest_id']}.",
     )
-    return {"artifact_path": str(quest_path), "proposal": proposal_receipt}
+    return {"artifact_path": str(draft["artifact_path"]), "proposal": proposal_receipt}
 
 
 def _ensure_codex_build_state(data_root: Path) -> Path:
