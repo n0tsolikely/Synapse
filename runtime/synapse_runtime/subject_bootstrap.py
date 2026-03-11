@@ -55,6 +55,8 @@ def initialize_subject_state(subject: str, data_root: Path, engine_root: Path, *
         "Audits/Execution",
         "Codex/Sections",
         "Docs",
+        "Docs/Execution Packs/Active",
+        "Docs/Execution Packs/Archived",
         "Buffs",
         "To Do",
         "Talent Tree",
@@ -95,6 +97,9 @@ def initialize_subject_state(subject: str, data_root: Path, engine_root: Path, *
         "      filename_contains_any:\n"
         "        - \"CONTINUITY_LOCK\"\n"
         "      pick: \"single_required\"\n"
+        "    execution_pack:\n"
+        "      dir: \"Execution Pack\"\n"
+        "      pick: \"optional_single\"\n"
         "  buffs:\n"
         "    dir: \"Buffs\"\n"
         f"    buff_prefix: \"{buff_prefix}\"\n"

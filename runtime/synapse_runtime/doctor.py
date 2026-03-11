@@ -79,6 +79,7 @@ def _check_subject_state(governance_root: Path, subject_receipt: dict) -> list[R
     subject = str(subject_receipt.get("subject") or "").strip()
     data_root = Path(str(subject_receipt.get("data_root") or "")).expanduser().resolve()
     buff_prefix = subject.upper()
+    subject_state: dict | None = None
 
     def add(path: str, ok: bool, status: str) -> None:
         checks.append(ReadOrderCheck(path=path, kind="SUBJECT", status=status, ok=ok))
@@ -136,6 +137,42 @@ def _check_subject_state(governance_root: Path, subject_receipt: dict) -> list[R
         len(continuity_files) == 1,
         "SINGLE_FOUND" if len(continuity_files) == 1 else f"INVALID_COUNT:{len(continuity_files)}",
     )
+    execution_pack_dir = rehydration_dir / "Execution Pack"
+    add(
+        str(execution_pack_dir),
+        True,
+        "EXISTS" if execution_pack_dir.exists() and execution_pack_dir.is_dir() else "MISSING (OPTIONAL)",
+    )
+    execution_pack_pointers = []
+    if execution_pack_dir.exists() and execution_pack_dir.is_dir():
+        execution_pack_pointers = sorted(
+            path
+            for path in execution_pack_dir.glob("ACTIVE_EXECUTION_PACK*.yaml")
+            if path.is_file()
+        )
+    add(
+        f"{execution_pack_dir}/ACTIVE_EXECUTION_PACK*.yaml",
+        len(execution_pack_pointers) <= 1,
+        "OPTIONAL_NONE"
+        if len(execution_pack_pointers) == 0
+        else "SINGLE_FOUND"
+        if len(execution_pack_pointers) == 1
+        else f"INVALID_COUNT:{len(execution_pack_pointers)}",
+    )
+    latest_pack = {}
+    if isinstance(subject_state, dict):
+        latest_pack = subject_state.get("pointers", {}).get("latest_rehydration_pack", {})
+    if isinstance(latest_pack, dict):
+        execution_pack_entry = latest_pack.get("execution_pack", {})
+        if isinstance(execution_pack_entry, dict):
+            pointer_rel = str(execution_pack_entry.get("path") or "").strip()
+            if pointer_rel:
+                pointer_path = (data_root / pointer_rel).resolve()
+                add(str(pointer_path), pointer_path.exists(), "EXISTS" if pointer_path.exists() else "MISSING")
+            source_rel = str(execution_pack_entry.get("source_path") or "").strip()
+            if source_rel:
+                source_path = (data_root / source_rel).resolve()
+                add(str(source_path), source_path.exists(), "EXISTS" if source_path.exists() else "MISSING")
 
     world_state = derive_world_state(data_root).value
     active_orders_dir = data_root / "Guild Orders" / "ACTIVE"
