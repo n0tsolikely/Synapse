@@ -1,6 +1,6 @@
 SYNAPSE GUILD — REHYDRATION PACK (CHECKLIST)
-Version: v1.4
-Last Updated: 2026-02-07
+Version: v1.5
+Last Updated: 2026-03-13
 Status: Reference (governance-aligned validation checklist; non-executable)
 
 ================================================================================
@@ -12,7 +12,8 @@ work in a new session (human or AI) WITHOUT drift, re-litigation, or loss of con
 
 This checklist is binary:
 - If every required item is present and readable: REHYDRATION PACK = COMPLETE
-- If any required item is missing or unprovable: REHYDRATION PACK = INCOMPLETE
+- If any required item is missing, duplicated in an active slot, ambiguous, or unprovable:
+  REHYDRATION PACK = INCOMPLETE
   → Disclosure Gate MUST trigger and execution authority is INVALID.
 
 Authority note (anti-confusion):
@@ -40,11 +41,28 @@ CANONICAL LOCATION
 Active pack location:
 - <Subject>_Data/Latest Rehydration Pack/
 
-Archival location (optional):
-- <Subject>_Data/Archive/
+Canonical archive location:
+- <Subject>_Data/Archive/Latest Rehydration Pack/
 
 Rule:
 - Rehydration Packs are subject-state artifacts. They do not live in Governance.
+
+================================================================================
+ACTIVE-SET RESOLUTION RULE
+================================================================================
+
+“Latest” is not determined by guessing.
+The active Rehydration Pack is resolved by explicit Subject-state pointers first.
+
+Deterministic order:
+1) Subject-state pointer(s) (for example in SUBJECT_STATE.yaml)
+2) The single active artifact(s) present in the active pack location
+3) Naming/date tokens only as a storage aid when no ambiguity exists
+
+If multiple active candidates exist for the same slot and no pointer can lawfully resolve them:
+- STOP
+- trigger Disclosure Gate
+- repair the active set before proceeding
 
 ================================================================================
 REQUIRED CONTENTS
@@ -57,17 +75,25 @@ Location:
 - <Subject>_Data/Latest Rehydration Pack/
 
 Required:
-[ ] Bootstrap Prompt (latest)
+[ ] Exactly one active Bootstrap Prompt exists
     - MUST exist on disk.
     - MUST be unambiguously identifiable as a Bootstrap Prompt.
-    - Naming MUST support deterministic “latest” selection.
-      Canonical resolver uses: filename contains BOOTSTRAP_PROMPT and includes date token YYYY-MM-DD.
+    - Subject-state pointer (if present) MUST resolve to it.
 
-[ ] Continuity Lock (latest)
+[ ] Exactly one active Continuity Lock exists
     - MUST exist on disk.
     - MUST be unambiguously identifiable as a Continuity Lock.
-    - Naming MUST support deterministic “latest” selection.
-      Canonical resolver uses: filename contains CONTINUITY_LOCK and includes date token YYYY-MM-DD.
+    - Subject-state pointer (if present) MUST resolve to it.
+
+[ ] If an active Execution Pack exists:
+    - exactly one active Execution Pack pointer exists under:
+      <Subject>_Data/Latest Rehydration Pack/Execution Pack/
+    - the pointer resolves to a canonical active Execution Pack source under:
+      <Subject>_Data/Docs/Execution Packs/Active/
+
+[ ] If no active Execution Pack is required:
+    - no active Execution Pack pointer is required
+    - the pack MUST NOT fabricate one
 
 2) Buffs (session ignition key)
 Location:
@@ -89,24 +115,29 @@ Location:
   - General/
 
 Required minimum:
-[ ] Latest Control Sync Snapshot(s) exist on disk.
-[ ] Latest End of Day Snapshot(s) exist on disk.
+[ ] Latest relevant Control Sync Snapshot(s) exist on disk when formal binding decisions were made.
+[ ] Latest relevant End of Day Snapshot(s) exist on disk when prior work crossed a day boundary or sealed a day.
 
 Rule:
-- If the previous session performed work and no EOD Snapshot exists, continuity is invalid until repaired.
+- If the previous session performed work that should have been sealed and no snapshot exists, continuity is incomplete until repaired.
 
 4) Codex / Canonical Vision (what execution must obey)
 Location:
 - <Subject>_Data/Codex/
 
 Required:
-[ ] TOC.md exists.
+[ ] Codex truth surface exists in a lawful state for the current Subject phase.
 [ ] If CODEX_FREEZE.md exists:
-    - Fog is lifted; execution is legally allowed.
+    - Fog is lifted; governed execution may be legal.
     - Freeze is binding; execution must comply.
 [ ] If CODEX_FREEZE.md does NOT exist:
-    - Fog of War; execution is forbidden.
+    - Fog of War remains active.
+    - Governed execution is forbidden.
     - Accepted Quests MUST be NONE.
+
+Clarification:
+- Drafting, discovery, and ambient structure formation may still exist while Fog is active.
+- The Rehydration Pack must tell the next session which state is true now.
 
 5) Active scope + commitments (only when applicable)
 Guild Orders:
@@ -133,7 +164,8 @@ OPTIONAL / CONTEXTUAL CONTENTS (EXPLICIT)
 
 Include only when required by the work state:
 
-[ ] Execution Pack (when execution is delayed, spans tool boundaries, or drift risk is high)
+[ ] Execution Pack pointer (only when an active Execution Pack exists)
+[ ] REHYDRATE.md or equivalent current-state orientation surface
 [ ] Research notes / diagrams / temporary specs required to execute without re-litigation
 [ ] External pointers required for execution (NEVER include secrets; store pointers only)
 
@@ -146,18 +178,19 @@ A Rehydration Pack is NOT:
 - a substitute for <Subject>_Data/
 - a substitute for Governance
 - a license to invent new decisions during resume
+- a pile of “recent files” guessed by timestamp alone
 
 ================================================================================
 FINAL RULE (BINDING)
 ================================================================================
 
-If resuming work causes confusion, drift, missing context, or re-litigation:
+If resuming work causes confusion, drift, missing context, duplicate active artifacts, or re-litigation:
 the Rehydration Pack is incomplete.
 
 Correct response:
 - STOP
 - Trigger Disclosure Gate
-- Repair missing/weak artifacts (update Bootstrap Prompt / Continuity Lock / Snapshots as required)
+- Repair missing/weak/duplicate artifacts (update Bootstrap Prompt / Continuity Lock / Snapshots / pointers as required)
 - Re-run Processes/SYNAPSE_GUILD__CONTROL_SYNC_CHECKLIST.txt
 
 ================================================================================

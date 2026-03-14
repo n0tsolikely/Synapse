@@ -1,32 +1,39 @@
 SYNAPSE OS — CONTROL SYNC CHECKLIST (CANON)
-Version: v1.2
-Last Updated: 2026-02-06
+Version: v1.3
+Last Updated: 2026-03-13
 Status: Governance Law (changes require Governance Control Sync)
 
 Maintainer: Brains (Peter) with Hands (Ash)
 Audience:
-- Any AI session conducting Control Sync
-- Any human operator (Brains) who wants deterministic session starts
+- Any AI session conducting formal Control Sync
+- Any human operator (Brains) who wants deterministic formal session starts
 
 ================================================================================
 0) PURPOSE
 ================================================================================
-Control Sync is alignment before action.
 
-This checklist is the deterministic ignition key for every session/day:
-- prevents missing-state execution
-- prevents intent-reality inversion
-- enforces correct gating (Fog of War vs Fog Lifted)
-- ensures scope commitment is explicit
-- ensures audits + snapshots are anchored correctly
+Control Sync is alignment before binding action.
+
+This checklist is the deterministic ignition key for any **formal Control Sync** that may:
+- bind scope
+- accept Quests
+- change Raid / Guild Order state
+- lead directly into governed execution
+
+It prevents:
+- missing-state execution
+- intent-reality inversion
+- illegal quest acceptance under Fog
+- scope commitment without proof
+- snapshots that close nothing
 
 This checklist ADDS rigor.
 It does not replace Control Sync law:
-- Processes/SYNAPSE_GUILD__CONTROL_SYNC.txt
+- `Processes/SYNAPSE_GUILD__CONTROL_SYNC.txt`
 
 Hard rule:
 - If any checklist item cannot be proven true in the current canonical tree,
-  Disclosure Gate MUST trigger and execution authority MUST NOT advance.
+  Disclosure Gate MUST trigger and governed execution authority MUST NOT advance.
 
 ================================================================================
 1) CHECKLIST (RUN IN ORDER)
@@ -46,35 +53,35 @@ If any canonical directory is missing:
 ----------------------------------------
 [ ] Subject key/name is known
 [ ] Mode is explicitly declared:
-    - Continuing Subject (<Subject>_Data exists)
-    - New Subject (no <Subject>_Data yet)
+    - Continuing Subject (`<Subject>_Data` exists)
+    - New Subject (no `<Subject>_Data` yet)
 
-If Subject key/name is NOT known OR <Subject>_Data cannot be found:
+If Subject key/name is NOT known OR `<Subject>_Data` cannot be found:
 - STOP
 - Ask Brains the minimum entry questions (per CONTROL_SYNC law)
-- DO NOT proceed into execution
+- DO NOT proceed into governed execution
 
 If New Subject:
-- run: Processes/SYNAPSE_GUILD__SUBJECT_INITIALIZATION_AND_INCUBATION.txt
-- remain in Fog of War until Codex Freeze
+- run: `Processes/SYNAPSE_GUILD__SUBJECT_INITIALIZATION_AND_INCUBATION.txt`
+- remain in Fog of War until Codex Freeze is proven
 
 ----------------------------------------
 1.3 Load subject-state ignition (Buffs + Latest Rehydration Pack)
 ----------------------------------------
-If <Subject>_Data exists:
+If `<Subject>_Data` exists:
 [ ] Read subject Buffs (canonical set):
-    - <Subject>_Data/Buffs/<SUBJECT>_EXECUTION_PROTOCOL.txt
-    - <Subject>_Data/Buffs/<SUBJECT>_DATA_DIRECTORY_MAP.txt
-    - <Subject>_Data/Buffs/<SUBJECT>_SESSION_START_CHECK.txt
+    - `<Subject>_Data/Buffs/<SUBJECT>_EXECUTION_PROTOCOL.txt`
+    - `<Subject>_Data/Buffs/<SUBJECT>_DATA_DIRECTORY_MAP.txt`
+    - `<Subject>_Data/Buffs/<SUBJECT>_SESSION_START_CHECK.txt`
 
-[ ] Resolve + read Latest Rehydration Pack artifacts (latest Bootstrap Prompt + latest Continuity Lock)
-    - “latest” MUST be resolved via SYNAPSE_STATE.yaml (or explicit Brains instruction)
+[ ] Resolve + read active rehydration artifacts (latest Bootstrap Prompt + latest Continuity Lock)
+    - active set MUST be resolved via canonical subject-state pointers or explicit Brains instruction
     - DO NOT guess which file is latest
 
 If any required subject-state artifact is missing:
 - state the missing artifact explicitly
 - Disclosure Gate MUST notify Brains
-- execution authority MUST NOT advance until Brains resolves the gap
+- governed execution authority MUST NOT advance until Brains resolves the gap
 
 ----------------------------------------
 1.4 Snapshot review (MANDATORY)
@@ -87,83 +94,91 @@ Review order is locked:
 If any are missing:
 - state the missing snapshots explicitly
 - DO NOT invent them
-- record the missing snapshot(s) in today’s Control Sync Snapshot
+- record the missing snapshot(s) in today's closing snapshot when one is written
 
 ----------------------------------------
 1.5 World State gate (Fog of War vs Fog Lifted)
 ----------------------------------------
 [ ] World State identified:
-    - Fog of War (Incubation / Codex writing only; execution forbidden)
-    - Fog Lifted (execution permitted)
+    - Fog of War (governed execution illegal)
+    - Fog Lifted (governed execution legal)
 
-If executing (Fog Lifted):
-[ ] Codex Freeze marker exists:
-    <Subject>_Data/Codex/CODEX_FREEZE.md
+If governed execution or quest acceptance may occur after this Control Sync:
+[ ] Codex Freeze proof exists and is valid
 
-If marker is missing:
-- STOP execution
+If proof is missing:
+- STOP quest acceptance / Raid activation / governed execution
 - remain in Fog of War
 - Disclosure Gate MUST notify Brains
 
 Fog of War sanity check:
-[ ] If World State is Fog of War, Accepted/ MUST be empty.
-    - If Accepted/ contains quests, the state is INVALID.
+[ ] If World State is Fog of War, `Accepted/` MUST be empty.
+    - If `Accepted/` contains quests, the state is INVALID.
     - STOP and Disclosure Gate MUST notify Brains.
 
+Clarification:
+- A formal Control Sync itself may still occur under Fog.
+- What Fog blocks is governed execution, not the meeting.
+
 ----------------------------------------
-1.6 Review state surfaces (no generation)
+1.6 Review current scope surfaces (no generation)
 ----------------------------------------
-[ ] Active Guild Orders/Raids reviewed (titles only)
-[ ] Paused Guild Orders/Raids reviewed (titles only)
+[ ] Active Guild Orders / Raids reviewed (titles only)
+[ ] Paused Guild Orders / Raids reviewed (titles only)
 [ ] Quest Board reviewed (BOARD + ACCEPTED + COMPLETED + ABANDONED)
 
 Hard prohibition during review:
 - DO NOT auto-generate new Guild Orders
 - DO NOT auto-break Dungeons into Quests
-- DO NOT accept quests during review (acceptance occurs in 1.8 only)
+- DO NOT auto-accept Quests during review
 
 ----------------------------------------
 1.7 Decide scope (Brains authority)
 ----------------------------------------
-[ ] Brains decides today/session scope:
-    - which quests will be accepted
-    - which raids/dungeons are in focus
-    - any explicit deferrals (and why)
+[ ] Brains decides which of the following is true:
+    - continue existing accepted scope unchanged
+    - accept new quest(s)
+    - change / pause / resume Raid or Guild Order scope
+    - remain in incubation / drafting only
 
 Hard rule:
-- Scope commitment is not real until it is written into the Control Sync Snapshot.
+- Scope commitment is not real until the closing snapshot says what became true.
 
 ----------------------------------------
-1.8 Quest acceptance (VALIDATION GATE)
+1.8 Quest acceptance (ONLY IF NEW QUESTS WILL BE ACCEPTED)
 ----------------------------------------
-For each quest that will be accepted:
-[ ] Validate quest per: Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt
+If no new Quest acceptance is required:
+- mark this section SKIPPED and continue
+
+For each quest that will be newly accepted:
+[ ] Validate quest per: `Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt`
 [ ] Ensure quest is atomic (if not atomic: STOP and split / reclassify)
-[ ] Create the audit bundle folder and record its path in the quest file
-[ ] Only then move the quest into Accepted/
+[ ] Ensure the audit bundle exists lawfully and its path is recorded in the quest file
+[ ] Only then move the quest into `Accepted/`
 
 Hard rule:
 - Acceptance is the filesystem move.
 - Conversation alone MUST NOT be treated as acceptance.
+- Under Fog of War this section MUST NOT succeed.
 
 ----------------------------------------
-1.9 Write EXACTLY ONE Snapshot to close this Control Sync
+1.9 Write EXACTLY ONE closing Snapshot
 ----------------------------------------
-A Control Sync MUST end with exactly one Snapshot:
+A formal Control Sync MUST end with exactly one closing Snapshot:
 - Control Sync Snapshot if any binding decision was made
-- General Snapshot if no binding decisions were made
+- General Snapshot if the forum clarified reality but made no binding decision and a durable record is still warranted
 
-[ ] Write the correct snapshot type (per Guild Docs/SYNAPSE_GUILD__SNAPSHOTS.txt)
+[ ] Write the correct snapshot type (per `Guild Docs/SYNAPSE_GUILD__SNAPSHOTS.txt`)
 [ ] Snapshot MUST include (minimum):
     - decisions made (binding)
     - what is explicitly NOT decided
-    - scope commitment (accepted quests + focus)
+    - scope commitment or explicit non-commitment
     - missing artifacts/snapshots discovered during this checklist
     - references to updated/created artifacts (paths)
 
 [ ] Store snapshot in the correct directory:
-    - Control Sync Snapshot → <Subject>_Data/Snapshots/Control Sync/
-    - General Snapshot      → <Subject>_Data/Snapshots/General/
+    - Control Sync Snapshot → `<Subject>_Data/Snapshots/Control Sync/`
+    - General Snapshot      → `<Subject>_Data/Snapshots/General/`
 
 Hard rule:
 - If the snapshot file does not exist on disk, the snapshot does not exist.
@@ -174,13 +189,12 @@ Hard rule:
 ----------------------------------------
 Control Sync continues until Brains ends it.
 [ ] Brains explicitly ended Control Sync
-[ ] Snapshot from 1.9 exists on disk
+[ ] Closing snapshot from 1.9 exists on disk
 
 Only after 1.10 completes:
-- If Fog Lifted: Dailies execution MAY begin (Processes/SYNAPSE_GUILD__DAILIES.txt)
-- If Fog of War: remain in incubation/Codex work; execution remains forbidden
+- If Fog Lifted and accepted scope exists: Dailies governed execution MAY begin
+- If Fog of War: remain in incubation / drafting / ambient capture; governed execution remains illegal
 
 END OF CHECKLIST
 
-
-CHECK (AI11): If Draftshot ACTIVE, Snapshot MUST reference Source Draftshot path + REV and be a formalization of the Draftshot.
+CHECK: If Draftshot ACTIVE, the closing Snapshot MUST reference Source Draftshot path + REV and be a formalization of the Draftshot.

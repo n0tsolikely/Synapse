@@ -17,22 +17,27 @@ Rehydration is performed from two classes of artifacts:
   - execution authority does not advance
 
 Minimum subject artifacts (common):
-- Latest Rehydration Pack (Bootstrap Prompt + Continuity Lock)
+- Latest Rehydration Pack (active Bootstrap Prompt + active Continuity Lock)
 - Buffs (execution protocol + map + session start check)
 - Snapshots (intent + execution reality)
-- Codex + TOC (meaning anchors)
+- Codex + related truth surfaces (what execution must obey)
 - Quest Board state (what is actionable)
 - Talent Tree (capability ledger)
+- Active Execution Pack pointer only when such a pack truly exists
 
-## “Latest” Resolution (anti-guess)
-“Latest” is resolved only by explicit naming/path references from:
-- Continuity Lock
-- Bootstrap Prompt
-- Control Sync Snapshot
-- `SYNAPSE_STATE.yaml`
-- Brains
+## Active-Set Resolution (anti-guess)
+“Latest” is resolved by explicit active-set pointers first.
 
-Guessing “latest” by timestamp, filename pattern, or intuition is prohibited.
+Valid active sources include:
+- `SUBJECT_STATE.yaml`
+- the active Continuity Lock
+- the active Bootstrap Prompt
+- explicit active-state pointers in the Subject sidecar/manifold
+
+Filename patterns and timestamps are storage aids, not authority.
+
+Guessing “latest” by timestamp, filename pattern, or intuition is prohibited
+when an explicit pointer or active-set artifact exists.
 
 ## Purpose
 - Prevent context loss across chats/days/operators
@@ -42,22 +47,27 @@ Guessing “latest” by timestamp, filename pattern, or intuition is prohibited
 ## Output
 Rehydration produces a shared baseline:
 - what is true now
-- what is active (world state, active orders, accepted quests)
+- what is active (world state, active orders, accepted quests, active execution pack if any)
 - what is next
 
-Rehydration usually culminates in starting (or resuming) a Control Sync.
+Rehydration usually culminates in starting (or resuming) a Control Sync or governed execution window.
 
 ## Do Not Assume
 - Rehydration is not execution.
 - Rehydration does not “fix” the project; it restores state so fixes can be made.
 - Conversation memory does not substitute for artifacts.
+- If no active Execution Pack is named, do not assume one exists.
+- If multiple “latest” artifacts appear active, rehydration is incomplete until repaired.
 
 ## Interactions
 - Rehydration precedes Control Sync.
 - Rehydration consumes Snapshots in locked order (intent → reality).
+- Rehydration applies the active Bootstrap Prompt and the active Continuity Lock as a paired surface.
+- Rehydration may include an Execution Pack pointer when current execution is bounded and active.
 
 ## Authority
 → `Continuity/SYNAPSE_GUILD__REHYDRATION_PACK_CHECKLIST.txt`
 → `Continuity/SYNAPSE_GUILD__BOOTSTRAP_PROMPT.txt`
 → `Continuity/SYNAPSE_GUILD__BUFFS.txt`
 → `Continuity/SYNAPSE_GUILD__CONTINUITY_LOCK.txt`
+→ `Continuity/SYNAPSE_GUILD__EXECUTION_PACKS.txt`

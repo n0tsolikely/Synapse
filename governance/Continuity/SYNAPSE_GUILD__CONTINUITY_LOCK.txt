@@ -1,6 +1,6 @@
 SYNAPSE GUILD — CONTINUITY LOCK (CANON)
-Version: v1.4
-Last Updated: 2026-02-07
+Version: v1.5
+Last Updated: 2026-03-13
 Status: Governance Law (changes require Governance Control Sync)
 
 Maintainer: Brains (Peter) with Hands (Ash)
@@ -13,10 +13,11 @@ Audience:
 0) PURPOSE OF THIS DOCUMENT
 ================================================================================
 
-This document defines what a CONTINUITY LOCK is, why it exists, and how it is used.
+This document defines what a CONTINUITY LOCK is, why it exists, how it fits into
+rehydration, and when it must be refreshed.
 
-After reading this document, the phrase “Create a Continuity Lock” MUST be sufficient
-instruction for any compliant operator (human or AI).
+After reading this document, the phrase “Refresh the Continuity Lock” MUST be
+sufficient instruction for any compliant operator (human or AI).
 
 A Continuity Lock exists to solve one problem:
 
@@ -28,7 +29,8 @@ Continuity Locks prevent that.
 
 Governance note (anti-confusion):
 - This file defines Continuity Lock law and quality bar.
-- Active Continuity Locks are subject-state artifacts stored in <Subject>_Data (NOT in this pack).
+- Active Continuity Locks are subject-state artifacts stored in <Subject>_Data.
+- This law does NOT live inside the active Subject Pack. It governs it.
 
 ================================================================================
 1) CORE DEFINITION (CANON)
@@ -48,7 +50,7 @@ scope boundaries, and the resume point.
 - If the Lock and conversation conflict, the Lock wins.
 
 Truth Gate note:
-- A Continuity Lock “exists” only if the file exists on disk in the canonical Subject_Data.
+- A Continuity Lock “exists” only if the file exists on disk in canonical Subject_Data.
 - A Continuity Lock written only in chat is NON-AUTHORITATIVE.
 
 ================================================================================
@@ -109,13 +111,13 @@ until repaired.
 
 4.3 Current phase
 - Where we are right now
-- Example: “Control Sync complete; execution pending”
+- Example: “Ambient drafting active; governed execution still gated”
 
 4.4 Binding decisions (LAW)
 - Decisions that are now binding
 - Constraints that MUST NOT be re-litigated casually
 
-4.5 Non-binding / deferred / rejected items
+4.5 Deferred / rejected / unknown items
 - Explicitly list:
   - rejected ideas (NO)
   - deferred ideas (NOT NOW)
@@ -125,6 +127,7 @@ until repaired.
 - What is active now
 - What is paused
 - What is complete
+- If an Execution Pack is currently binding, it MUST be named here (by path or explicit pointer)
 
 4.7 Required reading for the next session
 - Which snapshots / packs / documents MUST be read first
@@ -147,6 +150,7 @@ Discussion and exploration are allowed to decay unless they are promoted into on
 - a constraint
 - a rejection or deferral record
 - a resume instruction
+- an active execution commitment
 
 ================================================================================
 6) RELATIONSHIP TO SNAPSHOTS
@@ -191,7 +195,8 @@ A Continuity Lock MAY state:
 - “Execution Pack X MUST be read before proceeding”
 
 Reference rule:
-- If the Lock references an Execution Pack, it MUST name the pack and its canonical location (path).
+- If the Lock references an Execution Pack, it MUST name the pack and its canonical location (path or explicit pointer).
+- If the Lock does not reference an Execution Pack, no operator may assume one is active.
 
 But the Lock itself MUST NOT contain step-by-step execution instructions.
 
@@ -222,12 +227,20 @@ Rehydration ordering clarification:
 
 A Continuity Lock MUST exist whenever a session intends to resume deterministically.
 
-A Continuity Lock MUST be created/updated when any of the following are true:
+A Continuity Lock MUST be created or refreshed when any of the following are true:
 - a Control Sync concluded (especially if binding decisions were made)
 - execution depends on preserved context
 - a mode or direction MUST NOT change
 - work will resume later (default for continuing subjects)
 - a session is nearing its limit AND the next session must continue without re-litigation
+- a binding decision was logged
+- a disclosure changed what is safe or legal
+- the active run changed materially
+- the current accepted Quest changed
+- a formalization changed the active truth surface
+- verification changed what the system may claim
+- Codex / Build Manual state changed in a way that affects execution
+- a day boundary or end-of-day seal changes the active resume surface
 
 Omission rule (strict):
 - If Brains explicitly declares “No continuity required,” a Continuity Lock may be omitted.
@@ -246,22 +259,28 @@ Do not store subject-specific locks inside the Governance Pack.
 Canonical active location:
 - <Subject>_Data/Latest Rehydration Pack/
 
-Archive location (default):
-- Archive/ is part of the Subject Data Skeleton (see LOCK__SUBJECT_DATA_SKELETON.md).
-- <Subject>_Data/Archive/
+Canonical archive location:
+- <Subject>_Data/Archive/Latest Rehydration Pack/
 
-Naming requirements (to support deterministic “latest” resolution):
+Naming requirements:
 - Filename MUST contain: CONTINUITY_LOCK
 - Filename MUST include a date token: YYYY-MM-DD
+- Same-day material refreshes MAY use deterministic revision suffixes (for example: __02)
+
+Authoritative resolution rule:
+- The active Continuity Lock is resolved by explicit Subject-state pointers first.
+- Filename/date rules support deterministic storage and archival.
+- Filename/date rules do NOT overrule explicit active pointers.
 
 Ambiguity rule:
-- If multiple candidate “latest” locks exist and cannot be deterministically resolved, STOP.
+- If multiple candidate active locks exist and cannot be deterministically resolved, STOP.
   Trigger Disclosure Gate and repair naming/state.
 
 Supersession rule:
 - When a new Continuity Lock supersedes an old one:
   - archive the old lock
   - activate the new lock
+  - update Subject-state pointers to the single active lock
 
 ================================================================================
 11) MINIMUM FORMAT (NOT OPTIONAL)
@@ -274,7 +293,7 @@ A Continuity Lock MUST contain these headings (verbatim or clearly equivalent):
 - WORLD STATE:
 - CURRENT PHASE:
 - BINDING DECISIONS (LAW):
-- DEFERRED / REJECTED:
+- DEFERRED / REJECTED / UNKNOWN:
 - ACTIVE SCOPE / COMMITMENTS:
 - REQUIRED READ FIRST:
 - RESUME POINT:
@@ -287,12 +306,13 @@ Minimum content requirements (by heading):
 - DATE: YYYY-MM-DD.
 - WORLD STATE: FOG OF WAR or FOG LIFTED.
   - If FOG LIFTED, the Lock MUST reference the Codex Freeze marker (CODEX_FREEZE.md) as the legal basis.
-- CURRENT PHASE: One sentence naming the current pipeline phase (per THE_LOOP) and what changed since last lock.
+- CURRENT PHASE: One sentence naming the current operating phase and what materially changed since last lock.
 - BINDING DECISIONS (LAW): Bullet list of MUST/MUST NOT statements. No hedging.
-- DEFERRED / REJECTED: Explicit list. If none, write NONE.
+- DEFERRED / REJECTED / UNKNOWN: Explicit list. If none, write NONE.
 - ACTIVE SCOPE / COMMITMENTS: What is actively in-flight.
   - If a Raid/Guild Orders are active: name them.
   - If any Quests are ACCEPTED: list Quest IDs (or filenames) explicitly.
+  - If an Execution Pack is binding: list its explicit path or active pointer.
 - REQUIRED READ FIRST: Exact artifacts the next session MUST read before any planning/execution (paths or names).
 - RESUME POINT: The first artifact to open + the next action to take.
   - If Quests are ACCEPTED, specify the next Quest to execute.
@@ -306,12 +326,14 @@ A good Continuity Lock:
 - prevents re-argument
 - prevents scope creep
 - allows seamless continuation without anxiety
+- refreshes when truth changed and stays stable when truth did not
 
 A bad Continuity Lock:
 - is vague
 - reads like a summary
 - does not state what is irrelevant
 - does not specify next action
+- rewrites itself on every no-op state check
 
 ================================================================================
 13) COMMON FAILURE MODES (AND HOW TO AVOID THEM)
@@ -327,7 +349,10 @@ Failure: No clear resume point
 Fix: End the lock with “RESUME POINT: …”
 
 Failure: Multiple competing “latest” locks
-Fix: Archive old locks and enforce deterministic naming.
+Fix: Archive superseded locks and enforce pointer-based active resolution.
+
+Failure: Rewriting the lock on every transition tick
+Fix: Refresh only when truth materially changed.
 
 ================================================================================
 14) CANONICAL COMMANDS
@@ -339,9 +364,9 @@ Once this law is accepted, the following phrases are valid:
 Meaning:
 Seal the current state so the next session can resume without chat history.
 
-- “Update the Continuity Lock.”
+- “Refresh the Continuity Lock.”
 Meaning:
-State has changed; create a new lock and archive the old one.
+State changed materially; either preserve the current lock if nothing changed or create a new lock and archive the old one.
 
 - “Rehydrate from this Continuity Lock.”
 Meaning:

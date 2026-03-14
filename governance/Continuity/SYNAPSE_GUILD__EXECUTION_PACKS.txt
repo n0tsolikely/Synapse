@@ -1,263 +1,128 @@
-SYNAPSE GUILD — EXECUTION PACKS (CANON)
-Version: v1.3
-Last Updated: 2026-02-07
-Status: Governance Law (changes require Governance Control Sync)
+SYNAPSE GUILD — EXECUTION PACKS
+Version: v1.5
+Last Updated: 2026-03-13
+Status: Governance Law (binding concept; pack contents are situational)
 
 Maintainer: Brains (Peter) with Hands (Ash)
 Audience:
-- Synapse Guild members (human)
-- Any AI session that must rehydrate and execute work without drift
-- External collaborators who need to adopt Synapse Guild Operating System
+- Human operators using Synapse Guild
+- AI executors resuming bounded work
+- Anyone handing off drift-sensitive execution across chats/operators
 
 ================================================================================
 0) PURPOSE OF THIS DOCUMENT
 ================================================================================
 
-This document makes the phrase “Execution Pack” carry a fully-loaded meaning.
+This document defines what an Execution Pack is, when it is warranted, how it becomes active,
+and how it participates in rehydration.
 
-Once you have read and accepted this law, you do not need to re-explain Execution Packs.
-You can say:
-  “We need an Execution Pack for this Control Sync.”
-…and any compliant operator (human or AI) will know what to do.
+An Execution Pack exists for one purpose:
 
-Execution Packs exist to solve a brutal reality:
+> When work is bounded, drift-sensitive, or handoff-heavy, the Execution Pack makes execution
+> deterministic enough that another operator can continue without improvising the wrong thing.
 
-- Control Syncs can be long.
-- Memory decays (human and AI).
-- Chats end.
-- Context drifts.
-- Implementation improvisation produces hacks, god-files, and architectural backsliding.
-
-Execution Packs convert a long, nuanced Control Sync into a deterministic, resumable,
-anti-drift execution state.
-
-This is governance law. It applies across all projects (<SUBJECT>, <SUBJECT>, games, anything).
-
-================================================================================
-0.1) ARTIFACT LAW (BINDING)
-================================================================================
-
-Execution Packs are subject-state artifacts.
-
-- If the Execution Pack does not exist as file(s) on disk, the pack does not exist.
-- Chat text describing a pack is PROPOSAL only until written to canonical storage.
-- If a pack is referenced but cannot be proven present + readable, trigger Disclosure Gate
-  and treat the pack as unavailable.
+Governance note:
+- This document defines Execution Pack law and quality bar.
+- Active Execution Packs are subject-state artifacts inside <Subject>_Data.
+- The pack is execution law for a bounded window. It is not a new constitution.
 
 ================================================================================
 1) DEFINITIONS (CANON)
 ================================================================================
 
-1.1 Execution Pack (definition)
-An Execution Pack is a time-bound, consumable bundle of implementation constraints
-and execution instructions that converts Control Sync decisions into a deterministic
-execution path across time, chats, agents, and humans.
+1.1 Execution Pack — definition
+An Execution Pack is a bounded execution artifact (single file or pack directory) that constrains
+HOW a specific window of work is to be performed so that the operator cannot casually drift from
+what was decided.
 
-Execution Packs are authored, not filled out.
+One-sentence definition:
+An Execution Pack is a bounded, execution-facing pack that converts settled direction into
+repeatable execution constraints.
 
-They are not rigidly templated, because their contents must match the specific
-situation and risk profile of the work they govern.
+1.2 Scope law
+Execution Packs are local to a bounded execution window.
+They do NOT redefine the whole Subject.
 
-1.2 Control Sync (reference)
-A Control Sync is where decisions are made deliberately. Execution Packs typically
-originate from a Control Sync (directly or immediately after it).
-
-1.3 Guild Orders / Raid / Dungeon / Quest (reference)
-Guild Orders describe objectives for a phase/version.
-A Raid is executing Guild Orders.
-Dungeons are major work slices inside Guild Orders.
-Quests are atomic executable commitments.
-
-Execution Packs are not Guild Orders and not Quests.
-Execution Packs are the “anti-drift work order” that can constrain how a Raid/Quest
-is executed when drift risk is high.
-
-1.4 Snapshots (reference)
-Snapshots are the audit trail of what happened:
-- Control Sync Snapshots: decisions and rationale
-- EOD Snapshots: what was built/tested and what is now true
-- General Snapshots: governance changes
-
-Execution Packs do not replace Snapshots.
-Execution Packs constrain execution; Snapshots record truth after execution.
-
-1.5 Continuity Lock / Bootstrap Prompt (reference)
-- Continuity Lock: state seal (“what is binding and where we resume”)
-- Bootstrap Prompt: stance initializer (“how the next session must behave”)
-
-Execution Packs are commonly referenced by Continuity Locks and enforced by Bootstrap
-Prompts, but they are distinct artifacts.
+1.3 Authority
+During its active window, an Execution Pack is binding for the work it governs.
+If a pack conflicts with chat improvisation, the pack wins.
+If a pack conflicts with higher law (Truth Gate, Disclosure Gate, Codex Freeze, etc.), higher law wins.
 
 ================================================================================
 2) THE CORE INTENT (WHAT AN EXECUTION PACK DOES)
 ================================================================================
 
-Execution Packs exist to do three things:
+An Execution Pack exists to remove the wrong freedoms.
 
-A) Compress context into executable law
-A Control Sync can produce dozens of decisions, constraints, and “don’t do that” rules.
-The Pack compresses those into a form that can be executed later without re-arguing.
+It answers questions like:
+- What is the bounded objective?
+- What is explicitly out of scope?
+- What must not be changed?
+- What must be verified before this window counts as done?
+- What artifacts become the new truth afterward?
 
-B) Remove discretion where discretion causes drift
-Execution Packs intentionally reduce improvisation:
-- the order of work is constrained
-- what cannot be touched is explicit
-- what counts as “done” is explicit
-- what evidence/tests are required is explicit
-
-C) Preserve the “why” enough to prevent backsliding
-Execution Packs are not philosophy documents, but they must preserve the minimal
-rationale required to prevent a future operator from “cleaning up” into disaster.
-
-One sentence summary:
-Execution Packs convert decisions into a resumable, deterministic execution state.
+A good Execution Pack makes execution boring.
 
 ================================================================================
 3) WHEN AN EXECUTION PACK IS WARRANTED (TRIGGERS)
 ================================================================================
 
-Execution Packs are optional; they are not required for every piece of work.
+An Execution Pack is warranted when any of the following are true:
+- execution spans multiple chats/operators
+- the work is drift-sensitive
+- the work has strict boundaries or forbidden refactors
+- verification must be carried along with the task
+- the work is resumed after a delay
+- a Control Sync explicitly says deterministic execution is required
 
-An Execution Pack is warranted when one or more of the following is true:
-
-3.1 Drift risk is high
-- The work spans multiple days or chats.
-- The system is complex enough that “we’ll remember” is a lie.
-- There are many non-obvious constraints.
-
-3.2 The work is substrate/platform-sensitive
-- Engine primitives are missing.
-- The temptation to hack a module into the engine is high.
-- The architecture has strong invariants (no god files, strict separation of WHAT/HOW).
-
-3.3 Verification/auditability matters
-- You must prove that claims are grounded (truth gating, evidence/citations).
-- You need deterministic artifacts, schemas, and immutability rules.
-
-3.4 The scope is multi-step with dependencies
-- There are staged deliverables (“Batch 0A, 0B, 0C…” style).
-- Later steps depend on earlier scaffolding being correct.
-
-3.5 You are handing work across operators
-- Different humans (teammates) will execute.
-- Different AI sessions or different models will execute.
-- You will resume after a long gap.
-
-3.6 “We must not refactor” or “we must not redesign” is a hard constraint
-When you need to freeze behavior and forbid creative rewrites, use an Execution Pack.
-
-An Execution Pack is usually unnecessary when:
-- the work is trivial and can be done in one sitting with low risk
-- the work is exploratory brainstorming only (no execution planned)
-- the work is already fully locked and simple enough to follow with existing canon
+An Execution Pack is NOT required for every movement in the system.
+If the bounded window can be executed safely from current active truth alone, no pack is required.
 
 ================================================================================
 4) WHAT AN EXECUTION PACK IS NOT
 ================================================================================
 
-Execution Packs are not:
-- a Codex
-- a Canonical Vision
-- a marketing doc
-- a roadmap
-- a backlog
-- a quest template
-- a summary dump of everything discussed
+An Execution Pack is NOT:
+- a Continuity Lock
+- a Bootstrap Prompt
+- a Quest Board entry
+- a Snapshot
+- a Codex section
+- a Build Manual chapter
 
-Execution Packs are not permanent law.
-They are operational law for a specific execution window.
-
-Execution Packs are also not “one magic file.”
-A Pack may be one file or many. “Pack” means bundle.
+It does not replace any of those.
+It constrains a bounded execution window.
 
 ================================================================================
 5) SHAPE AND ALLOWED FORMS (NO TEMPLATE LAW)
 ================================================================================
 
-Execution Packs are intentionally non-templated.
-Their contents must be dictated by the work.
+Execution Packs are intentionally flexible.
+They may be:
+- one file
+- multiple files in a pack directory
+- a main file plus appendices
 
-However, a Pack must still be recognizable and complete.
+Law:
+- flexibility of form is allowed
+- ambiguity of authority is not allowed
 
-An Execution Pack may include any combination of the following, as needed:
-
-5.1 Runbook / batch plan
-- ordered steps (“Batch A baseline”, “Batch B storage adapter”, etc.)
-- commands to run
-- expected outputs (“paste back” requirements)
-- acceptance criteria per batch
-
-5.2 Contracts / invariants
-- schemas and required fields
-- immutability rules
-- evidence/citation requirements
-- naming conventions and ID rules
-- adapter/profile constraints
-- “no silent overwrite” storage rules
-
-5.3 Guardrails / non-goals / tripwires
-- explicit “do not touch X”
-- explicit “do not refactor Y”
-- explicit “do not redesign architecture”
-- explicit “do not introduce cloud egress without consent”
-
-5.4 Verification requirements
-- smoke tests and exact test files to run
-- manual verification steps
-- “definition of done” checklist
-
-5.5 Handoff + rehydrate protocol
-- required uploads (zips/docs)
-- what to read first
-- how to orient to repo tree
-- what to do if files differ from expected (fail fast)
-
-5.6 Implementation map
-- bridge document between canon and repo reality
-- “target tree” vs “current tree” and transition strategy
-
-5.7 Risk log (minimal)
-- known failure modes
-- what to do if blocked
-- “do not workaround by violating invariants”
-
-5.8 Pack Index / Read Order (REQUIRED when multi-file)
-If an Execution Pack contains more than one file, it MUST include a single top-level
-index file (name is flexible) that a new operator can open first.
-
-This index file must include:
-- purpose of the pack (one paragraph)
-- the ordered reading list (“read these in this order”)
-- a contents list (all pack files/folders)
-- what the operator should do first after reading (next action)
-
-Rationale:
-A “pack” is only useful if it is navigable. Do not hand someone an unstructured pile
-of documents and call it done.
-
-A Pack may be one file (single-file pack). In that case, the “index” is simply the top
-sections of the file.
-
-A Pack must be coherent and bounded.
-If it becomes a novel, it is drifting into Codex territory.
+Every valid pack must still satisfy MVEP (Section 6).
 
 ================================================================================
 6) MINIMUM VIABLE EXECUTION PACK (MVEP)
 ================================================================================
 
-Even though packs are not templated, every Execution Pack must answer these questions.
-
-If a Pack does not answer these, it is incomplete.
-
-MVEP checklist:
+Every Execution Pack must answer these questions.
+If a pack does not answer them, it is incomplete.
 
 6.1 Identity
 - What is this pack called?
-- What scope does it govern? (System: <SUBJECT> / Module: <SUBJECT> / Other)
-- What triggered it? (one paragraph)
+- What bounded scope does it govern?
+- What triggered it?
 
 6.2 Objective
-- What must be true when this pack is “complete”?
+- What must be true when this pack is complete?
 - What is explicitly out of scope?
 
 6.3 Inputs / prerequisites
@@ -275,17 +140,15 @@ MVEP checklist:
 
 6.6 Verification
 - What tests/proofs are required?
-- What output is expected from verification?
+- What output is expected?
 
 6.7 Stop/Archive condition
 - When is this pack obsolete?
 - Where does it get archived?
-- What artifact(s) become the new truth after completion (snapshots, updated repo zip, etc.)?
+- What artifact(s) become the new truth after completion?
 
 6.8 Navigability
 - If the pack is multi-file, does it include a Pack Index / Read Order file?
-
-If all eight are satisfied, the pack is valid even if it looks “different” than others.
 
 ================================================================================
 7) LIFECYCLE LAW (ACTIVE → OBSOLETE → ARCHIVED)
@@ -295,49 +158,75 @@ If all eight are satisfied, the pack is valid even if it looks “different” t
 Execution Packs are created during or immediately after a Control Sync when the
 need for deterministic execution is identified.
 
-7.2 Active use
-While active, the Execution Pack is binding for the execution it governs.
-Operators (human or AI) must not improvise beyond allowed discretion.
-
-7.2.1 Activation must be explicit (anti-guess)
+7.2 Activation must be explicit (anti-guess)
 An Execution Pack is ACTIVE only when the current execution state explicitly names
-it as binding for this execution window.
+it as binding for the current execution window.
 
-Valid sources include (any one is sufficient):
+Valid active-state sources include:
 - a Control Sync decision captured in the Control Sync Snapshot
 - the Bootstrap Prompt
 - the Continuity Lock
+- explicit Subject-state pointers naming the active pack
 
 If no canonical artifact names an active pack, you MUST NOT assume one is active.
 
-7.3 Completion
+7.3 Active source and mirror rule
+The canonical active source lives under:
+- <Subject>_Data/Docs/Execution Packs/Active/
+
+For rehydration convenience, a single pointer (or mirror metadata file) MAY exist under:
+- <Subject>_Data/Latest Rehydration Pack/Execution Pack/
+
+Rule:
+- the pointer is convenience state
+- the source pack is the execution artifact
+- no Execution Pack may be fabricated merely to fill the Rehydration Pack
+
+7.4 Refresh
+An active Execution Pack is refreshed only when one of the following changes:
+- source path changed
+- source contents/signature changed
+- day rollover requires a new active pointer file
+- the bounded objective changed by lawful Control Sync decision
+
+No-op refreshes must preserve the current active pack/pointer.
+
+7.5 Completion
 A pack is complete when its objective/deliverables are met and verification passes.
 
-7.4 Archive
-Execution Packs are consumable. They must be archived after completion.
+7.6 Archive
+Execution Packs are consumable. They must be archived after completion or when superseded.
 
-Reason:
-A completed pack is no longer an instruction; it is historical record.
-Reusing old packs blindly causes wrong constraints to be applied to new work.
+Archive rule:
+- archive the source pack under:
+  - <Subject>_Data/Docs/Execution Packs/Archived/
+- archive the convenience pointer under:
+  - <Subject>_Data/Archive/Latest Rehydration Pack/Execution Pack/
 
 Archival is not deletion.
-Archived packs are retained for audit and to reuse patterns (not rules).
+Archived packs remain for audit and pattern reuse.
 
-7.5 Update
-If a pack must change mid-execution:
-- do a Control Sync (or mini Control Sync) and record the change
-- update the pack contents (in place; do not create parallel packs)
-- ensure the Continuity Lock references the updated state
+7.7 Missing source rule
+If an active Execution Pack pointer exists but the active source no longer exists:
+- the pointer is invalid
+- rehydration is incomplete
+- repair is required before governed execution can continue
 
-7.6 “Packs do not create new system law” rule (IMPORTANT)
+7.8 Ambiguity rule
+If multiple active Execution Pack sources or multiple active pointers exist and no lawful pointer resolves them:
+- STOP
+- trigger Disclosure Gate
+- repair the active state
+
+7.9 “Packs do not create new system law” rule
 An Execution Pack may constrain execution, but it must not silently create or modify
-system law (Codex, Canonical Vision, or governance canon).
+system law (Codex, Build Manual, governance canon, world-state legality).
 
-If execution reveals a new rule/invariant that must become permanent:
+If execution reveals a permanent rule or invariant:
 - pause execution (or isolate the finding)
 - run a Control Sync
-- update the appropriate canonical document(s)
-- then resume with an updated pack (if needed)
+- update the appropriate canonical artifact(s)
+- then resume with an updated pack if needed
 
 ================================================================================
 8) RELATIONSHIP TO OTHER ARTIFACTS (HOW IT FITS IN THE SYSTEM)
@@ -346,49 +235,49 @@ If execution reveals a new rule/invariant that must become permanent:
 Execution Pack is part of the Synapse Guild Operating System (process), not the Guild body.
 
 Canonical relationships:
-
 - Control Sync produces decisions.
 - Execution Pack converts those decisions into executable constraints + run plans.
-- Guild Orders define the broader campaign objectives (phase/version).
+- Guild Orders define the broader campaign objectives.
 - Quests define atomic commitments.
-- Daily execution (Dailies loop) executes chosen scope.
+- Dailies / governed execution uses the chosen scope.
 - Snapshots record what happened and what is now true.
 - Continuity Lock seals state for cross-chat resumption.
 - Bootstrap Prompt initializes the next session’s stance to obey the above.
 
-Execution Pack does NOT replace Guild Orders/Quests/Snapshots.
+Execution Pack does NOT replace Guild Orders / Quests / Snapshots.
 It constrains execution so those artifacts can be produced without drift.
 
 ================================================================================
 9) REHYDRATION ROLE (HOW EXECUTION PACKS ARE USED ACROSS CHATS)
 ================================================================================
 
-Execution Packs are often included inside a Rehydration Pack.
+Execution Packs are part of rehydration only when one is active.
 
-A Rehydration Pack is a bundle (not a separate required file) that contains the
-minimum artifacts to resume work without drift.
+A Rehydration Pack is the minimum bundle required to resume work without drift.
+Execution Pack’s role inside rehydration is:
+- tell the new operator how the bounded work is currently constrained
+- prevent re-deciding or improvising
+- carry verification boundaries along with the work
 
-Execution Pack’s role inside rehydration:
-- it tells the new operator “how to execute” the bounded work
-- it prevents re-deciding or improvising
-- it ensures verification and boundaries remain enforced
+Rehydration rule:
+- If an active Execution Pack exists, the Rehydration Pack must expose it through the single active pointer.
+- If no active Execution Pack exists, the Rehydration Pack must not invent one.
 
-Typical rehydration bundle for execution:
+Typical rehydration bundle for governed execution:
 - Continuity Lock (state + resume point)
 - Bootstrap Prompt (stance + read order)
-- Active Execution Pack (if active work requires it)
-- Latest Snapshots (Control Sync + EOD relevant)
-- Active Guild Orders (if raid active)
+- Active Execution Pack pointer (if active)
+- Latest relevant Snapshots
+- Active Guild Orders (if a Raid is active)
 - Accepted Quests (commitments)
-- Relevant Codex/Vision/contracts
-- Updated repo/data zip(s)
+- Relevant Codex / Build Manual / contracts
 
 ================================================================================
 10) DISCRETION LAW (WHAT THE OPERATOR MAY DECIDE)
 ================================================================================
 
-Execution Packs remove discretion in drift-sensitive areas, but they do not eliminate
-all discretion. A pack must define where the operator can decide.
+Execution Packs remove discretion in drift-sensitive areas, but they do not eliminate all discretion.
+A pack must define where the operator may decide.
 
 Allowed discretion (typical):
 - minor implementation details that do not violate invariants
@@ -398,13 +287,13 @@ Allowed discretion (typical):
 
 Forbidden discretion (typical):
 - refactoring architecture when the pack says “no refactor”
-- changing immutability/truth rules to “make it easier”
-- bypassing consent rules for network egress
+- changing truth/immutability rules to “make it easier”
+- bypassing consent or disclosure rules
 - claiming work was done without verification artifacts/results
 - silently overwriting durable artifacts
-- changing module boundaries (WHAT/HOW separation) without governance decision
+- changing module boundaries without governance decision
 
-If an operator hits a decision that feels “architectural,” pause and trigger a Control Sync.
+If a decision feels architectural, pause and trigger a Control Sync.
 
 ================================================================================
 11) PACK STRUCTURE AND STORAGE (FILE SYSTEM LAW)
@@ -413,16 +302,13 @@ If an operator hits a decision that feels “architectural,” pause and trigger
 Execution Packs are subject-state artifacts.
 They belong in <Subject>_Data (not in <Subject>_Engine and not in Governance).
 
-Execution Packs should have first-class storage, like Snapshots and Guild Orders.
-
-Canonical default storage (inside the SUBJECT data bundle):
-- `<Subject>_Data/Docs/Execution Packs/Active/`
-- `<Subject>_Data/Docs/Execution Packs/Archived/`
+Canonical storage:
+- <Subject>_Data/Docs/Execution Packs/Active/
+- <Subject>_Data/Docs/Execution Packs/Archived/
 
 Optional convenience mirror:
-- The single most recent pack (or its pointer file) may be placed in `<Subject>_Data/Latest Rehydration Pack/`.
-
-A Pack is usually a folder (or a set of files) with a shared prefix.
+- <Subject>_Data/Latest Rehydration Pack/Execution Pack/
+- <Subject>_Data/Archive/Latest Rehydration Pack/Execution Pack/
 
 Naming convention (recommended):
 EXEC_PACK__<SCOPE>__<TOPIC>__YYYY-MM-DD__vX/
@@ -433,48 +319,38 @@ Examples:
 - EXEC_PACK__<SUBJECT>__BATCH_0_ENGINE_EXPANSION__2026-01-13__v1/
 - EXEC_PACK__<SUBJECT>__V1_CONTRACTS_AND_PIPELINE__2026-01-13__v1/
 
-Archive convention:
-When complete, move the entire pack folder into Archived unchanged.
-
 Rule:
-Active packs must be obvious to find.
-Archived packs must be preserved, not edited.
+- Active packs must be obvious to find.
+- Archived packs must be preserved, not edited.
+- Active pointer files in the Rehydration Pack must resolve cleanly to active sources.
 
 ================================================================================
 12) CASE STUDIES (WHY PACKS DIFFER)
 ================================================================================
 
-These are examples to demonstrate that packs are situational by design.
+These examples demonstrate that packs are situational by design.
 
-12.1 <SUBJECT> “Batch 0 Engine Expansion” pack (platform substrate)
+12.1 Platform substrate pack
 Trigger:
-<SUBJECT> could not be built cleanly because <SUBJECT> lacked platform primitives.
+The Subject could not be built cleanly because platform primitives were missing.
 Constraint:
-No <SUBJECT>-specific code in core. Additive changes only. No router refactor.
-Contents:
-StorageAdapter, Results, Profiles/Consent, Truth spine, Module registry, Meetings session stub.
+No subject-specific code in core. Additive changes only. No router refactor.
 Outcome:
 Pack archived after primitives implemented and smoke tests passed.
 
-12.2 <SUBJECT> v1 contracts pack (module build invariants)
+12.2 Contracts pack
 Trigger:
 Long design conversation with high drift risk and many subtle invariants.
 Constraint:
 Artifact immutability, evidence/citations, indexing minimum, resume rules, adapter matrix.
-Contents:
-Artifact versioning, error taxonomy/resume, ID conventions, retrieval/indexing contract,
-truth/evidence contract, profile/adapter matrix, architecture mapping.
 Outcome:
-Pack remains active until <SUBJECT> v1 raid is completed; then archived.
+Pack remains active until the governed window is complete; then archived.
 
-12.3 Hypothetical game build pack (design-to-implementation freeze)
+12.3 Hypothetical design-to-implementation pack
 Trigger:
 Long Control Sync defining world rules, progression, and core constraints.
 Constraint:
 Forbid premature coding of features until rules are locked; preserve design invariants.
-Contents:
-Rules of the world, entity constraints, state/save model, staging plan (content first, code later),
-verification steps (golden tests or sim harness).
 Outcome:
 Pack archived when the phase is complete; a new pack may be authored for the next phase.
 
@@ -490,23 +366,19 @@ Once this law is accepted, the following phrases are valid commands:
 Meaning:
 Create the pack’s file(s), name them, and ensure the pack is navigable and complete.
 If the pack is multi-file, produce a Pack Index / Read Order file first.
-Ensure the pack satisfies MVEP (Section 6) before declaring it “ready.”
-
-- “We need an Execution Pack for this Control Sync.”
-Meaning:
-Same as above. It is valid shorthand once the term is understood.
+Ensure the pack satisfies MVEP before declaring it ready.
 
 - “Activate this Execution Pack.”
 Meaning:
 Treat it as binding for the current work; obey constraints; produce required proofs.
 
+- “Refresh the Execution Pack.”
+Meaning:
+A lawful change affected the active pack; update the source and active pointer without creating ambiguous parallel packs.
+
 - “Archive this Execution Pack.”
 Meaning:
-The pack’s objective is done; move it to Archived; record EOD snapshot; continue.
-
-- “Update the Execution Pack.”
-Meaning:
-A Control Sync decision changed constraints; update the pack; re-lock continuity.
+The pack’s objective is done or superseded; move the source and pointer to archive; continue.
 
 ================================================================================
 14) QUALITY BAR (WHAT MAKES A PACK “GOOD”)
@@ -518,14 +390,7 @@ You should be able to:
 - resume after a week and not re-decide
 - hand the pack to another operator and get consistent output
 - prove what happened via tests/artifacts/snapshots
-- avoid “quick hacks” because boundaries are explicit
-
-A bad Execution Pack:
-- is a vague summary without constraints
-- does not specify what is forbidden
-- does not specify verification
-- forces re-interpretation during execution
-- causes “we forgot why we did this” backsliding
+- know immediately whether a pack is active, missing, or obsolete
 
 ================================================================================
 END OF DOCUMENT

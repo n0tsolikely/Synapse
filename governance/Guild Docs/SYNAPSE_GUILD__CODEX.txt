@@ -1,5 +1,5 @@
-# SYNAPSE GUILD — CODEX (v1.4)
-Last Updated: 2026-02-14
+# SYNAPSE GUILD — CODEX (v1.5)
+Last Updated: 2026-03-13
 ================================================================================
 0) DEFINITION
 ================================================================================
@@ -12,24 +12,32 @@ Aliases (routing, non-optional):
 - TOC = Legend
 
 Purpose:
-- Eliminate ambiguity before execution.
-- Freeze an agreed structure + constraints so implementation becomes deterministic.
+- Eliminate ambiguity around what the Subject IS.
+- Preserve the Subject so it can be rebuilt, resumed, or reasoned about without guessing.
+- Give execution a stable constitutional spine once that spine is ready to be frozen.
 
 Non-negotiable rule:
 - Conversation is INPUT ONLY.
 - The Codex (and other Subject_Data artifacts) are AUTHORITY.
 
+The Codex is NOT the same as:
+- Build Manual (HOW to make the Codex true)
+- Talent Tree (what capabilities are known to exist now)
+- Quest Board (what work is proposed / formalized / accepted)
+- REHYDRATE / VISION surfaces (compressed current-state orientation)
+
 ================================================================================
-1) WORLD STATE (FOG OF WAR → FOG LIFTED)
+1) WORLD STATE + CODEX MATURITY
 ================================================================================
 
 Default state for new Subjects is Fog of War.
 
 While Fog of War is active:
-- Exploration and ideation are allowed.
-- Discoveries are captured (pre-Codex truth units).
+- Discovery, drafting, and structural clarification are allowed.
 - The TOC and Codex may be drafted.
-- Execution is forbidden (no Quests, no Raids).
+- The Codex may grow section-by-section alongside the work.
+- Ambient quest detection, candidate drafting, and BOARD drafting may occur where lawful.
+- Governed execution is forbidden.
 
 Fog is lifted ONLY by Codex Freeze.
 Gate condition (must both be true):
@@ -39,9 +47,20 @@ Gate condition (must both be true):
 
 If the marker file does not exist, the system MUST assume World State remains Fog of War.
 
-A TOC alone does not authorize execution.
-A draft Codex alone does not authorize execution.
+A TOC alone does not authorize governed execution.
+A draft Codex alone does not authorize governed execution.
 Only Codex Freeze does.
+
+Important clarification:
+- Codex Freeze does NOT require the Codex to become a perfect encyclopedia before any serious movement can occur.
+- Codex Freeze requires that the Codex spine is stable enough that governed execution will not constantly invalidate itself.
+- The Codex may continue to evolve after Freeze, but structural meaning changes MUST be deliberate and recorded.
+
+Recommended maturity language while Fog remains active:
+- Codex Seed: enough truth to begin orienting the Subject
+- Codex Draft: multiple sections exist, but the Subject is still being discovered
+- Codex Spine: core structure and governing meaning are stable enough to freeze once approved
+- Codex Frozen: governed execution is legal
 
 ================================================================================
 2) CODEX ARTIFACTS (STRUCTURE + STORAGE)
@@ -90,6 +109,10 @@ The Codex MUST explicitly distinguish:
 - MAY / optional
 - DEFERRED (explicitly deferred; not hand-waved)
 
+The Codex is written as if the Subject already exists.
+That means it records the Subject’s governing truth, not the operator’s temporary uncertainty.
+If truth is still unknown, keep it in Incubation / Discovery surfaces until it can be stated without lying.
+
 ================================================================================
 4) CODEX PURITY RULE (NOT AN EXECUTION PLAN)
 ================================================================================
@@ -108,6 +131,17 @@ Those belong in Subject Data (examples):
 - <Subject>_Data/Quest Board/
 - <Subject>_Data/Audits/
 - <Subject>_Data/Snapshots/
+
+The Codex is also NOT the Build Manual.
+- The Codex states WHAT is true.
+- The Build Manual states HOW to make or maintain that truth without redefining it.
+
+The Codex is also NOT the Talent Tree.
+- The Codex may describe intended and governing capabilities.
+- The Talent Tree records currently evidenced capability unlocks and durable capability growth.
+
+A concise VISION surface MAY exist for fast orientation.
+That surface is subordinate to the Codex and MUST NOT replace it.
 
 ================================================================================
 5) CODEX QUALITY BAR (NO GUESSING)
@@ -137,6 +171,11 @@ Codex formation is governed by The Loop:
 Key rule:
 - The TOC MUST be derived from discovered and captured decisions, not guesses.
 
+Clarification:
+- In the ambient sidecar model, Codex growth may proceed alongside lawful drafting, candidate detection, and exploratory work.
+- This does NOT make governed execution legal.
+- It means the Codex is allowed to mature while the Subject is still under Fog.
+
 When the Codex is large, use:
 - Processes/SYNAPSE_GUILD__LARGE_ARTIFACT_COMPOSITION.txt
 
@@ -152,8 +191,8 @@ TOC MUST:
 - be complete enough that “write section X” is unambiguous
 
 TOC MUST NOT:
-- imply execution readiness
-- imply completeness of decisions
+- imply governed execution readiness by itself
+- imply completeness of decisions by itself
 
 --------------------------------------------------------------------------------
 6.2 Section-by-section build loop (inner loop)
@@ -180,9 +219,9 @@ If the section audit fails:
 - re-audit
 - do not advance to the next TOC entry
 
-Receipt placement (Fog of War):
-- If the system is generating Codex artifacts during incubation, receipts belong in the Control Sync Snapshot(s)
-  (this is not Quest execution).
+Receipt placement while Fog remains active:
+- If the system is generating Codex artifacts during incubation, receipts belong in the appropriate ambient continuity surfaces and Control Sync outputs.
+- This is not the same as governed Quest execution.
 
 --------------------------------------------------------------------------------
 6.3 Stitch + verification (Codex Full)
@@ -204,7 +243,7 @@ Verification is mandatory before any claim of completion:
 
 Codex Freeze is illegal until:
 - the TOC exists
-- all required sections exist
+- all required sections for the Codex spine exist
 - the full stitch exists
 - stitch verification is performed
 
@@ -214,7 +253,7 @@ Freeze procedure:
    - include date/time
    - include Brains approval
 
-If CODEX_FREEZE.md does not exist, execution remains forbidden.
+If CODEX_FREEZE.md does not exist, governed execution remains forbidden.
 
 ================================================================================
 7) CODEX UPDATES (CONTROLLED CHANGE)
@@ -233,6 +272,9 @@ If the Codex is already frozen and the change affects structure, constraints, or
 - Brains must explicitly re-authorize
 - update CODEX_FREEZE.md accordingly
 
+Routine ambient growth while the Codex is still under Fog does not require pretending the Codex is frozen.
+It requires truthful tracking of what is now known and what remains unstable.
+
 ================================================================================
 8) USING THE CODEX (REFERENCES)
 ================================================================================
@@ -241,7 +283,6 @@ Guild Orders, Dungeons, and Quests MUST reference the Codex by TOC/section numbe
 
 Rule:
 - If work cannot be traced back to a Codex section (or an explicitly deferred decision), it is not execution-ready.
-
 
 Clarification — anchors are about intent class, not exact nouns:
 - Codex anchors do NOT require that the exact feature name appears in the Codex

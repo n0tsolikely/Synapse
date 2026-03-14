@@ -1,6 +1,6 @@
 SYNAPSE GUILD — QUESTS (CANON)
-Version: v1.2
-Last Updated: 2026-02-06
+Version: v1.3
+Last Updated: 2026-03-13
 Status: Governance Law (changes require Governance Control Sync)
 
 Maintainer: Brains (Peter) with Hands (Ash)
@@ -27,9 +27,10 @@ This requires deterministic handoff:
 QUEST vs SIDE-QUEST (NAMING + ORIGIN)
 ────────────────────────────────────────────────────────
 Definitions:
-- QUEST_### : A quest explicitly derived from an ACTIVE Guild Orders document (part of the current Raid plan).
-- SIDE-QUEST_### : A quest created ad-hoc during work sessions or Control Syncs to address discovered bugs,
-  unblock progress, or capture non-planned work.
+- QUEST_### : A canonical quest artifact representing a bounded unit of work. It may be derived
+  from ACTIVE Guild Orders OR lawfully formalized from deterministic ambient runtime signals.
+- SIDE-QUEST_### : A canonical quest artifact representing ad-hoc, discovered, or out-of-scope work
+  surfaced during work sessions, runtime capture, or formal planning.
 
 Rules:
 - QUEST and SIDE-QUEST follow the same lifecycle and evidence rules:
@@ -122,6 +123,11 @@ Quests are NOT:
 
 If something cannot be finished and verified on its own, it is not a Quest yet.
 
+Important distinction:
+- Ambient runtime candidates are not yet Quests.
+- BOARD files are canonical quest artifacts.
+- ACCEPTED files are governed execution commitments.
+
 ================================================================================
 4) SOURCES OF QUESTS (WHERE THEY COME FROM)
 ================================================================================
@@ -149,6 +155,22 @@ These may exist outside active Guild Orders.
 - Renaming or reorganizing artifacts
 - Improving the operating system itself
 
+4.5 From ambient runtime detection (upstream quest shaping)
+Synapse may lawfully detect recurring, bounded work from recorded runtime truth such as:
+- active run titles and plan items
+- commands
+- changed files
+- verification entries
+- decision / discovery / disclosure surfaces
+- current accepted quest or active Guild Orders context
+
+Rules:
+- Ambient candidate state lives under the sidecar proposal surface.
+- Ambient candidates are upstream structure, not yet canonical quest commitment.
+- When the recorded evidence is sufficient to state a truthful, bounded Quest,
+  Synapse MAY draft a canonical BOARD quest file.
+- That drafting act does NOT accept the Quest.
+
 Not all Quests are born from Guild Orders.
 That is intentional.
 
@@ -173,9 +195,9 @@ Canonical locations (see: Quest Board/SYNAPSE_GUILD__QUEST_BOARD.txt):
   <Subject>_Data/Quest Board/Abandoned/
 
 Rules:
-- A Quest becomes committed work only when it is ACCEPTED.
-- ACCEPTED implies intent to execute.
-- Work MUST NOT begin on a Quest that is not ACCEPTED.
+- A Quest becomes committed governed work only when it is ACCEPTED.
+- ACCEPTED implies intent to execute as official governed work.
+- A BOARD quest is a canonical proposal / ready artifact, not yet an execution commitment.
 
 World State Gate (execution legality):
 - Under Fog of War, Quests may be drafted on BOARD, but MUST NOT be ACCEPTED.
@@ -186,6 +208,21 @@ See:
 - Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt
 - The Guild/Terminology/Locks/LOCK__FOG_OF_WAR.md
 - The Guild/Terminology/Locks/LOCK__CODEX_FREEZE_FOG_LIFTED.md
+
+5.1 What may happen before ACCEPTED
+The existence of a Quest candidate or a BOARD quest does not by itself mean governed execution has begun.
+
+Allowed before ACCEPTED (subject to World State and other gates):
+- ambient detection
+- candidate clustering
+- BOARD drafting
+- alignment and refinement
+- exploratory or non-governed movement recorded by the sidecar under separate law
+
+Forbidden before ACCEPTED:
+- claiming the Quest is official governed execution
+- claiming the Quest has been completed as governed work
+- using a BOARD quest as proof that a Raid is already underway
 
 ================================================================================
 6) QUEST CREATION (WHEN AND HOW)
@@ -203,12 +240,20 @@ Do NOT create a Quest when:
 - decisions are unresolved
 - scope cannot be bounded
 
-In that case, keep it as a note or discuss it in a Control Sync first.
+In that case, keep it as a note, candidate, or discuss it in a Control Sync first.
 
 6.2 How Quests are created
+Canonical BOARD quests may be created in three lawful ways:
+- Brains authors the Quest directly
+- a formal Control Sync decides and drafts the Quest
+- the ambient runtime formalizes a quest candidate into BOARD when the recorded evidence is sufficient to state the Quest truthfully
+
+Rules:
 - Quests MUST be created using the canonical Quest Template.
 - One Quest = one file.
 - The Quest file lives on the Quest Board in BOARD state until accepted.
+- If title, objective, scope, or verification cannot be stated truthfully from the available evidence,
+  the candidate MUST remain upstream and MUST NOT be forced into BOARD.
 
 See:
 - Quest Board/QUEST_TEMPLATE.txt
@@ -218,22 +263,28 @@ See:
 7) QUEST EXECUTION (HOW WORK HAPPENS)
 ================================================================================
 
-Quests are executed through the Dailies loop.
+Accepted Quests are executed through the Dailies loop.
 
 High-level flow (summary):
-1) Control Sync — alignment + decide scope (which Quests to accept and/or execute today)
-2) Accept Quest(s) — move valid Quests to ACCEPTED
-3) Implement — execute accepted Quests (Quest Mini-Loop)
-4) System Verification — test/verify the system as appropriate for the Subject
-5) Snapshot — record what changed and why
-6) Stop / Resume
+1) Rehydrate + review active truth
+2) Decide whether formal Control Sync is required
+3) Accept Quest(s) or carry forward accepted scope
+4) Implement — execute accepted Quests (Quest Mini-Loop)
+5) System Verification — test/verify the system as appropriate for the Subject
+6) Snapshot + Continuity — record what changed and why
+7) Stop / Resume
 
-The Dailies document is authoritative for the full daily execution topology.
+The Dailies document is authoritative for the full governed execution topology.
 See:
 - Processes/SYNAPSE_GUILD__DAILIES.txt
 
 Quests do not dictate *how* work is done.
 They define *what must be true* when work is finished.
+
+Important distinction:
+- Ambient quest formation may continue before, during, and after governed execution.
+- That upstream shaping does not itself begin governed execution.
+- Governed quest execution begins only after ACCEPTED state exists.
 
 ================================================
 7.1 EXECUTION AUDITS (COMPLETION REQUIREMENT)
@@ -346,10 +397,12 @@ Quests define execution commitments.
 Guild Orders:
 - answer “what are we building in this phase?”
 - are few and stable
+- may be drafted in PAUSED before governed execution begins
 
 Quests:
 - answer “what are we doing next?”
 - are many and transient
+- may emerge first as ambient candidates, then BOARD artifacts, then ACCEPTED work
 
 A Quest may exist without Guild Orders.
 Guild Orders are executed through Quests.
@@ -373,6 +426,7 @@ A bad Quest:
 
 Quality gate:
 - If a Quest is vague or non-executable, it MUST NOT be ACCEPTED.
+- If a candidate cannot yet state a truthful Quest, it MUST remain upstream until it can.
 - Fix the Quest (or decompose it into smaller Quests) first.
 
 ================================================================================
@@ -383,7 +437,8 @@ Once this law is accepted, the following phrases are valid:
 
 - “Create a Quest.”
 Meaning:
-Author a new atomic work commitment using the Quest Template and place it in BOARD state.
+Author a new atomic work commitment using the Quest Template and place it in BOARD state,
+or lawfully formalize a truthful ambient candidate into BOARD.
 
 - “Accept this Quest.”
 Meaning:

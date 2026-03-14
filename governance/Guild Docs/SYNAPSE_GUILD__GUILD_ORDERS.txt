@@ -1,6 +1,6 @@
 SYNAPSE GUILD — GUILD ORDERS (CANON)
-Version: v1.3
-Last Updated: 2026-02-14
+Version: v1.4
+Last Updated: 2026-03-13
 Status: Governance Law (changes require Governance Control Sync)
 
 Maintainer: Brains (Peter) with Hands (Ash)
@@ -13,22 +13,19 @@ Audience:
 0) PURPOSE OF THIS DOCUMENT
 ================================================================================
 
-This document defines what **GUILD ORDERS** are, why they exist, and how they are
-used.
+This document defines what **GUILD ORDERS** are, why they exist, and how they are used
+inside the Synapse Guild Operating System.
 
-After reading this document, the phrase:
+After reading this document, the phrase “Create Guild Orders” MUST be sufficient
+instruction for any compliant operator (human or AI).
 
-  “Create Guild Orders.”
+This requires deterministic handoff:
+- A Guild Orders artifact MUST be interpretable by an operator who did not write it.
+- If the intended scope, boundaries, or done definition depend on implicit context,
+  the Orders are invalid for execution.
 
-MUST be sufficient instruction for any compliant operator (human or AI).
-
-Guild Orders are a core governance primitive.
-They define **WHAT** we are committing to build in the current build scope, and
-what **DONE** means.
-
-Guild Orders are an artifact.
-Conversation is input.
-**The Guild Orders file is authority.**
+Guild Orders are the canonical scope artifact of the Synapse Guild.
+They define what is being built now.
 
 This is governance law.
 
@@ -94,6 +91,7 @@ Guild Orders are NOT:
 - a step-by-step plan
 - an execution script
 - an Execution Pack
+- an ambient sidecar proposal record
 
 Guild Orders do not prescribe HOW work is done.
 They declare WHAT must be accomplished and what DONE means.
@@ -109,20 +107,30 @@ Rule:
 - If a competent operator must ask “what did you mean?”, then the Orders are
   incomplete and MUST be clarified before execution continues.
 
+3.4 Canonical Orders vs ambient scope shaping
+Synapse may surface:
+- Guild Order candidates
+- repeated scope clusters
+- sidecar summaries suggesting stable bodies of work
+
+Those surfaces are useful, but they are not Guild Orders.
+Guild Orders begin only when a canonical Guild Orders artifact exists in the
+Guild Orders filesystem surface.
+
 ================================================================================
 4) STRUCTURE: RAIDS AND DUNGEONS (CANON)
 ================================================================================
 
 4.1 Raids
-A **RAID** is the execution state of a Guild Orders document.
+A **RAID** is the governed execution state of a Guild Orders document.
 
 Raid states (state by location; see Section 6):
-- ACTIVE — Guild Orders are currently being executed
-- PAUSED — execution is intentionally halted
+- ACTIVE — Guild Orders are currently being executed as governed work
+- PAUSED — execution is intentionally halted or not yet lawfully started
 - COMPLETED — all objectives are satisfied
 
 A Raid is NOT a section inside the document.
-A Raid is the act of executing the Guild Orders.
+A Raid is the act/state of executing the Guild Orders.
 
 (See also: `The Guild/Terminology/Terms/Raid.md`.)
 
@@ -146,6 +154,8 @@ Dungeons decompose into **Quests**.
 
 - A Dungeon may produce one Quest OR many Quests.
 - The number of Quests is determined by atomicity.
+- Ambient candidate clustering may help reveal likely Quests, but canonical Dungeon execution
+  still proceeds through BOARD and ACCEPTED Quest artifacts.
 
 Atomicity rule:
 - If the work cannot be completed and verified independently as a single unit,
@@ -185,7 +195,6 @@ Vision Delta rules:
 Repo reality / anti-duplication:
 - Pre-Quest Vision Alignment (Orientation + Repo Orientation receipts) is required
   before any state changes, per `Processes/SYNAPSE_GUILD__EXECUTION_AUDITS.txt`.
-
 
 ================================================================================
 5) STRUCTURE REQUIREMENTS (MINIMUM SPEC; NO FULL TEMPLATE)
@@ -250,13 +259,14 @@ Guild Orders live in Subject Data under:
 - `<Subject>_Data/Guild Orders/COMPLETED/`
 
 State is defined by location:
-- If a Guild Orders file is in ACTIVE, it is eligible for execution.
-- If it is in PAUSED, it MUST NOT be executed until resumed.
+- If a Guild Orders file is in ACTIVE, it is eligible for governed execution.
+- If it is in PAUSED, it is not currently executing.
 - If it is in COMPLETED, it is done.
 
 Drafting rule (removes the “missing pre-active state” ambiguity):
 - A new Guild Orders document MUST be authored in PAUSED.
-- It may move to ACTIVE only when Brains starts the Raid.
+- Drafting in PAUSED is lawful under Fog of War.
+- It may move to ACTIVE only when Brains starts the Raid and World State law permits governed execution.
 
 Multi-raid rule:
 - Multiple raids may exist at once.
@@ -283,7 +293,7 @@ When a Raid completes:
   The proof bundle for each Quest.
 
 - Dailies Loop:
-  Day-to-day execution rhythm.
+  Day-to-day governed execution rhythm.
 
 - Snapshots:
   Durable continuity of decisions, actions, outcomes, and blockers.
@@ -299,12 +309,18 @@ Guild Orders are the canonical scope artifact for build execution.
 
 Rule:
 - If Brains intends to execute work across multiple Quests, multiple sessions, or
-  multiple operators, Guild Orders MUST exist.
+  multiple operators as a coherent governed effort, Guild Orders MUST exist.
 
 If the intended work is truly trivial and isolated:
 - Brains MAY choose to execute it as a single Quest without creating a full
   Guild Orders document, BUT that exception MUST be explicitly declared in
   Control Sync and recorded in the Control Sync Snapshot.
+
+Ambient rule:
+- During early shaping or Fog of War, recurring scope may become visible before a formal
+  Guild Orders document is authored.
+- That signal is useful, but it does not replace the need for canonical Guild Orders once
+  governed multi-quest execution is intended.
 
 Default:
 - If uncertain, create Guild Orders.
@@ -322,21 +338,25 @@ Canonical lifecycle:
 2) Guild Orders are authored (PAUSED)
 - Scope statement + Done definition are written.
 - Dungeons are written using the minimum Dungeon spec.
+- This drafting may occur before Fog is lifted.
 
 3) Brains starts the Raid
 - Guild Orders file moves PAUSED → ACTIVE.
 - Control Sync records the start.
+- This requires World State law to permit governed execution.
 
 4) Quests are derived
 - Atomic work is derived from each Dungeon.
 - Quests are written using the Quest Template.
+- Ambient runtime shaping may assist the drafting path, but ACCEPTED execution still depends on canonical Quest state.
 
 5) Quests are accepted intentionally (Scope Commitment)
-- Only Accepted quests may be executed.
+- Only Accepted quests may be executed as governed work.
 
 6) Execution proceeds via Dailies
-- Control Sync → Scope Commitment → Implement (Quest mini-loop) → System
-  Verification → Snapshot → Stop/Resume
+- Rehydrate + review active truth → decide whether formal Control Sync is required →
+  accept or carry forward scope → implement (Quest mini-loop) → system verification →
+  snapshot + continuity → stop / resume
 
 7) Completion
 - All Dungeons are satisfied.
@@ -398,11 +418,11 @@ Author the authoritative scope and objectives for a build effort.
 
 - “Start a Raid.”
 Meaning:
-Begin executing the Guild Orders (PAUSED → ACTIVE).
+Begin governed execution of the Guild Orders (PAUSED → ACTIVE).
 
 - “Pause the Raid.”
 Meaning:
-Intentionally halt execution (ACTIVE → PAUSED).
+Intentionally halt governed execution (ACTIVE → PAUSED).
 
 - “Complete the Raid.”
 Meaning:

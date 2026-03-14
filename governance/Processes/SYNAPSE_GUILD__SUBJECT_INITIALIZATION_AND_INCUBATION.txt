@@ -1,35 +1,42 @@
 SYNAPSE — SUBJECT INITIALIZATION + INCUBATION (FOG OF WAR) (CANON)
-Version: v1.4
-Last Updated: 2026-02-09
+Version: v1.5
+Last Updated: 2026-03-12
 Status: Governance Law (changes require Governance Control Sync)
 
 NOTE (DISAMBIGUATION):
 - “Continuity Bootstrap Prompt” rehydrates an AI session.
-- “Subject Initialization” creates a new project workspace (<Subject>_Data) when no Subject exists yet.
+- “Subject Initialization” creates or attaches a project workspace (<Subject>_Data) when no Subject continuity root exists yet.
 
 LOCK PRECEDENCE:
 - If this document conflicts with any Terminology Lock, the Lock wins.
   - Especially: The Guild/Terminology/Locks/LOCK__SUBJECT_DATA_SKELETON.md
+  - Especially: The Guild/Terminology/Locks/LOCK__ENGINE_VS_DATA.md
+  - Especially: The Guild/Terminology/Locks/LOCK__FOG_OF_WAR.md
   - Especially: The Guild/Terminology/Locks/LOCK__CODEX_FREEZE_FOG_LIFTED.md
 
 # SYNAPSE — SUBJECT INITIALIZATION + INCUBATION (FOG OF WAR)
-*(Beginning State / Idea Formation / Non-Executable Execution State)*
+*(Beginning State / Existing Repo Adoption / Pre-Freeze Structure Formation)*
 
 ---
 
 ## 0) PRIME PURPOSE
 
-Synapse must support a true beginning:
-- Brains has an idea
-- there is no Subject workspace yet (no <Subject>_Data)
-- there is no frozen Codex yet (Fog of War)
+Synapse must support a true beginning in both of the ways a real Subject begins:
+- Brains has an idea and there is no Subject workspace yet, OR
+- Brains already has an Engine/repo and wants Synapse to attach without pretending the project began today.
+
+At initialization time:
+- there may be no `<Subject>_Data` yet
+- there may be no frozen Codex yet (Fog of War)
+- the Subject may still be poorly defined
+- work may already exist in an Engine
 - nothing gets lost
-- execution does not begin early
+- governed execution does not begin early
 
 This document defines:
-1) how to initialize a Subject workspace from nothing (create <Subject>_Data)
+1) how to initialize a Subject workspace from nothing or by attaching to an existing Engine
 2) how incubation behaves while World State is Fog of War (pre-freeze)
-3) how the system transitions from captured ideas → TOC → Codex → Codex Freeze deterministically
+3) how the system transitions from captured ideas and emerging structure → TOC → Codex → Codex Freeze deterministically
 
 Startup clarification:
 - `<SUBJECT>` is documentation notation only.
@@ -38,6 +45,7 @@ Startup clarification:
   - `python3 runtime/synapse.py engage`
   - `python3 runtime/synapse.py focus`
   - `python3 runtime/synapse.py resolve-subject`
+  - `python3 runtime/synapse.py attach-or-init`
 - If a prior focus lock exists, startup should continue, switch, or create a subject rather than silently defaulting to placeholder values.
 
 ---
@@ -66,16 +74,44 @@ Slug constraints (minimum; deterministic):
 
 The Subject key is used for folder naming:
 - `<Subject>_Data`
-- `<Subject>_Engine` (created at build kickoff, unless already provided)
+- `<Subject>_Engine` (created at build kickoff unless one already exists and Brains adopts it as canonical)
 
-### 1.2 Create canonical Subject root (Data-first rule)
+### 1.2 Initialization paths (greenfield vs adoption)
+
+Subject initialization now has two lawful entry paths:
+
+**A) Greenfield initialization**
+- there is no existing canonical Engine yet
+- Synapse creates `<Subject>_Data/`
+- Codex/Legend/structure begin from capture and drafting
+- any early motion remains under Fog of War
+
+**B) Existing Engine / repo adoption**
+- Brains provides an existing Engine/repo and requests it be treated as canonical
+- Synapse creates `<Subject>_Data/` beside or alongside that Engine
+- the existing Engine becomes the canonical Engine root for the Subject
+- Synapse MUST NOT pretend the project began at adoption time
+
+Adoption rule:
+- Existing work may be inspected, mapped, and summarized
+- inferred understanding from code/history/docs is PROVISIONAL until Brains confirms or corrects it
+- adoption must not fabricate false past Quests, false past Guild Orders, or false historical certainty
+
+Strong recommendation (not a block):
+- After adoption, Brains SHOULD hold an alignment / Control Sync to confirm:
+  - what the Subject is
+  - current purpose and scope
+  - major capabilities already present
+  - what is still unclear or provisional
+
+### 1.3 Create canonical Subject root (Data-first rule)
 
 If it does not already exist, Hands MUST create:
 - `<Subject>_Data/`  (stateful continuity + governance artifacts + idea capture)
 
 Default rule (non-negotiable unless Brains overrides):
 - New Subjects start with **Data only**.
-- `<Subject>_Engine/` is created at **Build Kickoff (post‑Codex Freeze)**.
+- `<Subject>_Engine/` is created at **Build Kickoff (post-Codex Freeze)**.
 
 Hands MUST NOT create `<Subject>_Engine/` during Fog of War unless one of the following is true:
 - Brains provides an existing engine/repo and requests it be treated as canonical, OR
@@ -90,7 +126,28 @@ Clarification:
   - game → project files
   - essay → the essay itself
 
-### 1.3 Create mandatory `<Subject>_Data` skeleton (locked)
+### 1.4 Existing Engine / repo adoption (deterministic)
+
+When adopting an existing Engine/repo, Hands MUST:
+1) preserve the Engine as the canonical deliverable root
+2) create the canonical `<Subject>_Data/` continuity root
+3) create the mandatory Subject skeleton + Buffs + startup continuity artifacts
+4) establish the ambient sidecar surfaces under `<Subject>_Data/.synapse/`
+5) treat all inferred understanding as provisional until corrected or stabilized
+
+Hands MUST NOT, during adoption:
+- invent false historical Quests as if they were witnessed in real time
+- invent false historical Guild Orders / Raids from weak evidence
+- claim Codex Freeze from existing code alone
+- claim governed execution readiness merely because an Engine already exists
+
+Hands MAY, during adoption:
+- derive a provisional Codex seed
+- derive provisional subsystem/capability summaries
+- derive quest candidates / side-quest candidates from current work and deterministic runtime signals
+- prepare a truthful adoption snapshot or Control Sync anchor
+
+### 1.5 Create mandatory `<Subject>_Data` skeleton (locked)
 
 Lock reference (authoritative):
 - The Guild/Terminology/Locks/LOCK__SUBJECT_DATA_SKELETON.md
@@ -142,7 +199,7 @@ Additional notes (allowed):
 - `<Subject>_Data/Docs/Notes/` is permitted for non-canon notes.
 - `<Subject>_Data/Incubation/CLUSTERS/` is permitted for grouped incubation notes.
 
-### 1.4 Required Buffs (Ignition set)
+### 1.6 Required Buffs (Ignition set)
 
 Inside `<Subject>_Data/Buffs/`, the canonical Buff set MUST exist:
 1) `<SUBJECT>_EXECUTION_PROTOCOL.txt`
@@ -171,7 +228,7 @@ Early-stage allowance:
 
 ---
 
-## 2) INCUBATION (FOG OF WAR; PRE‑FREEZE)
+## 2) INCUBATION (FOG OF WAR; PRE-FREEZE)
 
 ### 2.1 Definition
 
@@ -179,10 +236,14 @@ Incubation is the Fog of War phase where:
 - exploration is allowed
 - structure is allowed to emerge
 - Codex drafting is allowed
-- execution is forbidden
+- Build Manual drafting is allowed
+- ambient quest and side-quest candidate formation is allowed
+- governed execution is forbidden
 
 Goal:
-- fully define the Subject end-to-end so the Codex can be written “as if the thing already exists.”
+- define the Subject deeply enough that the Codex spine can become stable
+- preserve all meaningful motion while the Subject is still clarifying itself
+- avoid false certainty while still allowing the system to learn what the Subject is
 
 ### 2.2 Entry conditions (deterministic)
 
@@ -200,26 +261,49 @@ Therefore, Incubation / Fog of War applies when:
 Hard rule:
 - A drafted TOC does not lift Fog.
 - A drafted Codex does not lift Fog.
+- A complete-looking codebase does not lift Fog.
 - Only the freeze marker lifts Fog.
 
-### 2.3 Execution prohibition (non-negotiable)
+### 2.3 Governed execution prohibition (non-negotiable)
 
 While World State is Fog of War:
-- DO NOT generate Guild Orders
-- DO NOT generate Quests
 - DO NOT accept Quests
 - DO NOT start a Raid
-- DO NOT implement or execute
-- DO NOT build the Engine deliverable
+- DO NOT move Guild Orders into ACTIVE as governed work
+- DO NOT claim `governed_execution_ready`
+- DO NOT present exploratory movement as already-authorized governed history
 
-Allowed (scaffolding; not execution):
+Clarification:
+- Fog of War blocks **governed execution**.
+- Fog of War does NOT require inactivity.
+
+### 2.4 Allowed motion during incubation
+
+Allowed during Fog of War:
 - create the Subject_Data skeleton
+- attach Synapse to an existing Engine/repo
 - write/update Incubation artifacts
 - draft TOC and Codex sections
-- stitch a draft Codex full text
-- write snapshots (Control Sync / General / End of Day)
+- draft Build Manual material
+- draft Guild Orders in `PAUSED`
+- draft Quests and Side-Quests on `BOARD` when truthfully supported
+- run ambient capture / sidecar updates
+- record decisions, discoveries, disclosures, run state, changed files, and verification surfaces
+- perform exploratory or prototype implementation/prototyping if it remains explicitly non-governed
 
-### 2.4 Continuous capture obligation (No Loss Rule)
+Hard rule:
+- exploratory implementation under Fog MUST NOT be mistaken for accepted quest execution
+- exploratory implementation under Fog MUST drag its continuity story alongside it
+
+That means if code or other Engine work occurs during Fog, Synapse MUST also preserve:
+- what moved
+- why it moved
+- what it appears to be building toward
+- what remains provisional or unresolved
+
+If movement occurs but the continuity story is not kept, Disclosure Gate MUST trigger.
+
+### 2.5 Continuous capture obligation (No Loss Rule)
 
 During incubation, Hands MUST continuously capture:
 - decisions
@@ -229,13 +313,24 @@ During incubation, Hands MUST continuously capture:
 - risks
 - dependencies
 - any meaningful design direction
+- any exploratory implementation that changes understanding of the Subject
 
 Capture must be detailed enough that the idea can be reconstructed later without relying on chat memory.
 
-Capture location (deterministic):
+Canonical capture surfaces during incubation may include:
 - `<Subject>_Data/Incubation/INCUBATION_LEDGER.md`
+- `<Subject>_Data/Incubation/INCUBATION_CRYSTALS.md`
+- ambient sidecar ledgers under `<Subject>_Data/.synapse/`
+  - decisions
+  - discoveries
+  - run state
+  - proposal/candidate state
 
-### 2.5 Structural coherence obligation (domain-agnostic)
+Rule:
+- long-form human-readable incubation capture and runtime sidecar capture may coexist
+- they MUST NOT silently diverge
+
+### 2.6 Structural coherence obligation (domain-agnostic)
 
 Hands MUST actively detect and maintain emerging structure.
 
@@ -244,17 +339,19 @@ This means:
 - keep related ideas grouped over time
 - when decisions change, update the same cluster rather than forking conflicting parallel truths
 - avoid “scattered drift” that makes TOC creation guessy
+- if deterministic runtime signals reveal a bounded work unit, allow that work unit to become a quest candidate rather than leaving it unstructured
 
 The system MUST NOT force a fixed taxonomy.
 Structure must emerge from the subject.
 
-### 2.6 Periodic crystallization (continuity anchors)
+### 2.7 Periodic crystallization (continuity anchors)
 
 Crystals are condensed checkpoints that summarize:
 - what changed since the last crystal
 - current understanding
 - open questions
 - emerging structure / clusters
+- whether exploratory motion changed the Subject meaningfully
 
 Crystals live at:
 - `<Subject>_Data/Incubation/INCUBATION_CRYSTALS.md`
@@ -263,21 +360,24 @@ Minimum required cadence (deterministic):
 - update crystals at the end of any Control Sync that occurs during Fog of War (before Control Sync closeout)
 - update crystals immediately before generating the TOC
 - update crystals before ending a session if meaningful incubation occurred without a Control Sync
+- update crystals when exploratory implementation materially changes Subject understanding and no other canonical capture surface has summarized it yet
 
 If Hands cannot write/update crystals:
 - Disclosure Gate MUST trigger
 - do NOT proceed as if capture succeeded
 
-### 2.7 Control Sync snapshots during incubation
+### 2.8 Control Sync snapshots during incubation
 
 Control Sync still governs decisions during Fog of War.
 
 Rule:
-- Snapshot requirements are governed by Snapshot law (Guild Docs/SYNAPSE_GUILD__SNAPSHOTS.txt).
+- Snapshot requirements are governed by Snapshot law.
 - During incubation, Control Sync Snapshots MUST also record:
   - what incubation artifacts were updated (paths)
+  - what ambient sidecar truth changed materially
   - current cluster/structure summary
   - what remains ambiguous / deferred
+  - whether any exploratory implementation occurred under Fog and what it changed
 
 Snapshot location (canonical):
 - `<Subject>_Data/Snapshots/Control Sync/`
@@ -299,7 +399,7 @@ Minimum deterministic sequence (high-level):
 1) Completeness sweep
    - identify missing decisions / unresolved questions / holes
    - either fill them OR record them explicitly as DEFERRED (do not hand-wave)
-2) Derive TOC from captured structure (ledger + crystals; not guesses)
+2) Derive TOC from captured structure (ledger + crystals + current canonical sidecar truth; not guesses)
 3) Write Codex sections one-by-one (one TOC entry per section file)
 4) Audit each section against the TOC (numbering + scope + completeness; no placeholders)
 5) Stitch TOC + sections into `<Subject>_Codex_Full.txt`
@@ -309,11 +409,15 @@ Minimum deterministic sequence (high-level):
    - include date/time + Brains approval
 
 Hard rule:
-- Execution remains forbidden until Codex Freeze is declared AND the marker exists.
+- Governed execution remains forbidden until Codex Freeze is declared AND the marker exists.
+
+Clarification:
+- Freeze does not require that all future detail has already been written.
+- Freeze requires that the Codex spine is stable enough for governed execution.
 
 ---
 
-## 4) POST‑FREEZE EXECUTION (OUT OF SCOPE HERE)
+## 4) POST-FREEZE EXECUTION (OUT OF SCOPE HERE)
 
 Once Codex exists and is frozen (Fog Lifted):
 - If `<Subject>_Engine/` does not exist yet, create it at Build Kickoff.
@@ -324,7 +428,7 @@ This is defined elsewhere (The Loop + Dailies + Guild Orders + Quest law).
 
 ---
 
-## 5) SUBJECT‑SPECIFIC EXTENSIONS (OPTIONAL, DOMAIN‑DEPENDENT)
+## 5) SUBJECT-SPECIFIC EXTENSIONS (OPTIONAL, DOMAIN-DEPENDENT)
 
 In addition to the mandatory skeleton, Subjects MAY add domain folders under `<Subject>_Data/` when useful.
 
