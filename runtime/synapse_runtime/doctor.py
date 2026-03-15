@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from synapse_runtime.cwt import detect_canonical_working_tree
+from synapse_runtime.event_log import validate_event_stream
 from synapse_runtime.governance_model import derive_world_state, required_sidecar_paths
 from synapse_runtime.governance_pack import required_file_checks, resolve_governance_root
 from synapse_runtime.schema_validation import load_json, load_yaml, validate_state_schema
@@ -196,7 +197,21 @@ def _check_subject_state(governance_root: Path, subject_receipt: dict) -> list[R
         add(str(live_root), True, "MISSING (UPGRADEABLE AMBIENT SIDECAR)")
     else:
         add(str(live_root), live_root.is_dir(), "EXISTS" if live_root.is_dir() else "INVALID")
+        events_root = live_root / "EVENTS"
+        if not events_root.exists():
+            add(str(events_root), True, "MISSING (UPGRADEABLE EVENT SPINE)")
+        else:
+            add(str(events_root), events_root.is_dir(), "EXISTS" if events_root.is_dir() else "INVALID")
+            if events_root.is_dir():
+                event_problems = validate_event_stream(data_root)
+                add(
+                    f"{events_root}/*.jsonl",
+                    not event_problems,
+                    "PASS" if not event_problems else f"FAIL_INVALID_EVENTS:{len(event_problems)}",
+                )
         for artifact_type, path in required_sidecar_paths(data_root).items():
+            if artifact_type.value == "event_spine":
+                continue
             exists = path.exists()
             if not exists:
                 add(str(path), True, f"MISSING (UPGRADEABLE {artifact_type.value})")

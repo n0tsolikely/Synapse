@@ -21,9 +21,11 @@ import yaml
 
 from synapse_runtime.cwt import detect_canonical_working_tree
 from synapse_runtime.doctor import run_doctor
+from synapse_runtime.event_log import EventLogError, append_event, build_event
 from synapse_runtime.governance_inventory import build_governance_inventory, write_governance_inventory
 from synapse_runtime.governance_model import ProposalKind, ProposalState
 from synapse_runtime.persona import resolve_persona
+from synapse_runtime.reducer import ReducerError, reduce_after_event, reducer_mode
 from synapse_runtime.rehydration_pack import refresh_rehydration_pack
 from synapse_runtime.live_memory import (
     LiveMemoryError,
@@ -525,6 +527,108 @@ def _render_and_refresh_continuity(subject: str, data_root: Path, engine_root: P
         return {"rehydrate": rehydrate, "continuity": continuity}
     except Exception as exc:
         raise LiveMemoryError(str(exc)) from exc
+
+
+def _safe_load_yaml_dict(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    try:
+        payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _accepted_context_snapshot(data_root: Path) -> dict[str, Any]:
+    state = _safe_load_yaml_dict(data_root / ".synapse" / "STATE.yaml")
+    manifold = _safe_load_yaml_dict(data_root / ".synapse" / "MANIFOLD.yaml")
+    return {
+        "current_accepted_quest_id": manifold.get("current_accepted_quest_id") or state.get("current_accepted_quest_id"),
+        "governed_execution_ready": bool(
+            manifold.get("governed_execution_ready")
+            if "governed_execution_ready" in manifold
+            else state.get("governed_execution_ready")
+        ),
+        "active_order_ids": list(manifold.get("active_order_candidates") or []),
+    }
+
+
+def _compact_plan_items(items: Any) -> list[str]:
+    results: list[str] = []
+    if not isinstance(items, list):
+        return results
+    for item in items:
+        if isinstance(item, dict):
+            text = str(item.get("text") or "").strip()
+            if text:
+                results.append(text)
+                continue
+        text = str(item).strip()
+        if text:
+            results.append(text)
+    return results
+
+
+def _event_pipeline(
+    *,
+    ctx: dict[str, Any],
+    action_name: str,
+    summary: str,
+    signals: dict[str, Any],
+    truth_flags: dict[str, Any],
+    outputs: dict[str, Any],
+    status: str = "ok",
+    refresh_continuity: bool = True,
+) -> dict[str, Any]:
+    data_root = Path(ctx["data_root"])
+    engine_root = Path(ctx["engine_root"])
+    session_id = str(ctx.get("session_id") or "").strip() or None
+    run_id = str(outputs.get("run_id") or signals.get("run_id") or "").strip() or None
+    event = build_event(
+        subject=ctx["subject"],
+        action_name=action_name,
+        summary=summary,
+        status=status,
+        session_id=session_id,
+        run_id=run_id,
+        signals=signals,
+        truth_flags=truth_flags,
+        outputs=outputs,
+    )
+    try:
+        append_receipt = append_event(data_root=data_root, event=event)
+    except EventLogError as exc:
+        raise LiveMemoryError(f"Primary action succeeded, but event append failed: {exc}") from exc
+
+    mode = reducer_mode()
+    if mode == "legacy":
+        legacy_refresh = _render_and_refresh_continuity(ctx["subject"], data_root, engine_root)
+        return {
+            "event": {"receipt": append_receipt, "payload": event},
+            "reducer": {
+                "mode": "legacy",
+                "rehydrate": legacy_refresh["rehydrate"],
+                "continuity": legacy_refresh["continuity"],
+            },
+        }
+
+    try:
+        reduction = reduce_after_event(
+            subject=ctx["subject"],
+            data_root=data_root,
+            engine_root=engine_root,
+            event=event,
+            refresh_continuity=refresh_continuity,
+        )
+    except ReducerError as exc:
+        raise LiveMemoryError(
+            f"Primary action succeeded and event {append_receipt['event_id']} was recorded, but reducer refresh failed: {exc}"
+        ) from exc
+
+    return {
+        "event": {"receipt": append_receipt, "payload": event},
+        "reducer": reduction,
+    }
 
 
 def _core_subject_artifacts_present(receipt: dict[str, Any]) -> bool:
@@ -1144,6 +1248,46 @@ def cmd_attach_or_init(args: argparse.Namespace) -> int:
         print(f"FAIL: {exc}")
         return 2
 
+    attachment_changed = bool(receipt.get("auto_initialized") or receipt.get("initialized_created") or receipt.get("live_created"))
+    if attachment_changed:
+        try:
+            event_info = _event_pipeline(
+                ctx=receipt,
+                action_name="attach-or-init",
+                summary="Attached subject and initialized canonical runtime surfaces.",
+                signals={
+                    "selection_method": receipt.get("selection_method"),
+                    "source_detail": receipt.get("source_detail"),
+                    "initialized_created": list(receipt.get("initialized_created") or []),
+                    "live_created": list(receipt.get("live_created") or []),
+                    "accepted_context": _accepted_context_snapshot(Path(receipt["data_root"])),
+                    "related_quest_ids": [],
+                    "related_sidequest_ids": [],
+                    "changed_files": [],
+                    "verification_entries": [],
+                },
+                truth_flags={
+                    "canon_mutated": bool(receipt.get("auto_initialized")),
+                    "derived_state_changed": True,
+                    "governed": False,
+                    "uncertainty_present": False,
+                },
+                outputs={
+                    "data_root": receipt.get("data_root"),
+                    "engine_root": receipt.get("engine_root"),
+                    "initialized_created": list(receipt.get("initialized_created") or []),
+                    "live_created": list(receipt.get("live_created") or []),
+                },
+            )
+            receipt.update(event_info)
+            if event_info["reducer"].get("rehydrate") is not None:
+                receipt["rehydrate"] = event_info["reducer"]["rehydrate"]
+            if event_info["reducer"].get("continuity") is not None:
+                receipt["continuity"] = event_info["reducer"]["continuity"]
+        except LiveMemoryError as exc:
+            print(f"FAIL: {exc}")
+            return 2
+
     if args.shell or args.json:
         _emit_subject_output(receipt, json_mode=args.json, shell_mode=args.shell)
         return 0
@@ -1451,7 +1595,42 @@ def cmd_live_bootstrap(args: argparse.Namespace) -> int:
     if not ctx:
         return 2
 
-    result = ensure_live_scaffold(ctx["subject"], Path(ctx["data_root"]))
+    try:
+        result = ensure_live_scaffold(ctx["subject"], Path(ctx["data_root"]))
+        if result.get("created"):
+            event_info = _event_pipeline(
+                ctx=ctx,
+                action_name="live-bootstrap",
+                summary="Ensured live sidecar scaffold exists.",
+                signals={
+                    "created_paths": list(result.get("created") or []),
+                    "existing_paths": list(result.get("existing") or []),
+                    "accepted_context": _accepted_context_snapshot(Path(ctx["data_root"])),
+                    "related_quest_ids": [],
+                    "related_sidequest_ids": [],
+                    "changed_files": list(result.get("created") or []),
+                    "verification_entries": [],
+                },
+                truth_flags={
+                    "canon_mutated": False,
+                    "derived_state_changed": True,
+                    "governed": False,
+                    "uncertainty_present": False,
+                },
+                outputs={
+                    "live_root": result.get("live_root"),
+                    "created_paths": list(result.get("created") or []),
+                },
+            )
+            result.update(event_info)
+            if event_info["reducer"].get("rehydrate") is not None:
+                result["rehydrate"] = event_info["reducer"]["rehydrate"]
+            if event_info["reducer"].get("continuity") is not None:
+                result["continuity"] = event_info["reducer"]["continuity"]
+    except LiveMemoryError as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0
@@ -1531,8 +1710,38 @@ def cmd_run_start(args: argparse.Namespace) -> int:
             goal=args.goal,
             items=items,
         )
-        continuity = _render_and_refresh_continuity(ctx["subject"], Path(ctx["data_root"]), Path(ctx["engine_root"]))
-        result.update(continuity)
+        event_info = _event_pipeline(
+            ctx=ctx,
+            action_name="run-start",
+            summary=f"Started active run: {result.get('title')}",
+            signals={
+                "run_id": result.get("run_id"),
+                "run_title": result.get("title"),
+                "run_goal": result.get("goal"),
+                "run_summary": result.get("goal"),
+                "plan_items": _compact_plan_items(result.get("items")),
+                "accepted_context": _accepted_context_snapshot(Path(ctx["data_root"])),
+                "related_quest_ids": [],
+                "related_sidequest_ids": [],
+                "changed_files": [],
+                "verification_entries": [],
+            },
+            truth_flags={
+                "canon_mutated": False,
+                "derived_state_changed": True,
+                "governed": False,
+                "verification_present": False,
+                "uncertainty_present": False,
+            },
+            outputs={
+                "run_id": result.get("run_id"),
+                "run_path": result.get("run_path"),
+                "ledger_path": result.get("ledger_path"),
+            },
+        )
+        result.update(event_info)
+        result["rehydrate"] = event_info["reducer"]["rehydrate"]
+        result["continuity"] = event_info["reducer"]["continuity"]
     except LiveMemoryError as exc:
         print(f"FAIL: {exc}")
         return 2
@@ -1575,7 +1784,37 @@ def cmd_session_start(args: argparse.Namespace) -> int:
             goal=args.goal,
             items=items,
         )
-        result.update(_render_and_refresh_continuity(ctx["subject"], Path(ctx["data_root"]), Path(ctx["engine_root"])))
+        event_info = _event_pipeline(
+            ctx=ctx,
+            action_name="session-start",
+            summary=f"Started or resumed session run: {result.get('title') or ctx['subject']}",
+            signals={
+                "run_id": result.get("run_id"),
+                "run_title": result.get("title"),
+                "run_goal": result.get("goal"),
+                "plan_items": _compact_plan_items(result.get("items")),
+                "resumed": bool(result.get("resumed")),
+                "accepted_context": _accepted_context_snapshot(Path(ctx["data_root"])),
+                "related_quest_ids": [],
+                "related_sidequest_ids": [],
+                "changed_files": [],
+                "verification_entries": [],
+            },
+            truth_flags={
+                "canon_mutated": False,
+                "derived_state_changed": True,
+                "governed": False,
+                "uncertainty_present": False,
+            },
+            outputs={
+                "run_id": result.get("run_id"),
+                "run_path": result.get("run_path"),
+                "resumed": bool(result.get("resumed")),
+            },
+        )
+        result.update(event_info)
+        result["rehydrate"] = event_info["reducer"]["rehydrate"]
+        result["continuity"] = event_info["reducer"]["continuity"]
     except LiveMemoryError as exc:
         print(f"FAIL: {exc}")
         return 2
@@ -1622,7 +1861,43 @@ def cmd_run_update(args: argparse.Namespace) -> int:
             status=args.status,
             summary=args.summary,
         )
-        result.update(_render_and_refresh_continuity(ctx["subject"], Path(ctx["data_root"]), Path(ctx["engine_root"])))
+        event_info = _event_pipeline(
+            ctx=ctx,
+            action_name="run-update",
+            summary=args.summary or f"Updated active run {result.get('run_id')}",
+            signals={
+                "run_id": result.get("run_id"),
+                "plan_items_added": _compact_plan_items(result.get("added_items")),
+                "plan_items": _compact_plan_items(result.get("added_items")),
+                "status_updates": [f"{item_id}:{status}" for item_id, status in result.get("status_updates") or []],
+                "commands": list(args.commands or []),
+                "changed_files": list(args.file or []),
+                "notes": list(args.note or []),
+                "discoveries": list(args.note or []) + ([args.summary] if args.summary else []),
+                "run_summary": args.summary,
+                "run_status": args.status,
+                "verification_entries": list(args.verification or []),
+                "related_quest_ids": list(args.related_quest or []),
+                "related_sidequest_ids": list(args.related_sidequest or []),
+                "accepted_context": _accepted_context_snapshot(Path(ctx["data_root"])),
+            },
+            truth_flags={
+                "canon_mutated": False,
+                "derived_state_changed": True,
+                "governed": False,
+                "verification_present": bool(args.verification),
+                "uncertainty_present": False,
+            },
+            outputs={
+                "run_id": result.get("run_id"),
+                "run_path": result.get("run_path"),
+                "ledger_path": result.get("ledger_path"),
+                "discoveries_path": result.get("discoveries_path"),
+            },
+        )
+        result.update(event_info)
+        result["rehydrate"] = event_info["reducer"]["rehydrate"]
+        result["continuity"] = event_info["reducer"]["continuity"]
     except LiveMemoryError as exc:
         print(f"FAIL: {exc}")
         return 2
@@ -1699,7 +1974,44 @@ def cmd_session_tick(args: argparse.Namespace) -> int:
                 related_runs=[str(result.get("run_id") or "")],
                 related_quests=args.related_quest,
             )
-        continuity_result = _render_and_refresh_continuity(ctx["subject"], Path(ctx["data_root"]), Path(ctx["engine_root"]))
+        event_info = _event_pipeline(
+            ctx=ctx,
+            action_name="session-tick",
+            summary=args.summary or f"Session tick for {result.get('run_id')}",
+            signals={
+                "run_id": result.get("run_id"),
+                "plan_items": _compact_plan_items(items),
+                "commands": list(args.commands or []),
+                "changed_files": list(files_touched),
+                "notes": list(notes),
+                "discoveries": list(notes),
+                "decisions": [args.decision_title] if args.decision_title else [],
+                "run_summary": args.summary,
+                "run_status": args.status,
+                "verification_entries": list(args.verification or []),
+                "decision_titles": [args.decision_title] if args.decision_title else [],
+                "related_quest_ids": list(args.related_quest or []),
+                "related_sidequest_ids": list(args.related_sidequest or []),
+                "accepted_context": _accepted_context_snapshot(Path(ctx["data_root"])),
+            },
+            truth_flags={
+                "canon_mutated": False,
+                "derived_state_changed": True,
+                "governed": False,
+                "verification_present": bool(args.verification),
+                "uncertainty_present": False,
+            },
+            outputs={
+                "run_id": result.get("run_id"),
+                "run_path": result.get("run_path"),
+                "discoveries_path": result.get("discoveries_path"),
+                "decision_path": decision_result.get("decision_path") if decision_result else None,
+            },
+        )
+        continuity_result = {
+            "rehydrate": event_info["reducer"]["rehydrate"],
+            "continuity": event_info["reducer"]["continuity"],
+        }
     except LiveMemoryError as exc:
         print(f"FAIL: {exc}")
         return 2
@@ -1712,6 +2024,8 @@ def cmd_session_tick(args: argparse.Namespace) -> int:
         "rehydrate": continuity_result["rehydrate"],
         "continuity": continuity_result["continuity"],
         "session_overlay_path": overlay_path,
+        "event": event_info["event"],
+        "reducer": event_info["reducer"],
     }
     if args.json:
         print(json.dumps(payload, indent=2, sort_keys=True))
@@ -1739,7 +2053,35 @@ def cmd_run_finalize(args: argparse.Namespace) -> int:
             status=args.status,
             summary=args.summary,
         )
-        result.update(_render_and_refresh_continuity(ctx["subject"], Path(ctx["data_root"]), Path(ctx["engine_root"])))
+        event_info = _event_pipeline(
+            ctx=ctx,
+            action_name="run-finalize",
+            summary=args.summary or f"Finalized run {result.get('run_id')}",
+            signals={
+                "run_id": result.get("run_id"),
+                "final_status": args.status,
+                "run_status": args.status,
+                "run_summary": args.summary,
+                "changed_files": [],
+                "verification_entries": [],
+                "related_quest_ids": [],
+                "related_sidequest_ids": [],
+                "accepted_context": _accepted_context_snapshot(Path(ctx["data_root"])),
+            },
+            truth_flags={
+                "canon_mutated": False,
+                "derived_state_changed": True,
+                "governed": False,
+                "uncertainty_present": False,
+            },
+            outputs={
+                "run_id": result.get("run_id"),
+                "archive_path": result.get("archive_path"),
+            },
+        )
+        result.update(event_info)
+        result["rehydrate"] = event_info["reducer"]["rehydrate"]
+        result["continuity"] = event_info["reducer"]["continuity"]
     except LiveMemoryError as exc:
         print(f"FAIL: {exc}")
         return 2
@@ -1779,7 +2121,36 @@ def cmd_log_decision(args: argparse.Namespace) -> int:
             related_runs=args.related_run,
             related_quests=args.related_quest,
         )
-        result.update(_render_and_refresh_continuity(ctx["subject"], Path(ctx["data_root"]), Path(ctx["engine_root"])))
+        event_info = _event_pipeline(
+            ctx=ctx,
+            action_name="log-decision",
+            summary=args.summary,
+            signals={
+                "decision_title": args.title,
+                "decisions": [args.title],
+                "notes": [args.why] if args.why else [],
+                "decision_constraints": list(args.constraint or []),
+                "decision_tradeoffs": list(args.tradeoff or []),
+                "related_quest_ids": list(args.related_quest or []),
+                "related_sidequest_ids": [],
+                "changed_files": [result.get("decision_path")] if result.get("decision_path") else [],
+                "verification_entries": [],
+                "accepted_context": _accepted_context_snapshot(Path(ctx["data_root"])),
+            },
+            truth_flags={
+                "canon_mutated": False,
+                "derived_state_changed": True,
+                "governed": False,
+                "uncertainty_present": False,
+            },
+            outputs={
+                "decision_path": result.get("decision_path"),
+                "decisions_ledger_path": result.get("decisions_ledger_path"),
+            },
+        )
+        result.update(event_info)
+        result["rehydrate"] = event_info["reducer"]["rehydrate"]
+        result["continuity"] = event_info["reducer"]["continuity"]
     except LiveMemoryError as exc:
         print(f"FAIL: {exc}")
         return 2
@@ -1812,7 +2183,41 @@ def cmd_log_disclosure(args: argparse.Namespace) -> int:
             related_runs=args.related_run,
             related_quests=args.related_quest,
         )
-        result.update(_render_and_refresh_continuity(ctx["subject"], Path(ctx["data_root"]), Path(ctx["engine_root"])))
+        event_info = _event_pipeline(
+            ctx=ctx,
+            action_name="log-disclosure",
+            summary=args.impact,
+            signals={
+                "disclosure_trigger": args.trigger,
+                "disclosures": [args.trigger],
+                "notes": [
+                    value
+                    for value in [args.expected, args.provable, args.decision_needed, *(args.safe_option or [])]
+                    if str(value).strip()
+                ],
+                "status_labels": list(args.status_label or []),
+                "safe_options": list(args.safe_option or []),
+                "related_quest_ids": list(args.related_quest or []),
+                "related_sidequest_ids": [],
+                "changed_files": [result.get("disclosure_path")] if result.get("disclosure_path") else [],
+                "verification_entries": [],
+                "accepted_context": _accepted_context_snapshot(Path(ctx["data_root"])),
+            },
+            truth_flags={
+                "canon_mutated": False,
+                "derived_state_changed": True,
+                "governed": False,
+                "uncertainty_present": True,
+                "disclosure_open": True,
+            },
+            outputs={
+                "disclosure_path": result.get("disclosure_path"),
+                "disclosures_ledger_path": result.get("disclosures_ledger_path"),
+            },
+        )
+        result.update(event_info)
+        result["rehydrate"] = event_info["reducer"]["rehydrate"]
+        result["continuity"] = event_info["reducer"]["continuity"]
     except LiveMemoryError as exc:
         print(f"FAIL: {exc}")
         return 2
@@ -1897,14 +2302,41 @@ def cmd_accept_quest(args: argparse.Namespace) -> int:
             audit_bundle_path=Path(str(acceptance["audit_bundle_path"])),
             control_sync_state_path=Path(str(acceptance["control_sync_state_path"])),
         )
-        continuity_refresh = _render_and_refresh_continuity(ctx["subject"], data_root, engine_root)
         payload = {
             "subject": ctx,
             "acceptance": acceptance,
             "sidecar": sidecar,
-            "rehydrate": continuity_refresh["rehydrate"],
-            "continuity": continuity_refresh["continuity"],
         }
+        event_info = _event_pipeline(
+            ctx=ctx,
+            action_name="accept-quest",
+            summary=f"Accepted quest {acceptance.get('quest_id')} for governed execution.",
+            signals={
+                "related_quest_ids": [acceptance.get("quest_id")],
+                "related_sidequest_ids": [],
+                "changed_files": [acceptance.get("accepted_path"), acceptance.get("audit_bundle_path")],
+                "verification_entries": [],
+                "accepted_context": _accepted_context_snapshot(data_root),
+            },
+            truth_flags={
+                "canon_mutated": True,
+                "derived_state_changed": True,
+                "governed": True,
+                "governed_execution_changed": True,
+                "uncertainty_present": False,
+            },
+            outputs={
+                "accepted_path": acceptance.get("accepted_path"),
+                "audit_bundle_path": acceptance.get("audit_bundle_path"),
+                "quest_id": acceptance.get("quest_id"),
+                "accepted_quest_id": acceptance.get("quest_id"),
+                "written_artifacts": [acceptance.get("accepted_path"), acceptance.get("audit_bundle_path")],
+            },
+        )
+        payload["event"] = event_info["event"]
+        payload["reducer"] = event_info["reducer"]
+        payload["rehydrate"] = event_info["reducer"]["rehydrate"]
+        payload["continuity"] = event_info["reducer"]["continuity"]
     except (QuestAcceptanceError, LiveMemoryError) as exc:
         print(f"FAIL: {exc}")
         return 2
@@ -2591,12 +3023,38 @@ def cmd_formalize(args: argparse.Namespace) -> int:
             result = _formalize_disclosure(ctx, proposal)
         else:
             raise LiveMemoryError(f"Formalization is not implemented for proposal kind {kind.value}.")
-        continuity_refresh = _render_and_refresh_continuity(ctx["subject"], data_root, Path(ctx["engine_root"]))
+        event_info = _event_pipeline(
+            ctx=ctx,
+            action_name="formalize",
+            summary=f"Formalized proposal {args.proposal_id} as {kind.value}.",
+            signals={
+                "proposal_id": args.proposal_id,
+                "proposal_kind": kind.value,
+                "related_quest_ids": [proposal.get("proposal_id")] if kind in {ProposalKind.QUEST, ProposalKind.SIDE_QUEST} else [],
+                "related_sidequest_ids": [],
+                "changed_files": [result.get("artifact_path")] if result.get("artifact_path") else [],
+                "verification_entries": [],
+                "accepted_context": _accepted_context_snapshot(data_root),
+            },
+            truth_flags={
+                "canon_mutated": True,
+                "derived_state_changed": True,
+                "governed": False,
+                "uncertainty_present": False,
+            },
+            outputs={
+                "proposal_id": args.proposal_id,
+                "proposal_kind": kind.value,
+                "artifact_path": result.get("artifact_path"),
+            },
+        )
         payload = {
             "subject": ctx,
             "result": result,
-            "rehydrate": continuity_refresh["rehydrate"],
-            "continuity": continuity_refresh["continuity"],
+            "rehydrate": event_info["reducer"]["rehydrate"],
+            "continuity": event_info["reducer"]["continuity"],
+            "event": event_info["event"],
+            "reducer": event_info["reducer"],
         }
     except LiveMemoryError as exc:
         print(f"FAIL: {exc}")

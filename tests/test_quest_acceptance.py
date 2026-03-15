@@ -156,6 +156,7 @@ class QuestAcceptanceTests(unittest.TestCase):
         payload = json.loads(result.stdout)
         accepted_path = Path(payload["acceptance"]["accepted_path"])
         bundle_path = Path(payload["acceptance"]["audit_bundle_path"])
+        event_payload = payload["event"]["payload"]
         self.assertFalse(board_path.exists())
         self.assertTrue(accepted_path.exists())
         self.assertTrue(bundle_path.exists())
@@ -173,6 +174,12 @@ class QuestAcceptanceTests(unittest.TestCase):
         self.assertEqual(Path(manifold.get("current_accepted_quest_path")).resolve(), accepted_path.resolve())
         self.assertEqual(Path(manifold.get("current_accepted_audit_bundle_path")).resolve(), bundle_path.resolve())
         self.assertTrue(manifold.get("governed_execution_ready"))
+        self.assertEqual(event_payload["action_name"], "accept-quest")
+        self.assertEqual(event_payload["outputs"]["accepted_quest_id"], "QUEST_001")
+        state = yaml.safe_load((self.data_root / ".synapse" / "STATE.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(state.get("last_event_id"), event_payload["event_id"])
+        self.assertEqual(state.get("last_reduced_event_id"), event_payload["event_id"])
+        self.assertTrue(list((self.data_root / ".synapse" / "EVENTS").glob("*.jsonl")))
 
         rehydrate = (self.data_root / ".synapse" / "REHYDRATE.md").read_text(encoding="utf-8")
         self.assertIn("## Governed execution", rehydrate)

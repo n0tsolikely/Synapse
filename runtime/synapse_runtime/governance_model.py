@@ -49,6 +49,7 @@ class ImplementationStatus(str, Enum):
 
 
 class ArtifactType(str, Enum):
+    EVENT_SPINE = "event_spine"
     SUBJECT_STATE = "subject_state"
     BUFF_EXECUTION_PROTOCOL = "buff_execution_protocol"
     BUFF_DIRECTORY_MAP = "buff_directory_map"
@@ -905,6 +906,7 @@ def required_sidecar_paths(data_root: Path) -> dict[ArtifactType, Path]:
     live_root = data_root / ".synapse"
     today = _today_iso()
     return {
+        ArtifactType.EVENT_SPINE: live_root / "EVENTS",
         ArtifactType.SIDECAR_STATE: live_root / "STATE.yaml",
         ArtifactType.SIDECAR_MANIFOLD: live_root / "MANIFOLD.yaml",
         ArtifactType.ACTIVE_RUN: live_root / "ACTIVE_RUN.yaml",

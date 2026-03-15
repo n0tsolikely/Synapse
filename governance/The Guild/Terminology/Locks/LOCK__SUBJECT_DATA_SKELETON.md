@@ -70,6 +70,10 @@ If any non-lock document conflicts with this skeleton, this lock wins.
   Codex/
     Sections/
 
+  .synapse/
+    EVENTS/
+    # append-only raw runtime events (non-canonical, reducer input)
+
   Docs/
   Buffs/
   To Do/
@@ -81,6 +85,8 @@ If any non-lock document conflicts with this skeleton, this lock wins.
 
 Notes:
 - Folder names with spaces are canonical (e.g., `Control Sync`, `End of Day`, `Quest Board`).
+- `.synapse/` is the canonical live sidecar for repo-local runtime continuity under Subject Data.
+- `.synapse/EVENTS/` stores append-only raw runtime events. These are not canon; they are reducer inputs.
 - `confirmations/` may be empty, but it MUST exist as the canonical home for Consent Gate artifacts.
 - `Archive/` exists for long-term retention but is not required to be populated.
 - `Incubation/` may remain empty for continuing subjects. It still exists as a stable home for

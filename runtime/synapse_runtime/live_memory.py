@@ -101,6 +101,10 @@ def _default_state(subject: str) -> dict[str, Any]:
         "current_accepted_quest_id": None,
         "current_accepted_audit_bundle_path": None,
         "last_rehydrate_at": None,
+        "last_event_id": None,
+        "last_event_at": None,
+        "last_reduced_event_id": None,
+        "reducer_version": None,
     }
 
 
@@ -175,6 +179,7 @@ def _default_daily_ledger(subject: str, day: str) -> dict[str, Any]:
 
 def ensure_live_scaffold(subject: str, data_root: Path) -> dict[str, Any]:
     live = live_root(data_root)
+    events_dir = live / "EVENTS"
     decisions_dir = live / "DECISIONS"
     discoveries_dir = live / "DISCOVERIES"
     disclosures_dir = live / "DISCLOSURES"
@@ -193,6 +198,7 @@ def ensure_live_scaffold(subject: str, data_root: Path) -> dict[str, Any]:
         "disclosures": proposals_dir / "disclosures",
     }
 
+    events_dir.mkdir(parents=True, exist_ok=True)
     decisions_dir.mkdir(parents=True, exist_ok=True)
     discoveries_dir.mkdir(parents=True, exist_ok=True)
     disclosures_dir.mkdir(parents=True, exist_ok=True)
@@ -1170,6 +1176,7 @@ def _sync_sidecar(
     decisions_path: Path | None = None,
     discoveries_path: Path | None = None,
     disclosures_path: Path | None = None,
+    mutate_proposals: bool = True,
 ) -> dict[str, Any]:
     live = live_root(data_root)
     state_path = live / "STATE.yaml"
@@ -1241,6 +1248,7 @@ def _sync_sidecar(
             verification_entries.extend(str(item) for item in signal.verification if str(item).strip())
             verification_entries = verification_entries[-10:]
             verification_status = _classify_verification_status(verification_entries) or verification_status
+    if signal is not None and mutate_proposals:
         promotions = evaluate_promotion(signal, data_root)
         if not any(promotion.kind in QUEST_PROPOSAL_KINDS for promotion in promotions):
             if signal.source in {"run-start", "run-update", "run-finalize"} and (
@@ -1352,6 +1360,105 @@ def _sync_sidecar(
         "interaction_mode": interaction_mode,
         "world_state": world_state.value,
     }
+
+
+def _event_notes(signals: dict[str, Any]) -> tuple[str, ...]:
+    raw_notes: list[str] = []
+    for key in ("notes", "plan_items", "decisions", "discoveries", "disclosures"):
+        value = signals.get(key)
+        if isinstance(value, list):
+            raw_notes.extend(str(item).strip() for item in value if str(item).strip())
+    return tuple(raw_notes)
+
+
+def _ambient_signal_from_event(subject: str, event: dict[str, Any], active_run: dict[str, Any]) -> AmbientSignal | None:
+    action_name = str(event.get("action_name") or "").strip()
+    if action_name not in {
+        "attach-or-init",
+        "live-bootstrap",
+        "session-start",
+        "run-start",
+        "run-update",
+        "session-tick",
+        "run-finalize",
+        "log-decision",
+        "log-disclosure",
+        "formalize",
+        "accept-quest",
+    }:
+        return None
+
+    signals = event.get("signals")
+    if not isinstance(signals, dict):
+        signals = {}
+
+    title = (
+        str(signals.get("run_title") or "").strip()
+        or str(signals.get("decision_title") or "").strip()
+        or str(signals.get("disclosure_trigger") or "").strip()
+        or str(active_run.get("title") or "").strip()
+        or None
+    )
+    summary = (
+        str(signals.get("run_goal") or "").strip()
+        or str(signals.get("run_summary") or "").strip()
+        or str(event.get("summary") or "").strip()
+        or None
+    )
+    status = (
+        str(signals.get("final_status") or "").strip()
+        or str(signals.get("run_status") or "").strip()
+        or str(event.get("status") or "").strip()
+        or None
+    )
+    return AmbientSignal(
+        source=action_name,
+        subject=subject,
+        title=title,
+        summary=summary,
+        notes=_event_notes(signals),
+        commands=tuple(str(item).strip() for item in signals.get("commands") or [] if str(item).strip()),
+        files_touched=tuple(
+            str(item).strip()
+            for item in (active_run.get("files_touched") or signals.get("changed_files") or [])
+            if str(item).strip()
+        ),
+        verification=tuple(
+            str(item).strip() for item in signals.get("verification_entries") or [] if str(item).strip()
+        ),
+        related_sidequests=tuple(
+            str(item).strip() for item in signals.get("related_sidequest_ids") or [] if str(item).strip()
+        ),
+        related_quests=tuple(
+            str(item).strip() for item in signals.get("related_quest_ids") or [] if str(item).strip()
+        ),
+        status=status,
+    )
+
+
+def reduce_sidecar_from_event(*, subject: str, data_root: Path, event: dict[str, Any]) -> dict[str, Any]:
+    ensure_live_scaffold(subject, data_root)
+    live = live_root(data_root)
+    active_run = _load_active_run(live / "ACTIVE_RUN.yaml", subject)
+    signal = _ambient_signal_from_event(subject, event, active_run)
+    outputs = event.get("outputs")
+    if not isinstance(outputs, dict):
+        outputs = {}
+
+    def maybe_path(value: Any) -> Path | None:
+        text = str(value or "").strip()
+        return Path(text) if text else None
+
+    return _sync_sidecar(
+        subject=subject,
+        data_root=data_root,
+        active_run=active_run,
+        signal=signal,
+        decisions_path=maybe_path(outputs.get("decisions_ledger_path")),
+        discoveries_path=maybe_path(outputs.get("discoveries_path")),
+        disclosures_path=maybe_path(outputs.get("disclosures_ledger_path")),
+        mutate_proposals=False,
+    )
 
 
 def _next_item_id(items: list[dict[str, Any]]) -> str:

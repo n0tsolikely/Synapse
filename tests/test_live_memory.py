@@ -55,6 +55,7 @@ class LiveMemoryFlowTests(unittest.TestCase):
         live_root = self.data_root / ".synapse"
         for name in ["VISION.md", "STATE.yaml", "MANIFOLD.yaml", "REHYDRATE.md", "ACTIVE_RUN.yaml"]:
             self.assertTrue((live_root / name).exists())
+        self.assertTrue((live_root / "EVENTS").is_dir())
         self.assertTrue((live_root / "THREADS" / "open_questions.md").exists())
         self.assertTrue(list((live_root / "DECISIONS").glob("*.yaml")))
         self.assertTrue(list((live_root / "DISCOVERIES").glob("*.yaml")))
