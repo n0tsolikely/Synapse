@@ -9,8 +9,11 @@ from typing import Any
 import yaml
 
 from synapse_runtime.event_log import REDUCER_VERSION
-from synapse_runtime.live_memory import LiveMemoryError, ensure_live_scaffold, reduce_sidecar_from_event, render_rehydrate
+from synapse_runtime.live_memory_common import LiveMemoryError
+from synapse_runtime.rehydrate_renderer import render_rehydrate
 from synapse_runtime.rehydration_pack import refresh_rehydration_pack
+from synapse_runtime.sidecar_projection import reduce_sidecar_from_event
+from synapse_runtime.sidecar_store import ensure_live_scaffold
 
 
 class ReducerError(RuntimeError):

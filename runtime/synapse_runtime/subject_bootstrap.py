@@ -6,7 +6,7 @@ import datetime as dt
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from synapse_runtime.live_memory import ensure_live_scaffold
+from synapse_runtime.sidecar_store import ensure_live_scaffold
 
 
 DEFAULT_TIMEZONE = ZoneInfo("America/Toronto")

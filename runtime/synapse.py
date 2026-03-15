@@ -24,23 +24,14 @@ from synapse_runtime.doctor import run_doctor
 from synapse_runtime.event_log import EventLogError, append_event, build_event
 from synapse_runtime.governance_inventory import build_governance_inventory, write_governance_inventory
 from synapse_runtime.governance_model import ProposalKind, ProposalState
+from synapse_runtime.live_journal import log_decision, log_disclosure, record_quest_acceptance
+from synapse_runtime.live_memory_common import LiveMemoryError
 from synapse_runtime.persona import resolve_persona
+from synapse_runtime.quest_candidates import list_proposals, mark_proposal_state
 from synapse_runtime.reducer import ReducerError, reduce_after_event, reducer_mode
 from synapse_runtime.rehydration_pack import refresh_rehydration_pack
-from synapse_runtime.live_memory import (
-    LiveMemoryError,
-    ensure_live_scaffold,
-    list_proposals,
-    load_active_run_record,
-    log_decision,
-    log_disclosure,
-    mark_proposal_state,
-    record_quest_acceptance,
-    render_rehydrate,
-    run_finalize,
-    run_start,
-    run_update,
-)
+from synapse_runtime.rehydrate_renderer import render_rehydrate
+from synapse_runtime.run_lifecycle import load_active_run_record, run_finalize, run_start, run_update
 from synapse_runtime.repo_state import (
     acknowledge_head,
     drift_commands,
@@ -50,6 +41,7 @@ from synapse_runtime.repo_state import (
     set_mode,
     state_path,
 )
+from synapse_runtime.sidecar_store import ensure_live_scaffold
 from synapse_runtime.subject_bootstrap import initialize_subject_state, repo_subject_defaults
 from synapse_runtime.quest_acceptance import QuestAcceptanceError, accept_quest
 from synapse_runtime.quest_board import (
