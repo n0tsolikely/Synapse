@@ -19,6 +19,15 @@ from synapse_runtime.governance_model import (
     infer_interaction_mode,
     required_sidecar_paths,
 )
+from synapse_runtime.ledger_store import (
+    _append_ledger_entry,
+    _classify_verification_status,
+    _daily_ledger_path,
+    _entry_id,
+    _load_recent_daily_entries,
+    _read_ledger_entries,
+    _sync_run_ledger,
+)
 from synapse_runtime.quest_board import DEFAULT_REPO_ORIENTATION_BLOCKER, draft_quest_from_proposal
 from synapse_runtime.quest_acceptance import parse_quest_document, prequest_has_execution_readiness
 from synapse_runtime.sidecar_store import (
@@ -64,22 +73,6 @@ def _append_recent_change(state: dict[str, Any], note: str) -> None:
         entries = []
     entries.append(f"{_now_iso()} - {note}")
     state["recent_changes"] = entries[-10:]
-
-
-def _daily_ledger_path(data_root: Path, ledger_name: str, stamp: str | None = None) -> Path:
-    day = stamp or _now().date().isoformat()
-    return live_root(data_root) / ledger_name / f"{day}.yaml"
-
-
-def _append_ledger_entry(path: Path, *, subject: str, entry: dict[str, Any]) -> dict[str, Any]:
-    data = _read_yaml(path)
-    if not isinstance(data, dict):
-        data = _default_daily_ledger(subject, path.stem)
-    if not isinstance(data.get("entries"), list):
-        data["entries"] = []
-    data["entries"].append(entry)
-    _write_yaml(path, data)
-    return data
 
 
 def _normalize_relpaths(data_root: Path, paths: Iterable[str]) -> list[str]:
@@ -257,10 +250,6 @@ def _proposal_dir(live: Path, kind: ProposalKind) -> Path:
 
 def _proposal_id(kind: ProposalKind, source_id: str, title: str) -> str:
     return f"{kind.value.upper()}__{source_id}__{_slugify(title,)}".upper().replace("-", "_")
-
-
-def _entry_id(prefix: str) -> str:
-    return f"{prefix}-{_now().strftime('%Y%m%d-%H%M%S-%f')}"
 
 
 def _unique_strings(values: Iterable[str]) -> list[str]:
@@ -758,63 +747,6 @@ def _auto_formalize_ready_quest_candidates(*, subject: str, data_root: Path) -> 
             }
         )
     return results
-
-
-def _run_ledger_path(live: Path, run_data: dict[str, Any]) -> Path:
-    existing = str(run_data.get("ledger_path") or "").strip()
-    if existing:
-        return Path(existing)
-    run_id = str(run_data.get("run_id") or "").strip()
-    if not run_id:
-        raise LiveMemoryError("Cannot derive run ledger path without run_id.")
-    slug = _slugify(str(run_data.get("title") or run_id))
-    return live / "RUNS" / f"{run_id}__{slug}.yaml"
-
-
-def _sync_run_ledger(live: Path, run_data: dict[str, Any]) -> str | None:
-    run_id = str(run_data.get("run_id") or "").strip()
-    if not run_id:
-        return None
-    ledger_path = _run_ledger_path(live, run_data)
-    run_data["ledger_path"] = str(ledger_path)
-    _write_yaml(ledger_path, run_data)
-    return str(ledger_path)
-
-
-def _read_ledger_entries(path: Path) -> list[dict[str, Any]]:
-    data = _read_yaml(path)
-    if not isinstance(data, dict):
-        return []
-    entries = data.get("entries")
-    if not isinstance(entries, list):
-        return []
-    return [entry for entry in entries if isinstance(entry, dict)]
-
-
-def _classify_verification_status(entries: Iterable[str]) -> str | None:
-    status: str | None = None
-    for raw in entries:
-        text = str(raw).strip().lower()
-        if not text:
-            continue
-        if any(token in text for token in ("blocked", "unable", "unverified")):
-            status = "BLOCKED"
-        if any(token in text for token in ("fail", "failed", "error")):
-            return "FAIL"
-        if any(token in text for token in ("pass", "passed", "ok", "success")) and status is None:
-            status = "PASS"
-    return status
-
-
-def _load_recent_daily_entries(data_root: Path, ledger_name: str, limit: int) -> list[dict[str, Any]]:
-    ledger_dir = live_root(data_root) / ledger_name
-    paths = sorted(ledger_dir.glob("*.yaml"))
-    entries: list[dict[str, Any]] = []
-    for path in reversed(paths):
-        entries.extend(reversed(_read_ledger_entries(path)))
-        if len(entries) >= limit:
-            break
-    return list(reversed(entries[-limit:]))
 
 
 def _load_proposal_records(live: Path) -> list[dict[str, Any]]:
@@ -1318,7 +1250,7 @@ def run_start(
     }
 
     _write_yaml(run_path, run_data)
-    ledger_path = _sync_run_ledger(live, run_data)
+    ledger_path = _sync_run_ledger(live, run_data, slugify=_slugify)
     _write_yaml(run_path, run_data)
 
     state["active_run_id"] = run_id
@@ -1423,7 +1355,7 @@ def run_update(
     run_data["updated_at"] = _now_iso()
 
     _write_yaml(run_path, run_data)
-    ledger_path = _sync_run_ledger(live, run_data)
+    ledger_path = _sync_run_ledger(live, run_data, slugify=_slugify)
     _write_yaml(run_path, run_data)
 
     state = _load_state(state_path, subject)
@@ -1823,7 +1755,7 @@ def record_quest_acceptance(
             run_data["related_quests"] = related
             run_data["updated_at"] = _now_iso()
             _write_yaml(run_path, run_data)
-            _sync_run_ledger(live, run_data)
+            _sync_run_ledger(live, run_data, slugify=_slugify)
             _write_yaml(run_path, run_data)
 
     discovery_entry = {
