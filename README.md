@@ -1,9 +1,9 @@
 # Synapse
 
-*Repo-local governed continuity kernel for autonomous executors.*
+*Repo-local governed continuity for autonomous executors.*
 
-Synapse is a repo-local governed continuity kernel for autonomous executors.
-It is implemented as a runtime plus governance corpus for AI-assisted engineering.
+Synapse is intended to become a repo-local governed continuity kernel for autonomous executors.
+Today it is implemented as a cooperative runtime plus governance corpus for AI-assisted engineering.
 It is built for the layer that normal repos usually lose: story, rationale, intent, current truth, accepted work, proof, and direction over time.
 
 A repo usually tells you what code exists.
@@ -278,16 +278,15 @@ Synapse can preserve the difference between:
 
 That stops future agents from mistaking a minimal first pass for the finished system.
 
-### 5. Due diligence, investor, and narrative surfaces
+### 5. Due diligence and narrative surfaces
 
-Synapse does not currently ship a magic "investor brief generator."
+Synapse does not currently ship a magic narrative generator.
 But it is building the missing substrate that makes truthful downstream narrative generation possible.
 
 Because Synapse stores repo-local story, direction, proof, and accepted scope, it can support future outputs like:
 - architecture briefs
 - execution summaries
 - product direction memos
-- investment narrative drafts
 - diligence packets
 - capability portfolios
 - onboarding briefs
