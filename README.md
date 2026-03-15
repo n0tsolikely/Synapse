@@ -1,8 +1,9 @@
 # Synapse
 
-*Repo-local governed continuity for autonomous executors.*
+*Repo-local governed continuity kernel for autonomous executors.*
 
-Synapse is a governance and continuity runtime for AI-assisted engineering.
+Synapse is a repo-local governed continuity kernel for autonomous executors.
+It is implemented as a runtime plus governance corpus for AI-assisted engineering.
 It is built for the layer that normal repos usually lose: story, rationale, intent, current truth, accepted work, proof, and direction over time.
 
 A repo usually tells you what code exists.
