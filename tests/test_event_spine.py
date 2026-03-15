@@ -15,7 +15,7 @@ if str(RUNTIME_ROOT) not in sys.path:
     sys.path.insert(0, str(RUNTIME_ROOT))
 
 from synapse_runtime.event_log import append_event, build_event, validate_event_stream
-from synapse_runtime.live_memory import ensure_live_scaffold
+from synapse_runtime.sidecar_store import ensure_live_scaffold
 from synapse_runtime.subject_bootstrap import initialize_subject_state
 from synapse_runtime.subject_resolver import home_focus_lock_path, repo_focus_lock_path, write_focus_lock
 
