@@ -1,0 +1,164 @@
+"""Accepted-quest and audit-bundle read/projection helpers."""
+
+from __future__ import annotations
+
+import re
+from pathlib import Path
+from typing import Any
+
+from synapse_runtime.quest_acceptance import parse_quest_document, prequest_has_execution_readiness
+
+
+def _find_quest_file(data_root: Path, quest_id: str) -> Path | None:
+    board_root = data_root / "Quest Board"
+    for directory in (
+        board_root / "Accepted",
+        board_root / "Completed",
+        board_root / "Abandoned",
+        board_root,
+    ):
+        if not directory.exists():
+            continue
+        matches = sorted(directory.glob(f"{quest_id}__*.txt"))
+        if matches:
+            return matches[0]
+    return None
+
+
+def _parse_audit_bundle_path(subject: str, data_root: Path, quest_text: str) -> Path | None:
+    match = re.search(
+        r"(?ims)^Audit Bundle Folder Path \(required once ACCEPTED\):\s*$\n(?P<body>.*?)(?:^\s*=+\s*$|\Z)",
+        quest_text,
+    )
+    if not match:
+        return None
+    for raw_line in match.group("body").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        candidate = Path(line).expanduser()
+        if candidate.is_absolute():
+            return candidate.resolve()
+        if line.startswith("Audits/"):
+            return (data_root / line).resolve()
+        if line.startswith(f"{subject}_Data/"):
+            return (data_root.parent / line).resolve()
+        return (data_root / line).resolve()
+    return None
+
+
+def _load_accepted_quest_details(subject: str, data_root: Path) -> list[dict[str, Any]]:
+    accepted_dir = data_root / "Quest Board" / "Accepted"
+    details: list[dict[str, Any]] = []
+    if not accepted_dir.exists():
+        return details
+    for path in sorted(accepted_dir.glob("*.txt")):
+        try:
+            doc = parse_quest_document(subject=subject, data_root=data_root, path=path)
+        except Exception:
+            continue
+        bundle_path = doc.audit_bundle_path
+        execution_ready = False
+        if bundle_path and bundle_path.exists():
+            prequest = bundle_path / "01_PREQUEST.md"
+            if prequest.exists():
+                execution_ready = prequest_has_execution_readiness(
+                    prequest.read_text(encoding="utf-8", errors="replace")
+                )
+        details.append(
+            {
+                "quest_id": doc.quest_id or path.stem,
+                "title": doc.title or path.stem,
+                "path": str(path.resolve()),
+                "audit_bundle_path": str(bundle_path.resolve()) if bundle_path else None,
+                "execution_ready": execution_ready,
+            }
+        )
+    return details
+
+
+def _select_current_accepted_quest(details: list[dict[str, Any]]) -> dict[str, Any] | None:
+    if not details:
+        return None
+    for item in details:
+        if item.get("execution_ready"):
+            return item
+    return details[0]
+
+
+def _disclosure_phase_path(bundle: Path, trigger: str, status_labels: list[str]) -> Path:
+    text = f"{trigger} {' '.join(status_labels)}".lower()
+    if any(marker in text for marker in ("verify", "verification", "test", "unverified")):
+        return bundle / "03_VERIFY.md"
+    if any(marker in text for marker in ("anchor", "codex", "canonical", "orientation", "placement", "prequest")):
+        return bundle / "01_PREQUEST.md"
+    if any(marker in text for marker in ("outcome", "resume", "closeout")):
+        return bundle / "04_OUTCOME.md"
+    return bundle / "02_EXECUTION.md"
+
+
+def _append_markdown_section(path: Path, heading: str, body: str, token: str) -> bool:
+    if not path.exists():
+        return False
+    text = path.read_text(encoding="utf-8", errors="replace")
+    if token in text:
+        return False
+    append = f"\n\n{heading}\n{body.strip()}\n"
+    path.write_text(text.rstrip() + append, encoding="utf-8")
+    return True
+
+
+def _record_disclosure_in_quest_audits(
+    *,
+    subject: str,
+    data_root: Path,
+    related_quests: list[str],
+    disclosure_id: str,
+    disclosure_block: str,
+    trigger: str,
+    status_labels: list[str],
+) -> list[str]:
+    touched: list[str] = []
+    for quest_id in related_quests:
+        quest_key = str(quest_id).strip()
+        if not quest_key:
+            continue
+        quest_file = _find_quest_file(data_root, quest_key)
+        if quest_file is None:
+            continue
+        bundle = _parse_audit_bundle_path(
+            subject,
+            data_root,
+            quest_file.read_text(encoding="utf-8", errors="replace"),
+        )
+        if bundle is None or not bundle.exists():
+            continue
+
+        summary_body = (
+            f"Disclosure ID: {disclosure_id}\n\n"
+            f"Trigger: {trigger}\n"
+            f"Status Labels: {', '.join(status_labels) or 'UNSPECIFIED'}"
+        )
+        if _append_markdown_section(bundle / "00_SUMMARY.md", "## Disclosure Gate Event", summary_body, disclosure_id):
+            touched.append(str((bundle / "00_SUMMARY.md").resolve()))
+
+        phase_path = _disclosure_phase_path(bundle, trigger, status_labels)
+        phase_body = f"Disclosure ID: {disclosure_id}\n\n```\n{disclosure_block.strip()}\n```"
+        if _append_markdown_section(phase_path, "## Disclosure Gate Event", phase_body, disclosure_id):
+            touched.append(str(phase_path.resolve()))
+
+        disclosure_path = bundle / "05_DISCLOSURE.md"
+        if not disclosure_path.exists():
+            disclosure_path.write_text(
+                f"# 05_DISCLOSURE.md\n\n```\n{disclosure_block.strip()}\n```\n",
+                encoding="utf-8",
+            )
+        else:
+            _append_markdown_section(
+                disclosure_path,
+                "## Disclosure Gate Event",
+                f"```\n{disclosure_block.strip()}\n```",
+                disclosure_id,
+            )
+        touched.append(str(disclosure_path.resolve()))
+    return touched
