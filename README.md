@@ -1,102 +1,348 @@
 # Synapse
 
-*Agent-agnostic governance for AI-assisted engineering, execution, and continuity.*
+*Repo-local governed continuity for autonomous executors.*
 
-Synapse is a public governance layer for projects that use AI to think, plan, and ship work.
-It does not try to replace your agent, your runtime, or your persona. It governs how work is resumed, verified, recorded, and continued over time.
+Synapse is a governance and continuity runtime for AI-assisted engineering.
+It is built for the layer that normal repos usually lose: story, rationale, intent, current truth, accepted work, proof, and direction over time.
+
+A repo usually tells you what code exists.
+It usually does not tell you:
+- why the code became that way
+- what the system is trying to become
+- which parts are canonical versus provisional
+- what was verified versus guessed
+- what work is ambient, what is proposed, and what is officially accepted
+- how to resume correctly without re-explaining the whole project to the next agent
+
+That is the gap Synapse is trying to close.
+
+Synapse does not try to replace your agent, your runtime, or your persona.
+It governs execution, continuity, proof, and handoff.
 
 Bring your own agent.
+Bring your own runtime.
 Bring your own persona.
-Synapse adds governance.
+Synapse adds governed continuity.
 
-This Synapse is **not** Matrix Synapse, Azure Synapse, or another generic agent framework. This repo is specifically about governed execution, continuity artifacts, subject focus, receipts, audits, and drift handling for real project work.
+This Synapse is **not** Matrix Synapse, Azure Synapse, or a generic "agent framework" wrapper.
+This repo is specifically about governed execution, continuity artifacts, audits, subject focus, resumable state, and durable project memory for real engineering work.
 
-## What Synapse does
+## Status
 
-Synapse exists to preserve more than files.
-It tries to preserve intent.
+Synapse is still a work in progress.
+It is real, usable, and already doing important runtime work, but it is not finished.
+The architecture is still being hardened.
+The automation layer is still being expanded.
+The docs and operator surfaces are still catching up to what the runtime can actually do.
 
-A repo can usually tell you what exists. It usually cannot tell you:
-- why it became that way
-- what decisions shaped it
-- what direction it was supposed to keep moving in
-- which changes were verified and which were guessed
+So the honest status is:
+- real
+- active
+- evolving
+- not final
 
-Synapse is built to help with that.
+## The core problem
 
-It gives humans and AI a governed trail of:
-- subject focus
-- decisions and snapshots
-- execution receipts
-- audit bundles
-- drift warnings
-- canonical routing for governed operations
+Agents can read code.
+That does **not** mean they understand the project.
 
-The goal is not bureaucracy.
-The goal is continuity without constant babysitting.
+If you hand a repo to a fresh agent, it can inspect files, tests, configs, and structure.
+What it usually cannot infer correctly is the project story:
+- what the team decided
+- what direction the system is heading in
+- what was intentionally minimal versus unfinished
+- what work is currently active
+- which constraints are binding
+- what was attempted and why
+- where execution is legally allowed versus still exploratory
 
-## Why it exists
+That missing story is where projects drift.
+People re-explain the same vision over and over.
+Agents repeat work, miss intent, misread partial implementations, and treat scaffolding like finished architecture.
 
-AI can produce useful code and plans faster than many people can fully track.
-That speed is useful, but it creates real failure modes:
-- session memory disappears
-- design decisions get forgotten
-- capabilities get added and then lost from memory
-- architecture drifts quietly
-- repos fill up with disconnected work
-- new sessions or new collaborators have to guess what matters
-
-Synapse exists because project continuity is a real engineering problem.
-It is trying to preserve project memory beyond chat memory: not just current state, but design continuity, decision continuity, execution history, and direction.
-
-Long term, good governance should feel almost invisible.
-It should sit in the background, preserve the road behind the project, and make it easier for the next session, next agent, or next collaborator to continue in the right direction without re-learning everything from scratch.
+Synapse exists to make that story durable inside the repo-local project memory itself.
 
 ## What Synapse is
 
 Synapse is:
-- an agent-agnostic governance layer
-- a continuity system for subject-based project work
-- a runtime + governance repo that defines how governed operations happen
-- a way to make project history more inspectable, resumable, and durable
-- something meant to be explored, used, challenged, and improved in public
+- a repo-local governed continuity kernel
+- an agent-agnostic execution governance layer
+- a runtime plus governance corpus that turns project law into operational behavior
+- a system for preserving project memory beyond chat memory
+- a way to keep canon, provisional work, active execution, and proof distinct
+- infrastructure for making handoff and resumption fast and truthful
 
 ### What Synapse is not
 
 Synapse is **not**:
 - a language model
-- a chat app
+- a chat client
 - a replacement for testing or review
-- an autonomous framework that magically knows what to do
-- a generic workflow buzzword wrapper
-- a reason to skip architecture or design decisions
+- a magic autonomous system that "just knows" the right thing
+- a reason to skip architecture, proof, or explicit decisions
+- a generic todo app with fantasy names slapped on top
 
 It governs execution and continuity.
 It does not replace engineering judgment.
 
-## Core ideas
+## The model
 
-### Subject focus
-Synapse work happens around a **Subject**. The runtime resolves the active subject context before governed subject work begins, so engine/data roots and continuity artifacts are tied to the right project instead of guessed from vibes.
+### 1. Subject-centered work
 
-### Continuity artifacts
-Synapse uses durable artifacts such as snapshots, audits, quest state, codex material, and subject data roots to preserve more than the latest chat. The aim is to keep not just the current location, but the trail of reasoning and execution that got there.
-The Phase 1 live sidecar lives under `Subject_Data/.synapse/` to keep active runs, decisions, and fast rehydrate notes in sync during execution.
+Synapse organizes work around a **Subject**.
+A subject has:
+- a code/runtime side (`<Subject>_Engine`)
+- a state/canon side (`<Subject>_Data`)
 
-### Execution gates
-Not every action should be treated the same. Synapse distinguishes between low-risk work, governed execution, and higher-risk operations that require stronger receipts or explicit consent.
+That separation matters.
+It stops project memory, proof, canon, and continuity artifacts from being buried inside random chat history or mixed into code arbitrarily.
 
-### Governance drift handling
-Governance changes over time too. Synapse tracks drift so an executor can see when the rules changed and acknowledge that state before claiming governed execution under stale assumptions.
+### 2. Repo-local sidecar truth
 
-### Canonical executor contract
-Repo shims stay small. The canonical execution contract lives in [`EXECUTOR.md`](EXECUTOR.md), so different tools can point to one contract instead of maintaining separate competing instruction sets.
+Each subject has a canonical sidecar under:
+- `<Subject>_Data/.synapse/`
 
-### Agent and persona compatibility
-Synapse governs execution, not identity. If your runtime already has its own persona, identity, or tool model, keep it. Synapse can optionally layer governance-specific behavior and optional persona examples on top without trying to take over the entire runtime.
+That sidecar holds fast-moving continuity state such as:
+- `STATE.yaml`
+- `MANIFOLD.yaml`
+- `ACTIVE_RUN.yaml`
+- `REHYDRATE.md`
+- `VISION.md`
+- daily ledgers for decisions, discoveries, and disclosures
+- proposal/candidate state
 
-### Runtime tools and wrappers
-When a governed operation has a canonical Synapse path, use the Synapse runtime tools and wrappers for that operation. That is how subject resolution, receipts, audits, consent, and other governed flows stay consistent.
+This is where Synapse keeps the project's live memory.
+
+### 3. Event spine + derived state
+
+Phase 1 now includes a repo-local event spine under:
+- `<Subject>_Data/.synapse/EVENTS/YYYY-MM-DD.jsonl`
+
+This is append-only runtime truth for meaningful mutations.
+It is not canon.
+It is the raw spine that lets Synapse move toward reducer-owned continuity instead of a pile of unrelated direct writes.
+
+Current architecture split:
+- raw events: `.synapse/EVENTS/`
+- derived working state: `STATE.yaml`, `MANIFOLD.yaml`, `REHYDRATE.md`
+- executor-owned execution focus: `ACTIVE_RUN.yaml`
+- canon: Quest Board, Audits, Codex, Build Manual, Guild Orders, Snapshots, Talent Tree
+
+That split is the center of gravity.
+
+### 4. Canon versus provisional truth
+
+Synapse keeps these distinct on purpose:
+- ambient/inferred work
+- proposal/candidate state
+- formalized canonical artifacts
+- accepted governed execution
+
+That matters because a system that collapses all of those together starts lying very fast.
+
+### 5. Explicit gates where truth matters
+
+Synapse is trying to automate continuity, not fake certainty.
+So some things remain explicit:
+- quest acceptance
+- canon promotion
+- disclosure blocks
+- legality / freeze gates
+- execution audits and proof
+
+The goal is automatic continuity with explicit commitment boundaries.
+
+## What Synapse does today
+
+Today Synapse already provides a lot more than the README used to say.
+
+### Ambient continuity capture
+
+Synapse can capture and maintain live project continuity while work happens:
+- active run state
+- decisions
+- discoveries
+- disclosures
+- verification receipts
+- changed-file evidence
+- proposal state
+- rehydrate surfaces
+- continuity pack refresh
+
+The point is to make normal work feel more like normal coding and less like manually writing ritual artifacts all day.
+
+### Ambient quest detection and promotion
+
+Synapse can detect work from deterministic runtime signals and turn that into structured quest state:
+- quest candidates
+- side-quest candidates
+- clustering and deduping of repeated related work
+- promotion into BOARD quest artifacts when evidence justifies it
+
+This means the system can see that meaningful work is happening and start structuring it without pretending that everything is already governed execution.
+
+### Explicit governed execution path
+
+Synapse keeps governed execution explicit.
+A formalized BOARD quest can move into accepted governed work only through the acceptance gate.
+That path validates things like:
+- legality under current world state
+- required quest fields
+- verification plan presence
+- audit bundle readiness
+- governed execution truth
+
+That explicit downstream gate is one of the most important things Synapse gets right.
+
+### Continuity lifecycle and active rehydration pack
+
+Synapse maintains an active continuity surface with:
+- Bootstrap Prompt
+- Continuity Lock
+- Latest Rehydration Pack
+- execution-pack pointer state when applicable
+- archive/supersede behavior for stale active artifacts
+
+Continuity refresh is transition-driven, not just a session-end ritual.
+
+### Governance doctor and machine-readable governance inventory
+
+Synapse can inspect governance and runtime state directly:
+- `doctor`
+- `governance-map`
+
+That means the system is not just prose and vibes. It can reason about its own governance surfaces and validate important invariants.
+
+## Why this matters
+
+Synapse is valuable because it preserves the layer between "code exists" and "the project is understood."
+
+That makes it useful for:
+- agent-to-agent handoff
+- human-to-agent handoff
+- long-running project continuity
+- architecture intent preservation
+- proof-backed execution
+- scope control
+- drift reduction
+- onboarding new collaborators faster
+- reconstructing what actually happened during execution
+- generating truthful summaries from repo-local state instead of memory alone
+
+## Use cases
+
+### 1. Agent handoff without story loss
+
+A new agent can read the repo **plus** Synapse and get more than code shape.
+It can see:
+- current accepted work
+- ambient work that is still provisional
+- recent decisions
+- current rehydrate state
+- what is blocked
+- what direction the project is moving
+
+That reduces the constant "let me explain the whole project again" tax.
+
+### 2. Long-running autonomous build continuity
+
+For projects built over many sessions, Synapse helps preserve:
+- current trajectory
+- accumulated reasoning
+- proof of execution
+- next actions
+- why previous work happened
+
+That matters whether the same agent returns tomorrow or a different one takes over next month.
+
+### 3. Auditability and proof
+
+Synapse is built for environments where "it probably worked" is not good enough.
+It supports:
+- audit bundles
+- verification receipts
+- governed quest execution
+- wrapper-proof validation
+- explicit disclosure when truth is incomplete
+
+This is useful for serious engineering work, not just toy task tracking.
+
+### 4. Architecture and product memory
+
+Synapse can preserve the difference between:
+- what the system currently is
+- what the team intends it to become
+- what is canonical
+- what is still exploratory
+
+That stops future agents from mistaking a minimal first pass for the finished system.
+
+### 5. Due diligence, investor, and narrative surfaces
+
+Synapse does not currently ship a magic "investor brief generator."
+But it is building the missing substrate that makes truthful downstream narrative generation possible.
+
+Because Synapse stores repo-local story, direction, proof, and accepted scope, it can support future outputs like:
+- architecture briefs
+- execution summaries
+- product direction memos
+- investment narrative drafts
+- diligence packets
+- capability portfolios
+- onboarding briefs
+
+The key is that those outputs can come from durable repo truth instead of someone trying to remember the project from chat.
+
+### 6. Operator confidence and interruption recovery
+
+If a session gets interrupted, a human or agent should not need to reconstruct the world from scratch.
+Synapse is explicitly aimed at reducing the cost of interruption and re-entry.
+
+## How Synapse works in practice
+
+### Common runtime surfaces
+
+Useful commands in the current runtime include:
+- `python3 runtime/synapse.py doctor`
+- `python3 runtime/synapse.py governance-map`
+- `python3 runtime/synapse.py engage`
+- `python3 runtime/synapse.py attach-or-init`
+- `python3 runtime/synapse.py session-start`
+- `python3 runtime/synapse.py run-start`
+- `python3 runtime/synapse.py run-update`
+- `python3 runtime/synapse.py session-tick`
+- `python3 runtime/synapse.py run-finalize`
+- `python3 runtime/synapse.py log-decision`
+- `python3 runtime/synapse.py log-disclosure`
+- `python3 runtime/synapse.py render-rehydrate`
+- `python3 runtime/synapse.py refresh-continuity`
+- `python3 runtime/synapse.py formalize`
+- `python3 runtime/synapse.py accept-quest`
+- `python3 runtime/synapse.py watch`
+
+### Normal work flow
+
+At a high level, the intended shape is:
+
+```text
+Work happens
+  -> runtime signals are captured
+  -> sidecar current state stays updated
+  -> quest/candidate structure emerges
+  -> canon is formalized when justified
+  -> governed execution remains explicit
+  -> proof and continuity remain inspectable
+```
+
+Or more concretely:
+
+```text
+ambient work
+  -> candidate / proposal state
+  -> BOARD quest or other formalized artifact
+  -> ACCEPTED governed quest
+  -> audited execution
+```
 
 ## Quickstart
 
@@ -107,134 +353,112 @@ git clone https://github.com/n0tsolikely/Synapse.git
 cd Synapse
 ```
 
-Start session context with the real runtime entry point:
-
-```bash
-python3 runtime/synapse.py engage
-```
-
-Inspect the CLI surface if you want to see what the runtime supports:
+If you want the full CLI surface:
 
 ```bash
 python3 runtime/synapse.py --help
 ```
 
-If you are working on Synapse governance itself rather than a subject, the governance-only doctor path is:
+If you are working on Synapse governance itself rather than a subject, start here:
 
 ```bash
 python3 runtime/synapse.py doctor --governance-root governance --no-subject
 ```
 
-## How to think about it
-
-```text
-Human / Agent / Runtime
-          |
-          v
-   Synapse Governance
-          |
-          v
- Subject_Engine + Subject_Data
-```
-
-Synapse sits between the operator/runtime and the project state.
-It helps preserve continuity, constrain governed operations, and leave behind receipts that a future session can actually inspect.
-
-## Where to look first
-
-If you want the shortest useful orientation path, start here:
-
-### For humans
-- [`README.md`](README.md)
-- [`governance/The Guild/SYNAPSE_GUILD__THE_GUILD_ITSELF.txt`](governance/The%20Guild/SYNAPSE_GUILD__THE_GUILD_ITSELF.txt)
-- [`governance/The Guild/SYNAPSE_GUILD_CANONICAL_MANUAL.txt`](governance/The%20Guild/SYNAPSE_GUILD_CANONICAL_MANUAL.txt)
-- [`governance/The Guild/SYNAPSE_GUILD__QUICK_START.txt`](governance/The%20Guild/SYNAPSE_GUILD__QUICK_START.txt)
-- [`governance/The Guild/SYNAPSE_GUILD__SUBJECT_MODEL.txt`](governance/The%20Guild/SYNAPSE_GUILD__SUBJECT_MODEL.txt)
-
-### For agents / operators
-- [`AGENTS.md`](AGENTS.md)
-- [`EXECUTOR.md`](EXECUTOR.md)
-- [`governance/README.txt`](governance/README.txt)
-- [`governance/INDEX.txt`](governance/INDEX.txt)
-- [`governance/SYNAPSE_STATE.yaml`](governance/SYNAPSE_STATE.yaml)
-
-### For integrations and optional persona overlays
-- [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md)
-- [`docs/PERSONAS.md`](docs/PERSONAS.md)
-
-## Example subject (minimal teaching skeleton)
-
-Want a concrete example of what a governed project looks like? Start here:
-- `examples/example_subject/README.md`
-
-This is a tiny, intentionally minimal subject that shows the Subject_Data / Subject_Engine split and a few representative continuity artifacts.
-
-## Fast plan to SIDE-QUESTs (draft only)
-
-If you have a short checklist, you can draft tracked SIDE-QUESTs in BOARD state:
+If you are working on a subject and want normal session setup:
 
 ```bash
-python3 runtime/synapse.py plan-sidequests --item "Do X" --item "Do Y"
+python3 runtime/synapse.py engage
 ```
 
-This creates Quest files on the Quest Board. Acceptance and execution are still governed.
+For live execution memory on an attached subject:
 
-## Repo map
+```bash
+python3 runtime/synapse.py session-start --title "Describe the session"
+python3 runtime/synapse.py run-update --note "What changed"
+python3 runtime/synapse.py render-rehydrate
+```
+
+For governed work:
+- formalize the right artifact first
+- accept quests explicitly through `accept-quest`
+- execute through the governed wrappers and audit paths
+
+## Repo shape
 
 ```text
 Synapse/
 ├ governance/   # laws, schemas, processes, canonical definitions
-├ runtime/      # CLI and governed tooling
+├ runtime/      # CLI, reducer/event plumbing, governed tooling
 ├ docs/         # integration notes and optional persona overlays
 ├ integrations/ # runtime-specific examples
 ├ EXECUTOR.md   # canonical executor contract
 └ README.md
 ```
 
-`governance/` defines the rules.
-`runtime/` executes the governed paths.
-The project is intentionally split so continuity and execution discipline are explicit instead of buried in chat history.
+And at the subject level, the important shape is:
 
-## Active example: building Ashby with Synapse
+```text
+<Subject>_Engine/   # code / runtime surface
+<Subject>_Data/     # canon, continuity, sidecar, audits, board state
+```
 
-Synapse is currently being used as the governance layer for an active system build:
-- **Ashby_Engine** (runtime): https://github.com/n0tsolikely/Ashby_Engine
-- **Ashby_Data** (canonical state/docs): https://github.com/n0tsolikely/Ashby_Data
+## Where to look first
 
-That pairing is a practical example of the model:
-- engine code lives in the engine repo
-- canonical state, codex material, snapshots, orders, and audits live in the data repo
-- Synapse governs how continuity and execution are handled across the work
+### For humans
+- [`README.md`](README.md)
+- [`EXECUTOR.md`](EXECUTOR.md)
+- [`governance/The Guild/SYNAPSE_GUILD_CANONICAL_MANUAL.txt`](governance/The%20Guild/SYNAPSE_GUILD_CANONICAL_MANUAL.txt)
+- [`governance/The Guild/SYNAPSE_GUILD__SUBJECT_MODEL.txt`](governance/The%20Guild/SYNAPSE_GUILD__SUBJECT_MODEL.txt)
+- [`governance/README.txt`](governance/README.txt)
 
-## Status
+### For agents and operators
+- [`AGENTS.md`](AGENTS.md)
+- [`EXECUTOR.md`](EXECUTOR.md)
+- [`governance/INDEX.txt`](governance/INDEX.txt)
+- [`governance/SYNAPSE_STATE.yaml`](governance/SYNAPSE_STATE.yaml)
+- [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md)
 
-Synapse is in active development.
-The governance core is real, the runtime layer is usable, and the project is still being sharpened in public.
+### Example subject skeleton
+- `examples/example_subject/README.md`
 
-This repo is not finished polish. It is live infrastructure being improved while it is used.
+## Where Synapse is going
 
-## Get involved
+The long-term direction is not "more ceremony."
+The direction is:
+- more automatic continuity
+- less manual explanation overhead
+- stronger repo-local story preservation
+- clearer canon/provisional boundaries
+- better reducer-owned derived state
+- richer rehydrate and vision synthesis
+- eventually making normal coding feel normal while Synapse quietly preserves the road behind the work
 
-If this is interesting to you:
-- try it on a real project
-- open an issue when something is unclear, rough, or missing
-- suggest changes to the governance model
-- contribute fixes and improvements
-- join the community and compare notes with other builders
+The desired end state is roughly this:
+- you work normally
+- the repo-local story keeps building itself
+- accepted execution stays explicit
+- proof stays attached to the work
+- future agents do not have to start from scratch
 
-Community / contact:
-- Discord community: Synapse Guild
-- Discord username: notsolikely
-- X handle: @_notsolikely
-- X name: Peter J. Reynolds / notsolikely
-- Email: [notsolikelynotsolikely@gmail.com](mailto:notsolikelynotsolikely@gmail.com)
+That is the point.
+
+## Important honesty note
+
+Synapse is not done.
+It is not finished polish.
+It is not a complete end-state autonomy platform today.
+
+It is live infrastructure being built toward a stronger autonomous continuity model.
+The repo already does real work.
+The vision is bigger than the current implementation.
+Both of those things are true at the same time.
 
 ## Contributing
 
 Contributions, ideas, and issues are welcome.
 For project-specific guidance, see [`CONTRIBUTING.md`](CONTRIBUTING.md).
 For responsible security reporting, see [`SECURITY.md`](SECURITY.md).
-The repo is public on purpose: it is meant to be tested, questioned, and improved.
 
 ## License
 
