@@ -1,3 +1,7 @@
+import argparse
+import contextlib
+import importlib.util
+import io
 import json
 import os
 import subprocess
@@ -5,6 +9,7 @@ import sys
 import tempfile
 from pathlib import Path
 import unittest
+from unittest import mock
 
 import yaml
 
@@ -14,13 +19,18 @@ RUNTIME_ROOT = REPO_ROOT / "runtime"
 if str(RUNTIME_ROOT) not in sys.path:
     sys.path.insert(0, str(RUNTIME_ROOT))
 
-from synapse_runtime.event_log import append_event, build_event, validate_event_stream
+from synapse_runtime.event_log import EventLogError, append_event, build_event, validate_event_stream
+from synapse_runtime.reducer import ReducerError
 from synapse_runtime.sidecar_store import ensure_live_scaffold
 from synapse_runtime.subject_bootstrap import initialize_subject_state
 from synapse_runtime.subject_resolver import home_focus_lock_path, repo_focus_lock_path, write_focus_lock
 
 
 SYNAPSE = [sys.executable, str(REPO_ROOT / "runtime" / "synapse.py")]
+_SYNAPSE_SPEC = importlib.util.spec_from_file_location("synapse_cli_test_module", REPO_ROOT / "runtime" / "synapse.py")
+assert _SYNAPSE_SPEC and _SYNAPSE_SPEC.loader
+synapse_cli = importlib.util.module_from_spec(_SYNAPSE_SPEC)
+_SYNAPSE_SPEC.loader.exec_module(synapse_cli)
 
 
 def run_synapse(args: list[str], *, cwd: Path, home: Path, extra_env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
@@ -76,6 +86,20 @@ class EventSpineTests(unittest.TestCase):
             home=self.home,
             selection_method="test",
             source_detail="test_event_spine",
+        )
+
+    def _run_start_namespace(self, *, json_mode: bool) -> argparse.Namespace:
+        return argparse.Namespace(
+            title="Evented run",
+            goal=None,
+            plan_item=["Do the thing"],
+            items_file=None,
+            subject=self.subject,
+            data_root=str(self.data_root),
+            engine_root=str(self.engine_root),
+            allow_switch=True,
+            session_id=None,
+            json=json_mode,
         )
 
     def test_append_event_uses_required_envelope_shape_and_rotates_by_day(self) -> None:
@@ -211,6 +235,98 @@ class EventSpineTests(unittest.TestCase):
         self.assertIsNone(state.get("last_event_id"))
         self.assertIsNone(state.get("last_reduced_event_id"))
         self.assertIsNone(state.get("reducer_version"))
+
+    def test_reducer_failure_after_event_append_returns_partial_runtime_status(self) -> None:
+        args = self._run_start_namespace(json_mode=True)
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with mock.patch.dict(os.environ, {"HOME": str(self.home)}, clear=False):
+            with mock.patch.object(synapse_cli, "reduce_after_event", side_effect=ReducerError("boom")):
+                with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                    exit_code = synapse_cli.cmd_run_start(args)
+
+        self.assertEqual(exit_code, 3, stdout.getvalue() + stderr.getvalue())
+        payload = json.loads(stdout.getvalue())
+        runtime_status = payload["runtime_status"]
+        self.assertEqual(runtime_status["operation_status"], "partial")
+        self.assertTrue(runtime_status["primary_mutation_committed"])
+        self.assertTrue(runtime_status["event_recorded"])
+        self.assertFalse(runtime_status["derived_state_current"])
+        self.assertEqual(runtime_status["error_code"], "REDUCER_REFRESH_FAILED")
+        self.assertTrue(runtime_status["event_id"])
+        self.assertTrue(list(self._events_root().glob("*.jsonl")))
+
+    def test_event_append_failure_after_primary_mutation_returns_partial_runtime_status(self) -> None:
+        args = self._run_start_namespace(json_mode=True)
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with mock.patch.dict(os.environ, {"HOME": str(self.home)}, clear=False):
+            with mock.patch.object(synapse_cli, "append_event", side_effect=EventLogError("append blew up")):
+                with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                    exit_code = synapse_cli.cmd_run_start(args)
+
+        self.assertEqual(exit_code, 3, stdout.getvalue() + stderr.getvalue())
+        payload = json.loads(stdout.getvalue())
+        runtime_status = payload["runtime_status"]
+        self.assertEqual(runtime_status["operation_status"], "partial")
+        self.assertTrue(runtime_status["primary_mutation_committed"])
+        self.assertFalse(runtime_status["event_recorded"])
+        self.assertFalse(runtime_status["derived_state_current"])
+        self.assertEqual(runtime_status["error_code"], "EVENT_APPEND_FAILED")
+        self.assertIsNone(runtime_status["event_id"])
+        self.assertFalse(list(self._events_root().glob("*.jsonl")))
+
+    def test_pre_mutation_failure_stays_hard_failure(self) -> None:
+        args = self._run_start_namespace(json_mode=True)
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with mock.patch.dict(os.environ, {"HOME": str(self.home)}, clear=False):
+            with mock.patch.object(synapse_cli, "run_start", side_effect=synapse_cli.LiveMemoryError("no write")):
+                with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                    exit_code = synapse_cli.cmd_run_start(args)
+
+        combined = stdout.getvalue() + stderr.getvalue()
+        self.assertEqual(exit_code, 2, combined)
+        self.assertIn("FAIL: no write", combined)
+        self.assertNotIn("runtime_status", combined)
+
+    def test_text_mode_partial_receipt_includes_event_id_and_recovery_hint(self) -> None:
+        args = self._run_start_namespace(json_mode=False)
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with mock.patch.dict(os.environ, {"HOME": str(self.home)}, clear=False):
+            with mock.patch.object(synapse_cli, "reduce_after_event", side_effect=ReducerError("boom")):
+                with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                    exit_code = synapse_cli.cmd_run_start(args)
+
+        combined = stdout.getvalue() + stderr.getvalue()
+        self.assertEqual(exit_code, 3, combined)
+        self.assertIn("PARTIAL:", combined)
+        self.assertIn("event_id:", combined)
+        self.assertIn("recovery_hint:", combined)
+
+    def test_all_event_pipeline_call_sites_route_through_shared_result_handler(self) -> None:
+        source = (REPO_ROOT / "runtime" / "synapse.py").read_text(encoding="utf-8")
+        self.assertEqual(source.count("event_info = _event_pipeline("), 11)
+        for fn_name in (
+            "cmd_attach_or_init",
+            "cmd_live_bootstrap",
+            "cmd_run_start",
+            "cmd_session_start",
+            "cmd_run_update",
+            "cmd_session_tick",
+            "cmd_run_finalize",
+            "cmd_log_decision",
+            "cmd_log_disclosure",
+            "cmd_accept_quest",
+            "cmd_formalize",
+        ):
+            marker = f"def {fn_name}("
+            start = source.index(marker)
+            end = source.find("\ndef ", start + 1)
+            block = source[start:end if end != -1 else None]
+            self.assertIn("_event_pipeline(", block, fn_name)
+            self.assertIn("_finalize_mutation_result(", block, fn_name)
 
 
 if __name__ == "__main__":

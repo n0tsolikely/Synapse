@@ -21,7 +21,7 @@ import yaml
 
 from synapse_runtime.cwt import detect_canonical_working_tree
 from synapse_runtime.doctor import run_doctor
-from synapse_runtime.event_log import EventLogError, append_event, build_event
+from synapse_runtime.event_log import EventLogError, REDUCER_VERSION, append_event, build_event
 from synapse_runtime.governance_pack import resolve_governance_asset, resolve_governance_root
 from synapse_runtime.governance_inventory import build_governance_inventory, write_governance_inventory
 from synapse_runtime.governance_model import ProposalKind, ProposalState
@@ -562,6 +562,65 @@ def _compact_plan_items(items: Any) -> list[str]:
     return results
 
 
+def _runtime_status(
+    *,
+    operation_status: str,
+    primary_mutation_committed: bool,
+    event_recorded: bool,
+    derived_state_current: bool,
+    event_id: str | None = None,
+    error_code: str | None = None,
+    error_message: str | None = None,
+    recovery_hint: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "operation_status": operation_status,
+        "primary_mutation_committed": primary_mutation_committed,
+        "event_recorded": event_recorded,
+        "derived_state_current": derived_state_current,
+        "event_id": event_id,
+        "error_code": error_code,
+        "error_message": error_message,
+        "recovery_hint": recovery_hint,
+    }
+
+
+def _print_partial_runtime_status(runtime_status: dict[str, Any], *, stream) -> None:
+    print("PARTIAL:", file=stream)
+    print(f"- primary_mutation_committed: {'YES' if runtime_status.get('primary_mutation_committed') else 'NO'}", file=stream)
+    print(f"- event_recorded: {'YES' if runtime_status.get('event_recorded') else 'NO'}", file=stream)
+    print(f"- derived_state_current: {'YES' if runtime_status.get('derived_state_current') else 'NO'}", file=stream)
+    if runtime_status.get("event_id"):
+        print(f"- event_id: {runtime_status.get('event_id')}", file=stream)
+    if runtime_status.get("error_code"):
+        print(f"- error_code: {runtime_status.get('error_code')}", file=stream)
+    if runtime_status.get("error_message"):
+        print(f"- error_message: {runtime_status.get('error_message')}", file=stream)
+    if runtime_status.get("recovery_hint"):
+        print(f"- recovery_hint: {runtime_status.get('recovery_hint')}", file=stream)
+
+
+def _finalize_mutation_result(
+    *,
+    payload: dict[str, Any],
+    event_info: dict[str, Any] | None,
+    json_mode: bool,
+    text_emitter,
+    shell_mode: bool = False,
+) -> int:
+    runtime_status = event_info.get("runtime_status") if event_info else None
+    if runtime_status is not None:
+        payload["runtime_status"] = runtime_status
+    exit_code = 3 if runtime_status and runtime_status.get("operation_status") == "partial" else 0
+    if json_mode:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return exit_code
+    text_emitter(payload)
+    if runtime_status and runtime_status.get("operation_status") == "partial":
+        _print_partial_runtime_status(runtime_status, stream=sys.stderr if shell_mode else sys.stdout)
+    return exit_code
+
+
 def _event_pipeline(
     *,
     ctx: dict[str, Any],
@@ -577,32 +636,94 @@ def _event_pipeline(
     engine_root = Path(ctx["engine_root"])
     session_id = str(ctx.get("session_id") or "").strip() or None
     run_id = str(outputs.get("run_id") or signals.get("run_id") or "").strip() or None
-    event = build_event(
-        subject=ctx["subject"],
-        action_name=action_name,
-        summary=summary,
-        status=status,
-        session_id=session_id,
-        run_id=run_id,
-        signals=signals,
-        truth_flags=truth_flags,
-        outputs=outputs,
-    )
+    base_reducer = {
+        "mode": reducer_mode(),
+        "reducer_version": REDUCER_VERSION,
+        "event_id": None,
+        "sidecar": None,
+        "rehydrate": None,
+        "continuity": None,
+    }
+    try:
+        event = build_event(
+            subject=ctx["subject"],
+            action_name=action_name,
+            summary=summary,
+            status=status,
+            session_id=session_id,
+            run_id=run_id,
+            signals=signals,
+            truth_flags=truth_flags,
+            outputs=outputs,
+        )
+    except Exception as exc:
+        return {
+            "event": None,
+            "reducer": base_reducer,
+            "runtime_status": _runtime_status(
+                operation_status="partial",
+                primary_mutation_committed=True,
+                event_recorded=False,
+                derived_state_current=False,
+                error_code="EVENT_APPEND_FAILED",
+                error_message=str(exc),
+                recovery_hint="Primary mutation committed, but no event was recorded. Repair the event spine, then rerun the relevant refresh or inspect the mutated artifact directly.",
+            ),
+        }
     try:
         append_receipt = append_event(data_root=data_root, event=event)
     except EventLogError as exc:
-        raise LiveMemoryError(f"Primary action succeeded, but event append failed: {exc}") from exc
+        return {
+            "event": None,
+            "reducer": base_reducer,
+            "runtime_status": _runtime_status(
+                operation_status="partial",
+                primary_mutation_committed=True,
+                event_recorded=False,
+                derived_state_current=False,
+                error_code="EVENT_APPEND_FAILED",
+                error_message=str(exc),
+                recovery_hint="Primary mutation committed, but event append failed. Repair the event log and rerun a refresh command so derived state catches up.",
+            ),
+        }
 
-    mode = reducer_mode()
+    mode = base_reducer["mode"]
+    base_reducer["event_id"] = append_receipt["event_id"]
     if mode == "legacy":
-        legacy_refresh = _render_and_refresh_continuity(ctx["subject"], data_root, engine_root)
+        try:
+            legacy_refresh = _render_and_refresh_continuity(ctx["subject"], data_root, engine_root)
+        except LiveMemoryError as exc:
+            return {
+                "event": {"receipt": append_receipt, "payload": event},
+                "reducer": base_reducer,
+                "runtime_status": _runtime_status(
+                    operation_status="partial",
+                    primary_mutation_committed=True,
+                    event_recorded=True,
+                    derived_state_current=False,
+                    event_id=append_receipt["event_id"],
+                    error_code="REDUCER_REFRESH_FAILED",
+                    error_message=str(exc),
+                    recovery_hint="The event was recorded, but derived state/continuity refresh failed. Rerun render-rehydrate or repair the reducer path before continuing.",
+                ),
+            }
         return {
             "event": {"receipt": append_receipt, "payload": event},
             "reducer": {
                 "mode": "legacy",
+                "reducer_version": REDUCER_VERSION,
+                "event_id": append_receipt["event_id"],
+                "sidecar": None,
                 "rehydrate": legacy_refresh["rehydrate"],
                 "continuity": legacy_refresh["continuity"],
             },
+            "runtime_status": _runtime_status(
+                operation_status="ok",
+                primary_mutation_committed=True,
+                event_recorded=True,
+                derived_state_current=True,
+                event_id=append_receipt["event_id"],
+            ),
         }
 
     try:
@@ -614,14 +735,33 @@ def _event_pipeline(
             refresh_continuity=refresh_continuity,
         )
     except ReducerError as exc:
-        raise LiveMemoryError(
-            f"Primary action succeeded and event {append_receipt['event_id']} was recorded, but reducer refresh failed: {exc}"
-        ) from exc
+        return {
+            "event": {"receipt": append_receipt, "payload": event},
+            "reducer": base_reducer,
+            "runtime_status": _runtime_status(
+                operation_status="partial",
+                primary_mutation_committed=True,
+                event_recorded=True,
+                derived_state_current=False,
+                event_id=append_receipt["event_id"],
+                error_code="REDUCER_REFRESH_FAILED",
+                error_message=str(exc),
+                recovery_hint="The event was recorded, but reducer-owned state is stale. Repair the reducer failure, then rerun render-rehydrate or the relevant refresh path.",
+            ),
+        }
 
-    return {
+    result = {
         "event": {"receipt": append_receipt, "payload": event},
         "reducer": reduction,
+        "runtime_status": _runtime_status(
+            operation_status="ok",
+            primary_mutation_committed=True,
+            event_recorded=True,
+            derived_state_current=True,
+            event_id=append_receipt["event_id"],
+        ),
     }
+    return result
 
 
 def _core_subject_artifacts_present(receipt: dict[str, Any]) -> bool:
@@ -1244,6 +1384,7 @@ def cmd_attach_or_init(args: argparse.Namespace) -> int:
         return 2
 
     attachment_changed = bool(receipt.get("auto_initialized") or receipt.get("initialized_created") or receipt.get("live_created"))
+    event_info = None
     if attachment_changed:
         try:
             event_info = _event_pipeline(
@@ -1283,22 +1424,36 @@ def cmd_attach_or_init(args: argparse.Namespace) -> int:
             print(f"FAIL: {exc}")
             return 2
 
+    def _emit_attach_or_init(payload: dict[str, Any]) -> None:
+        if args.shell:
+            _emit_subject_output(payload, json_mode=False, shell_mode=True)
+            return
+        print("=== ATTACH / INIT RECEIPT ===")
+        _print_subject_receipt(payload)
+        print(f"auto_initialized: {'YES' if payload.get('auto_initialized') else 'NO'}")
+        print(f"live_root: {payload.get('live_root')}")
+        if payload.get("initialized_created"):
+            print("initialized_created:")
+            for path in payload["initialized_created"]:
+                print(f"- {path}")
+        if payload.get("live_created"):
+            print("live_created:")
+            for path in payload["live_created"]:
+                print(f"- {path}")
+
+    if attachment_changed:
+        return _finalize_mutation_result(
+            payload=receipt,
+            event_info=event_info,
+            json_mode=args.json,
+            text_emitter=_emit_attach_or_init,
+            shell_mode=args.shell,
+        )
+
     if args.shell or args.json:
         _emit_subject_output(receipt, json_mode=args.json, shell_mode=args.shell)
         return 0
-
-    print("=== ATTACH / INIT RECEIPT ===")
-    _print_subject_receipt(receipt)
-    print(f"auto_initialized: {'YES' if receipt.get('auto_initialized') else 'NO'}")
-    print(f"live_root: {receipt.get('live_root')}")
-    if receipt.get("initialized_created"):
-        print("initialized_created:")
-        for path in receipt["initialized_created"]:
-            print(f"- {path}")
-    if receipt.get("live_created"):
-        print("live_created:")
-        for path in receipt["live_created"]:
-            print(f"- {path}")
+    _emit_attach_or_init(receipt)
     return 0
 
 
@@ -1598,6 +1753,7 @@ def cmd_live_bootstrap(args: argparse.Namespace) -> int:
 
     try:
         result = ensure_live_scaffold(ctx["subject"], Path(ctx["data_root"]))
+        event_info = None
         if result.get("created"):
             event_info = _event_pipeline(
                 ctx=ctx,
@@ -1632,21 +1788,31 @@ def cmd_live_bootstrap(args: argparse.Namespace) -> int:
         print(f"FAIL: {exc}")
         return 2
 
+    def _emit_live_bootstrap(payload: dict[str, Any]) -> None:
+        print("=== LIVE BOOTSTRAP RECEIPT ===")
+        _print_subject_receipt(ctx)
+        print(f"live_root: {payload['live_root']}")
+        if payload["created"]:
+            print("created:")
+            for path in payload["created"]:
+                print(f"- {path}")
+        if payload["existing"]:
+            print("existing:")
+            for path in payload["existing"]:
+                print(f"- {path}")
+
+    if result.get("created"):
+        return _finalize_mutation_result(
+            payload=result,
+            event_info=event_info,
+            json_mode=args.json,
+            text_emitter=_emit_live_bootstrap,
+        )
+
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0
-
-    print("=== LIVE BOOTSTRAP RECEIPT ===")
-    _print_subject_receipt(ctx)
-    print(f"live_root: {result['live_root']}")
-    if result["created"]:
-        print("created:")
-        for path in result["created"]:
-            print(f"- {path}")
-    if result["existing"]:
-        print("existing:")
-        for path in result["existing"]:
-            print(f"- {path}")
+    _emit_live_bootstrap(result)
     return 0
 
 
@@ -1751,20 +1917,23 @@ def cmd_run_start(args: argparse.Namespace) -> int:
     if overlay_path:
         result["session_overlay_path"] = overlay_path
 
-    if args.json:
-        print(json.dumps(result, indent=2, sort_keys=True))
-        return 0
+    def _emit_run_start(payload: dict[str, Any]) -> None:
+        print("=== RUN STARTED ===")
+        print(f"run_id: {payload['run_id']}")
+        print(f"run_path: {payload['run_path']}")
+        if overlay_path:
+            print(f"session_overlay: {overlay_path}")
+        if payload.get("items"):
+            print("plan_items:")
+            for item in payload["items"]:
+                print(f"- {item['id']}: {item['text']} ({item['status']})")
 
-    print("=== RUN STARTED ===")
-    print(f"run_id: {result['run_id']}")
-    print(f"run_path: {result['run_path']}")
-    if overlay_path:
-        print(f"session_overlay: {overlay_path}")
-    if result.get("items"):
-        print("plan_items:")
-        for item in result["items"]:
-            print(f"- {item['id']}: {item['text']} ({item['status']})")
-    return 0
+    return _finalize_mutation_result(
+        payload=result,
+        event_info=event_info,
+        json_mode=args.json,
+        text_emitter=_emit_run_start,
+    )
 
 
 def cmd_session_start(args: argparse.Namespace) -> int:
@@ -1824,16 +1993,21 @@ def cmd_session_start(args: argparse.Namespace) -> int:
     if overlay_path:
         result["session_overlay_path"] = overlay_path
 
-    if args.json:
-        print(json.dumps({"subject": ctx, "run": result}, indent=2, sort_keys=True))
-        return 0
+    payload = {"subject": ctx, "run": result}
 
-    print("=== SESSION STARTED ===")
-    _print_subject_receipt(ctx)
-    print(f"run_id: {result.get('run_id')}")
-    if overlay_path:
-        print(f"session_overlay: {overlay_path}")
-    return 0
+    def _emit_session_start(rendered_payload: dict[str, Any]) -> None:
+        print("=== SESSION STARTED ===")
+        _print_subject_receipt(rendered_payload["subject"])
+        print(f"run_id: {rendered_payload['run'].get('run_id')}")
+        if overlay_path:
+            print(f"session_overlay: {overlay_path}")
+
+    return _finalize_mutation_result(
+        payload=payload,
+        event_info=event_info,
+        json_mode=args.json,
+        text_emitter=_emit_session_start,
+    )
 
 
 def cmd_run_update(args: argparse.Namespace) -> int:
@@ -1907,23 +2081,26 @@ def cmd_run_update(args: argparse.Namespace) -> int:
     if overlay_path:
         result["session_overlay_path"] = overlay_path
 
-    if args.json:
-        print(json.dumps(result, indent=2, sort_keys=True))
-        return 0
+    def _emit_run_update(payload: dict[str, Any]) -> None:
+        print("=== RUN UPDATED ===")
+        print(f"run_id: {payload.get('run_id')}")
+        if payload.get("added_items"):
+            print("added_items:")
+            for item in payload["added_items"]:
+                print(f"- {item['id']}: {item['text']} ({item['status']})")
+        if payload.get("status_updates"):
+            print("status_updates:")
+            for item_id, status in payload["status_updates"]:
+                print(f"- {item_id}: {status}")
+        if overlay_path:
+            print(f"session_overlay: {overlay_path}")
 
-    print("=== RUN UPDATED ===")
-    print(f"run_id: {result.get('run_id')}")
-    if result.get("added_items"):
-        print("added_items:")
-        for item in result["added_items"]:
-            print(f"- {item['id']}: {item['text']} ({item['status']})")
-    if result.get("status_updates"):
-        print("status_updates:")
-        for item_id, status in result["status_updates"]:
-            print(f"- {item_id}: {status}")
-    if overlay_path:
-        print(f"session_overlay: {overlay_path}")
-    return 0
+    return _finalize_mutation_result(
+        payload=result,
+        event_info=event_info,
+        json_mode=args.json,
+        text_emitter=_emit_run_update,
+    )
 
 
 def cmd_session_tick(args: argparse.Namespace) -> int:
@@ -2028,18 +2205,22 @@ def cmd_session_tick(args: argparse.Namespace) -> int:
         "event": event_info["event"],
         "reducer": event_info["reducer"],
     }
-    if args.json:
-        print(json.dumps(payload, indent=2, sort_keys=True))
-        return 0
+    def _emit_session_tick(rendered_payload: dict[str, Any]) -> None:
+        run_update_payload = rendered_payload["run_update"]
+        print("=== SESSION TICK ===")
+        print(f"run_id: {run_update_payload.get('run_id')}")
+        print(f"discoveries_path: {run_update_payload.get('discoveries_path')}")
+        if rendered_payload.get("decision"):
+            print(f"decision_path: {rendered_payload['decision'].get('decision_path')}")
+        if overlay_path:
+            print(f"session_overlay: {overlay_path}")
 
-    print("=== SESSION TICK ===")
-    print(f"run_id: {result.get('run_id')}")
-    print(f"discoveries_path: {result.get('discoveries_path')}")
-    if decision_result:
-        print(f"decision_path: {decision_result.get('decision_path')}")
-    if overlay_path:
-        print(f"session_overlay: {overlay_path}")
-    return 0
+    return _finalize_mutation_result(
+        payload=payload,
+        event_info=event_info,
+        json_mode=args.json,
+        text_emitter=_emit_session_tick,
+    )
 
 
 def cmd_run_finalize(args: argparse.Namespace) -> int:
@@ -2093,16 +2274,19 @@ def cmd_run_finalize(args: argparse.Namespace) -> int:
         overlay_path = _clear_session_run_overlay(session_id)
         result["session_overlay_path"] = overlay_path
 
-    if args.json:
-        print(json.dumps(result, indent=2, sort_keys=True))
-        return 0
+    def _emit_run_finalize(payload: dict[str, Any]) -> None:
+        print("=== RUN FINALIZED ===")
+        print(f"run_id: {payload.get('run_id')}")
+        print(f"archive_path: {payload.get('archive_path')}")
+        if overlay_path:
+            print(f"session_overlay_cleared: {overlay_path}")
 
-    print("=== RUN FINALIZED ===")
-    print(f"run_id: {result.get('run_id')}")
-    print(f"archive_path: {result.get('archive_path')}")
-    if overlay_path:
-        print(f"session_overlay_cleared: {overlay_path}")
-    return 0
+    return _finalize_mutation_result(
+        payload=result,
+        event_info=event_info,
+        json_mode=args.json,
+        text_emitter=_emit_run_finalize,
+    )
 
 
 def cmd_log_decision(args: argparse.Namespace) -> int:
@@ -2156,13 +2340,16 @@ def cmd_log_decision(args: argparse.Namespace) -> int:
         print(f"FAIL: {exc}")
         return 2
 
-    if args.json:
-        print(json.dumps(result, indent=2, sort_keys=True))
-        return 0
+    def _emit_log_decision(payload: dict[str, Any]) -> None:
+        print("=== DECISION LOGGED ===")
+        print(f"path: {payload.get('decision_path')}")
 
-    print("=== DECISION LOGGED ===")
-    print(f"path: {result.get('decision_path')}")
-    return 0
+    return _finalize_mutation_result(
+        payload=result,
+        event_info=event_info,
+        json_mode=args.json,
+        text_emitter=_emit_log_decision,
+    )
 
 
 def cmd_log_disclosure(args: argparse.Namespace) -> int:
@@ -2223,13 +2410,16 @@ def cmd_log_disclosure(args: argparse.Namespace) -> int:
         print(f"FAIL: {exc}")
         return 2
 
-    if args.json:
-        print(json.dumps(result, indent=2, sort_keys=True))
-        return 0
+    def _emit_log_disclosure(payload: dict[str, Any]) -> None:
+        print("=== DISCLOSURE LOGGED ===")
+        print(f"path: {payload.get('disclosure_path')}")
 
-    print("=== DISCLOSURE LOGGED ===")
-    print(f"path: {result.get('disclosure_path')}")
-    return 0
+    return _finalize_mutation_result(
+        payload=result,
+        event_info=event_info,
+        json_mode=args.json,
+        text_emitter=_emit_log_disclosure,
+    )
 
 
 def cmd_render_rehydrate(args: argparse.Namespace) -> int:
@@ -2342,16 +2532,20 @@ def cmd_accept_quest(args: argparse.Namespace) -> int:
         print(f"FAIL: {exc}")
         return 2
 
-    if args.json:
-        print(json.dumps(payload, indent=2, sort_keys=True))
-        return 0
+    def _emit_accept_quest(rendered_payload: dict[str, Any]) -> None:
+        acceptance_payload = rendered_payload["acceptance"]
+        print("=== QUEST ACCEPTED ===")
+        print(f"quest_id: {acceptance_payload.get('quest_id')}")
+        print(f"accepted_path: {acceptance_payload.get('accepted_path')}")
+        print(f"audit_bundle_path: {acceptance_payload.get('audit_bundle_path')}")
+        print(f"governed_execution_ready: {acceptance_payload.get('governed_execution_ready')}")
 
-    print("=== QUEST ACCEPTED ===")
-    print(f"quest_id: {acceptance.get('quest_id')}")
-    print(f"accepted_path: {acceptance.get('accepted_path')}")
-    print(f"audit_bundle_path: {acceptance.get('audit_bundle_path')}")
-    print(f"governed_execution_ready: {acceptance.get('governed_execution_ready')}")
-    return 0
+    return _finalize_mutation_result(
+        payload=payload,
+        event_info=event_info,
+        json_mode=args.json,
+        text_emitter=_emit_accept_quest,
+    )
 
 
 def _proposal_by_id(data_root: Path, proposal_id: str) -> dict[str, Any]:
@@ -3060,14 +3254,17 @@ def cmd_formalize(args: argparse.Namespace) -> int:
         print(f"FAIL: {exc}")
         return 2
 
-    if args.json:
-        print(json.dumps(payload, indent=2, sort_keys=True))
-        return 0
+    def _emit_formalize(rendered_payload: dict[str, Any]) -> None:
+        print("=== FORMALIZATION RECEIPT ===")
+        print(f"proposal_id: {args.proposal_id}")
+        print(f"artifact_path: {rendered_payload['result'].get('artifact_path')}")
 
-    print("=== FORMALIZATION RECEIPT ===")
-    print(f"proposal_id: {args.proposal_id}")
-    print(f"artifact_path: {result.get('artifact_path')}")
-    return 0
+    return _finalize_mutation_result(
+        payload=payload,
+        event_info=event_info,
+        json_mode=args.json,
+        text_emitter=_emit_formalize,
+    )
 
 
 def cmd_watch(args: argparse.Namespace) -> int:
