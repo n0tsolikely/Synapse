@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from pathlib import Path
 
 from synapse_runtime.cwt import detect_canonical_working_tree
@@ -249,13 +250,14 @@ def _subject_mode(subject_receipt: dict) -> str:
     return "ambient_attached_subject"
 
 
-def run_doctor(governance_root_arg: str, subject_receipt: dict | None = None) -> int:
+def run_doctor(governance_root_arg: str | None, subject_receipt: dict | None = None) -> int:
     cwt = detect_canonical_working_tree()
     try:
         governance_root = resolve_governance_root(governance_root_arg)
         governance_error = None
     except Exception as exc:
-        governance_root = Path(governance_root_arg).expanduser()
+        raw_root = governance_root_arg or os.environ.get("SYNAPSE_GOVERNANCE_ROOT") or "governance"
+        governance_root = Path(raw_root).expanduser()
         if not governance_root.is_absolute():
             governance_root = (resolve_synapse_root() / governance_root).resolve()
         governance_error = str(exc)

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -169,16 +170,18 @@ def drift_status(*, synapse_root: Path | None = None, cwt: Path | None = None) -
     }
 
 
-def drift_commands(status: dict[str, Any]) -> list[str]:
+def drift_commands(status: dict[str, Any], *, synapse_root: Path | None = None) -> list[str]:
+    root = (synapse_root or resolve_synapse_root()).resolve()
+    prefix = f"git -C {shlex.quote(str(root))}"
     ack = str(status.get("last_ack_commit") or "").strip()
     if ack:
         return [
-            f"git diff --name-status {ack}..HEAD -- {' '.join(GOVERNANCE_PATHS)}",
-            f"git diff {ack}..HEAD -- {' '.join(GOVERNANCE_PATHS)}",
+            f"{prefix} diff --name-status {ack}..HEAD -- {' '.join(GOVERNANCE_PATHS)}",
+            f"{prefix} diff {ack}..HEAD -- {' '.join(GOVERNANCE_PATHS)}",
         ]
     return [
-        f"git show --name-status -- {' '.join(GOVERNANCE_PATHS)}",
-        f"git log --oneline -- {' '.join(GOVERNANCE_PATHS)}",
+        f"{prefix} show --name-status -- {' '.join(GOVERNANCE_PATHS)}",
+        f"{prefix} log --oneline -- {' '.join(GOVERNANCE_PATHS)}",
     ]
 
 
@@ -212,7 +215,7 @@ def enforce_execution_gate(
         return True, None
 
     if high_risk:
-        cmds = drift_commands(status)
+        cmds = drift_commands(status, synapse_root=root)
         return (
             False,
             "BLOCKED: governance drift is unacknowledged for R2+ action.\n"
@@ -237,7 +240,7 @@ def enforce_execution_gate(
     state["drift_warned_sessions"] = warned
     save_state(state, synapse_root=root)
 
-    cmds = drift_commands(status)
+    cmds = drift_commands(status, synapse_root=root)
     return (
         True,
         "WARNING: governance drift is unacknowledged (R0/R1 continues under elastic policy).\n"

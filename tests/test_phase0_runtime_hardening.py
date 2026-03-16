@@ -1,6 +1,7 @@
 import datetime as dt
 import json
 import os
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -179,6 +180,16 @@ class Phase0RuntimeHardeningTests(unittest.TestCase):
         self.assertIn(f"Governance root: {(REPO_ROOT / 'governance').resolve()}", result.stdout)
         self.assertNotIn(str((self.engine_root / "governance").resolve()), result.stdout)
 
+    def test_doctor_accepts_governance_root_from_env_without_cli_arg(self) -> None:
+        result = run_synapse(
+            ["doctor", "--no-subject"],
+            cwd=self.engine_root,
+            home=self.home,
+            extra_env={"SYNAPSE_GOVERNANCE_ROOT": str((REPO_ROOT / "governance").resolve())},
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn(f"Governance root: {(REPO_ROOT / 'governance').resolve()}", result.stdout)
+
     def test_governance_map_relative_governance_root_keeps_output_cwd_relative(self) -> None:
         output_path = self.engine_root / "out.json"
         result = run_synapse(
@@ -251,6 +262,57 @@ class Phase0RuntimeHardeningTests(unittest.TestCase):
         state = load_state(synapse_root=temp_synapse_root, cwt=self.engine_root)
         self.assertEqual(state["mode"], "EXECUTE")
         self.assertEqual(state["last_ack_commit"], "install-ack")
+
+    def test_drift_reports_commands_with_explicit_install_root_target(self) -> None:
+        temp_synapse_root = self.root / "install-root"
+        (temp_synapse_root / "runtime" / "synapse_runtime").mkdir(parents=True, exist_ok=True)
+        (temp_synapse_root / "governance").mkdir(parents=True, exist_ok=True)
+        (temp_synapse_root / "AGENTS.md").write_text("test\n", encoding="utf-8")
+        (temp_synapse_root / "governance" / "README.txt").write_text("baseline\n", encoding="utf-8")
+        (temp_synapse_root / "runtime" / "synapse.py").write_text("# smoke\n", encoding="utf-8")
+        (temp_synapse_root / "runtime" / "synapse_runtime" / "__init__.py").write_text("", encoding="utf-8")
+
+        subprocess.run(["git", "init", "-q"], cwd=temp_synapse_root, check=True)
+        subprocess.run(["git", "add", "AGENTS.md", "governance/README.txt", "runtime/synapse.py", "runtime/synapse_runtime/__init__.py"], cwd=temp_synapse_root, check=True)
+        subprocess.run(
+            ["git", "-c", "user.name=Smoke", "-c", "user.email=smoke@example.com", "commit", "-q", "-m", "baseline"],
+            cwd=temp_synapse_root,
+            check=True,
+        )
+
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=temp_synapse_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        save_state(
+            {"mode": "EXECUTE", "last_ack_commit": head, "drift_warned_sessions": {}},
+            synapse_root=temp_synapse_root,
+        )
+
+        (temp_synapse_root / "governance" / "README.txt").write_text("baseline\nchanged\n", encoding="utf-8")
+        subprocess.run(["git", "add", "governance/README.txt"], cwd=temp_synapse_root, check=True)
+        subprocess.run(
+            ["git", "-c", "user.name=Smoke", "-c", "user.email=smoke@example.com", "commit", "-q", "-m", "change governance"],
+            cwd=temp_synapse_root,
+            check=True,
+        )
+
+        result = run_synapse(
+            ["drift", "--json"],
+            cwd=self.engine_root,
+            home=self.home,
+            extra_env={"SYNAPSE_ROOT": str(temp_synapse_root)},
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["state_path"], str((temp_synapse_root / ".synapse" / "STATE.json").resolve()))
+        self.assertTrue(payload["governance_changed"])
+        self.assertEqual(payload["changed_files"], ["governance/README.txt"])
+        prefix = f"git -C {shlex.quote(str(temp_synapse_root.resolve()))}"
+        self.assertTrue(all(str(cmd).startswith(prefix) for cmd in payload["commands"]))
 
     def test_completed_quest_projection_refresh_stamps_state_and_manifold(self) -> None:
         completed = self._write_completed_quest("QUEST_007", title="Ship Phase 0", slug="ship-phase-0")

@@ -70,7 +70,6 @@ def build_parser() -> argparse.ArgumentParser:
     doctor_parser = subparsers.add_parser("doctor", help="Run deterministic governance checks")
     doctor_parser.add_argument(
         "--governance-root",
-        required=True,
         help="Path to governance root (relative to SYNAPSE_ROOT or absolute path)",
     )
     doctor_parser.add_argument(
