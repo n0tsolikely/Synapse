@@ -9,7 +9,7 @@ from synapse_runtime.governance_model import ProposalState
 from synapse_runtime.ledger_store import _daily_ledger_path, _load_recent_daily_entries
 from synapse_runtime.live_memory_common import _extract_decision_id, _extract_run_id
 from synapse_runtime.quest_candidates import _auto_formalize_ready_quest_candidates, _load_proposal_records, _sync_candidate_backlog
-from synapse_runtime.sidecar_projection import _append_recent_change
+from synapse_runtime.sidecar_projection import _append_recent_change, refresh_quest_lifecycle_projection
 from synapse_runtime.sidecar_store import _load_active_run, _load_manifold, _load_state, _now_iso, _write_yaml, live_root
 
 
@@ -21,6 +21,7 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
     rehydrate_path = live / "REHYDRATE.md"
 
     auto_formalizations = _auto_formalize_ready_quest_candidates(subject=subject, data_root=data_root)
+    refresh_quest_lifecycle_projection(subject=subject, data_root=data_root)
 
     state = _load_state(state_path, subject)
     manifold = _load_manifold(manifold_path, subject)
@@ -152,6 +153,16 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
         ]
         if extra:
             lines.append(f"- Additional accepted quests: {', '.join(str(item) for item in extra)}")
+        lines.append("")
+
+    completed_quest_details = list(manifold.get("completed_quest_details") or [])
+    if completed_quest_details:
+        lines.append("## Completed quests")
+        for item in completed_quest_details[:3]:
+            lines.append(f"- {item.get('quest_id')}: {item.get('title')}")
+            lines.append(f"  path={item.get('path')}")
+            if item.get("audit_bundle_path"):
+                lines.append(f"  audit_bundle={item.get('audit_bundle_path')}")
         lines.append("")
 
     if recent_decision_entries:

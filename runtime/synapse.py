@@ -1439,6 +1439,9 @@ def cmd_scaffold_subject(args: argparse.Namespace) -> int:
                     data_root / "Incubation" / "DISCOVERIES.md",
                     """# DISCOVERIES (FINAL ONLY)
 
+Compatibility note: if DATA_ROOT/.synapse exists, that sidecar is the canonical live runtime truth.
+This file remains as a legacy/human-helper surface only.
+
 Only FINAL decisions live here.
 
 ## ACTIVE DECISIONS
@@ -1466,6 +1469,9 @@ Only FINAL decisions live here.
                 _write_file(
                     data_root / "Incubation" / "OPEN_QUESTIONS.md",
                     """# OPEN QUESTIONS
+
+Compatibility note: if DATA_ROOT/.synapse exists, that sidecar is the canonical live runtime truth.
+This file remains as a legacy/human-helper surface only.
 
 Only unresolved design/execution questions belong here.
 
@@ -1569,7 +1575,7 @@ consistency_gate:
 sections: []
 notes:
   - "Only BLOCKING questions should interrupt."
-  - "NONBLOCKING questions are deferred in Incubation/OPEN_QUESTIONS.md."
+  - "NONBLOCKING questions are deferred in the legacy compatibility surface Incubation/OPEN_QUESTIONS.md when needed."
 """,
                     args.force,
                 ),

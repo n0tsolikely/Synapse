@@ -169,6 +169,7 @@ def initialize_subject_state(subject: str, data_root: Path, engine_root: Path, *
                 "\n"
                 "AUTHORITY SPLIT:\n"
                 "- Canonical continuity/state lives in DATA_ROOT and DATA_ROOT/.synapse.\n"
+                "- If legacy Incubation markdown and .synapse coexist, .synapse is the canonical live runtime truth and Incubation markdown is compatibility-only.\n"
                 "- External .synapse lockfiles are runtime/session cursors only.\n"
                 "\n"
                 "EDIT RULES:\n"

@@ -6,8 +6,10 @@ from pathlib import Path
 from typing import Any
 
 from synapse_runtime.accepted_execution_view import (
-    _load_accepted_quest_details,
-    _select_current_accepted_quest,
+    load_accepted_quest_details,
+    load_completed_quest_details,
+    select_current_accepted_quest,
+    select_latest_completed_quest,
 )
 from synapse_runtime.governance_model import (
     AmbientSignal,
@@ -50,6 +52,84 @@ def _append_recent_change(state: dict[str, Any], note: str) -> None:
     state["recent_changes"] = entries[-10:]
 
 
+def _apply_quest_lifecycle_projection(
+    *,
+    subject: str,
+    data_root: Path,
+    state: dict[str, Any],
+    manifold: dict[str, Any],
+    world_state: Any,
+) -> dict[str, Any]:
+    accepted_details = load_accepted_quest_details(subject, data_root)
+    current_accepted = select_current_accepted_quest(accepted_details)
+    completed_details = load_completed_quest_details(subject, data_root)
+    latest_completed = select_latest_completed_quest(completed_details)
+    governed_execution_ready = bool(
+        current_accepted
+        and current_accepted.get("execution_ready")
+        and world_state.value == "fog_lifted"
+    )
+
+    state["governed_execution_ready"] = governed_execution_ready
+    state["current_accepted_quest_id"] = current_accepted.get("quest_id") if current_accepted else None
+    state["current_accepted_audit_bundle_path"] = (
+        current_accepted.get("audit_bundle_path") if current_accepted else None
+    )
+    state["last_completed_quest_id"] = latest_completed.get("quest_id") if latest_completed else None
+    state["last_completed_quest_path"] = latest_completed.get("path") if latest_completed else None
+    state["last_completed_audit_bundle_path"] = (
+        latest_completed.get("audit_bundle_path") if latest_completed else None
+    )
+
+    manifold["accepted_quest_ids"] = [str(item.get("quest_id")) for item in accepted_details if item.get("quest_id")]
+    manifold["accepted_quest_details"] = accepted_details
+    manifold["current_accepted_quest_id"] = current_accepted.get("quest_id") if current_accepted else None
+    manifold["current_accepted_quest_path"] = current_accepted.get("path") if current_accepted else None
+    manifold["current_accepted_audit_bundle_path"] = (
+        current_accepted.get("audit_bundle_path") if current_accepted else None
+    )
+    manifold["completed_quest_ids"] = [str(item.get("quest_id")) for item in completed_details if item.get("quest_id")]
+    manifold["completed_quest_details"] = completed_details
+    manifold["last_completed_quest_id"] = latest_completed.get("quest_id") if latest_completed else None
+    manifold["last_completed_quest_path"] = latest_completed.get("path") if latest_completed else None
+    manifold["last_completed_audit_bundle_path"] = (
+        latest_completed.get("audit_bundle_path") if latest_completed else None
+    )
+    manifold["governed_execution_ready"] = governed_execution_ready
+
+    return {
+        "accepted_details": accepted_details,
+        "current_accepted": current_accepted,
+        "completed_details": completed_details,
+        "latest_completed": latest_completed,
+        "governed_execution_ready": governed_execution_ready,
+    }
+
+
+def refresh_quest_lifecycle_projection(*, subject: str, data_root: Path) -> dict[str, Any]:
+    live = live_root(data_root)
+    state_path = live / "STATE.yaml"
+    manifold_path = live / "MANIFOLD.yaml"
+    state = _load_state(state_path, subject)
+    manifold = _load_manifold(manifold_path, subject)
+    world_state = derive_world_state(data_root)
+    projection = _apply_quest_lifecycle_projection(
+        subject=subject,
+        data_root=data_root,
+        state=state,
+        manifold=manifold,
+        world_state=world_state,
+    )
+    _write_yaml(state_path, state)
+    manifold["last_updated_at"] = _now_iso()
+    _write_yaml(manifold_path, manifold)
+    return {
+        "state_path": str(state_path),
+        "manifold_path": str(manifold_path),
+        **projection,
+    }
+
+
 def _sync_sidecar(
     *,
     subject: str,
@@ -72,40 +152,19 @@ def _sync_sidecar(
     interaction_mode = str(getattr(inferred_mode, "value", inferred_mode) or "maintenance")
     session_id = active_run.get("session_id") or current_session_id()
     run_id = active_run.get("run_id")
-    accepted_details = _load_accepted_quest_details(subject, data_root)
-    current_accepted = _select_current_accepted_quest(accepted_details)
-    governed_execution_ready = bool(
-        current_accepted
-        and current_accepted.get("execution_ready")
-        and world_state.value == "fog_lifted"
-    )
 
     state["world_state"] = world_state.value
     state["active_phase"] = "execute" if run_id else ("incubation" if world_state.value == "fog_of_war" else "idle")
     state["active_modes"] = ["ambient", interaction_mode]
     state["active_run_id"] = run_id
     state["status"] = "active" if active_run.get("active") else "idle"
-    state["governed_execution_ready"] = governed_execution_ready
-    state["current_accepted_quest_id"] = current_accepted.get("quest_id") if current_accepted else None
-    state["current_accepted_audit_bundle_path"] = (
-        current_accepted.get("audit_bundle_path") if current_accepted else None
-    )
     if decisions_path is not None:
         state["last_decision_id"] = decisions_path.stem
-    _write_yaml(state_path, state)
 
     manifold["world_state"] = world_state.value
     manifold["active_phase"] = state["active_phase"]
     manifold["active_modes"] = state["active_modes"]
     manifold["active_run_ids"] = [run_id] if run_id else []
-    manifold["accepted_quest_ids"] = [str(item.get("quest_id")) for item in accepted_details if item.get("quest_id")]
-    manifold["accepted_quest_details"] = accepted_details
-    manifold["current_accepted_quest_id"] = current_accepted.get("quest_id") if current_accepted else None
-    manifold["current_accepted_quest_path"] = current_accepted.get("path") if current_accepted else None
-    manifold["current_accepted_audit_bundle_path"] = (
-        current_accepted.get("audit_bundle_path") if current_accepted else None
-    )
-    manifold["governed_execution_ready"] = governed_execution_ready
     if session_id:
         manifold["active_session_ids"] = [session_id]
     if decisions_path is not None:
@@ -114,6 +173,9 @@ def _sync_sidecar(
         manifold["current_discovery_ledger_path"] = str(discoveries_path)
     if disclosures_path is not None:
         manifold["current_disclosure_ledger_path"] = str(disclosures_path)
+
+    accepted_details = load_accepted_quest_details(subject, data_root)
+    current_accepted = select_current_accepted_quest(accepted_details)
 
     proposal_paths: list[str] = []
     build_manual_candidates = list(manifold.get("current_build_manual_candidate_backlog") or [])
@@ -228,6 +290,14 @@ def _sync_sidecar(
     manifold["current_snapshot_candidate_path"] = snapshot_candidate_path
     manifold["current_verification_status"] = verification_status
     manifold["latest_verification_entries"] = verification_entries
+    projection = _apply_quest_lifecycle_projection(
+        subject=subject,
+        data_root=data_root,
+        state=state,
+        manifold=manifold,
+        world_state=world_state,
+    )
+    _write_yaml(state_path, state)
     manifold["last_updated_at"] = _now_iso()
     _write_yaml(manifold_path, manifold)
 
@@ -237,6 +307,8 @@ def _sync_sidecar(
         "proposal_paths": proposal_paths,
         "interaction_mode": interaction_mode,
         "world_state": world_state.value,
+        "current_accepted_quest_id": projection["current_accepted"]["quest_id"] if projection["current_accepted"] else None,
+        "last_completed_quest_id": projection["latest_completed"]["quest_id"] if projection["latest_completed"] else None,
     }
 
 

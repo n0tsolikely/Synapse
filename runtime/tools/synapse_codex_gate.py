@@ -17,6 +17,12 @@ if str(RUNTIME_ROOT) not in sys.path:
     sys.path.insert(0, str(RUNTIME_ROOT))
 
 from synapse_runtime.subject_resolver import SubjectResolutionError, resolve_subject
+from synapse_runtime.sidecar_store import (
+    canonical_open_questions_path,
+    load_open_questions_text,
+    load_recent_decision_summaries,
+    load_recent_discovery_summaries,
+)
 
 ALLOWED = {"READY", "NEEDS_DECISIONS", "CONTRADICTION_FOUND"}
 HANDWAVY_RX = re.compile(r"\b(TBD|TODO|TBA|maybe|possibly|later)\b", re.IGNORECASE)
@@ -48,12 +54,53 @@ def _toc_has_sections(toc_text: str) -> bool:
     return False
 
 
-def _blocking_open_questions(open_questions_text: str) -> int:
+def _blocking_open_questions_legacy(open_questions_text: str) -> int:
     count = 0
     for line in open_questions_text.splitlines():
         if re.search(r"Status:\s*BLOCKING\b", line, re.IGNORECASE):
             count += 1
     return count
+
+
+def _blocking_open_questions_sidecar(open_questions_text: str) -> int:
+    lines = open_questions_text.splitlines()
+    in_blocking = False
+    seen_blocking = False
+    count = 0
+    for raw in lines:
+        line = raw.rstrip()
+        stripped = line.strip()
+        if re.match(r"^##\s+Blocking\s*$", stripped, re.IGNORECASE):
+            in_blocking = True
+            seen_blocking = True
+            continue
+        if re.match(r"^##\s+", stripped):
+            in_blocking = False
+            continue
+        if not in_blocking:
+            continue
+        if stripped.startswith("- "):
+            body = stripped[2:].strip()
+            if body.lower() == "none yet.":
+                continue
+            if body:
+                count += 1
+    if not seen_blocking:
+        raise RuntimeError("Malformed canonical sidecar open questions: missing '## Blocking' section.")
+    return count
+
+
+def _spec_continuity_inputs(data_root: Path) -> tuple[int, str]:
+    canonical_open_questions = canonical_open_questions_path(data_root)
+    if canonical_open_questions.exists():
+        blocking = _blocking_open_questions_sidecar(load_open_questions_text(data_root))
+        summaries = load_recent_discovery_summaries(data_root) + load_recent_decision_summaries(data_root)
+        return blocking, "\n".join(summaries)
+
+    legacy_discoveries = data_root / "Incubation" / "DISCOVERIES.md"
+    legacy_open_questions = data_root / "Incubation" / "OPEN_QUESTIONS.md"
+    blocking = _blocking_open_questions_legacy(_read(legacy_open_questions))
+    return blocking, _read(legacy_discoveries)
 
 
 def _parse_anchor_index(path: Path) -> dict[str, Any]:
@@ -145,16 +192,16 @@ def cmd_spec(args: argparse.Namespace) -> int:
         return 2
 
     toc_path = data_root / "Codex" / "TOC_DRAFT.md"
-    oq_path = data_root / "Incubation" / "OPEN_QUESTIONS.md"
-    disc_path = data_root / "Incubation" / "DISCOVERIES.md"
     build_state_path = data_root / "Codex" / "CODEX_BUILD_STATE.yaml"
 
     toc_text = _read(toc_path)
-    oq_text = _read(oq_path)
-    disc_text = _read(disc_path)
+    try:
+        blocking, continuity_text = _spec_continuity_inputs(data_root)
+    except RuntimeError as exc:
+        print(f"FAIL: {exc}")
+        return 2
 
-    blocking = _blocking_open_questions(oq_text)
-    has_contradiction = bool(CONTRADICTION_RX.search(toc_text) or CONTRADICTION_RX.search(disc_text))
+    has_contradiction = bool(CONTRADICTION_RX.search(toc_text) or CONTRADICTION_RX.search(continuity_text))
     has_sections = _toc_has_sections(toc_text)
 
     if has_contradiction:
@@ -265,4 +312,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-

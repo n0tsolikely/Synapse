@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Iterable
 
-from synapse_runtime.accepted_execution_view import _find_quest_file
+from synapse_runtime.accepted_execution_view import find_quest_file
 from synapse_runtime.governance_model import AmbientSignal, PromotionRecord, ProposalKind, ProposalState
 from synapse_runtime.live_memory_common import (
     LiveMemoryError,
@@ -301,10 +301,10 @@ def _should_skip_quest_candidate(
     if current_id and scope_classification == "in_scope":
         return True
     for quest_id in related_quests:
-        if _find_quest_file(data_root, quest_id) is not None:
+        if find_quest_file(data_root, quest_id) is not None:
             return True
     for quest_id in signal.related_sidequests:
-        if _find_quest_file(data_root, str(quest_id).strip()) is not None:
+        if find_quest_file(data_root, str(quest_id).strip()) is not None:
             return True
     return False
 

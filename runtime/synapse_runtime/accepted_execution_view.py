@@ -1,4 +1,4 @@
-"""Accepted-quest and audit-bundle read/projection helpers."""
+"""Accepted/completed quest and audit-bundle read/projection helpers."""
 
 from __future__ import annotations
 
@@ -9,7 +9,23 @@ from typing import Any
 from synapse_runtime.quest_acceptance import parse_quest_document, prequest_has_execution_readiness
 
 
-def _find_quest_file(data_root: Path, quest_id: str) -> Path | None:
+_QUEST_NUMBER_RX = re.compile(r"(?i)(?:SIDE-QUEST|QUEST)_(\d{3})")
+
+
+def _quest_number(value: str) -> int | None:
+    match = _QUEST_NUMBER_RX.search(str(value or ""))
+    if not match:
+        return None
+    return int(match.group(1))
+
+
+def _quest_sort_key(item: dict[str, Any]) -> tuple[int, str]:
+    number = _quest_number(item.get("quest_id") or item.get("path") or "")
+    number_key = number if number is not None else -1
+    return (number_key, str(item.get("path") or ""))
+
+
+def find_quest_file(data_root: Path, quest_id: str) -> Path | None:
     board_root = data_root / "Quest Board"
     for directory in (
         board_root / "Accepted",
@@ -25,7 +41,7 @@ def _find_quest_file(data_root: Path, quest_id: str) -> Path | None:
     return None
 
 
-def _parse_audit_bundle_path(subject: str, data_root: Path, quest_text: str) -> Path | None:
+def parse_audit_bundle_path(subject: str, data_root: Path, quest_text: str) -> Path | None:
     match = re.search(
         r"(?ims)^Audit Bundle Folder Path \(required once ACCEPTED\):\s*$\n(?P<body>.*?)(?:^\s*=+\s*$|\Z)",
         quest_text,
@@ -47,7 +63,7 @@ def _parse_audit_bundle_path(subject: str, data_root: Path, quest_text: str) -> 
     return None
 
 
-def _load_accepted_quest_details(subject: str, data_root: Path) -> list[dict[str, Any]]:
+def load_accepted_quest_details(subject: str, data_root: Path) -> list[dict[str, Any]]:
     accepted_dir = data_root / "Quest Board" / "Accepted"
     details: list[dict[str, Any]] = []
     if not accepted_dir.exists():
@@ -70,6 +86,7 @@ def _load_accepted_quest_details(subject: str, data_root: Path) -> list[dict[str
                 "quest_id": doc.quest_id or path.stem,
                 "title": doc.title or path.stem,
                 "path": str(path.resolve()),
+                "state": "accepted",
                 "audit_bundle_path": str(bundle_path.resolve()) if bundle_path else None,
                 "execution_ready": execution_ready,
             }
@@ -77,13 +94,45 @@ def _load_accepted_quest_details(subject: str, data_root: Path) -> list[dict[str
     return details
 
 
-def _select_current_accepted_quest(details: list[dict[str, Any]]) -> dict[str, Any] | None:
+def select_current_accepted_quest(details: list[dict[str, Any]]) -> dict[str, Any] | None:
     if not details:
         return None
     for item in details:
         if item.get("execution_ready"):
             return item
     return details[0]
+
+
+def load_completed_quest_details(subject: str, data_root: Path) -> list[dict[str, Any]]:
+    completed_dir = data_root / "Quest Board" / "Completed"
+    details: list[dict[str, Any]] = []
+    if not completed_dir.exists():
+        return details
+    for path in sorted(completed_dir.glob("*.txt")):
+        try:
+            doc = parse_quest_document(subject=subject, data_root=data_root, path=path)
+            audit_bundle_path = doc.audit_bundle_path
+        except Exception:
+            quest_text = path.read_text(encoding="utf-8", errors="replace")
+            quest_id = _QUEST_NUMBER_RX.search(path.name)
+            audit_bundle_path = parse_audit_bundle_path(subject, data_root, quest_text)
+            doc = None
+        details.append(
+            {
+                "quest_id": (doc.quest_id if doc else None) or path.name.split("__", 1)[0],
+                "title": (doc.title if doc else None) or path.stem,
+                "path": str(path.resolve()),
+                "state": "completed",
+                "audit_bundle_path": str(audit_bundle_path.resolve()) if audit_bundle_path else None,
+            }
+        )
+    return sorted(details, key=_quest_sort_key, reverse=True)
+
+
+def select_latest_completed_quest(details: list[dict[str, Any]]) -> dict[str, Any] | None:
+    if not details:
+        return None
+    return sorted(details, key=_quest_sort_key, reverse=True)[0]
 
 
 def _disclosure_phase_path(bundle: Path, trigger: str, status_labels: list[str]) -> Path:
@@ -108,7 +157,7 @@ def _append_markdown_section(path: Path, heading: str, body: str, token: str) ->
     return True
 
 
-def _record_disclosure_in_quest_audits(
+def record_disclosure_in_quest_audits(
     *,
     subject: str,
     data_root: Path,
@@ -123,10 +172,10 @@ def _record_disclosure_in_quest_audits(
         quest_key = str(quest_id).strip()
         if not quest_key:
             continue
-        quest_file = _find_quest_file(data_root, quest_key)
+        quest_file = find_quest_file(data_root, quest_key)
         if quest_file is None:
             continue
-        bundle = _parse_audit_bundle_path(
+        bundle = parse_audit_bundle_path(
             subject,
             data_root,
             quest_file.read_text(encoding="utf-8", errors="replace"),
@@ -162,3 +211,11 @@ def _record_disclosure_in_quest_audits(
             )
         touched.append(str(disclosure_path.resolve()))
     return touched
+
+
+# Compatibility wrappers for callers not yet migrated to public names.
+_find_quest_file = find_quest_file
+_parse_audit_bundle_path = parse_audit_bundle_path
+_load_accepted_quest_details = load_accepted_quest_details
+_select_current_accepted_quest = select_current_accepted_quest
+_record_disclosure_in_quest_audits = record_disclosure_in_quest_audits

@@ -67,6 +67,9 @@ def _default_state(subject: str) -> dict[str, Any]:
         "governed_execution_ready": False,
         "current_accepted_quest_id": None,
         "current_accepted_audit_bundle_path": None,
+        "last_completed_quest_id": None,
+        "last_completed_quest_path": None,
+        "last_completed_audit_bundle_path": None,
         "last_rehydrate_at": None,
         "last_event_id": None,
         "last_event_at": None,
@@ -105,6 +108,11 @@ def _default_manifold(subject: str) -> dict[str, Any]:
         "current_accepted_quest_id": None,
         "current_accepted_quest_path": None,
         "current_accepted_audit_bundle_path": None,
+        "completed_quest_ids": [],
+        "completed_quest_details": [],
+        "last_completed_quest_id": None,
+        "last_completed_quest_path": None,
+        "last_completed_audit_bundle_path": None,
         "governed_execution_ready": False,
         "last_updated_at": _now_iso(),
     }
@@ -325,3 +333,45 @@ def _load_manifold(path: Path, subject: str) -> dict[str, Any]:
         if key not in data:
             data[key] = value
     return data
+
+
+def canonical_open_questions_path(data_root: Path) -> Path:
+    return live_root(data_root) / "THREADS" / "open_questions.md"
+
+
+def _read_text_strict(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except Exception as exc:
+        raise RuntimeError(f"Unable to read canonical sidecar file: {path}") from exc
+
+
+def load_open_questions_text(data_root: Path) -> str:
+    path = canonical_open_questions_path(data_root)
+    if not path.exists():
+        return ""
+    return _read_text_strict(path)
+
+
+def load_recent_discovery_summaries(data_root: Path, limit: int = 20) -> list[str]:
+    from synapse_runtime.ledger_store import _load_recent_daily_entries
+
+    entries = _load_recent_daily_entries(data_root, "DISCOVERIES", limit, strict=True)
+    return [str(entry.get("summary") or "").strip() for entry in entries if str(entry.get("summary") or "").strip()]
+
+
+def load_recent_decision_summaries(data_root: Path, limit: int = 20) -> list[str]:
+    from synapse_runtime.ledger_store import _load_recent_daily_entries
+
+    entries = _load_recent_daily_entries(data_root, "DECISIONS", limit, strict=True)
+    summaries: list[str] = []
+    for entry in entries:
+        title = str(entry.get("title") or "").strip()
+        summary = str(entry.get("summary") or "").strip()
+        if title and summary:
+            summaries.append(f"{title}: {summary}")
+        elif title:
+            summaries.append(title)
+        elif summary:
+            summaries.append(summary)
+    return summaries

@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from synapse_runtime.accepted_execution_view import _record_disclosure_in_quest_audits
+from synapse_runtime.accepted_execution_view import record_disclosure_in_quest_audits
 from synapse_runtime.governance_model import AmbientSignal
 from synapse_runtime.ledger_store import _append_ledger_entry, _daily_ledger_path, _entry_id, _sync_run_ledger
 from synapse_runtime.live_memory_common import LiveMemoryError, _extract_decision_id, _normalize_relpaths, _slugify
@@ -212,7 +212,7 @@ def log_disclosure(
             ["Related:", *(f"- Run: {run}" for run in related_runs), *(f"- Quest: {quest}" for quest in related_quests), ""]
         )
     path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
-    audit_touches = _record_disclosure_in_quest_audits(
+    audit_touches = record_disclosure_in_quest_audits(
         subject=subject,
         data_root=data_root,
         related_quests=related_quests,
