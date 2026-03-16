@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from synapse_runtime.cwt import detect_canonical_working_tree
+from synapse_runtime.governance_pack import resolve_synapse_root
 
 VALID_MODES = {"INCUBATION", "PLAN", "EXECUTE"}
 DEFAULT_MODE = "EXECUTE"
@@ -21,34 +22,39 @@ GOVERNANCE_PATHS = [
 ]
 
 
-def state_path(cwt: Path | None = None) -> Path:
-    cwt = cwt or detect_canonical_working_tree()
-    return cwt / ".synapse" / "STATE.json"
+def state_path(synapse_root: Path | None = None) -> Path:
+    root = synapse_root or resolve_synapse_root()
+    return root / ".synapse" / "STATE.json"
 
 
-def _run_git(cwt: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+def _legacy_state_path(cwt: Path | None = None) -> Path:
+    workspace_root = cwt or detect_canonical_working_tree()
+    return workspace_root / ".synapse" / "STATE.json"
+
+
+def _run_git(repo_root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", *args],
-        cwd=str(cwt),
+        cwd=str(repo_root),
         check=False,
         capture_output=True,
         text=True,
     )
 
 
-def _head_commit(cwt: Path) -> str:
-    out = _run_git(cwt, ["rev-parse", "HEAD"])
+def _head_commit(repo_root: Path) -> str:
+    out = _run_git(repo_root, ["rev-parse", "HEAD"])
     if out.returncode != 0:
         return ""
     return out.stdout.strip()
 
 
-def _governance_changes(cwt: Path, from_commit: str) -> tuple[bool, list[str], str]:
+def _governance_changes(repo_root: Path, from_commit: str) -> tuple[bool, list[str], str]:
     if not from_commit.strip():
         return True, [], "last_ack_commit is not set"
 
     diff = _run_git(
-        cwt,
+        repo_root,
         ["diff", "--name-only", f"{from_commit}..HEAD", "--", *GOVERNANCE_PATHS],
     )
     if diff.returncode != 0:
@@ -73,9 +79,10 @@ def _risk_level(risk: str) -> int | None:
     return int(match.group(1))
 
 
-def load_state(cwt: Path | None = None) -> dict[str, Any]:
-    cwt = cwt or detect_canonical_working_tree()
-    path = state_path(cwt)
+def load_state(*, synapse_root: Path | None = None, cwt: Path | None = None) -> dict[str, Any]:
+    root = synapse_root or resolve_synapse_root()
+    install_path = state_path(root)
+    legacy_path = _legacy_state_path(cwt)
 
     state: dict[str, Any] = {
         "mode": DEFAULT_MODE,
@@ -83,9 +90,10 @@ def load_state(cwt: Path | None = None) -> dict[str, Any]:
         "drift_warned_sessions": {},
     }
 
-    if path.exists():
+    source_path = install_path if install_path.exists() else legacy_path if legacy_path.exists() else None
+    if source_path is not None:
         try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
+            raw = json.loads(source_path.read_text(encoding="utf-8"))
             if isinstance(raw, dict):
                 state.update(raw)
         except Exception:
@@ -104,38 +112,38 @@ def load_state(cwt: Path | None = None) -> dict[str, Any]:
     return state
 
 
-def save_state(state: dict[str, Any], cwt: Path | None = None) -> Path:
-    cwt = cwt or detect_canonical_working_tree()
-    path = state_path(cwt)
+def save_state(state: dict[str, Any], *, synapse_root: Path | None = None) -> Path:
+    root = synapse_root or resolve_synapse_root()
+    path = state_path(root)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return path
 
 
-def set_mode(mode: str, cwt: Path | None = None) -> dict[str, Any]:
-    cwt = cwt or detect_canonical_working_tree()
+def set_mode(mode: str, *, synapse_root: Path | None = None, cwt: Path | None = None) -> dict[str, Any]:
     normalized = str(mode or "").upper()
     if normalized not in VALID_MODES:
         raise ValueError(f"Invalid mode: {mode}. Expected one of: {', '.join(sorted(VALID_MODES))}")
-    state = load_state(cwt)
+    root = synapse_root or resolve_synapse_root()
+    state = load_state(synapse_root=root, cwt=cwt)
     state["mode"] = normalized
-    save_state(state, cwt)
+    save_state(state, synapse_root=root)
     return state
 
 
-def acknowledge_head(cwt: Path | None = None) -> dict[str, Any]:
-    cwt = cwt or detect_canonical_working_tree()
-    head = _head_commit(cwt)
-    state = load_state(cwt)
+def acknowledge_head(*, synapse_root: Path | None = None, cwt: Path | None = None) -> dict[str, Any]:
+    root = synapse_root or resolve_synapse_root()
+    head = _head_commit(root)
+    state = load_state(synapse_root=root, cwt=cwt)
     state["last_ack_commit"] = head
-    save_state(state, cwt)
+    save_state(state, synapse_root=root)
     return state
 
 
-def drift_status(cwt: Path | None = None) -> dict[str, Any]:
-    cwt = cwt or detect_canonical_working_tree()
-    state = load_state(cwt)
-    head = _head_commit(cwt)
+def drift_status(*, synapse_root: Path | None = None, cwt: Path | None = None) -> dict[str, Any]:
+    root = synapse_root or resolve_synapse_root()
+    state = load_state(synapse_root=root, cwt=cwt)
+    head = _head_commit(root)
     ack = str(state.get("last_ack_commit") or "").strip()
 
     if not head:
@@ -146,10 +154,10 @@ def drift_status(cwt: Path | None = None) -> dict[str, Any]:
             "changed_files": [],
             "reason": "unable to resolve git HEAD",
             "mode": state.get("mode", DEFAULT_MODE),
-            "state_path": str(state_path(cwt).resolve()),
+            "state_path": str(state_path(root).resolve()),
         }
 
-    changed, files, reason = _governance_changes(cwt, ack)
+    changed, files, reason = _governance_changes(root, ack)
     return {
         "head_commit": head,
         "last_ack_commit": ack,
@@ -157,7 +165,7 @@ def drift_status(cwt: Path | None = None) -> dict[str, Any]:
         "changed_files": files,
         "reason": reason,
         "mode": state.get("mode", DEFAULT_MODE),
-        "state_path": str(state_path(cwt).resolve()),
+        "state_path": str(state_path(root).resolve()),
     }
 
 
@@ -179,13 +187,14 @@ def enforce_execution_gate(
     risk: str,
     tool: str,
     action: str,
+    synapse_root: Path | None = None,
     cwt: Path | None = None,
     env: dict[str, str] | None = None,
 ) -> tuple[bool, str | None]:
     """Return (allowed, message). Message can be warning or block reason."""
 
-    cwt = cwt or detect_canonical_working_tree()
-    state = load_state(cwt)
+    root = synapse_root or resolve_synapse_root()
+    state = load_state(synapse_root=root, cwt=cwt)
     mode = str(state.get("mode") or DEFAULT_MODE)
     risk_norm = str(risk or "R1").upper()
     risk_level = _risk_level(risk_norm)
@@ -198,7 +207,7 @@ def enforce_execution_gate(
             "Switch with `python3 runtime/synapse.py mode --set EXECUTE`.",
         )
 
-    status = drift_status(cwt)
+    status = drift_status(synapse_root=root, cwt=cwt)
     if not status.get("governance_changed"):
         return True, None
 
@@ -221,13 +230,12 @@ def enforce_execution_gate(
         return True, None
 
     warned[sid] = head
-    # Keep state small.
     if len(warned) > 32:
         keys = sorted(warned.keys())
-        for k in keys[:-32]:
-            warned.pop(k, None)
+        for key in keys[:-32]:
+            warned.pop(key, None)
     state["drift_warned_sessions"] = warned
-    save_state(state, cwt)
+    save_state(state, synapse_root=root)
 
     cmds = drift_commands(status)
     return (

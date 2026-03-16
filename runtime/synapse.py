@@ -22,6 +22,7 @@ import yaml
 from synapse_runtime.cwt import detect_canonical_working_tree
 from synapse_runtime.doctor import run_doctor
 from synapse_runtime.event_log import EventLogError, append_event, build_event
+from synapse_runtime.governance_pack import resolve_governance_asset, resolve_governance_root
 from synapse_runtime.governance_inventory import build_governance_inventory, write_governance_inventory
 from synapse_runtime.governance_model import ProposalKind, ProposalState
 from synapse_runtime.live_journal import log_decision, log_disclosure, record_quest_acceptance
@@ -70,7 +71,7 @@ def build_parser() -> argparse.ArgumentParser:
     doctor_parser.add_argument(
         "--governance-root",
         required=True,
-        help="Path to governance root (relative to canonical working tree or absolute path)",
+        help="Path to governance root (relative to SYNAPSE_ROOT or absolute path)",
     )
     doctor_parser.add_argument(
         "--subject",
@@ -86,7 +87,7 @@ def build_parser() -> argparse.ArgumentParser:
     gov_map_parser.add_argument(
         "--governance-root",
         required=True,
-        help="Path to governance root (relative to canonical working tree or absolute path)",
+        help="Path to governance root (relative to SYNAPSE_ROOT or absolute path)",
     )
     gov_map_parser.add_argument("--output", help="Optional output path (.yaml or .json)")
     gov_map_parser.add_argument("--json", action="store_true", help="Print JSON output")
@@ -1209,9 +1210,11 @@ def cmd_engage(args: argparse.Namespace) -> int:
 
 def cmd_governance_map(args: argparse.Namespace) -> int:
     cwt = detect_canonical_working_tree()
-    governance_root = Path(args.governance_root)
-    if not governance_root.is_absolute():
-        governance_root = (cwt / governance_root).resolve()
+    try:
+        governance_root = resolve_governance_root(args.governance_root)
+    except Exception as exc:
+        print(f"FAIL: {exc}")
+        return 2
     payload = build_governance_inventory(governance_root)
 
     output_path = None
@@ -2717,11 +2720,10 @@ def _ensure_talent_files(data_root: Path) -> tuple[Path, Path]:
     talent_dir.mkdir(parents=True, exist_ok=True)
     tree_path = talent_dir / "TALENT_TREE.txt"
     log_path = talent_dir / "TALENT_LOG.txt"
-    templates_dir = detect_canonical_working_tree() / "governance" / "Talent Tree"
     if not tree_path.exists():
-        shutil.copy2(templates_dir / "TALENT_TREE.txt", tree_path)
+        shutil.copy2(resolve_governance_asset("Talent Tree", "TALENT_TREE.txt"), tree_path)
     if not log_path.exists():
-        shutil.copy2(templates_dir / "TALENT_LOG.txt", log_path)
+        shutil.copy2(resolve_governance_asset("Talent Tree", "TALENT_LOG.txt"), log_path)
     return tree_path, log_path
 
 

@@ -8,7 +8,7 @@ from pathlib import Path
 from synapse_runtime.cwt import detect_canonical_working_tree
 from synapse_runtime.event_log import validate_event_stream
 from synapse_runtime.governance_model import derive_world_state, required_sidecar_paths
-from synapse_runtime.governance_pack import required_file_checks, resolve_governance_root
+from synapse_runtime.governance_pack import required_file_checks, resolve_governance_root, resolve_synapse_root
 from synapse_runtime.schema_validation import load_json, load_yaml, validate_state_schema
 
 
@@ -251,9 +251,16 @@ def _subject_mode(subject_receipt: dict) -> str:
 
 def run_doctor(governance_root_arg: str, subject_receipt: dict | None = None) -> int:
     cwt = detect_canonical_working_tree()
-    governance_root = resolve_governance_root(cwt, governance_root_arg)
+    try:
+        governance_root = resolve_governance_root(governance_root_arg)
+        governance_error = None
+    except Exception as exc:
+        governance_root = Path(governance_root_arg).expanduser()
+        if not governance_root.is_absolute():
+            governance_root = (resolve_synapse_root() / governance_root).resolve()
+        governance_error = str(exc)
 
-    governance_root_exists = governance_root.exists() and governance_root.is_dir()
+    governance_root_exists = governance_error is None and governance_root.exists() and governance_root.is_dir()
     schema_valid = False
     read_order_checks: list[ReadOrderCheck] = []
     subject_checks: list[ReadOrderCheck] = []
@@ -295,6 +302,8 @@ def run_doctor(governance_root_arg: str, subject_receipt: dict | None = None) ->
     print("=== SYNAPSE DOCTOR REPORT ===")
     print(f"CWT: {cwt}")
     print(f"Governance root: {governance_root}")
+    if governance_error:
+        print(f"Governance resolution: FAIL ({governance_error})")
     print(f"Schema validation: {'PASS' if schema_valid else 'FAIL'}")
     print("Required Read Order:")
     for item in read_order_checks:

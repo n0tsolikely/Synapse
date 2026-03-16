@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from synapse_runtime.cwt import detect_canonical_working_tree
+from synapse_runtime.governance_pack import resolve_governance_asset
 
 DEFAULT_TIMEZONE = ZoneInfo("America/Toronto")
 DEFAULT_TESTING_LEVEL = "DEFERRED TO 01_PREQUEST.md"
@@ -33,8 +33,8 @@ def _slugify(value: str, max_len: int = 48) -> str:
 
 
 def load_quest_template(cwt: Path | None = None) -> str:
-    root = cwt or detect_canonical_working_tree()
-    template_path = root / "governance" / "Quest Board" / "QUEST_TEMPLATE.txt"
+    _ = cwt
+    template_path = resolve_governance_asset("Quest Board", "QUEST_TEMPLATE.txt")
     if not template_path.exists():
         raise FileNotFoundError(f"Quest template not found: {template_path}")
     return template_path.read_text(encoding="utf-8")
