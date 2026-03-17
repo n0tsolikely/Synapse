@@ -108,6 +108,56 @@ class SemanticIntakeTests(unittest.TestCase):
         with self.assertRaises(SemanticIntakeError):
             normalize_capture_payload({"captures": "nope"}, engine_root=self.engine_root, data_root=self.data_root)
 
+    def test_valid_capture_payload_normalizes_correctly(self) -> None:
+        normalized = normalize_capture_payload(
+            {
+                "title": "Batch title",
+                "tags": ["alpha", "alpha", "beta"],
+                "captures": [
+                    {
+                        "kind": "question",
+                        "summary": "  What owns replay?  ",
+                        "detail": "  Need a deterministic answer. ",
+                        "blocking": True,
+                        "confidence": "high",
+                        "tags": ["one", "one", "two"],
+                    }
+                ],
+            },
+            engine_root=self.engine_root,
+            data_root=self.data_root,
+        )
+        self.assertEqual(normalized["title"], "Batch title")
+        self.assertEqual(normalized["tags"], ["alpha", "beta"])
+        self.assertEqual(normalized["captures"][0]["summary"], "What owns replay?")
+        self.assertEqual(normalized["captures"][0]["detail"], "Need a deterministic answer.")
+        self.assertEqual(normalized["captures"][0]["confidence"], "high")
+        self.assertEqual(normalized["captures"][0]["tags"], ["one", "two"])
+
+    def test_invalid_kind_is_rejected(self) -> None:
+        with self.assertRaises(SemanticIntakeError):
+            normalize_capture_payload(
+                {"captures": [{"kind": "not-a-kind", "summary": "bad"}]},
+                engine_root=self.engine_root,
+                data_root=self.data_root,
+            )
+
+    def test_empty_summary_is_rejected(self) -> None:
+        with self.assertRaises(SemanticIntakeError):
+            normalize_capture_payload(
+                {"captures": [{"kind": "idea", "summary": "   "}]},
+                engine_root=self.engine_root,
+                data_root=self.data_root,
+            )
+
+    def test_invalid_confidence_is_rejected(self) -> None:
+        with self.assertRaises(SemanticIntakeError):
+            normalize_capture_payload(
+                {"captures": [{"kind": "idea", "summary": "x", "confidence": "certain"}]},
+                engine_root=self.engine_root,
+                data_root=self.data_root,
+            )
+
     def test_blocking_is_rejected_for_disallowed_kinds(self) -> None:
         with self.assertRaises(SemanticIntakeError):
             normalize_capture_payload(
@@ -342,6 +392,16 @@ class CaptureChunkCommandTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         return json.loads(result.stdout)
 
+    def _session_start(self, mode: str) -> dict:
+        result = run_synapse(
+            ["session-start", "--title", "Semantic session", "--session-mode", mode, "--json"],
+            cwd=self.engine_root,
+            home=self.home,
+            extra_env={"SYNAPSE_SESSION_ID": "SESSION-INTAKE"},
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        return json.loads(result.stdout)
+
     def _load_state(self) -> dict:
         return yaml.safe_load((self.data_root / ".synapse" / "STATE.yaml").read_text(encoding="utf-8"))
 
@@ -389,6 +449,8 @@ class CaptureChunkCommandTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         payload = json.loads(result.stdout)
+        self.assertTrue(payload["capture_batch_id"])
+        self.assertEqual(len(payload["capture_ids"]), 2)
         self.assertTrue(Path(payload["capture_artifact_path"]).exists())
         self.assertTrue(Path(payload["capture_ledger_path"]).exists())
         self.assertTrue(payload["proposal_paths"])
@@ -426,6 +488,193 @@ class CaptureChunkCommandTests(unittest.TestCase):
         self.assertTrue(Path(payload["capture_ledger_path"]).exists())
         self.assertIsNone(payload["event"])
         self.assertEqual(thread_path.read_text(encoding="utf-8"), "# Custom Questions\n\nDo not overwrite this.\n")
+
+    def test_legacy_active_run_backfill_still_accepts_semantic_capture(self) -> None:
+        self._run_start()
+        active_run_path = self.data_root / ".synapse" / "ACTIVE_RUN.yaml"
+        active_run = yaml.safe_load(active_run_path.read_text(encoding="utf-8"))
+        active_run["interaction_mode"] = "decision"
+        for key in (
+            "session_mode",
+            "session_mode_source",
+            "session_mode_set_at",
+            "session_mode_reason",
+            "session_mode_policy_version",
+        ):
+            active_run.pop(key, None)
+        active_run_path.write_text(yaml.safe_dump(active_run, sort_keys=False), encoding="utf-8")
+
+        capture = run_synapse(
+            [
+                "capture-chunk",
+                "--text",
+                "Legacy backfill capture.",
+                "--captures-json",
+                json.dumps({"captures": [{"kind": "constraint", "summary": "Backfill first, then capture"}]}),
+                "--json",
+            ],
+            cwd=self.engine_root,
+            home=self.home,
+        )
+        self.assertEqual(capture.returncode, 0, capture.stdout + capture.stderr)
+        persisted = yaml.safe_load(active_run_path.read_text(encoding="utf-8"))
+        self.assertEqual(persisted["session_mode"], "control_sync")
+        self.assertEqual(persisted["session_mode_source"], "legacy_backfill")
+
+    def test_scaffold_thread_upgrades_to_managed_thread_and_excludes_risks(self) -> None:
+        self._run_start()
+        capture = run_synapse(
+            [
+                "capture-chunk",
+                "--text",
+                "Open questions thread sync.",
+                "--captures-json",
+                json.dumps(
+                    {
+                        "captures": [
+                            {"kind": "question", "summary": "Who owns semantic replay?"},
+                            {"kind": "risk", "summary": "Risk should not render in thread", "blocking": True},
+                        ]
+                    }
+                ),
+                "--json",
+            ],
+            cwd=self.engine_root,
+            home=self.home,
+        )
+        self.assertEqual(capture.returncode, 0, capture.stdout + capture.stderr)
+        thread_text = (self.data_root / ".synapse" / "THREADS" / "open_questions.md").read_text(encoding="utf-8")
+        self.assertIn(OPEN_QUESTIONS_MANAGED_MARKER, thread_text)
+        self.assertIn("Who owns semantic replay?", thread_text)
+        self.assertNotIn("Risk should not render in thread", thread_text)
+
+    def test_state_and_manifold_receive_semantic_summary_fields(self) -> None:
+        self._run_start()
+        capture = run_synapse(
+            [
+                "capture-chunk",
+                "--text",
+                "Summary fanout.",
+                "--captures-json",
+                json.dumps(
+                    {
+                        "captures": [
+                            {"kind": "idea", "summary": "Typed intake"},
+                            {"kind": "constraint", "summary": "No shadow store"},
+                            {"kind": "risk", "summary": "Replay drift", "blocking": True},
+                            {"kind": "dependency", "summary": "Reducer replay"},
+                            {"kind": "non_goal", "summary": "No NL inference yet"},
+                            {"kind": "milestone", "summary": "Phase 2 shipped"},
+                            {"kind": "decision", "summary": "Keep captures provisional"},
+                            {"kind": "question", "summary": "What renders open questions?", "blocking": True},
+                        ]
+                    }
+                ),
+                "--json",
+            ],
+            cwd=self.engine_root,
+            home=self.home,
+        )
+        self.assertEqual(capture.returncode, 0, capture.stdout + capture.stderr)
+        state = self._load_state()
+        manifold = self._load_manifold()
+        self.assertEqual(state["last_capture_batch_id"], json.loads(capture.stdout)["capture_batch_id"])
+        self.assertTrue(state["last_capture_at"])
+        self.assertGreaterEqual(state["open_question_count"], 1)
+        self.assertGreaterEqual(state["blocking_question_count"], 1)
+        self.assertTrue(manifold["recent_idea_details"])
+        self.assertTrue(manifold["recent_constraint_details"])
+        self.assertTrue(manifold["recent_risk_details"])
+        self.assertTrue(manifold["recent_dependency_details"])
+        self.assertTrue(manifold["recent_non_goal_details"])
+        self.assertTrue(manifold["recent_milestone_details"])
+        self.assertTrue(manifold["candidate_decision_details"])
+
+    def test_capture_chunk_emits_only_one_quest_like_output_for_idea_batch(self) -> None:
+        self._run_start()
+        capture = run_synapse(
+            [
+                "capture-chunk",
+                "--text",
+                "Quest-like semantic batch.",
+                "--captures-json",
+                json.dumps({"captures": [{"kind": "idea", "summary": "Turn this into a tracked quest"}]}),
+                "--json",
+            ],
+            cwd=self.engine_root,
+            home=self.home,
+        )
+        self.assertEqual(capture.returncode, 0, capture.stdout + capture.stderr)
+        payload = json.loads(capture.stdout)
+        self.assertEqual(len(payload["proposal_paths"]), 1)
+
+    def test_closeout_allows_capture_chunk_but_suppresses_quest_output(self) -> None:
+        self._session_start("closeout")
+        capture = run_synapse(
+            [
+                "capture-chunk",
+                "--text",
+                "Closeout semantic batch.",
+                "--captures-json",
+                json.dumps({"captures": [{"kind": "idea", "summary": "Post-closeout idea"}]}),
+                "--json",
+            ],
+            cwd=self.engine_root,
+            home=self.home,
+        )
+        self.assertEqual(capture.returncode, 0, capture.stdout + capture.stderr)
+        payload = json.loads(capture.stdout)
+        self.assertEqual(payload["runtime_status"]["operation_status"], "ok")
+        self.assertEqual(payload["proposal_paths"], [])
+
+    def test_brainstorm_capture_does_not_auto_formalize_quest_candidate(self) -> None:
+        self._session_start("brainstorm_spec")
+        capture = run_synapse(
+            [
+                "capture-chunk",
+                "--text",
+                "Brainstorm semantic batch.",
+                "--captures-json",
+                json.dumps({"captures": [{"kind": "idea", "summary": "Spec a new runtime surface"}]}),
+                "--json",
+            ],
+            cwd=self.engine_root,
+            home=self.home,
+        )
+        self.assertEqual(capture.returncode, 0, capture.stdout + capture.stderr)
+        quest_board_files = list((self.data_root / "Quest Board").glob("*.txt"))
+        self.assertEqual(quest_board_files, [])
+
+    def test_capture_chunk_preserves_truth_boundaries(self) -> None:
+        self._run_start()
+        decisions_before = yaml.safe_load((self.data_root / ".synapse" / "DECISIONS" / next((self.data_root / ".synapse" / "DECISIONS").glob("*.yaml")).name).read_text(encoding="utf-8"))["entries"]
+        disclosures_before = yaml.safe_load((self.data_root / ".synapse" / "DISCLOSURES" / next((self.data_root / ".synapse" / "DISCLOSURES").glob("*.yaml")).name).read_text(encoding="utf-8"))["entries"]
+        capture = run_synapse(
+            [
+                "capture-chunk",
+                "--text",
+                "Truth boundary batch.",
+                "--captures-json",
+                json.dumps(
+                    {
+                        "captures": [
+                            {"kind": "decision", "summary": "This stays provisional"},
+                            {"kind": "risk", "summary": "Needs disclosure proposal only", "blocking": True},
+                        ]
+                    }
+                ),
+                "--json",
+            ],
+            cwd=self.engine_root,
+            home=self.home,
+        )
+        self.assertEqual(capture.returncode, 0, capture.stdout + capture.stderr)
+        payload = json.loads(capture.stdout)
+        self.assertFalse(payload["event"]["payload"]["truth_flags"]["canon_mutated"])
+        decisions_after = yaml.safe_load((self.data_root / ".synapse" / "DECISIONS" / next((self.data_root / ".synapse" / "DECISIONS").glob("*.yaml")).name).read_text(encoding="utf-8"))["entries"]
+        disclosures_after = yaml.safe_load((self.data_root / ".synapse" / "DISCLOSURES" / next((self.data_root / ".synapse" / "DISCLOSURES").glob("*.yaml")).name).read_text(encoding="utf-8"))["entries"]
+        self.assertEqual(len(decisions_after), len(decisions_before))
+        self.assertEqual(len(disclosures_after), len(disclosures_before))
 
     def test_reducer_replay_rebuilds_semantic_state_without_duplicate_proposals(self) -> None:
         self._run_start()
