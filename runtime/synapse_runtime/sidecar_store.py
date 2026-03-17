@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 import yaml
 
 from synapse_runtime.governance_model import required_sidecar_paths
+from synapse_runtime.session_modes import backfill_mode_from_active_run
 
 
 LIVE_DIRNAME = ".synapse"
@@ -67,6 +68,9 @@ def _default_state(subject: str) -> dict[str, Any]:
         "governed_execution_ready": False,
         "current_accepted_quest_id": None,
         "current_accepted_audit_bundle_path": None,
+        "active_session_mode": None,
+        "last_session_mode": None,
+        "last_session_mode_ended_at": None,
         "last_completed_quest_id": None,
         "last_completed_quest_path": None,
         "last_completed_audit_bundle_path": None,
@@ -108,6 +112,14 @@ def _default_manifold(subject: str) -> dict[str, Any]:
         "current_accepted_quest_id": None,
         "current_accepted_quest_path": None,
         "current_accepted_audit_bundle_path": None,
+        "active_session_mode": None,
+        "active_session_mode_source": None,
+        "active_session_mode_set_at": None,
+        "active_session_mode_reason": None,
+        "active_session_mode_policy_version": None,
+        "active_session_mode_policy": None,
+        "last_session_mode": None,
+        "last_session_mode_ended_at": None,
         "completed_quest_ids": [],
         "completed_quest_details": [],
         "last_completed_quest_id": None,
@@ -131,6 +143,11 @@ def _default_active_run(subject: str) -> dict[str, Any]:
         "updated_at": _now_iso(),
         "status": "idle",
         "interaction_mode": "maintenance",
+        "session_mode": None,
+        "session_mode_source": None,
+        "session_mode_set_at": None,
+        "session_mode_reason": None,
+        "session_mode_policy_version": None,
         "plan": {"items": []},
         "commands": [],
         "files_touched": [],
@@ -321,6 +338,10 @@ def _load_active_run(path: Path, subject: str) -> dict[str, Any]:
         data["plan"] = {"items": []}
     if "items" not in data["plan"] or not isinstance(data["plan"]["items"], list):
         data["plan"]["items"] = []
+    normalized, changed = backfill_mode_from_active_run(data, _now_iso())
+    if changed:
+        _write_yaml(path, normalized)
+        return normalized
     return data
 
 

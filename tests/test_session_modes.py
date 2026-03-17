@@ -1,7 +1,10 @@
 import unittest
+import tempfile
 
 from pathlib import Path
 import sys
+
+import yaml
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -20,6 +23,7 @@ from synapse_runtime.session_modes import (
     session_mode_signal_fields,
     validate_transition,
 )
+from synapse_runtime.sidecar_store import _default_active_run, _load_active_run
 
 
 class SessionModePolicyTests(unittest.TestCase):
@@ -118,6 +122,78 @@ class SessionModePolicyTests(unittest.TestCase):
                 "session_mode_policy_version": SESSION_MODE_POLICY_VERSION,
             },
         )
+
+
+class ActiveRunNormalizationTests(unittest.TestCase):
+    def test_load_active_run_backfills_decision_to_control_sync_and_persists(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "ACTIVE_RUN.yaml"
+            payload = _default_active_run("Subject")
+            payload["active"] = True
+            payload["run_id"] = "RUN-1"
+            payload["interaction_mode"] = "decision"
+            for key in (
+                "session_mode",
+                "session_mode_source",
+                "session_mode_set_at",
+                "session_mode_reason",
+                "session_mode_policy_version",
+            ):
+                payload.pop(key, None)
+            path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+
+            run_data = _load_active_run(path, "Subject")
+
+            self.assertEqual(run_data["session_mode"], SessionMode.CONTROL_SYNC.value)
+            self.assertEqual(run_data["session_mode_source"], "legacy_backfill")
+            persisted = yaml.safe_load(path.read_text(encoding="utf-8"))
+            self.assertEqual(persisted["session_mode"], SessionMode.CONTROL_SYNC.value)
+            self.assertEqual(persisted["session_mode_policy_version"], SESSION_MODE_POLICY_VERSION)
+
+    def test_load_active_run_backfills_maintenance_to_brainstorm_spec(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "ACTIVE_RUN.yaml"
+            payload = _default_active_run("Subject")
+            payload["active"] = True
+            payload["run_id"] = "RUN-2"
+            payload["interaction_mode"] = "maintenance"
+            for key in (
+                "session_mode",
+                "session_mode_source",
+                "session_mode_set_at",
+                "session_mode_reason",
+                "session_mode_policy_version",
+            ):
+                payload.pop(key, None)
+            path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+
+            run_data = _load_active_run(path, "Subject")
+
+            self.assertEqual(run_data["session_mode"], SessionMode.BRAINSTORM_SPEC.value)
+
+    def test_repeated_loads_do_not_remutate_already_backfilled_run(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "ACTIVE_RUN.yaml"
+            payload = _default_active_run("Subject")
+            payload["active"] = True
+            payload["run_id"] = "RUN-3"
+            payload["interaction_mode"] = "decision"
+            for key in (
+                "session_mode",
+                "session_mode_source",
+                "session_mode_set_at",
+                "session_mode_reason",
+                "session_mode_policy_version",
+            ):
+                payload.pop(key, None)
+            path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+
+            _load_active_run(path, "Subject")
+            first_text = path.read_text(encoding="utf-8")
+            _load_active_run(path, "Subject")
+            second_text = path.read_text(encoding="utf-8")
+
+            self.assertEqual(first_text, second_text)
 
 
 if __name__ == "__main__":
