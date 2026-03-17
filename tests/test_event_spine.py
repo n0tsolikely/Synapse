@@ -77,6 +77,14 @@ class EventSpineTests(unittest.TestCase):
     def _load_state(self) -> dict:
         return yaml.safe_load((self.data_root / ".synapse" / "STATE.yaml").read_text(encoding="utf-8"))
 
+    def _event_entries(self) -> list[dict]:
+        entries: list[dict] = []
+        for path in sorted(self._events_root().glob("*.jsonl")):
+            for line in path.read_text(encoding="utf-8").splitlines():
+                if line.strip():
+                    entries.append(json.loads(line))
+        return entries
+
     def _engage(self) -> None:
         write_focus_lock(
             subject=self.subject,
@@ -192,6 +200,44 @@ class EventSpineTests(unittest.TestCase):
         self.assertEqual(state.get("last_reduced_event_id"), event_payload["event_id"])
         self.assertEqual(state.get("reducer_version"), payload["reducer"]["reducer_version"])
         self.assertTrue((self.data_root / ".synapse" / "REHYDRATE.md").exists())
+
+    def test_run_finalize_event_preserves_prior_session_posture_signals(self) -> None:
+        start = run_synapse(
+            ["run-start", "--title", "Evented run", "--plan-item", "Do the thing", "--json", *self.subject_args],
+            cwd=REPO_ROOT,
+            home=self.home,
+        )
+        self.assertEqual(start.returncode, 0, start.stdout + start.stderr)
+
+        update = run_synapse(
+            ["run-update", "--set-item-status", "ITEM-001:DONE", "--json", *self.subject_args],
+            cwd=REPO_ROOT,
+            home=self.home,
+        )
+        self.assertEqual(update.returncode, 0, update.stdout + update.stderr)
+
+        finalize = run_synapse(
+            ["run-finalize", "--status", "completed", "--json", *self.subject_args],
+            cwd=REPO_ROOT,
+            home=self.home,
+        )
+        self.assertEqual(finalize.returncode, 0, finalize.stdout + finalize.stderr)
+
+        payload = json.loads(finalize.stdout)
+        event_payload = payload["event"]["payload"]
+        persisted_event = self._event_entries()[-1]
+
+        self.assertEqual(payload["session_mode"], "execution")
+        self.assertEqual(payload["session_mode_source"], "command_default")
+        self.assertEqual(payload["session_mode_policy_version"], 1)
+        self.assertEqual(event_payload["action_name"], "run-finalize")
+        self.assertEqual(event_payload["signals"]["session_mode"], "execution")
+        self.assertEqual(event_payload["signals"]["session_mode_source"], "command_default")
+        self.assertEqual(event_payload["signals"]["session_mode_policy_version"], 1)
+        self.assertEqual(persisted_event["action_name"], "run-finalize")
+        self.assertEqual(persisted_event["signals"]["session_mode"], "execution")
+        self.assertEqual(persisted_event["signals"]["session_mode_source"], "command_default")
+        self.assertEqual(persisted_event["signals"]["session_mode_policy_version"], 1)
 
     def test_doctor_accepts_live_subject_without_event_spine_until_upgraded(self) -> None:
         ensure_live_scaffold(self.subject, self.data_root)

@@ -273,6 +273,15 @@ class SessionModeLifecycleTests(unittest.TestCase):
             total += sum(1 for line in path.read_text(encoding="utf-8").splitlines() if line.strip())
         return total
 
+    def _event_entries(self) -> list[dict]:
+        entries: list[dict] = []
+        events_dir = self.data_root / ".synapse" / "EVENTS"
+        for path in sorted(events_dir.glob("*.jsonl")):
+            for line in path.read_text(encoding="utf-8").splitlines():
+                if line.strip():
+                    entries.append(json.loads(line))
+        return entries
+
     def _write_codex_freeze(self) -> None:
         freeze = self.data_root / "Codex" / "CODEX_FREEZE.md"
         freeze.parent.mkdir(parents=True, exist_ok=True)
@@ -632,10 +641,12 @@ class SessionModeLifecycleTests(unittest.TestCase):
             home=self.home,
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
 
         state = self._read_state()
         manifold = self._read_manifold()
         rehydrate = self._read_rehydrate()
+        finalize_event = self._event_entries()[-1]
 
         self.assertIsNone(state["active_session_mode"])
         self.assertEqual(state["last_session_mode"], SessionMode.SCOPE_PLANNING.value)
@@ -646,6 +657,17 @@ class SessionModeLifecycleTests(unittest.TestCase):
         self.assertTrue(manifold["last_session_mode_ended_at"])
         self.assertIn("Current session mode: none", rehydrate)
         self.assertIn("Last session mode: scope_planning", rehydrate)
+        self.assertEqual(payload["session_mode"], SessionMode.SCOPE_PLANNING.value)
+        self.assertEqual(payload["session_mode_source"], "explicit_transition")
+        self.assertEqual(payload["session_mode_policy_version"], SESSION_MODE_POLICY_VERSION)
+        self.assertEqual(payload["last_session_mode"], SessionMode.SCOPE_PLANNING.value)
+        self.assertEqual(payload["event"]["payload"]["signals"]["session_mode"], SessionMode.SCOPE_PLANNING.value)
+        self.assertEqual(payload["event"]["payload"]["signals"]["session_mode_source"], "explicit_transition")
+        self.assertEqual(payload["event"]["payload"]["signals"]["session_mode_policy_version"], SESSION_MODE_POLICY_VERSION)
+        self.assertEqual(finalize_event["action_name"], "run-finalize")
+        self.assertEqual(finalize_event["signals"]["session_mode"], SessionMode.SCOPE_PLANNING.value)
+        self.assertEqual(finalize_event["signals"]["session_mode_source"], "explicit_transition")
+        self.assertEqual(finalize_event["signals"]["session_mode_policy_version"], SESSION_MODE_POLICY_VERSION)
 
     def test_closeout_filters_disallowed_quest_like_and_guild_order_outputs(self) -> None:
         result = run_synapse(
