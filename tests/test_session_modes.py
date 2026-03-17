@@ -254,6 +254,10 @@ class SessionModeLifecycleTests(unittest.TestCase):
     def _read_active_run(self) -> dict:
         return yaml.safe_load((self.data_root / ".synapse" / "ACTIVE_RUN.yaml").read_text(encoding="utf-8"))
 
+    def _start_brainstorm_session(self) -> None:
+        result = run_synapse(["session-start", "--title", "Spec pass", "--json", *self.subject_args], cwd=REPO_ROOT, home=self.home)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_session_start_new_run_defaults_to_brainstorm_spec(self) -> None:
         result = run_synapse(["session-start", "--title", "Spec pass", "--json", *self.subject_args], cwd=REPO_ROOT, home=self.home)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -295,6 +299,123 @@ class SessionModeLifecycleTests(unittest.TestCase):
         self.assertEqual(archived["session_mode"], SessionMode.EXECUTION.value)
         self.assertEqual(archived["last_session_mode"], SessionMode.EXECUTION.value)
         self.assertTrue(archived["last_session_mode_ended_at"])
+
+    def test_session_mode_inspect_returns_active_posture(self) -> None:
+        self._start_brainstorm_session()
+        result = run_synapse(["session-mode", "--json", *self.subject_args], cwd=REPO_ROOT, home=self.home)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["active_session_mode"], SessionMode.BRAINSTORM_SPEC.value)
+        self.assertIn("scope_planning", payload["allowed_next_modes"])
+
+    def test_valid_session_mode_transition_emits_event_and_updates_active_run(self) -> None:
+        self._start_brainstorm_session()
+        result = run_synapse(
+            [
+                "session-mode",
+                "--set",
+                "scope_planning",
+                "--reason",
+                "Moving from ideation into scoped planning",
+                "--json",
+                *self.subject_args,
+            ],
+            cwd=REPO_ROOT,
+            home=self.home,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertTrue(payload["changed"])
+        self.assertEqual(payload["from_session_mode"], SessionMode.BRAINSTORM_SPEC.value)
+        self.assertEqual(payload["to_session_mode"], SessionMode.SCOPE_PLANNING.value)
+        self.assertEqual(payload["event"]["payload"]["signals"]["from_session_mode"], SessionMode.BRAINSTORM_SPEC.value)
+        self.assertEqual(payload["event"]["payload"]["signals"]["to_session_mode"], SessionMode.SCOPE_PLANNING.value)
+        self.assertEqual(
+            payload["event"]["payload"]["signals"]["session_mode_reason"],
+            "Moving from ideation into scoped planning",
+        )
+        active = self._read_active_run()
+        self.assertEqual(active["session_mode"], SessionMode.SCOPE_PLANNING.value)
+
+    def test_invalid_transition_fails_before_mutation(self) -> None:
+        self._start_brainstorm_session()
+        before = self._read_active_run()
+        result = run_synapse(
+            [
+                "session-mode",
+                "--set",
+                "execution",
+                "--reason",
+                "skip ahead",
+                "--json",
+                *self.subject_args,
+            ],
+            cwd=REPO_ROOT,
+            home=self.home,
+        )
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["active_session_mode"], SessionMode.BRAINSTORM_SPEC.value)
+        self.assertEqual(payload["target_session_mode"], SessionMode.EXECUTION.value)
+        self.assertIn("scope_planning", payload["allowed_next_modes"])
+        self.assertIn("Invalid session-mode transition", payload["error"])
+        after = self._read_active_run()
+        self.assertEqual(after["session_mode"], before["session_mode"])
+        self.assertEqual(after["session_mode_set_at"], before["session_mode_set_at"])
+
+    def test_same_mode_set_is_noop_without_event(self) -> None:
+        self._start_brainstorm_session()
+        before = self._read_active_run()
+        result = run_synapse(
+            ["session-mode", "--set", "brainstorm_spec", "--json", *self.subject_args],
+            cwd=REPO_ROOT,
+            home=self.home,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertFalse(payload["changed"])
+        self.assertNotIn("event", payload)
+        after = self._read_active_run()
+        self.assertEqual(after["session_mode_set_at"], before["session_mode_set_at"])
+
+    def test_session_mode_set_without_active_run_fails(self) -> None:
+        result = run_synapse(
+            [
+                "session-mode",
+                "--set",
+                "scope_planning",
+                "--reason",
+                "need a run first",
+                "--json",
+                *self.subject_args,
+            ],
+            cwd=REPO_ROOT,
+            home=self.home,
+        )
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertIsNone(payload["active_session_mode"])
+        self.assertIn("No active run exists", payload["error"])
+
+    def test_session_start_existing_run_rejects_different_requested_mode(self) -> None:
+        self._start_brainstorm_session()
+        result = run_synapse(
+            ["session-start", "--session-mode", "scope_planning", "--json", *self.subject_args],
+            cwd=REPO_ROOT,
+            home=self.home,
+        )
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("session-mode --set", result.stdout + result.stderr)
+
+    def test_session_tick_existing_run_rejects_different_requested_mode(self) -> None:
+        self._start_brainstorm_session()
+        result = run_synapse(
+            ["session-tick", "--session-mode", "scope_planning", "--json", *self.subject_args],
+            cwd=REPO_ROOT,
+            home=self.home,
+        )
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("session-mode --set", result.stdout + result.stderr)
 
 
 if __name__ == "__main__":

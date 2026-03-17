@@ -42,6 +42,13 @@ from synapse_runtime.repo_state import (
     set_mode,
     state_path,
 )
+from synapse_runtime.session_modes import (
+    SESSION_MODE_POLICY_VERSION,
+    SessionMode,
+    policy_summary,
+    session_mode_signal_fields,
+    validate_transition,
+)
 from synapse_runtime.sidecar_store import ensure_live_scaffold
 from synapse_runtime.subject_bootstrap import initialize_subject_state, repo_subject_defaults
 from synapse_runtime.quest_acceptance import QuestAcceptanceError, accept_quest
@@ -66,6 +73,7 @@ from synapse_runtime.subject_resolver import (
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="synapse")
     subparsers = parser.add_subparsers(dest="command", required=True)
+    session_mode_choices = [mode.value for mode in SessionMode]
 
     doctor_parser = subparsers.add_parser("doctor", help="Run deterministic governance checks")
     doctor_parser.add_argument(
@@ -227,6 +235,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_start_parser.add_argument("--engine-root", help="Override engine root path")
     run_start_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
     run_start_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
+    run_start_parser.add_argument("--session-mode", choices=session_mode_choices, help="Explicit session posture for the new run")
     run_start_parser.add_argument("--json", action="store_true", help="Print JSON output")
 
     session_start_parser = subparsers.add_parser("session-start", help="Auto-attach/init subject and start an ambient session run")
@@ -241,6 +250,7 @@ def build_parser() -> argparse.ArgumentParser:
     session_start_parser.add_argument("--selected-by", default="Brains", help="Who made the selection (default: Brains)")
     session_start_parser.add_argument("--no-home-lock", action="store_true", help="Do not write ~/.synapse/ACTIVE_SUBJECT.json")
     session_start_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
+    session_start_parser.add_argument("--session-mode", choices=session_mode_choices, help="Explicit session posture for a newly created session run")
     session_start_parser.add_argument("--json", action="store_true", help="Print JSON output")
 
     run_update_parser = subparsers.add_parser("run-update", help="Update the active run record")
@@ -313,7 +323,18 @@ def build_parser() -> argparse.ArgumentParser:
     session_tick_parser.add_argument("--selected-by", default="Brains", help="Who made the selection (default: Brains)")
     session_tick_parser.add_argument("--no-home-lock", action="store_true", help="Do not write ~/.synapse/ACTIVE_SUBJECT.json")
     session_tick_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
+    session_tick_parser.add_argument("--session-mode", choices=session_mode_choices, help="Validate or set posture only when creating a new run")
     session_tick_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
+    session_mode_parser = subparsers.add_parser("session-mode", help="Inspect or explicitly transition the active session posture")
+    session_mode_parser.add_argument("--set", dest="target_session_mode", choices=session_mode_choices, help="Target session posture")
+    session_mode_parser.add_argument("--reason", help="Reason for the posture transition")
+    session_mode_parser.add_argument("--subject", help="Optional subject override")
+    session_mode_parser.add_argument("--data-root", help="Override data root path")
+    session_mode_parser.add_argument("--engine-root", help="Override engine root path")
+    session_mode_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    session_mode_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
+    session_mode_parser.add_argument("--json", action="store_true", help="Print JSON output")
 
     run_finalize_parser = subparsers.add_parser("run-finalize", help="Archive and close the active run record")
     run_finalize_parser.add_argument("--status", default="completed", help="Final run status (default: completed)")
@@ -1821,6 +1842,52 @@ def _default_session_title(ctx: dict[str, Any]) -> str:
     return f"{ctx['subject']} Ambient Session{suffix}"
 
 
+def _current_session_mode_fields(ctx: dict[str, Any]) -> dict[str, Any]:
+    active_run = load_active_run_record(subject=ctx["subject"], data_root=Path(ctx["data_root"]))
+    return session_mode_signal_fields(active_run)
+
+
+def _session_mode_payload(ctx: dict[str, Any]) -> dict[str, Any]:
+    data_root = Path(ctx["data_root"])
+    active_run = load_active_run_record(subject=ctx["subject"], data_root=data_root)
+    live = data_root / ".synapse"
+    try:
+        state = yaml.safe_load((live / "STATE.yaml").read_text(encoding="utf-8")) or {}
+    except Exception:
+        state = {}
+    active_mode_text = str(active_run.get("session_mode") or "").strip()
+    active_mode = SessionMode(active_mode_text) if active_mode_text else None
+    active_summary = policy_summary(active_mode) if active_mode else None
+    return {
+        "subject": ctx["subject"],
+        "active_run_id": active_run.get("run_id"),
+        "active_session_mode": active_mode.value if active_mode else None,
+        "active_session_mode_source": active_run.get("session_mode_source") if active_mode else None,
+        "active_session_mode_set_at": active_run.get("session_mode_set_at") if active_mode else None,
+        "active_session_mode_reason": active_run.get("session_mode_reason") if active_mode else None,
+        "active_session_mode_policy_version": active_run.get("session_mode_policy_version") if active_mode else None,
+        "current_interaction_mode": active_run.get("interaction_mode") if active_mode else None,
+        "policy_summary": active_summary,
+        "allowed_next_modes": list(active_summary.get("allowed_next_modes") or []) if active_summary else [],
+        "last_session_mode": state.get("last_session_mode"),
+        "last_session_mode_ended_at": state.get("last_session_mode_ended_at"),
+    }
+
+
+def _session_mode_change_error(payload: dict[str, Any], *, json_mode: bool, message: str) -> int:
+    if json_mode:
+        error_payload = dict(payload)
+        error_payload["error"] = message
+        print(json.dumps(error_payload, indent=2, sort_keys=True))
+        return 2
+    print(f"FAIL: {message}")
+    if payload.get("active_session_mode") is not None:
+        print(f"active_session_mode: {payload.get('active_session_mode')}")
+    if payload.get("allowed_next_modes"):
+        print(f"allowed_next_modes: {', '.join(payload.get('allowed_next_modes') or [])}")
+    return 2
+
+
 def _write_session_overlay(ctx: dict[str, Any], run_payload: dict[str, Any] | None) -> str | None:
     session_id = str(ctx.get("session_id") or "").strip()
     if not session_id:
@@ -1844,9 +1911,17 @@ def _start_or_resume_session_run(
     goal: str | None,
     items: list[str],
     command_name: str,
+    requested_session_mode: str | None = None,
 ) -> dict[str, Any]:
     active_run = load_active_run_record(subject=ctx["subject"], data_root=Path(ctx["data_root"]))
     if active_run.get("run_id"):
+        current_mode = str(active_run.get("session_mode") or "").strip()
+        requested_mode = str(requested_session_mode or "").strip()
+        if requested_mode and current_mode and requested_mode != current_mode:
+            raise LiveMemoryError(
+                f"Active run is already in session mode '{current_mode}'. "
+                "Use `python3 runtime/synapse.py session-mode --set <mode> --reason <text>` to change posture."
+            )
         return {
             "run_id": active_run["run_id"],
             "run_path": str(Path(ctx["data_root"]) / ".synapse" / "ACTIVE_RUN.yaml"),
@@ -1867,6 +1942,7 @@ def _start_or_resume_session_run(
         goal=goal,
         items=items,
         command_name=command_name,
+        session_mode=requested_session_mode,
     )
 
 
@@ -1889,6 +1965,7 @@ def cmd_run_start(args: argparse.Namespace) -> int:
             goal=args.goal,
             items=items,
             command_name="run-start",
+            session_mode=getattr(args, "session_mode", None),
         )
         event_info = _event_pipeline(
             ctx=ctx,
@@ -1905,6 +1982,7 @@ def cmd_run_start(args: argparse.Namespace) -> int:
                 "related_sidequest_ids": [],
                 "changed_files": [],
                 "verification_entries": [],
+                **session_mode_signal_fields(result),
             },
             truth_flags={
                 "canon_mutated": False,
@@ -1967,6 +2045,7 @@ def cmd_session_start(args: argparse.Namespace) -> int:
             goal=args.goal,
             items=items,
             command_name="session-start",
+            requested_session_mode=getattr(args, "session_mode", None),
         )
         event_info = _event_pipeline(
             ctx=ctx,
@@ -1983,6 +2062,7 @@ def cmd_session_start(args: argparse.Namespace) -> int:
                 "related_sidequest_ids": [],
                 "changed_files": [],
                 "verification_entries": [],
+                **session_mode_signal_fields(result),
             },
             truth_flags={
                 "canon_mutated": False,
@@ -2069,6 +2149,7 @@ def cmd_run_update(args: argparse.Namespace) -> int:
                 "related_quest_ids": list(args.related_quest or []),
                 "related_sidequest_ids": list(args.related_sidequest or []),
                 "accepted_context": _accepted_context_snapshot(Path(ctx["data_root"])),
+                **_current_session_mode_fields(ctx),
             },
             truth_flags={
                 "canon_mutated": False,
@@ -2135,6 +2216,7 @@ def cmd_session_tick(args: argparse.Namespace) -> int:
             goal=args.goal,
             items=items,
             command_name="session-tick",
+            requested_session_mode=getattr(args, "session_mode", None),
         )
         files_touched = list(args.file)
         if args.capture_git:
@@ -2186,6 +2268,7 @@ def cmd_session_tick(args: argparse.Namespace) -> int:
                 "related_quest_ids": list(args.related_quest or []),
                 "related_sidequest_ids": list(args.related_sidequest or []),
                 "accepted_context": _accepted_context_snapshot(Path(ctx["data_root"])),
+                **_current_session_mode_fields(ctx),
             },
             truth_flags={
                 "canon_mutated": False,
@@ -2264,6 +2347,9 @@ def cmd_run_finalize(args: argparse.Namespace) -> int:
                 "related_quest_ids": [],
                 "related_sidequest_ids": [],
                 "accepted_context": _accepted_context_snapshot(Path(ctx["data_root"])),
+                "session_mode": result.get("session_mode"),
+                "session_mode_source": result.get("session_mode_source"),
+                "session_mode_policy_version": result.get("session_mode_policy_version"),
             },
             truth_flags={
                 "canon_mutated": False,
@@ -2304,6 +2390,124 @@ def cmd_run_finalize(args: argparse.Namespace) -> int:
     )
 
 
+def cmd_session_mode(args: argparse.Namespace) -> int:
+    ctx = _resolve_or_attach_subject_from_args(args)
+    if not ctx:
+        return 2
+
+    data_root = Path(ctx["data_root"])
+    payload = _session_mode_payload(ctx)
+    if not args.target_session_mode:
+        if args.json:
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0
+        print("=== SESSION MODE ===")
+        print(f"active_run_id: {payload.get('active_run_id') or 'none'}")
+        print(f"active_session_mode: {payload.get('active_session_mode') or 'none'}")
+        if payload.get("active_session_mode"):
+            print(f"allowed_next_modes: {', '.join(payload.get('allowed_next_modes') or [])}")
+        if payload.get("last_session_mode"):
+            print(f"last_session_mode: {payload.get('last_session_mode')}")
+            print(f"last_session_mode_ended_at: {payload.get('last_session_mode_ended_at')}")
+        return 0
+
+    active_run = load_active_run_record(subject=ctx["subject"], data_root=data_root)
+    if not active_run.get("run_id"):
+        return _session_mode_change_error(
+            payload,
+            json_mode=args.json,
+            message="No active run exists. Start or resume a run before changing session posture.",
+        )
+
+    current_mode = SessionMode(str(active_run.get("session_mode") or ""))
+    target_mode = SessionMode(args.target_session_mode)
+    payload["target_session_mode"] = target_mode.value
+    if current_mode == target_mode:
+        payload["changed"] = False
+        if args.json:
+            print(json.dumps(payload, indent=2, sort_keys=True))
+        else:
+            print("=== SESSION MODE ===")
+            print(f"active_run_id: {payload.get('active_run_id')}")
+            print(f"active_session_mode: {payload.get('active_session_mode')}")
+            print("changed: false")
+        return 0
+
+    if not str(args.reason or "").strip():
+        return _session_mode_change_error(
+            payload,
+            json_mode=args.json,
+            message="Changing session posture requires --reason.",
+        )
+
+    allowed, next_modes = validate_transition(current_mode, target_mode)
+    payload["allowed_next_modes"] = [mode.value for mode in next_modes]
+    if not allowed:
+        return _session_mode_change_error(
+            payload,
+            json_mode=args.json,
+            message=(
+                f"Invalid session-mode transition: {current_mode.value} -> {target_mode.value}. "
+                "Use one of the allowed next modes instead."
+            ),
+        )
+
+    run_path = data_root / ".synapse" / "ACTIVE_RUN.yaml"
+    transition_at = dt.datetime.now().astimezone().isoformat()
+    active_run["session_mode"] = target_mode.value
+    active_run["session_mode_source"] = "explicit_transition"
+    active_run["session_mode_set_at"] = transition_at
+    active_run["session_mode_reason"] = str(args.reason).strip()
+    active_run["session_mode_policy_version"] = active_run.get("session_mode_policy_version") or SESSION_MODE_POLICY_VERSION
+    run_path.write_text(yaml.safe_dump(active_run, sort_keys=False), encoding="utf-8")
+
+    event_info = _event_pipeline(
+        ctx=ctx,
+        action_name="session-mode-set",
+        summary=f"Changed session posture from {current_mode.value} to {target_mode.value}.",
+        signals={
+            "run_id": active_run.get("run_id"),
+            "from_session_mode": current_mode.value,
+            "to_session_mode": target_mode.value,
+            "session_mode_reason": str(args.reason).strip(),
+            **session_mode_signal_fields(active_run),
+        },
+        truth_flags={
+            "canon_mutated": False,
+            "derived_state_changed": True,
+            "governed": False,
+            "uncertainty_present": False,
+        },
+        outputs={
+            "run_id": active_run.get("run_id"),
+            "run_path": str(run_path),
+        },
+    )
+
+    payload = _session_mode_payload(ctx)
+    payload["changed"] = True
+    payload["from_session_mode"] = current_mode.value
+    payload["to_session_mode"] = target_mode.value
+    payload["run_path"] = str(run_path)
+    payload["event"] = event_info["event"]
+    payload["reducer"] = event_info["reducer"]
+    payload["rehydrate"] = event_info["reducer"]["rehydrate"]
+    payload["continuity"] = event_info["reducer"]["continuity"]
+
+    def _emit_session_mode(rendered_payload: dict[str, Any]) -> None:
+        print("=== SESSION MODE UPDATED ===")
+        print(f"active_run_id: {rendered_payload.get('active_run_id')}")
+        print(f"from: {rendered_payload.get('from_session_mode')}")
+        print(f"to: {rendered_payload.get('to_session_mode')}")
+
+    return _finalize_mutation_result(
+        payload=payload,
+        event_info=event_info,
+        json_mode=args.json,
+        text_emitter=_emit_session_mode,
+    )
+
+
 def cmd_log_decision(args: argparse.Namespace) -> int:
     ctx = _resolve_or_attach_subject_from_args(args)
     if not ctx:
@@ -2336,6 +2540,7 @@ def cmd_log_decision(args: argparse.Namespace) -> int:
                 "changed_files": [result.get("decision_path")] if result.get("decision_path") else [],
                 "verification_entries": [],
                 "accepted_context": _accepted_context_snapshot(Path(ctx["data_root"])),
+                **_current_session_mode_fields(ctx),
             },
             truth_flags={
                 "canon_mutated": False,
@@ -2405,6 +2610,7 @@ def cmd_log_disclosure(args: argparse.Namespace) -> int:
                 "changed_files": [result.get("disclosure_path")] if result.get("disclosure_path") else [],
                 "verification_entries": [],
                 "accepted_context": _accepted_context_snapshot(Path(ctx["data_root"])),
+                **_current_session_mode_fields(ctx),
             },
             truth_flags={
                 "canon_mutated": False,
@@ -2523,6 +2729,7 @@ def cmd_accept_quest(args: argparse.Namespace) -> int:
                 "changed_files": [acceptance.get("accepted_path"), acceptance.get("audit_bundle_path")],
                 "verification_entries": [],
                 "accepted_context": _accepted_context_snapshot(data_root),
+                **_current_session_mode_fields(ctx),
             },
             truth_flags={
                 "canon_mutated": True,
@@ -3244,6 +3451,7 @@ def cmd_formalize(args: argparse.Namespace) -> int:
                 "changed_files": [result.get("artifact_path")] if result.get("artifact_path") else [],
                 "verification_entries": [],
                 "accepted_context": _accepted_context_snapshot(data_root),
+                **_current_session_mode_fields(ctx),
             },
             truth_flags={
                 "canon_mutated": True,
@@ -3511,6 +3719,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_run_start(args)
     if args.command == "session-start":
         return cmd_session_start(args)
+    if args.command == "session-mode":
+        return cmd_session_mode(args)
     if args.command == "run-update":
         return cmd_run_update(args)
     if args.command == "session-tick":
