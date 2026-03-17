@@ -1837,7 +1837,14 @@ def _write_session_overlay(ctx: dict[str, Any], run_payload: dict[str, Any] | No
     return _write_session_run_overlay(session_id, payload)
 
 
-def _start_or_resume_session_run(ctx: dict[str, Any], *, title: str | None, goal: str | None, items: list[str]) -> dict[str, Any]:
+def _start_or_resume_session_run(
+    ctx: dict[str, Any],
+    *,
+    title: str | None,
+    goal: str | None,
+    items: list[str],
+    command_name: str,
+) -> dict[str, Any]:
     active_run = load_active_run_record(subject=ctx["subject"], data_root=Path(ctx["data_root"]))
     if active_run.get("run_id"):
         return {
@@ -1846,6 +1853,11 @@ def _start_or_resume_session_run(ctx: dict[str, Any], *, title: str | None, goal
             "title": active_run.get("title"),
             "goal": active_run.get("goal"),
             "items": active_run.get("plan", {}).get("items", []),
+            "session_mode": active_run.get("session_mode"),
+            "session_mode_source": active_run.get("session_mode_source"),
+            "session_mode_set_at": active_run.get("session_mode_set_at"),
+            "session_mode_reason": active_run.get("session_mode_reason"),
+            "session_mode_policy_version": active_run.get("session_mode_policy_version"),
             "resumed": True,
         }
     return run_start(
@@ -1854,6 +1866,7 @@ def _start_or_resume_session_run(ctx: dict[str, Any], *, title: str | None, goal
         title=title or _default_session_title(ctx),
         goal=goal,
         items=items,
+        command_name=command_name,
     )
 
 
@@ -1875,6 +1888,7 @@ def cmd_run_start(args: argparse.Namespace) -> int:
             title=args.title,
             goal=args.goal,
             items=items,
+            command_name="run-start",
         )
         event_info = _event_pipeline(
             ctx=ctx,
@@ -1952,6 +1966,7 @@ def cmd_session_start(args: argparse.Namespace) -> int:
             title=args.title or _default_session_title(ctx),
             goal=args.goal,
             items=items,
+            command_name="session-start",
         )
         event_info = _event_pipeline(
             ctx=ctx,
@@ -2119,6 +2134,7 @@ def cmd_session_tick(args: argparse.Namespace) -> int:
             title=args.title or _default_session_title(ctx),
             goal=args.goal,
             items=items,
+            command_name="session-tick",
         )
         files_touched = list(args.file)
         if args.capture_git:

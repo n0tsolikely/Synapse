@@ -1,5 +1,8 @@
 import unittest
 import tempfile
+import json
+import os
+import subprocess
 
 from pathlib import Path
 import sys
@@ -24,6 +27,16 @@ from synapse_runtime.session_modes import (
     validate_transition,
 )
 from synapse_runtime.sidecar_store import _default_active_run, _load_active_run
+
+
+SYNAPSE = [sys.executable, str(REPO_ROOT / "runtime" / "synapse.py")]
+
+
+def run_synapse(args: list[str], *, cwd: Path, home: Path) -> subprocess.CompletedProcess[str]:
+    env = os.environ.copy()
+    env["HOME"] = str(home)
+    env.setdefault("SYNAPSE_ROOT", str(REPO_ROOT))
+    return subprocess.run(SYNAPSE + args, cwd=cwd, env=env, capture_output=True, text=True)
 
 
 class SessionModePolicyTests(unittest.TestCase):
@@ -79,18 +92,27 @@ class SessionModePolicyTests(unittest.TestCase):
         self.assertNotIn(SessionMode.EXECUTION, next_modes)
 
     def test_backfill_maps_decision_to_control_sync(self) -> None:
-        run_data, changed = backfill_mode_from_active_run({"interaction_mode": "decision"}, "2026-03-16T12:00:00-04:00")
+        run_data, changed = backfill_mode_from_active_run(
+            {"interaction_mode": "decision", "run_id": "RUN-LEGACY", "active": True},
+            "2026-03-16T12:00:00-04:00",
+        )
         self.assertTrue(changed)
         self.assertEqual(run_data["session_mode"], SessionMode.CONTROL_SYNC.value)
         self.assertEqual(run_data["session_mode_source"], "legacy_backfill")
         self.assertEqual(run_data["session_mode_policy_version"], SESSION_MODE_POLICY_VERSION)
 
     def test_backfill_maps_missing_or_maintenance_to_brainstorm_spec(self) -> None:
-        run_data, changed = backfill_mode_from_active_run({"interaction_mode": "maintenance"}, "2026-03-16T12:00:00-04:00")
+        run_data, changed = backfill_mode_from_active_run(
+            {"interaction_mode": "maintenance", "run_id": "RUN-LEGACY", "active": True},
+            "2026-03-16T12:00:00-04:00",
+        )
         self.assertTrue(changed)
         self.assertEqual(run_data["session_mode"], SessionMode.BRAINSTORM_SPEC.value)
 
-        run_data, changed = backfill_mode_from_active_run({}, "2026-03-16T12:00:00-04:00")
+        run_data, changed = backfill_mode_from_active_run(
+            {"run_id": "RUN-LEGACY", "active": True},
+            "2026-03-16T12:00:00-04:00",
+        )
         self.assertTrue(changed)
         self.assertEqual(run_data["session_mode"], SessionMode.BRAINSTORM_SPEC.value)
 
@@ -103,6 +125,16 @@ class SessionModePolicyTests(unittest.TestCase):
         normalized, changed = backfill_mode_from_active_run(run_data, "2026-03-16T12:00:00-04:00")
         self.assertFalse(changed)
         self.assertEqual(normalized, run_data)
+
+    def test_backfill_does_not_invent_posture_for_idle_default_run(self) -> None:
+        run_data = {
+            "active": False,
+            "run_id": None,
+            "interaction_mode": "maintenance",
+        }
+        normalized, changed = backfill_mode_from_active_run(run_data, "2026-03-16T12:00:00-04:00")
+        self.assertFalse(changed)
+        self.assertNotIn("session_mode", normalized)
 
     def test_signal_fields_return_only_posture_context(self) -> None:
         self.assertEqual(session_mode_signal_fields(None), {})
@@ -194,6 +226,75 @@ class ActiveRunNormalizationTests(unittest.TestCase):
             second_text = path.read_text(encoding="utf-8")
 
             self.assertEqual(first_text, second_text)
+
+
+class SessionModeLifecycleTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.home = self.root / "home"
+        self.home.mkdir(parents=True, exist_ok=True)
+        self.data_root = self.root / "ModeSubject_Data"
+        self.engine_root = self.root / "ModeSubject_Engine"
+        self.data_root.mkdir()
+        self.engine_root.mkdir()
+        self.subject_args = [
+            "--subject",
+            "ModeSubject",
+            "--data-root",
+            str(self.data_root),
+            "--engine-root",
+            str(self.engine_root),
+            "--allow-switch",
+        ]
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def _read_active_run(self) -> dict:
+        return yaml.safe_load((self.data_root / ".synapse" / "ACTIVE_RUN.yaml").read_text(encoding="utf-8"))
+
+    def test_session_start_new_run_defaults_to_brainstorm_spec(self) -> None:
+        result = run_synapse(["session-start", "--title", "Spec pass", "--json", *self.subject_args], cwd=REPO_ROOT, home=self.home)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        active = self._read_active_run()
+        self.assertEqual(active["session_mode"], SessionMode.BRAINSTORM_SPEC.value)
+        self.assertEqual(active["session_mode_source"], "command_default")
+
+    def test_session_tick_create_defaults_to_brainstorm_spec(self) -> None:
+        result = run_synapse(
+            ["session-tick", "--summary", "Capture idea drift", "--json", *self.subject_args],
+            cwd=REPO_ROOT,
+            home=self.home,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        active = self._read_active_run()
+        self.assertEqual(active["session_mode"], SessionMode.BRAINSTORM_SPEC.value)
+
+    def test_run_start_defaults_to_execution(self) -> None:
+        result = run_synapse(["run-start", "--title", "Build path", "--json", *self.subject_args], cwd=REPO_ROOT, home=self.home)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        active = self._read_active_run()
+        self.assertEqual(active["session_mode"], SessionMode.EXECUTION.value)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["session_mode"], SessionMode.EXECUTION.value)
+
+    def test_finalize_clears_active_posture_and_preserves_last_posture_in_archive(self) -> None:
+        result = run_synapse(["run-start", "--title", "Build path", "--plan-item", "Ship it", "--json", *self.subject_args], cwd=REPO_ROOT, home=self.home)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        result = run_synapse(["run-update", "--set-item-status", "ITEM-001:DONE", "--json", *self.subject_args], cwd=REPO_ROOT, home=self.home)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        result = run_synapse(["run-finalize", "--status", "completed", "--json", *self.subject_args], cwd=REPO_ROOT, home=self.home)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+        active = self._read_active_run()
+        self.assertIsNone(active["session_mode"])
+        payload = json.loads(result.stdout)
+        archive_path = Path(payload["archive_path"])
+        archived = yaml.safe_load(archive_path.read_text(encoding="utf-8"))
+        self.assertEqual(archived["session_mode"], SessionMode.EXECUTION.value)
+        self.assertEqual(archived["last_session_mode"], SessionMode.EXECUTION.value)
+        self.assertTrue(archived["last_session_mode_ended_at"])
 
 
 if __name__ == "__main__":

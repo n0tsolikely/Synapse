@@ -189,6 +189,8 @@ def backfill_mode_from_active_run(run_data: dict[str, Any], now_iso: str) -> tup
     existing = str(normalized.get("session_mode") or "").strip()
     if existing:
         return normalized, False
+    if not normalized.get("run_id") and not normalized.get("active"):
+        return normalized, False
 
     interaction_mode = str(normalized.get("interaction_mode") or "").strip().lower()
     mode = _LEGACY_INTERACTION_TO_SESSION.get(interaction_mode, SessionMode.BRAINSTORM_SPEC)

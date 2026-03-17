@@ -26,11 +26,37 @@ from synapse_runtime.sidecar_store import (
     ensure_live_scaffold,
     live_root,
 )
+from synapse_runtime.session_modes import SESSION_MODE_POLICY_VERSION, SessionMode, default_mode_for_command
 
 
 def load_active_run_record(*, subject: str, data_root: Path) -> dict[str, Any]:
     ensure_live_scaffold(subject, data_root)
     return _load_active_run(live_root(data_root) / "ACTIVE_RUN.yaml", subject)
+
+
+def _resolve_session_mode_fields(
+    *,
+    command_name: str,
+    session_mode: str | SessionMode | None,
+    session_mode_source: str | None,
+    session_mode_reason: str | None,
+    now_iso: str,
+) -> dict[str, Any]:
+    explicit = session_mode is not None and str(session_mode).strip() != ""
+    mode = SessionMode(str(session_mode)) if explicit else default_mode_for_command(command_name)
+    source = session_mode_source or ("explicit" if explicit else "command_default")
+    reason = session_mode_reason or (
+        "session mode explicitly selected at run creation"
+        if explicit
+        else f"defaulted from {command_name}"
+    )
+    return {
+        "session_mode": mode.value,
+        "session_mode_source": source,
+        "session_mode_set_at": now_iso,
+        "session_mode_reason": reason,
+        "session_mode_policy_version": SESSION_MODE_POLICY_VERSION,
+    }
 
 
 def run_start(
@@ -40,6 +66,10 @@ def run_start(
     title: str,
     goal: str | None,
     items: list[str],
+    command_name: str = "run-start",
+    session_mode: str | SessionMode | None = None,
+    session_mode_source: str | None = None,
+    session_mode_reason: str | None = None,
 ) -> dict[str, Any]:
     live = live_root(data_root)
     scaffold = ensure_live_scaffold(subject, data_root)
@@ -61,6 +91,14 @@ def run_start(
         notes=tuple(items),
         status="active",
     )
+    now_iso = _now_iso()
+    session_mode_fields = _resolve_session_mode_fields(
+        command_name=command_name,
+        session_mode=session_mode,
+        session_mode_source=session_mode_source,
+        session_mode_reason=session_mode_reason,
+        now_iso=now_iso,
+    )
 
     run_data = {
         "schema_version": 1,
@@ -70,10 +108,11 @@ def run_start(
         "session_id": session_id,
         "title": title,
         "goal": goal,
-        "started_at": _now_iso(),
-        "updated_at": _now_iso(),
+        "started_at": now_iso,
+        "updated_at": now_iso,
         "status": "active",
         "interaction_mode": infer_interaction_mode(signal).value,
+        **session_mode_fields,
         "plan": {"items": plan_items},
         "commands": [],
         "files_touched": [],
@@ -102,6 +141,7 @@ def run_start(
         "title": title,
         "goal": goal,
         "items": plan_items,
+        **session_mode_fields,
         "ledger_path": ledger_path,
         "scaffold": scaffold,
         "sidecar": sidecar,
@@ -273,8 +313,12 @@ def run_finalize(
     run_data["active"] = False
     run_data["status"] = status
     run_data["result_summary"] = summary or run_data.get("result_summary")
-    run_data["updated_at"] = _now_iso()
-    run_data["finalized_at"] = _now_iso()
+    finalized_at = _now_iso()
+    run_data["updated_at"] = finalized_at
+    run_data["finalized_at"] = finalized_at
+    if str(run_data.get("session_mode") or "").strip():
+        run_data["last_session_mode"] = run_data.get("session_mode")
+        run_data["last_session_mode_ended_at"] = finalized_at
 
     runs_dir = live / "RUNS"
     runs_dir.mkdir(parents=True, exist_ok=True)
@@ -317,5 +361,7 @@ def run_finalize(
     return {
         "archive_path": str(archive_path),
         "run_id": run_id,
+        "last_session_mode": run_data.get("last_session_mode"),
+        "last_session_mode_ended_at": run_data.get("last_session_mode_ended_at"),
         "sidecar": sidecar,
     }
