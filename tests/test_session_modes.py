@@ -27,6 +27,7 @@ from synapse_runtime.session_modes import (
     validate_transition,
 )
 from synapse_runtime.sidecar_store import _default_active_run, _load_active_run
+from synapse_runtime.subject_resolver import home_focus_lock_path, repo_focus_lock_path
 
 
 SYNAPSE = [sys.executable, str(REPO_ROOT / "runtime" / "synapse.py")]
@@ -230,6 +231,7 @@ class ActiveRunNormalizationTests(unittest.TestCase):
 
 class SessionModeLifecycleTests(unittest.TestCase):
     def setUp(self) -> None:
+        self._clear_focus_locks()
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
         self.home = self.root / "home"
@@ -249,7 +251,18 @@ class SessionModeLifecycleTests(unittest.TestCase):
         ]
 
     def tearDown(self) -> None:
+        self._clear_focus_locks()
         self.tmp.cleanup()
+
+    def _clear_focus_locks(self) -> None:
+        repo_lock = repo_focus_lock_path(REPO_ROOT)
+        if repo_lock.exists():
+            repo_lock.unlink()
+        home = getattr(self, "home", None)
+        if home is not None:
+            home_lock = home_focus_lock_path(home)
+            if home_lock.exists():
+                home_lock.unlink()
 
     def _read_active_run(self) -> dict:
         return yaml.safe_load((self.data_root / ".synapse" / "ACTIVE_RUN.yaml").read_text(encoding="utf-8"))
