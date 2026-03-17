@@ -30,6 +30,9 @@ from synapse_runtime.semantic_intake import (
     semantic_detail_lists,
     write_capture_batch,
 )
+from synapse_runtime.reducer import ReducerError, reduce_after_event
+from synapse_runtime.rehydrate_renderer import render_rehydrate
+from synapse_runtime.sidecar_projection import reduce_sidecar_from_event
 from synapse_runtime.sidecar_store import _default_manifold, _default_state, ensure_live_scaffold, live_root
 from synapse_runtime.subject_bootstrap import initialize_subject_state
 from synapse_runtime.subject_resolver import write_focus_lock
@@ -329,7 +332,7 @@ class CaptureChunkCommandTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.tmp.cleanup()
 
-    def _run_start(self) -> None:
+    def _run_start(self) -> dict:
         result = run_synapse(
             ["run-start", "--title", "Semantic intake", "--json"],
             cwd=self.engine_root,
@@ -337,6 +340,13 @@ class CaptureChunkCommandTests(unittest.TestCase):
             extra_env={"SYNAPSE_SESSION_ID": "SESSION-INTAKE"},
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        return json.loads(result.stdout)
+
+    def _load_state(self) -> dict:
+        return yaml.safe_load((self.data_root / ".synapse" / "STATE.yaml").read_text(encoding="utf-8"))
+
+    def _load_manifold(self) -> dict:
+        return yaml.safe_load((self.data_root / ".synapse" / "MANIFOLD.yaml").read_text(encoding="utf-8"))
 
     def test_capture_chunk_requires_active_run(self) -> None:
         result = run_synapse(
@@ -416,6 +426,134 @@ class CaptureChunkCommandTests(unittest.TestCase):
         self.assertTrue(Path(payload["capture_ledger_path"]).exists())
         self.assertIsNone(payload["event"])
         self.assertEqual(thread_path.read_text(encoding="utf-8"), "# Custom Questions\n\nDo not overwrite this.\n")
+
+    def test_reducer_replay_rebuilds_semantic_state_without_duplicate_proposals(self) -> None:
+        self._run_start()
+        capture = run_synapse(
+            [
+                "capture-chunk",
+                "--text",
+                "Typed semantics for replay.",
+                "--captures-json",
+                json.dumps(
+                    {
+                        "captures": [
+                            {"kind": "idea", "summary": "Introduce replay-backed semantic capture"},
+                            {"kind": "question", "summary": "Should replay load batch artifacts?", "blocking": True},
+                        ]
+                    }
+                ),
+                "--json",
+            ],
+            cwd=self.engine_root,
+            home=self.home,
+        )
+        self.assertEqual(capture.returncode, 0, capture.stdout + capture.stderr)
+        payload = json.loads(capture.stdout)
+        proposal_paths = list(payload["proposal_paths"])
+
+        state_path = self.data_root / ".synapse" / "STATE.yaml"
+        manifold_path = self.data_root / ".synapse" / "MANIFOLD.yaml"
+        thread_path = self.data_root / ".synapse" / "THREADS" / "open_questions.md"
+        state = self._load_state()
+        manifold = self._load_manifold()
+        state["last_capture_batch_id"] = None
+        state["last_capture_at"] = None
+        state["open_question_count"] = 0
+        state["blocking_question_count"] = 0
+        manifold["recent_capture_batch_ids"] = []
+        manifold["open_question_details"] = []
+        manifold["blocking_question_details"] = []
+        manifold["recent_idea_details"] = []
+        state_path.write_text(yaml.safe_dump(state, sort_keys=False), encoding="utf-8")
+        manifold_path.write_text(yaml.safe_dump(manifold, sort_keys=False), encoding="utf-8")
+        thread_path.write_text(OPEN_QUESTIONS_SCAFFOLD, encoding="utf-8")
+
+        replay = reduce_sidecar_from_event(
+            subject=self.subject,
+            data_root=self.data_root,
+            event=payload["event"]["payload"],
+        )
+        self.assertEqual(replay["capture_batch_id"], payload["capture_batch_id"])
+        self.assertEqual(replay["proposal_paths"], [])
+
+        rebuilt_state = self._load_state()
+        rebuilt_manifold = self._load_manifold()
+        self.assertEqual(rebuilt_state["last_capture_batch_id"], payload["capture_batch_id"])
+        self.assertGreaterEqual(rebuilt_state["open_question_count"], 1)
+        self.assertTrue(rebuilt_manifold["recent_idea_details"])
+        self.assertIn(OPEN_QUESTIONS_MANAGED_MARKER, thread_path.read_text(encoding="utf-8"))
+        self.assertEqual([str(Path(path)) for path in proposal_paths], proposal_paths)
+
+    def test_reducer_replay_fails_when_capture_artifact_is_missing(self) -> None:
+        start = self._run_start()
+        capture = run_synapse(
+            [
+                "capture-chunk",
+                "--text",
+                "Missing artifact test.",
+                "--captures-json",
+                json.dumps({"captures": [{"kind": "repo_fact", "summary": "Reducer stamps metadata"}]}),
+                "--json",
+            ],
+            cwd=self.engine_root,
+            home=self.home,
+        )
+        self.assertEqual(capture.returncode, 0, capture.stdout + capture.stderr)
+        payload = json.loads(capture.stdout)
+        artifact_path = Path(payload["capture_artifact_path"])
+        artifact_path.unlink()
+
+        with self.assertRaises(ReducerError):
+            reduce_after_event(
+                subject=self.subject,
+                data_root=self.data_root,
+                engine_root=self.engine_root,
+                event=payload["event"]["payload"],
+            )
+
+    def test_render_rehydrate_refreshes_semantic_sections_from_raw_truth(self) -> None:
+        self._run_start()
+        capture = run_synapse(
+            [
+                "capture-chunk",
+                "--text",
+                "Render semantic truth.",
+                "--captures-json",
+                json.dumps(
+                    {
+                        "captures": [
+                            {"kind": "question", "summary": "What owns semantic rendering?", "blocking": True},
+                            {"kind": "repo_fact", "summary": "Rehydrate now has a semantic section"},
+                            {"kind": "decision", "summary": "Keep capture batches provisional"},
+                        ]
+                    }
+                ),
+                "--json",
+            ],
+            cwd=self.engine_root,
+            home=self.home,
+        )
+        self.assertEqual(capture.returncode, 0, capture.stdout + capture.stderr)
+
+        state = self._load_state()
+        manifold = self._load_manifold()
+        state["last_capture_batch_id"] = None
+        state["open_question_count"] = 0
+        manifold["open_question_details"] = []
+        manifold["blocking_question_details"] = []
+        manifold["recent_repo_fact_details"] = []
+        manifold["candidate_decision_details"] = []
+        (self.data_root / ".synapse" / "STATE.yaml").write_text(yaml.safe_dump(state, sort_keys=False), encoding="utf-8")
+        (self.data_root / ".synapse" / "MANIFOLD.yaml").write_text(yaml.safe_dump(manifold, sort_keys=False), encoding="utf-8")
+
+        render_rehydrate(subject=self.subject, data_root=self.data_root)
+        rendered = (self.data_root / ".synapse" / "REHYDRATE.md").read_text(encoding="utf-8")
+        self.assertIn("## Open questions", rendered)
+        self.assertIn("What owns semantic rendering?", rendered)
+        self.assertIn("## Recent semantic captures", rendered)
+        self.assertIn("Rehydrate now has a semantic section", rendered)
+        self.assertIn("Keep capture batches provisional", rendered)
 
 
 if __name__ == "__main__":

@@ -38,6 +38,8 @@ from synapse_runtime.semantic_intake import (
     capture_kinds as semantic_capture_kinds,
     derive_semantic_promotions,
     is_managed_open_questions_text,
+    load_capture_batch,
+    load_capture_batches,
     matches_open_questions_scaffold,
     merge_semantic_details,
     render_managed_open_questions,
@@ -223,40 +225,100 @@ def _sync_open_questions_thread(*, data_root: Path, details: list[dict[str, Any]
     )
 
 
-def _apply_semantic_capture_projection(
+def _reset_semantic_projection_fields(*, state: dict[str, Any], manifold: dict[str, Any]) -> None:
+    state["last_capture_batch_id"] = None
+    state["last_capture_at"] = None
+    state["open_question_count"] = 0
+    state["blocking_question_count"] = 0
+
+    manifold["recent_capture_batch_ids"] = []
+    manifold["last_capture_batch_id"] = None
+    manifold["last_capture_at"] = None
+    manifold["open_question_details"] = []
+    manifold["blocking_question_details"] = []
+    manifold["recent_idea_details"] = []
+    manifold["recent_repo_fact_details"] = []
+    manifold["recent_constraint_details"] = []
+    manifold["recent_risk_details"] = []
+    manifold["recent_dependency_details"] = []
+    manifold["recent_non_goal_details"] = []
+    manifold["recent_milestone_details"] = []
+    manifold["candidate_decision_details"] = []
+
+
+def _rebuild_semantic_capture_projection(
     *,
     data_root: Path,
     state: dict[str, Any],
     manifold: dict[str, Any],
-    semantic_capture_batch: dict[str, Any],
+    semantic_capture_batch: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    batch_id = str(semantic_capture_batch.get("capture_batch_id") or "").strip() or None
-    captured_at = str(semantic_capture_batch.get("captured_at") or "").strip() or None
-    detail_lists = semantic_detail_lists(semantic_capture_batch)
-    for key, incoming in detail_lists.items():
-        manifold[key] = merge_semantic_details(manifold.get(key), incoming, cap=10)
+    _reset_semantic_projection_fields(state=state, manifold=manifold)
+    batches = load_capture_batches(data_root)
+    if not batches:
+        return {
+            "capture_batch_id": None,
+            "capture_count": 0,
+            "capture_kinds": [],
+            "open_questions_path": None,
+        }
 
-    recent_batch_ids = [str(item).strip() for item in manifold.get("recent_capture_batch_ids") or [] if str(item).strip()]
-    if batch_id:
-        recent_batch_ids = [batch_id] + [item for item in recent_batch_ids if item != batch_id]
+    all_open_questions: list[dict[str, Any]] = []
+    all_blocking_questions: list[dict[str, Any]] = []
+    recent_batch_ids: list[str] = []
+    for batch in batches:
+        detail_lists = semantic_detail_lists(batch)
+        for key, incoming in detail_lists.items():
+            manifold[key] = merge_semantic_details(manifold.get(key), incoming, cap=10)
+        all_open_questions = merge_semantic_details(all_open_questions, detail_lists["open_question_details"], cap=None)
+        all_blocking_questions = merge_semantic_details(
+            all_blocking_questions,
+            detail_lists["blocking_question_details"],
+            cap=None,
+        )
+        batch_id = str(batch.get("capture_batch_id") or "").strip()
+        if batch_id:
+            recent_batch_ids = [batch_id] + [item for item in recent_batch_ids if item != batch_id]
+
+    last_batch = semantic_capture_batch or batches[-1]
+    batch_id = str(last_batch.get("capture_batch_id") or "").strip() or None
+    captured_at = str(last_batch.get("captured_at") or "").strip() or None
     manifold["recent_capture_batch_ids"] = recent_batch_ids[:10]
     manifold["last_capture_batch_id"] = batch_id
     manifold["last_capture_at"] = captured_at
 
     state["last_capture_batch_id"] = batch_id
     state["last_capture_at"] = captured_at
-    state["open_question_count"] = len(list(manifold.get("open_question_details") or []))
-    state["blocking_question_count"] = len(list(manifold.get("blocking_question_details") or []))
+    state["open_question_count"] = len(all_open_questions)
+    state["blocking_question_count"] = len(all_blocking_questions)
 
-    open_questions_path = _sync_open_questions_thread(
-        data_root=data_root,
-        details=list(manifold.get("open_question_details") or []),
-    )
+    open_questions_path = _sync_open_questions_thread(data_root=data_root, details=all_open_questions)
     return {
         "capture_batch_id": batch_id,
-        "capture_count": len(list(semantic_capture_batch.get("captures") or [])),
-        "capture_kinds": semantic_capture_kinds(semantic_capture_batch),
+        "capture_count": len(list(last_batch.get("captures") or [])),
+        "capture_kinds": semantic_capture_kinds(last_batch),
         "open_questions_path": open_questions_path,
+    }
+
+
+def refresh_semantic_capture_projection(*, subject: str, data_root: Path) -> dict[str, Any]:
+    live = live_root(data_root)
+    state_path = live / "STATE.yaml"
+    manifold_path = live / "MANIFOLD.yaml"
+    state = _load_state(state_path, subject)
+    manifold = _load_manifold(manifold_path, subject)
+    projection = _rebuild_semantic_capture_projection(
+        data_root=data_root,
+        state=state,
+        manifold=manifold,
+    )
+    _write_yaml(state_path, state)
+    manifold["last_updated_at"] = _now_iso()
+    _write_yaml(manifold_path, manifold)
+    return {
+        "state_path": str(state_path),
+        "manifold_path": str(manifold_path),
+        **projection,
     }
 
 
@@ -313,7 +375,7 @@ def _sync_sidecar(
 
     semantic_projection = None
     if semantic_capture_batch is not None:
-        semantic_projection = _apply_semantic_capture_projection(
+        semantic_projection = _rebuild_semantic_capture_projection(
             data_root=data_root,
             state=state,
             manifold=manifold,
@@ -562,11 +624,17 @@ def reduce_sidecar_from_event(*, subject: str, data_root: Path, event: dict[str,
         text = str(value or "").strip()
         return Path(text) if text else None
 
+    capture_batch = None
+    capture_artifact_path = maybe_path(outputs.get("capture_artifact_path"))
+    if capture_artifact_path is not None:
+        capture_batch = load_capture_batch(capture_artifact_path)
+
     return _sync_sidecar(
         subject=subject,
         data_root=data_root,
         active_run=active_run,
         signal=signal,
+        semantic_capture_batch=capture_batch,
         decisions_path=maybe_path(outputs.get("decisions_ledger_path")),
         discoveries_path=maybe_path(outputs.get("discoveries_path")),
         disclosures_path=maybe_path(outputs.get("disclosures_ledger_path")),

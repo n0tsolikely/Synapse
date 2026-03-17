@@ -421,7 +421,7 @@ def merge_semantic_details(
     existing: list[dict[str, Any]] | None,
     incoming: list[dict[str, Any]] | None,
     *,
-    cap: int = 10,
+    cap: int | None = 10,
 ) -> list[dict[str, Any]]:
     combined = [detail for detail in (existing or []) if isinstance(detail, dict)] + [
         detail for detail in (incoming or []) if isinstance(detail, dict)
@@ -436,14 +436,15 @@ def merge_semantic_details(
     deduped: dict[tuple[str, str, bool], dict[str, Any]] = {}
     for detail in ordered:
         deduped[_semantic_key(detail)] = detail
-    return sorted(
+    merged = sorted(
         deduped.values(),
         key=lambda detail: (
             str(detail.get("captured_at") or ""),
             str(detail.get("capture_id") or ""),
         ),
         reverse=True,
-    )[:cap]
+    )
+    return merged[:cap] if cap is not None else merged
 
 
 def capture_kinds(batch: dict[str, Any]) -> list[str]:
@@ -468,6 +469,32 @@ def batch_disclosure_needed(batch: dict[str, Any]) -> bool:
         and str(item.get("kind") or "").strip() in {"question", "unknown", "risk"}
         for item in batch.get("captures") or []
     )
+
+
+def load_capture_batches(data_root: Path) -> list[dict[str, Any]]:
+    capture_dir = live_root(data_root) / "CAPTURES"
+    ledger_paths = sorted(path for path in capture_dir.glob("*.yaml") if path.is_file())
+    batches: list[dict[str, Any]] = []
+    seen_batch_ids: set[str] = set()
+    for ledger_path in ledger_paths:
+        try:
+            ledger = yaml.safe_load(ledger_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            raise SemanticIntakeError(f"Unable to load capture ledger: {ledger_path}") from exc
+        if not isinstance(ledger, dict) or not isinstance(ledger.get("entries"), list):
+            raise SemanticIntakeError(f"Malformed capture ledger: {ledger_path}")
+        for entry in ledger["entries"]:
+            if not isinstance(entry, dict):
+                continue
+            batch_id = str(entry.get("capture_batch_id") or "").strip()
+            artifact_path_text = str(entry.get("artifact_path") or "").strip()
+            if not batch_id or not artifact_path_text or batch_id in seen_batch_ids:
+                continue
+            batch = load_capture_batch(Path(artifact_path_text))
+            seen_batch_ids.add(batch_id)
+            batches.append(batch)
+    batches.sort(key=lambda item: (str(item.get("captured_at") or ""), str(item.get("capture_batch_id") or "")))
+    return batches
 
 
 def derive_semantic_promotions(batch: dict[str, Any]) -> list[PromotionRecord]:

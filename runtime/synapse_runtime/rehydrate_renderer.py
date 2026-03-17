@@ -11,6 +11,7 @@ from synapse_runtime.live_memory_common import _extract_decision_id, _extract_ru
 from synapse_runtime.quest_candidates import _auto_formalize_ready_quest_candidates, _load_proposal_records, _sync_candidate_backlog
 from synapse_runtime.sidecar_projection import (
     _append_recent_change,
+    refresh_semantic_capture_projection,
     refresh_quest_lifecycle_projection,
     refresh_session_posture_projection,
 )
@@ -30,6 +31,7 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
         data_root=data_root,
         active_run=active_run,
     )
+    refresh_semantic_capture_projection(subject=subject, data_root=data_root)
     refresh_session_posture_projection(subject=subject, data_root=data_root)
     refresh_quest_lifecycle_projection(subject=subject, data_root=data_root)
 
@@ -40,7 +42,6 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
     discoveries_dir = live / "DISCOVERIES"
     disclosures_dir = live / "DISCLOSURES"
     runs_dir = live / "RUNS"
-    threads_path = live / "THREADS" / "open_questions.md"
     build_manual_path = data_root / "Build_Manual" / "BUILD_MANUAL.md"
     proposals = _load_proposal_records(live)
 
@@ -238,9 +239,46 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
             lines.append(f"- {run.name}")
         lines.append("")
 
-    if threads_path.exists():
+    blocking_questions = list(manifold.get("blocking_question_details") or [])
+    nonblocking_questions = [
+        detail
+        for detail in list(manifold.get("open_question_details") or [])
+        if not bool(detail.get("blocking"))
+    ]
+    if blocking_questions or nonblocking_questions:
         lines.append("## Open questions")
-        lines.append(threads_path.read_text(encoding="utf-8").strip())
+        lines.append("- Blocking:")
+        if blocking_questions:
+            for detail in blocking_questions:
+                lines.append(f"  - {detail.get('summary')}")
+        else:
+            lines.append("  - None yet.")
+        lines.append("- Nonblocking:")
+        if nonblocking_questions:
+            for detail in nonblocking_questions:
+                lines.append(f"  - {detail.get('summary')}")
+        else:
+            lines.append("  - None yet.")
+        lines.append("")
+
+    semantic_sections = [
+        ("Ideas", manifold.get("recent_idea_details") or []),
+        ("Constraints", manifold.get("recent_constraint_details") or []),
+        ("Risks", manifold.get("recent_risk_details") or []),
+        ("Dependencies", manifold.get("recent_dependency_details") or []),
+        ("Non-goals", manifold.get("recent_non_goal_details") or []),
+        ("Milestones", manifold.get("recent_milestone_details") or []),
+        ("Provisional decisions", manifold.get("candidate_decision_details") or []),
+        ("Repo facts", manifold.get("recent_repo_fact_details") or []),
+    ]
+    if any(details for _, details in semantic_sections):
+        lines.append("## Recent semantic captures")
+        for label, details in semantic_sections:
+            if not details:
+                continue
+            lines.append(f"- {label}:")
+            for detail in details:
+                lines.append(f"  - {detail.get('summary')}")
         lines.append("")
 
     lines.append("## Files")
