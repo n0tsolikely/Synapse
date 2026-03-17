@@ -361,6 +361,9 @@ def run_finalize(
     return {
         "archive_path": str(archive_path),
         "run_id": run_id,
+        "session_mode": run_data.get("session_mode"),
+        "session_mode_source": run_data.get("session_mode_source"),
+        "session_mode_policy_version": run_data.get("session_mode_policy_version"),
         "last_session_mode": run_data.get("last_session_mode"),
         "last_session_mode_ended_at": run_data.get("last_session_mode_ended_at"),
         "sidecar": sidecar,
