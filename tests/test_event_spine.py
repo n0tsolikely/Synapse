@@ -102,6 +102,18 @@ class EventSpineTests(unittest.TestCase):
             json=json_mode,
         )
 
+    def _session_mode_namespace(self, *, json_mode: bool) -> argparse.Namespace:
+        return argparse.Namespace(
+            target_session_mode="scope_planning",
+            reason="Move from ideation into scoped planning",
+            subject=self.subject,
+            data_root=str(self.data_root),
+            engine_root=str(self.engine_root),
+            allow_switch=True,
+            session_id=None,
+            json=json_mode,
+        )
+
     def test_append_event_uses_required_envelope_shape_and_rotates_by_day(self) -> None:
         self.data_root.mkdir(parents=True, exist_ok=True)
         first = build_event(
@@ -304,6 +316,33 @@ class EventSpineTests(unittest.TestCase):
         self.assertIn("PARTIAL:", combined)
         self.assertIn("event_id:", combined)
         self.assertIn("recovery_hint:", combined)
+
+    def test_session_mode_set_uses_partial_runtime_status_when_reducer_refresh_fails(self) -> None:
+        start = run_synapse(
+            ["session-start", "--title", "Evented session", "--json", *self.subject_args],
+            cwd=REPO_ROOT,
+            home=self.home,
+        )
+        self.assertEqual(start.returncode, 0, start.stdout + start.stderr)
+
+        args = self._session_mode_namespace(json_mode=True)
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with mock.patch.dict(os.environ, {"HOME": str(self.home)}, clear=False):
+            with mock.patch.object(synapse_cli, "reduce_after_event", side_effect=ReducerError("boom")):
+                with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                    exit_code = synapse_cli.cmd_session_mode(args)
+
+        self.assertEqual(exit_code, 3, stdout.getvalue() + stderr.getvalue())
+        payload = json.loads(stdout.getvalue())
+        runtime_status = payload["runtime_status"]
+        self.assertEqual(runtime_status["operation_status"], "partial")
+        self.assertTrue(runtime_status["primary_mutation_committed"])
+        self.assertTrue(runtime_status["event_recorded"])
+        self.assertFalse(runtime_status["derived_state_current"])
+        self.assertEqual(runtime_status["error_code"], "REDUCER_REFRESH_FAILED")
+        self.assertEqual(payload["from_session_mode"], "brainstorm_spec")
+        self.assertEqual(payload["to_session_mode"], "scope_planning")
 
     def test_all_event_pipeline_call_sites_route_through_shared_result_handler(self) -> None:
         source = (REPO_ROOT / "runtime" / "synapse.py").read_text(encoding="utf-8")

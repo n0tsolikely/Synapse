@@ -45,6 +45,7 @@ from synapse_runtime.repo_state import (
 from synapse_runtime.session_modes import (
     SESSION_MODE_POLICY_VERSION,
     SessionMode,
+    policy_for_run,
     policy_summary,
     session_mode_signal_fields,
     validate_transition,
@@ -421,6 +422,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional proposal state filter when listing",
     )
     formalize_parser.add_argument("--list", action="store_true", help="List proposals instead of formalizing one")
+    formalize_parser.add_argument("--dry-run", action="store_true", help="Preview formalization without mutating canon")
     formalize_parser.add_argument("--topic", help="Optional topic override for snapshot or guild-order formalization")
     formalize_parser.add_argument("--subject", help="Optional subject override")
     formalize_parser.add_argument("--data-root", help="Override data root path")
@@ -1847,6 +1849,39 @@ def _current_session_mode_fields(ctx: dict[str, Any]) -> dict[str, Any]:
     return session_mode_signal_fields(active_run)
 
 
+def _active_session_policy(ctx: dict[str, Any]) -> tuple[dict[str, Any], Any | None]:
+    active_run = load_active_run_record(subject=ctx["subject"], data_root=Path(ctx["data_root"]))
+    return active_run, policy_for_run(active_run)
+
+
+def _fail_blocked_by_session_posture(
+    *,
+    action_name: str,
+    active_run: dict[str, Any],
+    json_mode: bool,
+) -> int:
+    session_mode = str(active_run.get("session_mode") or "").strip() or "unknown"
+    message = (
+        f"Session posture '{session_mode}' blocks `{action_name}`. "
+        "Use `python3 runtime/synapse.py session-mode --set <mode> --reason <text>` to transition first."
+    )
+    if json_mode:
+        print(
+            json.dumps(
+                {
+                    "error": message,
+                    "active_run_id": active_run.get("run_id"),
+                    "active_session_mode": active_run.get("session_mode"),
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 2
+    print(f"FAIL: {message}")
+    return 2
+
+
 def _session_mode_payload(ctx: dict[str, Any]) -> dict[str, Any]:
     data_root = Path(ctx["data_root"])
     active_run = load_active_run_record(subject=ctx["subject"], data_root=data_root)
@@ -2698,6 +2733,13 @@ def cmd_accept_quest(args: argparse.Namespace) -> int:
 
     data_root = Path(ctx["data_root"])
     engine_root = Path(ctx["engine_root"])
+    active_run, session_policy = _active_session_policy(ctx)
+    if session_policy is not None and not session_policy.quest_acceptance_allowed:
+        return _fail_blocked_by_session_posture(
+            action_name="accept-quest",
+            active_run=active_run,
+            json_mode=args.json,
+        )
     try:
         acceptance = accept_quest(
             subject=ctx["subject"],
@@ -3419,6 +3461,29 @@ def cmd_formalize(args: argparse.Namespace) -> int:
     try:
         proposal = _proposal_by_id(data_root, args.proposal_id)
         kind = ProposalKind(str(proposal.get("kind")))
+        if args.dry_run:
+            payload = {
+                "subject": ctx,
+                "proposal": proposal,
+                "would_formalize_as": kind.value,
+                "topic": args.topic,
+                "dry_run": True,
+            }
+            if args.json:
+                print(json.dumps(payload, indent=2, sort_keys=True))
+            else:
+                print("=== FORMALIZE DRY RUN ===")
+                print(f"proposal_id: {proposal.get('proposal_id')}")
+                print(f"kind: {kind.value}")
+                print(f"title: {proposal.get('title')}")
+            return 0
+        active_run, session_policy = _active_session_policy(ctx)
+        if session_policy is not None and not session_policy.manual_formalize_allowed:
+            return _fail_blocked_by_session_posture(
+                action_name="formalize",
+                active_run=active_run,
+                json_mode=args.json,
+            )
         if kind == ProposalKind.SNAPSHOT:
             result = _formalize_snapshot(ctx, proposal, control_sync=False)
         elif kind == ProposalKind.CONTROL_SYNC:

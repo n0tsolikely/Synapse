@@ -33,7 +33,7 @@ from synapse_runtime.quest_candidates import (
     _upsert_quest_candidate,
     _write_proposals,
 )
-from synapse_runtime.session_modes import SessionMode, policy_summary
+from synapse_runtime.session_modes import SessionMode, active_session_mode, policy_for, policy_summary
 from synapse_runtime.sidecar_store import (
     _load_active_run,
     _load_manifold,
@@ -113,8 +113,7 @@ def _apply_session_posture_projection(
     state: dict[str, Any],
     manifold: dict[str, Any],
 ) -> dict[str, Any]:
-    active_mode_text = str(active_run.get("session_mode") or "").strip()
-    active_mode = SessionMode(active_mode_text) if active_run.get("active") and active_mode_text else None
+    active_mode = active_session_mode(active_run)
     active_summary = policy_summary(active_mode) if active_mode else None
 
     state["active_session_mode"] = active_mode.value if active_mode else None
@@ -256,13 +255,19 @@ def _sync_sidecar(
     snapshot_candidate_path = manifold.get("current_snapshot_candidate_path")
     verification_entries = list(manifold.get("latest_verification_entries") or [])
     verification_status = manifold.get("current_verification_status")
+    session_mode_text = str(active_run.get("session_mode") or "").strip()
+    session_policy = policy_for(SessionMode(session_mode_text)) if session_mode_text else None
+    allowed_proposal_kinds = set(session_policy.allowed_proposal_kinds) if session_policy is not None else None
     if signal is not None and signal.verification:
         verification_entries.extend(str(item) for item in signal.verification if str(item).strip())
         verification_entries = verification_entries[-10:]
         verification_status = _classify_verification_status(verification_entries) or verification_status
     if signal is not None and mutate_proposals:
         promotions = evaluate_promotion(signal, data_root)
-        if not any(promotion.kind in QUEST_PROPOSAL_KINDS for promotion in promotions):
+        if (
+            (allowed_proposal_kinds is None or ProposalKind.QUEST in allowed_proposal_kinds)
+            and not any(promotion.kind in QUEST_PROPOSAL_KINDS for promotion in promotions)
+        ):
             if signal.source in {"run-start", "run-update", "run-finalize"} and (
                 _open_plan_items(active_run)
                 or signal.commands
@@ -279,6 +284,8 @@ def _sync_sidecar(
                         reason="Active run signals indicate a bounded work unit that should be tracked as a quest candidate.",
                     )
                 )
+        if allowed_proposal_kinds is not None:
+            promotions = [promotion for promotion in promotions if promotion.kind in allowed_proposal_kinds]
         promotion_payloads: list[dict[str, Any]] = []
         quest_candidate_paths: list[str] = []
         for promotion in promotions:

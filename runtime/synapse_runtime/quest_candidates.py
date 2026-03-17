@@ -16,6 +16,7 @@ from synapse_runtime.live_memory_common import (
     _unique_strings,
 )
 from synapse_runtime.quest_board import DEFAULT_REPO_ORIENTATION_BLOCKER, draft_quest_from_proposal
+from synapse_runtime.session_modes import policy_for_run
 from synapse_runtime.sidecar_store import _now_iso, _read_yaml, _write_yaml, live_root
 
 
@@ -593,7 +594,16 @@ def mark_proposal_state(
     raise LiveMemoryError(f"Proposal not found: {proposal_id}")
 
 
-def _auto_formalize_ready_quest_candidates(*, subject: str, data_root: Path) -> list[dict[str, Any]]:
+def _auto_formalize_ready_quest_candidates(
+    *,
+    subject: str,
+    data_root: Path,
+    active_run: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    session_policy = policy_for_run(active_run)
+    if session_policy is not None and not session_policy.auto_formalize_ready_quests:
+        return []
+
     live = live_root(data_root)
     results: list[dict[str, Any]] = []
     for proposal in _load_proposal_records(live):

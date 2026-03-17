@@ -263,9 +263,148 @@ class SessionModeLifecycleTests(unittest.TestCase):
     def _read_rehydrate(self) -> str:
         return (self.data_root / ".synapse" / "REHYDRATE.md").read_text(encoding="utf-8")
 
+    def _proposal_paths(self, dirname: str) -> list[Path]:
+        return sorted((self.data_root / ".synapse" / "PROPOSALS" / dirname).glob("*.yaml"))
+
+    def _event_entry_count(self) -> int:
+        events_dir = self.data_root / ".synapse" / "EVENTS"
+        total = 0
+        for path in events_dir.glob("*.jsonl"):
+            total += sum(1 for line in path.read_text(encoding="utf-8").splitlines() if line.strip())
+        return total
+
+    def _write_codex_freeze(self) -> None:
+        freeze = self.data_root / "Codex" / "CODEX_FREEZE.md"
+        freeze.parent.mkdir(parents=True, exist_ok=True)
+        freeze.write_text(
+            "\n".join(
+                [
+                    "# CODEX FREEZE",
+                    "",
+                    "Brains Approval: YES",
+                    "Date: 2026-03-10",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+    def _write_control_sync_lock(self) -> None:
+        control_sync = self.data_root / "Snapshots" / "Control Sync" / "ModeSubject_CONTROL_SYNC__2026-03-10.txt"
+        control_sync.parent.mkdir(parents=True, exist_ok=True)
+        control_sync.write_text(
+            "\n".join(
+                [
+                    "# CONTROL SYNC",
+                    "",
+                    "Status: ACTIVE",
+                    "Participants: Brains, Hands",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+    def _write_board_quest(self, quest_id: str = "QUEST_001") -> Path:
+        slug = "runtime-governed-bridge"
+        date = "2026-03-10"
+        bundle_path = f"ModeSubject_Data/Audits/Execution/{quest_id}__{date}__{slug}"
+        fields = {
+            "Quest ID": quest_id,
+            "Title": "Runtime governed bridge",
+            "Subject": "ModeSubject",
+            "Origin": "Control Sync 2026-03-10",
+            "Priority": "P1",
+            "Links": "None",
+            "Codex Anchors (DRAFT)": "6.5, 9.2",
+            "Codex Constraint Summary (DRAFT)": "Keep router thin; no proofless claims.",
+            "Change Class": "FEATURE",
+            "Vision Delta": "ALIGNED",
+            "System Context Statement": "Synapse runtime inside the existing governed CLI.",
+            "Anti-Duplication Plan": 'rg -n "accept-quest|Quest Board|Accepted" runtime tests governance',
+            "Placement Intent": "Intended layer: runtime | Intended target path(s): runtime/synapse.py",
+            "Atomicity Statement": "Atomic: yes - one independently verifiable governed acceptance path.",
+            "Risk": "R1",
+            "R2 Confirmation Artifact (REQUIRED if Risk = R2)": "",
+            "Description": "Accept a board quest into governed execution.",
+            "Scope / Objective": "Successful acceptance moves the quest into Accepted/ with a canonical audit bundle.",
+            "Out of Scope": "Completing the quest or writing execution receipts.",
+            "Dependencies": "None",
+            "Door Impact": "CLI",
+            "Testing Level (TL)": "TL2",
+            "Verification Plan": "Verification Commands: python3 -m unittest tests.test_quest_acceptance | PASS when exit code is 0 | FAIL otherwise",
+            "Talent Point Awarded": "NO",
+            "Audit Bundle Folder Path (required once ACCEPTED)": bundle_path,
+        }
+        lines: list[str] = []
+        for label, value in fields.items():
+            if value == "":
+                lines.extend([f"{label}:", ""])
+            else:
+                lines.extend([f"{label}: {value}", ""])
+        quest_path = self.data_root / "Quest Board" / f"{quest_id}__{slug}__{date}.txt"
+        quest_path.write_text("\n".join(lines), encoding="utf-8")
+        return quest_path
+
     def _start_brainstorm_session(self) -> None:
         result = run_synapse(["session-start", "--title", "Spec pass", "--json", *self.subject_args], cwd=REPO_ROOT, home=self.home)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def _prepare_ready_candidate(self, *, session_mode: str) -> dict:
+        result = run_synapse(
+            [
+                "run-start",
+                "--title",
+                "Runtime quest promotion",
+                "--plan-item",
+                "Formalize clustered runtime quest",
+                "--session-mode",
+                session_mode,
+                "--json",
+                *self.subject_args,
+            ],
+            cwd=REPO_ROOT,
+            home=self.home,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        result = run_synapse(
+            [
+                "run-update",
+                "--command",
+                "python3 runtime/synapse.py run-update",
+                "--file",
+                "runtime/synapse_runtime/live_memory.py",
+                "--note",
+                "Formalize clustered runtime quest through ambient evidence.",
+                "--summary",
+                "Formalize clustered runtime quest",
+                "--json",
+                *self.subject_args,
+            ],
+            cwd=REPO_ROOT,
+            home=self.home,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        result = run_synapse(
+            [
+                "run-update",
+                "--command",
+                "python3 -m unittest tests.test_live_memory",
+                "--file",
+                "runtime/synapse.py",
+                "--verification",
+                "tests passed",
+                "--summary",
+                "Formalize clustered runtime quest",
+                "--json",
+                *self.subject_args,
+            ],
+            cwd=REPO_ROOT,
+            home=self.home,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        proposal_path = self._proposal_paths("quests")[0]
+        return yaml.safe_load(proposal_path.read_text(encoding="utf-8"))
 
     def test_session_start_new_run_defaults_to_brainstorm_spec(self) -> None:
         result = run_synapse(["session-start", "--title", "Spec pass", "--json", *self.subject_args], cwd=REPO_ROOT, home=self.home)
@@ -451,6 +590,15 @@ class SessionModeLifecycleTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertIn("session-mode --set", result.stdout + result.stderr)
 
+    def test_governance_mode_command_remains_separate_from_session_mode(self) -> None:
+        result = run_synapse(["mode", "--set", "PLAN"], cwd=REPO_ROOT, home=self.home)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("mode: PLAN", result.stdout + result.stderr)
+        inspect = run_synapse(["session-mode", "--json", *self.subject_args], cwd=REPO_ROOT, home=self.home)
+        self.assertEqual(inspect.returncode, 0, inspect.stdout + inspect.stderr)
+        payload = json.loads(inspect.stdout)
+        self.assertIsNone(payload["active_session_mode"])
+
     def test_finalize_projects_last_posture_and_clears_active_posture(self) -> None:
         result = run_synapse(
             ["run-start", "--title", "Build path", "--plan-item", "Ship it", "--json", *self.subject_args],
@@ -498,6 +646,139 @@ class SessionModeLifecycleTests(unittest.TestCase):
         self.assertTrue(manifold["last_session_mode_ended_at"])
         self.assertIn("Current session mode: none", rehydrate)
         self.assertIn("Last session mode: scope_planning", rehydrate)
+
+    def test_closeout_filters_disallowed_quest_like_and_guild_order_outputs(self) -> None:
+        result = run_synapse(
+            [
+                "session-tick",
+                "--title",
+                "Closeout pass",
+                "--summary",
+                "runtime scope shift for ambient governance",
+                "--command",
+                "python3 -m unittest",
+                "--file",
+                "runtime/synapse.py",
+                "--verification",
+                "unit tests passed",
+                "--decision-title",
+                "Ambient runtime direction",
+                "--decision-summary",
+                "Promote ambient sidecar as primary runtime.",
+                "--session-mode",
+                "closeout",
+                "--json",
+                *self.subject_args,
+            ],
+            cwd=REPO_ROOT,
+            home=self.home,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertFalse(self._proposal_paths("quests"))
+        self.assertFalse(self._proposal_paths("side_quests"))
+        self.assertFalse(self._proposal_paths("guild_orders"))
+        self.assertTrue(self._proposal_paths("codex"))
+
+    def test_auto_formalize_is_suppressed_in_brainstorm_spec(self) -> None:
+        proposal = self._prepare_ready_candidate(session_mode="brainstorm_spec")
+        self.assertEqual(proposal["state"], "ready")
+        self.assertFalse(proposal.get("formalized_artifact_path"))
+        self.assertFalse(list((self.data_root / "Quest Board").glob("QUEST_*.txt")))
+
+    def test_auto_formalize_remains_allowed_in_scope_planning(self) -> None:
+        proposal = self._prepare_ready_candidate(session_mode="scope_planning")
+        self.assertEqual(proposal["state"], "formalized")
+        artifact_path = Path(proposal["formalized_artifact_path"])
+        self.assertTrue(artifact_path.exists())
+
+    def test_mutating_formalize_is_blocked_in_brainstorm_spec_but_list_and_dry_run_are_allowed(self) -> None:
+        result = run_synapse(
+            [
+                "session-tick",
+                "--title",
+                "Spec pass",
+                "--summary",
+                "runtime scope shift for ambient governance",
+                "--command",
+                "python3 -m unittest",
+                "--file",
+                "runtime/synapse.py",
+                "--verification",
+                "unit tests passed",
+                "--decision-title",
+                "Ambient runtime direction",
+                "--decision-summary",
+                "Promote ambient sidecar as primary runtime.",
+                "--session-mode",
+                "brainstorm_spec",
+                "--json",
+                *self.subject_args,
+            ],
+            cwd=REPO_ROOT,
+            home=self.home,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        proposal_path = self._proposal_paths("codex")[0]
+        proposal = yaml.safe_load(proposal_path.read_text(encoding="utf-8"))
+        before_events = self._event_entry_count()
+
+        result = run_synapse(
+            ["formalize", "--list", "--json", *self.subject_args],
+            cwd=REPO_ROOT,
+            home=self.home,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+        result = run_synapse(
+            ["formalize", "--proposal-id", proposal["proposal_id"], "--dry-run", "--json", *self.subject_args],
+            cwd=REPO_ROOT,
+            home=self.home,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        dry_run_payload = json.loads(result.stdout)
+        self.assertTrue(dry_run_payload["dry_run"])
+
+        result = run_synapse(
+            ["formalize", "--proposal-id", proposal["proposal_id"], "--json", *self.subject_args],
+            cwd=REPO_ROOT,
+            home=self.home,
+        )
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("blocks `formalize`", result.stdout)
+        self.assertEqual(self._event_entry_count(), before_events)
+        self.assertFalse(list((self.data_root / "Codex" / "Sections").glob("CANDIDATE__*.md")))
+
+    def test_accept_quest_is_blocked_in_control_sync(self) -> None:
+        result = run_synapse(
+            [
+                "run-start",
+                "--title",
+                "Control sync pass",
+                "--plan-item",
+                "Review governed scope",
+                "--session-mode",
+                "control_sync",
+                "--json",
+                *self.subject_args,
+            ],
+            cwd=REPO_ROOT,
+            home=self.home,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self._write_codex_freeze()
+        self._write_control_sync_lock()
+        board_path = self._write_board_quest()
+        before_events = self._event_entry_count()
+
+        result = run_synapse(
+            ["accept-quest", str(board_path), "--json", *self.subject_args],
+            cwd=REPO_ROOT,
+            home=self.home,
+        )
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("blocks `accept-quest`", result.stdout)
+        self.assertTrue(board_path.exists())
+        self.assertEqual(self._event_entry_count(), before_events)
 
 
 if __name__ == "__main__":

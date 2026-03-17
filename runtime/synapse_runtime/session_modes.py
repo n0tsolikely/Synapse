@@ -162,6 +162,20 @@ def policy_for(mode: SessionMode) -> SessionModePolicy:
     return _POLICY_REGISTRY[SessionMode(mode)]
 
 
+def active_session_mode(run_data: dict[str, Any] | None) -> SessionMode | None:
+    if not isinstance(run_data, dict):
+        return None
+    if not run_data.get("active"):
+        return None
+    mode = str(run_data.get("session_mode") or "").strip()
+    return SessionMode(mode) if mode else None
+
+
+def policy_for_run(run_data: dict[str, Any] | None) -> SessionModePolicy | None:
+    mode = active_session_mode(run_data)
+    return policy_for(mode) if mode else None
+
+
 def policy_summary(mode: SessionMode) -> dict[str, Any]:
     policy = policy_for(mode)
     return {

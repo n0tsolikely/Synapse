@@ -24,13 +24,17 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
     run_path = live / "ACTIVE_RUN.yaml"
     rehydrate_path = live / "REHYDRATE.md"
 
-    auto_formalizations = _auto_formalize_ready_quest_candidates(subject=subject, data_root=data_root)
+    active_run = _load_active_run(run_path, subject)
+    auto_formalizations = _auto_formalize_ready_quest_candidates(
+        subject=subject,
+        data_root=data_root,
+        active_run=active_run,
+    )
     refresh_session_posture_projection(subject=subject, data_root=data_root)
     refresh_quest_lifecycle_projection(subject=subject, data_root=data_root)
 
     state = _load_state(state_path, subject)
     manifold = _load_manifold(manifold_path, subject)
-    active_run = _load_active_run(run_path, subject)
 
     decisions_dir = live / "DECISIONS"
     discoveries_dir = live / "DISCOVERIES"
