@@ -74,6 +74,10 @@ def _default_state(subject: str) -> dict[str, Any]:
         "last_completed_quest_id": None,
         "last_completed_quest_path": None,
         "last_completed_audit_bundle_path": None,
+        "last_capture_batch_id": None,
+        "last_capture_at": None,
+        "open_question_count": 0,
+        "blocking_question_count": 0,
         "last_rehydrate_at": None,
         "last_event_id": None,
         "last_event_at": None,
@@ -120,6 +124,19 @@ def _default_manifold(subject: str) -> dict[str, Any]:
         "active_session_mode_policy": None,
         "last_session_mode": None,
         "last_session_mode_ended_at": None,
+        "recent_capture_batch_ids": [],
+        "last_capture_batch_id": None,
+        "last_capture_at": None,
+        "open_question_details": [],
+        "blocking_question_details": [],
+        "recent_idea_details": [],
+        "recent_repo_fact_details": [],
+        "recent_constraint_details": [],
+        "recent_risk_details": [],
+        "recent_dependency_details": [],
+        "recent_non_goal_details": [],
+        "recent_milestone_details": [],
+        "candidate_decision_details": [],
         "completed_quest_ids": [],
         "completed_quest_details": [],
         "last_completed_quest_id": None,
@@ -175,6 +192,8 @@ def ensure_live_scaffold(subject: str, data_root: Path) -> dict[str, Any]:
     decisions_dir = live / "DECISIONS"
     discoveries_dir = live / "DISCOVERIES"
     disclosures_dir = live / "DISCLOSURES"
+    captures_dir = live / "CAPTURES"
+    capture_batches_dir = captures_dir / "BATCHES"
     runs_dir = live / "RUNS"
     threads_dir = live / "THREADS"
     proposals_dir = live / "PROPOSALS"
@@ -194,6 +213,8 @@ def ensure_live_scaffold(subject: str, data_root: Path) -> dict[str, Any]:
     decisions_dir.mkdir(parents=True, exist_ok=True)
     discoveries_dir.mkdir(parents=True, exist_ok=True)
     disclosures_dir.mkdir(parents=True, exist_ok=True)
+    captures_dir.mkdir(parents=True, exist_ok=True)
+    capture_batches_dir.mkdir(parents=True, exist_ok=True)
     runs_dir.mkdir(parents=True, exist_ok=True)
     threads_dir.mkdir(parents=True, exist_ok=True)
     proposals_dir.mkdir(parents=True, exist_ok=True)
@@ -288,6 +309,13 @@ Run `python3 runtime/synapse.py render-rehydrate` to refresh this file.
         created.append(str(disclosure_ledger_path))
     else:
         existing.append(str(disclosure_ledger_path))
+
+    capture_ledger_path = captures_dir / f"{today}.yaml"
+    if not capture_ledger_path.exists():
+        _write_yaml(capture_ledger_path, _default_daily_ledger(subject, today))
+        created.append(str(capture_ledger_path))
+    else:
+        existing.append(str(capture_ledger_path))
 
     open_questions_path = threads_dir / "open_questions.md"
     open_questions_template = """# Open Questions
