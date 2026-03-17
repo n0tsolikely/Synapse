@@ -90,6 +90,8 @@ def capture_item_id(batch_id: str, index: int) -> str:
 
 
 def normalize_capture_source_role(value: str | CaptureSourceRole | None) -> CaptureSourceRole:
+    if isinstance(value, CaptureSourceRole):
+        return value
     try:
         return CaptureSourceRole(str(value or CaptureSourceRole.USER.value).strip())
     except ValueError as exc:
@@ -415,15 +417,62 @@ def semantic_detail_lists(batch: dict[str, Any]) -> dict[str, list[dict[str, Any
     }
 
 
-def derive_semantic_promotions(batch: dict[str, Any]) -> list[PromotionRecord]:
-    kinds = {str(item.get("kind") or "").strip() for item in batch.get("captures") or [] if isinstance(item, dict)}
-    blocking_uncertainty = any(
+def merge_semantic_details(
+    existing: list[dict[str, Any]] | None,
+    incoming: list[dict[str, Any]] | None,
+    *,
+    cap: int = 10,
+) -> list[dict[str, Any]]:
+    combined = [detail for detail in (existing or []) if isinstance(detail, dict)] + [
+        detail for detail in (incoming or []) if isinstance(detail, dict)
+    ]
+    ordered = sorted(
+        combined,
+        key=lambda detail: (
+            str(detail.get("captured_at") or ""),
+            str(detail.get("capture_id") or ""),
+        ),
+    )
+    deduped: dict[tuple[str, str, bool], dict[str, Any]] = {}
+    for detail in ordered:
+        deduped[_semantic_key(detail)] = detail
+    return sorted(
+        deduped.values(),
+        key=lambda detail: (
+            str(detail.get("captured_at") or ""),
+            str(detail.get("capture_id") or ""),
+        ),
+        reverse=True,
+    )[:cap]
+
+
+def capture_kinds(batch: dict[str, Any]) -> list[str]:
+    kinds: list[str] = []
+    for capture in batch.get("captures") or []:
+        if not isinstance(capture, dict):
+            continue
+        kind = str(capture.get("kind") or "").strip()
+        if kind:
+            kinds.append(kind)
+    return kinds
+
+
+def batch_uncertainty_present(batch: dict[str, Any]) -> bool:
+    return any(kind in {"question", "unknown", "risk"} for kind in capture_kinds(batch))
+
+
+def batch_disclosure_needed(batch: dict[str, Any]) -> bool:
+    return any(
         isinstance(item, dict)
         and bool(item.get("blocking"))
         and str(item.get("kind") or "").strip() in {"question", "unknown", "risk"}
-        for item in batch.get("captures")
-        or []
+        for item in batch.get("captures") or []
     )
+
+
+def derive_semantic_promotions(batch: dict[str, Any]) -> list[PromotionRecord]:
+    kinds = set(capture_kinds(batch))
+    blocking_uncertainty = batch_disclosure_needed(batch)
     title = str(batch.get("title") or "").strip() or "Semantic intake batch"
     summary = _promotion_summary(batch)
     evidence = (str(batch.get("capture_batch_id") or ""),)

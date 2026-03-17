@@ -24,7 +24,7 @@ from synapse_runtime.doctor import run_doctor
 from synapse_runtime.event_log import EventLogError, REDUCER_VERSION, append_event, build_event
 from synapse_runtime.governance_pack import resolve_governance_asset, resolve_governance_root
 from synapse_runtime.governance_inventory import build_governance_inventory, write_governance_inventory
-from synapse_runtime.governance_model import ProposalKind, ProposalState
+from synapse_runtime.governance_model import AmbientSignal, ProposalKind, ProposalState
 from synapse_runtime.live_journal import log_decision, log_disclosure, record_quest_acceptance
 from synapse_runtime.live_memory_common import LiveMemoryError
 from synapse_runtime.persona import resolve_persona
@@ -50,6 +50,16 @@ from synapse_runtime.session_modes import (
     session_mode_signal_fields,
     validate_transition,
 )
+from synapse_runtime.semantic_intake import (
+    CaptureSourceRole,
+    SemanticIntakeError,
+    batch_disclosure_needed,
+    batch_uncertainty_present,
+    capture_kinds as semantic_capture_kinds,
+    normalize_capture_source_role,
+    write_capture_batch,
+)
+from synapse_runtime.sidecar_projection import _sync_sidecar
 from synapse_runtime.sidecar_store import ensure_live_scaffold
 from synapse_runtime.subject_bootstrap import initialize_subject_state, repo_subject_defaults
 from synapse_runtime.quest_acceptance import QuestAcceptanceError, accept_quest
@@ -326,6 +336,27 @@ def build_parser() -> argparse.ArgumentParser:
     session_tick_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
     session_tick_parser.add_argument("--session-mode", choices=session_mode_choices, help="Validate or set posture only when creating a new run")
     session_tick_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
+    capture_chunk_parser = subparsers.add_parser("capture-chunk", help="Record one raw semantic capture batch against the active run")
+    capture_chunk_text = capture_chunk_parser.add_mutually_exclusive_group(required=True)
+    capture_chunk_text.add_argument("--text", help="Raw text chunk to capture")
+    capture_chunk_text.add_argument("--text-file", help="Path to raw text file (cwd-relative unless absolute)")
+    capture_chunk_payload = capture_chunk_parser.add_mutually_exclusive_group(required=True)
+    capture_chunk_payload.add_argument("--captures-json", help="Structured capture payload as JSON")
+    capture_chunk_payload.add_argument("--captures-file", help="Path to structured capture payload file (cwd-relative unless absolute)")
+    capture_chunk_parser.add_argument("--title", help="Optional batch title override")
+    capture_chunk_parser.add_argument(
+        "--source-role",
+        choices=[role.value for role in CaptureSourceRole],
+        default="user",
+        help="Who produced the capture batch (default: user)",
+    )
+    capture_chunk_parser.add_argument("--subject", help="Optional subject override")
+    capture_chunk_parser.add_argument("--data-root", help="Override data root path")
+    capture_chunk_parser.add_argument("--engine-root", help="Override engine root path")
+    capture_chunk_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    capture_chunk_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
+    capture_chunk_parser.add_argument("--json", action="store_true", help="Print JSON output")
 
     session_mode_parser = subparsers.add_parser("session-mode", help="Inspect or explicitly transition the active session posture")
     session_mode_parser.add_argument("--set", dest="target_session_mode", choices=session_mode_choices, help="Target session posture")
@@ -607,6 +638,17 @@ def _runtime_status(
     }
 
 
+def _empty_reducer_receipt() -> dict[str, Any]:
+    return {
+        "mode": reducer_mode(),
+        "reducer_version": REDUCER_VERSION,
+        "event_id": None,
+        "sidecar": None,
+        "rehydrate": None,
+        "continuity": None,
+    }
+
+
 def _print_partial_runtime_status(runtime_status: dict[str, Any], *, stream) -> None:
     print("PARTIAL:", file=stream)
     print(f"- primary_mutation_committed: {'YES' if runtime_status.get('primary_mutation_committed') else 'NO'}", file=stream)
@@ -643,6 +685,27 @@ def _finalize_mutation_result(
     return exit_code
 
 
+def _partial_after_primary_mutation(
+    *,
+    error_code: str,
+    error_message: str,
+    recovery_hint: str,
+) -> dict[str, Any]:
+    return {
+        "event": None,
+        "reducer": _empty_reducer_receipt(),
+        "runtime_status": _runtime_status(
+            operation_status="partial",
+            primary_mutation_committed=True,
+            event_recorded=False,
+            derived_state_current=False,
+            error_code=error_code,
+            error_message=error_message,
+            recovery_hint=recovery_hint,
+        ),
+    }
+
+
 def _event_pipeline(
     *,
     ctx: dict[str, Any],
@@ -658,14 +721,7 @@ def _event_pipeline(
     engine_root = Path(ctx["engine_root"])
     session_id = str(ctx.get("session_id") or "").strip() or None
     run_id = str(outputs.get("run_id") or signals.get("run_id") or "").strip() or None
-    base_reducer = {
-        "mode": reducer_mode(),
-        "reducer_version": REDUCER_VERSION,
-        "event_id": None,
-        "sidecar": None,
-        "rehydrate": None,
-        "continuity": None,
-    }
+    base_reducer = _empty_reducer_receipt()
     try:
         event = build_event(
             subject=ctx["subject"],
@@ -1882,6 +1938,39 @@ def _fail_blocked_by_session_posture(
     return 2
 
 
+def _read_capture_text(args: argparse.Namespace) -> str:
+    if args.text is not None:
+        text = str(args.text)
+    else:
+        path = Path(str(args.text_file or "")).expanduser()
+        try:
+            text = path.read_text(encoding="utf-8")
+        except Exception as exc:
+            raise LiveMemoryError(f"Unable to read capture text file: {path}") from exc
+    if not text.strip():
+        raise LiveMemoryError("Capture text must be non-empty.")
+    return text
+
+
+def _read_capture_payload(args: argparse.Namespace) -> Any:
+    if args.captures_json is not None:
+        raw = str(args.captures_json)
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise LiveMemoryError(f"Invalid --captures-json payload: {exc}") from exc
+
+    path = Path(str(args.captures_file or "")).expanduser()
+    try:
+        text = path.read_text(encoding="utf-8")
+    except Exception as exc:
+        raise LiveMemoryError(f"Unable to read capture payload file: {path}") from exc
+    try:
+        return yaml.safe_load(text)
+    except Exception as exc:
+        raise LiveMemoryError(f"Invalid capture payload file: {path}") from exc
+
+
 def _session_mode_payload(ctx: dict[str, Any]) -> dict[str, Any]:
     data_root = Path(ctx["data_root"])
     active_run = load_active_run_record(subject=ctx["subject"], data_root=data_root)
@@ -2422,6 +2511,179 @@ def cmd_run_finalize(args: argparse.Namespace) -> int:
         event_info=event_info,
         json_mode=args.json,
         text_emitter=_emit_run_finalize,
+    )
+
+
+def cmd_capture_chunk(args: argparse.Namespace) -> int:
+    ctx = _resolve_or_attach_subject_from_args(args)
+    if not ctx:
+        return 2
+
+    data_root = Path(ctx["data_root"])
+    engine_root = Path(ctx["engine_root"])
+    active_run = load_active_run_record(subject=ctx["subject"], data_root=data_root)
+    if not active_run.get("run_id"):
+        message = "capture-chunk requires an active run. Start or resume a session first."
+        if args.json:
+            print(json.dumps({"error": message, "subject": ctx}, indent=2, sort_keys=True))
+        else:
+            print(f"FAIL: {message}")
+        return 2
+    if not active_run.get("session_id") or not active_run.get("session_mode"):
+        message = "capture-chunk requires an active session with a current session posture. Start or resume a session first."
+        if args.json:
+            print(json.dumps({"error": message, "subject": ctx}, indent=2, sort_keys=True))
+        else:
+            print(f"FAIL: {message}")
+        return 2
+
+    try:
+        raw_text = _read_capture_text(args)
+        payload = _read_capture_payload(args)
+        source_role = normalize_capture_source_role(args.source_role)
+        capture_receipt = write_capture_batch(
+            subject=ctx["subject"],
+            data_root=data_root,
+            engine_root=engine_root,
+            run_data=active_run,
+            raw_text=raw_text,
+            payload=payload,
+            source_role=source_role,
+            title_override=args.title,
+        )
+    except (LiveMemoryError, SemanticIntakeError) as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    capture_batch = capture_receipt["batch"]
+    capture_ids = [str(item.get("capture_id")) for item in capture_batch.get("captures") or [] if str(item.get("capture_id") or "").strip()]
+    capture_signal = AmbientSignal(
+        source="capture-chunk",
+        subject=ctx["subject"],
+        title=str(args.title or capture_batch.get("title") or "Semantic capture batch"),
+        summary=f"Recorded {len(capture_ids)} semantic captures.",
+        notes=tuple(
+            str(item.get("summary") or "").strip()
+            for item in capture_batch.get("captures") or []
+            if isinstance(item, dict) and str(item.get("summary") or "").strip()
+        ),
+        status="captured",
+    )
+    try:
+        sidecar = _sync_sidecar(
+            subject=ctx["subject"],
+            data_root=data_root,
+            active_run=active_run,
+            signal=capture_signal,
+            semantic_capture_batch=capture_batch,
+            mutate_proposals=True,
+        )
+    except (LiveMemoryError, SemanticIntakeError) as exc:
+        partial_payload = {
+            "subject": ctx,
+            "capture_batch_id": capture_batch.get("capture_batch_id"),
+            "capture_artifact_path": capture_receipt["artifact_path"],
+            "capture_ledger_path": capture_receipt["ledger_path"],
+            "capture_ids": capture_ids,
+            "open_questions_path": None,
+            "proposal_paths": [],
+            "written_artifacts": [capture_receipt["artifact_path"], capture_receipt["ledger_path"]],
+            "event": None,
+            "reducer": _empty_reducer_receipt(),
+        }
+
+        def _emit_capture_partial(rendered_payload: dict[str, Any]) -> None:
+            print("=== CAPTURE RECEIPT ===")
+            print(f"capture_batch_id: {rendered_payload.get('capture_batch_id')}")
+            print(f"capture_artifact_path: {rendered_payload.get('capture_artifact_path')}")
+            print(f"capture_ledger_path: {rendered_payload.get('capture_ledger_path')}")
+
+        return _finalize_mutation_result(
+            payload=partial_payload,
+            event_info=_partial_after_primary_mutation(
+                error_code="SEMANTIC_PROJECTION_FAILED",
+                error_message=str(exc),
+                recovery_hint=(
+                    "Raw capture truth was written, but semantic projection failed before the event append. "
+                    "Repair the projection conflict, then rerun the relevant refresh path or re-capture if needed."
+                ),
+            ),
+            json_mode=args.json,
+            text_emitter=_emit_capture_partial,
+        )
+
+    proposal_paths = list(sidecar.get("proposal_paths") or [])
+    open_questions_path = sidecar.get("open_questions_path")
+    written_artifacts = [capture_receipt["artifact_path"], capture_receipt["ledger_path"]]
+    if open_questions_path:
+        written_artifacts.append(str(open_questions_path))
+    written_artifacts.extend(proposal_paths)
+
+    event_info = _event_pipeline(
+        ctx=ctx,
+        action_name="capture-chunk",
+        summary=str(args.title or capture_batch.get("title") or "Recorded semantic capture batch."),
+        signals={
+            "capture_batch_id": capture_batch.get("capture_batch_id"),
+            "capture_count": len(capture_ids),
+            "capture_kinds": semantic_capture_kinds(capture_batch),
+            "capture_source_role": source_role.value,
+            "changed_files": written_artifacts,
+            "verification_entries": [],
+            "related_quest_ids": [],
+            "related_sidequest_ids": [],
+            **session_mode_signal_fields(active_run),
+        },
+        truth_flags={
+            "canon_mutated": False,
+            "derived_state_changed": True,
+            "governed": False,
+            "uncertainty_present": batch_uncertainty_present(capture_batch),
+            "disclosure_open": batch_disclosure_needed(capture_batch),
+        },
+        outputs={
+            "capture_batch_id": capture_batch.get("capture_batch_id"),
+            "capture_artifact_path": capture_receipt["artifact_path"],
+            "capture_ledger_path": capture_receipt["ledger_path"],
+            "open_questions_path": open_questions_path,
+            "proposal_paths": proposal_paths,
+            "written_artifacts": written_artifacts,
+        },
+    )
+
+    result = {
+        "subject": ctx,
+        "capture_batch_id": capture_batch.get("capture_batch_id"),
+        "capture_artifact_path": capture_receipt["artifact_path"],
+        "capture_ledger_path": capture_receipt["ledger_path"],
+        "capture_ids": capture_ids,
+        "open_questions_path": open_questions_path,
+        "proposal_paths": proposal_paths,
+        "written_artifacts": written_artifacts,
+        "sidecar": sidecar,
+        "event": event_info["event"],
+        "reducer": event_info["reducer"],
+        "rehydrate": event_info["reducer"]["rehydrate"],
+        "continuity": event_info["reducer"]["continuity"],
+    }
+
+    def _emit_capture_chunk(rendered_payload: dict[str, Any]) -> None:
+        print("=== CAPTURE RECEIPT ===")
+        print(f"capture_batch_id: {rendered_payload.get('capture_batch_id')}")
+        print(f"capture_artifact_path: {rendered_payload.get('capture_artifact_path')}")
+        print(f"capture_ledger_path: {rendered_payload.get('capture_ledger_path')}")
+        if rendered_payload.get("open_questions_path"):
+            print(f"open_questions_path: {rendered_payload.get('open_questions_path')}")
+        if rendered_payload.get("proposal_paths"):
+            print("proposal_paths:")
+            for path in rendered_payload["proposal_paths"]:
+                print(f"- {path}")
+
+    return _finalize_mutation_result(
+        payload=result,
+        event_info=event_info,
+        json_mode=args.json,
+        text_emitter=_emit_capture_chunk,
     )
 
 
@@ -3790,6 +4052,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_run_update(args)
     if args.command == "session-tick":
         return cmd_session_tick(args)
+    if args.command == "capture-chunk":
+        return cmd_capture_chunk(args)
     if args.command == "run-finalize":
         return cmd_run_finalize(args)
     if args.command == "log-decision":

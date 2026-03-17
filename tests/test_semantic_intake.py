@@ -2,6 +2,9 @@ import tempfile
 import unittest
 from pathlib import Path
 import sys
+import json
+import os
+import subprocess
 
 import yaml
 
@@ -28,6 +31,26 @@ from synapse_runtime.semantic_intake import (
     write_capture_batch,
 )
 from synapse_runtime.sidecar_store import _default_manifold, _default_state, ensure_live_scaffold, live_root
+from synapse_runtime.subject_bootstrap import initialize_subject_state
+from synapse_runtime.subject_resolver import write_focus_lock
+
+
+SYNAPSE = [sys.executable, str(REPO_ROOT / "runtime" / "synapse.py")]
+
+
+def run_synapse(
+    args: list[str],
+    *,
+    cwd: Path,
+    home: Path,
+    extra_env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    env = os.environ.copy()
+    env["HOME"] = str(home)
+    env.setdefault("SYNAPSE_ROOT", str(REPO_ROOT))
+    if extra_env:
+        env.update(extra_env)
+    return subprocess.run(SYNAPSE + args, cwd=cwd, env=env, capture_output=True, text=True)
 
 
 class SemanticIntakeTests(unittest.TestCase):
@@ -279,6 +302,120 @@ class SemanticIntakeTests(unittest.TestCase):
 
     def test_open_question_scaffold_helper_matches_original_template(self) -> None:
         self.assertTrue(matches_open_questions_scaffold(OPEN_QUESTIONS_SCAFFOLD))
+
+
+class CaptureChunkCommandTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.home = self.root / "home"
+        self.home.mkdir(parents=True, exist_ok=True)
+        self.subject = "SemanticSubject"
+        self.engine_root = self.root / self.subject
+        self.engine_root.mkdir(parents=True, exist_ok=True)
+        self.data_root = self.root / f"{self.subject}_Data"
+        initialize_subject_state(self.subject, self.data_root, self.engine_root)
+        ensure_live_scaffold(self.subject, self.data_root)
+        write_focus_lock(
+            subject=self.subject,
+            data_root=self.data_root,
+            engine_root=self.engine_root,
+            cwt=self.engine_root,
+            home=self.home,
+            selection_method="test",
+            source_detail="test_semantic_intake",
+        )
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def _run_start(self) -> None:
+        result = run_synapse(
+            ["run-start", "--title", "Semantic intake", "--json"],
+            cwd=self.engine_root,
+            home=self.home,
+            extra_env={"SYNAPSE_SESSION_ID": "SESSION-INTAKE"},
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_capture_chunk_requires_active_run(self) -> None:
+        result = run_synapse(
+            [
+                "capture-chunk",
+                "--text",
+                "Need semantic capture.",
+                "--captures-json",
+                json.dumps({"captures": [{"kind": "idea", "summary": "Create semantic intake"}]}),
+                "--json",
+            ],
+            cwd=self.engine_root,
+            home=self.home,
+        )
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertIn("active run", payload["error"])
+
+    def test_capture_chunk_records_event_metadata_without_raw_text(self) -> None:
+        self._run_start()
+        result = run_synapse(
+            [
+                "capture-chunk",
+                "--text",
+                "Raw chunk that must stay out of the event spine.",
+                "--captures-json",
+                json.dumps(
+                    {
+                        "title": "Semantic capture",
+                        "captures": [
+                            {"kind": "idea", "summary": "Use a typed capture store"},
+                            {"kind": "question", "summary": "How should replay work?", "blocking": True},
+                        ],
+                    }
+                ),
+                "--json",
+            ],
+            cwd=self.engine_root,
+            home=self.home,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertTrue(Path(payload["capture_artifact_path"]).exists())
+        self.assertTrue(Path(payload["capture_ledger_path"]).exists())
+        self.assertTrue(payload["proposal_paths"])
+        event_payload = payload["event"]["payload"]
+        self.assertEqual(event_payload["action_name"], "capture-chunk")
+        self.assertNotIn("raw_text", event_payload["signals"])
+        self.assertEqual(event_payload["signals"]["capture_count"], 2)
+        self.assertEqual(event_payload["signals"]["capture_source_role"], "user")
+        self.assertEqual(event_payload["outputs"]["capture_artifact_path"], payload["capture_artifact_path"])
+
+    def test_capture_chunk_thread_conflict_returns_partial_after_raw_write(self) -> None:
+        self._run_start()
+        thread_path = self.data_root / ".synapse" / "THREADS" / "open_questions.md"
+        thread_path.write_text("# Custom Questions\n\nDo not overwrite this.\n", encoding="utf-8")
+        result = run_synapse(
+            [
+                "capture-chunk",
+                "--text",
+                "Need to track an open question.",
+                "--captures-json",
+                json.dumps({"captures": [{"kind": "question", "summary": "Who owns replay?"}]}),
+                "--json",
+            ],
+            cwd=self.engine_root,
+            home=self.home,
+        )
+        self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["runtime_status"]["operation_status"], "partial")
+        self.assertTrue(payload["runtime_status"]["primary_mutation_committed"])
+        self.assertFalse(payload["runtime_status"]["event_recorded"])
+        self.assertFalse(payload["runtime_status"]["derived_state_current"])
+        self.assertEqual(payload["runtime_status"]["error_code"], "SEMANTIC_PROJECTION_FAILED")
+        self.assertTrue(Path(payload["capture_artifact_path"]).exists())
+        self.assertTrue(Path(payload["capture_ledger_path"]).exists())
+        self.assertIsNone(payload["event"])
+        self.assertEqual(thread_path.read_text(encoding="utf-8"), "# Custom Questions\n\nDo not overwrite this.\n")
 
 
 if __name__ == "__main__":

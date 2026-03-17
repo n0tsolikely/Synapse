@@ -22,6 +22,7 @@ from synapse_runtime.governance_model import (
     infer_interaction_mode,
 )
 from synapse_runtime.ledger_store import _classify_verification_status
+from synapse_runtime.live_memory_common import LiveMemoryError
 from synapse_runtime.quest_candidates import (
     QUEST_PROPOSAL_KINDS,
     _candidate_summary,
@@ -33,6 +34,15 @@ from synapse_runtime.quest_candidates import (
     _upsert_quest_candidate,
     _write_proposals,
 )
+from synapse_runtime.semantic_intake import (
+    capture_kinds as semantic_capture_kinds,
+    derive_semantic_promotions,
+    is_managed_open_questions_text,
+    matches_open_questions_scaffold,
+    merge_semantic_details,
+    render_managed_open_questions,
+    semantic_detail_lists,
+)
 from synapse_runtime.session_modes import SessionMode, active_session_mode, policy_for, policy_summary
 from synapse_runtime.sidecar_store import (
     _load_active_run,
@@ -40,6 +50,7 @@ from synapse_runtime.sidecar_store import (
     _load_state,
     _now_iso,
     _write_yaml,
+    canonical_open_questions_path,
     ensure_live_scaffold,
     live_root,
 )
@@ -191,12 +202,71 @@ def refresh_quest_lifecycle_projection(*, subject: str, data_root: Path) -> dict
     }
 
 
+def _sync_open_questions_thread(*, data_root: Path, details: list[dict[str, Any]]) -> str | None:
+    path = canonical_open_questions_path(data_root)
+    rendered = render_managed_open_questions(details)
+    if not path.exists():
+        path.write_text(rendered, encoding="utf-8")
+        return str(path)
+    try:
+        existing = path.read_text(encoding="utf-8")
+    except Exception as exc:
+        raise LiveMemoryError(f"Unable to read open questions thread: {path}") from exc
+    if is_managed_open_questions_text(existing) or matches_open_questions_scaffold(existing):
+        if existing.rstrip() != rendered.rstrip():
+            path.write_text(rendered, encoding="utf-8")
+            return str(path)
+        return None
+    raise LiveMemoryError(
+        f"Open questions thread contains unmanaged custom content: {path}. "
+        "Move or convert the file before capture-chunk can manage this derived view."
+    )
+
+
+def _apply_semantic_capture_projection(
+    *,
+    data_root: Path,
+    state: dict[str, Any],
+    manifold: dict[str, Any],
+    semantic_capture_batch: dict[str, Any],
+) -> dict[str, Any]:
+    batch_id = str(semantic_capture_batch.get("capture_batch_id") or "").strip() or None
+    captured_at = str(semantic_capture_batch.get("captured_at") or "").strip() or None
+    detail_lists = semantic_detail_lists(semantic_capture_batch)
+    for key, incoming in detail_lists.items():
+        manifold[key] = merge_semantic_details(manifold.get(key), incoming, cap=10)
+
+    recent_batch_ids = [str(item).strip() for item in manifold.get("recent_capture_batch_ids") or [] if str(item).strip()]
+    if batch_id:
+        recent_batch_ids = [batch_id] + [item for item in recent_batch_ids if item != batch_id]
+    manifold["recent_capture_batch_ids"] = recent_batch_ids[:10]
+    manifold["last_capture_batch_id"] = batch_id
+    manifold["last_capture_at"] = captured_at
+
+    state["last_capture_batch_id"] = batch_id
+    state["last_capture_at"] = captured_at
+    state["open_question_count"] = len(list(manifold.get("open_question_details") or []))
+    state["blocking_question_count"] = len(list(manifold.get("blocking_question_details") or []))
+
+    open_questions_path = _sync_open_questions_thread(
+        data_root=data_root,
+        details=list(manifold.get("open_question_details") or []),
+    )
+    return {
+        "capture_batch_id": batch_id,
+        "capture_count": len(list(semantic_capture_batch.get("captures") or [])),
+        "capture_kinds": semantic_capture_kinds(semantic_capture_batch),
+        "open_questions_path": open_questions_path,
+    }
+
+
 def _sync_sidecar(
     *,
     subject: str,
     data_root: Path,
     active_run: dict[str, Any],
     signal: AmbientSignal | None = None,
+    semantic_capture_batch: dict[str, Any] | None = None,
     decisions_path: Path | None = None,
     discoveries_path: Path | None = None,
     disclosures_path: Path | None = None,
@@ -241,6 +311,15 @@ def _sync_sidecar(
         manifold=manifold,
     )
 
+    semantic_projection = None
+    if semantic_capture_batch is not None:
+        semantic_projection = _apply_semantic_capture_projection(
+            data_root=data_root,
+            state=state,
+            manifold=manifold,
+            semantic_capture_batch=semantic_capture_batch,
+        )
+
     accepted_details = load_accepted_quest_details(subject, data_root)
     current_accepted = select_current_accepted_quest(accepted_details)
 
@@ -262,13 +341,18 @@ def _sync_sidecar(
         verification_entries.extend(str(item) for item in signal.verification if str(item).strip())
         verification_entries = verification_entries[-10:]
         verification_status = _classify_verification_status(verification_entries) or verification_status
-    if signal is not None and mutate_proposals:
-        promotions = evaluate_promotion(signal, data_root)
+    if mutate_proposals:
+        if semantic_capture_batch is not None:
+            promotions = derive_semantic_promotions(semantic_capture_batch)
+        elif signal is not None:
+            promotions = evaluate_promotion(signal, data_root)
+        else:
+            promotions = []
         if (
             (allowed_proposal_kinds is None or ProposalKind.QUEST in allowed_proposal_kinds)
             and not any(promotion.kind in QUEST_PROPOSAL_KINDS for promotion in promotions)
         ):
-            if signal.source in {"run-start", "run-update", "run-finalize"} and (
+            if signal is not None and signal.source in {"run-start", "run-update", "run-finalize"} and (
                 _open_plan_items(active_run)
                 or signal.commands
                 or signal.files_touched
@@ -380,6 +464,10 @@ def _sync_sidecar(
         "state_path": str(state_path),
         "manifold_path": str(manifold_path),
         "proposal_paths": proposal_paths,
+        "open_questions_path": semantic_projection.get("open_questions_path") if semantic_projection else None,
+        "capture_batch_id": semantic_projection.get("capture_batch_id") if semantic_projection else None,
+        "capture_count": semantic_projection.get("capture_count") if semantic_projection else None,
+        "capture_kinds": semantic_projection.get("capture_kinds") if semantic_projection else None,
         "interaction_mode": interaction_mode,
         "world_state": world_state.value,
         "current_accepted_quest_id": projection["current_accepted"]["quest_id"] if projection["current_accepted"] else None,
