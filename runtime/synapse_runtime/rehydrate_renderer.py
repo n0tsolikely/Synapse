@@ -9,7 +9,11 @@ from synapse_runtime.governance_model import ProposalState
 from synapse_runtime.ledger_store import _daily_ledger_path, _load_recent_daily_entries
 from synapse_runtime.live_memory_common import _extract_decision_id, _extract_run_id
 from synapse_runtime.quest_candidates import _auto_formalize_ready_quest_candidates, _load_proposal_records, _sync_candidate_backlog
-from synapse_runtime.sidecar_projection import _append_recent_change, refresh_quest_lifecycle_projection
+from synapse_runtime.sidecar_projection import (
+    _append_recent_change,
+    refresh_quest_lifecycle_projection,
+    refresh_session_posture_projection,
+)
 from synapse_runtime.sidecar_store import _load_active_run, _load_manifold, _load_state, _now_iso, _write_yaml, live_root
 
 
@@ -21,6 +25,7 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
     rehydrate_path = live / "REHYDRATE.md"
 
     auto_formalizations = _auto_formalize_ready_quest_candidates(subject=subject, data_root=data_root)
+    refresh_session_posture_projection(subject=subject, data_root=data_root)
     refresh_quest_lifecycle_projection(subject=subject, data_root=data_root)
 
     state = _load_state(state_path, subject)
@@ -95,6 +100,27 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
     if state.get("last_decision_id"):
         lines.append(f"- Last decision: {state.get('last_decision_id')}")
 
+    lines.append("")
+
+    lines.append("## Session posture")
+    active_session_mode = str(manifold.get("active_session_mode") or "").strip()
+    if active_session_mode:
+        policy = manifold.get("active_session_mode_policy") or {}
+        lines.append(f"- Current session mode: {active_session_mode}")
+        if policy.get("description"):
+            lines.append(f"- Description: {policy.get('description')}")
+        blocked_commands = list(policy.get("blocked_mutation_commands") or [])
+        lines.append(
+            f"- Blocked mutation commands: {', '.join(blocked_commands) if blocked_commands else 'none'}"
+        )
+        allowed_next_modes = list(policy.get("allowed_next_modes") or [])
+        lines.append(f"- Allowed next modes: {', '.join(allowed_next_modes) if allowed_next_modes else 'none'}")
+    else:
+        lines.append("- Current session mode: none")
+        if state.get("last_session_mode"):
+            lines.append(f"- Last session mode: {state.get('last_session_mode')}")
+            if state.get("last_session_mode_ended_at"):
+                lines.append(f"- Last session mode ended at: {state.get('last_session_mode_ended_at')}")
     lines.append("")
 
     if active_run_id:

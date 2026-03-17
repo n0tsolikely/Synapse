@@ -33,6 +33,7 @@ from synapse_runtime.quest_candidates import (
     _upsert_quest_candidate,
     _write_proposals,
 )
+from synapse_runtime.session_modes import SessionMode, policy_summary
 from synapse_runtime.sidecar_store import (
     _load_active_run,
     _load_manifold,
@@ -106,6 +107,67 @@ def _apply_quest_lifecycle_projection(
     }
 
 
+def _apply_session_posture_projection(
+    *,
+    active_run: dict[str, Any],
+    state: dict[str, Any],
+    manifold: dict[str, Any],
+) -> dict[str, Any]:
+    active_mode_text = str(active_run.get("session_mode") or "").strip()
+    active_mode = SessionMode(active_mode_text) if active_run.get("active") and active_mode_text else None
+    active_summary = policy_summary(active_mode) if active_mode else None
+
+    state["active_session_mode"] = active_mode.value if active_mode else None
+
+    manifold["active_session_mode"] = active_mode.value if active_mode else None
+    manifold["active_session_mode_source"] = active_run.get("session_mode_source") if active_mode else None
+    manifold["active_session_mode_set_at"] = active_run.get("session_mode_set_at") if active_mode else None
+    manifold["active_session_mode_reason"] = active_run.get("session_mode_reason") if active_mode else None
+    manifold["active_session_mode_policy_version"] = (
+        active_run.get("session_mode_policy_version") if active_mode else None
+    )
+    manifold["active_session_mode_policy"] = active_summary
+
+    last_mode_text = str(active_run.get("last_session_mode") or state.get("last_session_mode") or "").strip()
+    last_mode = SessionMode(last_mode_text) if last_mode_text else None
+    last_mode_ended_at = active_run.get("last_session_mode_ended_at") or state.get("last_session_mode_ended_at")
+
+    state["last_session_mode"] = last_mode.value if last_mode else None
+    state["last_session_mode_ended_at"] = last_mode_ended_at
+    manifold["last_session_mode"] = last_mode.value if last_mode else None
+    manifold["last_session_mode_ended_at"] = last_mode_ended_at
+
+    return {
+        "active_session_mode": active_mode.value if active_mode else None,
+        "last_session_mode": last_mode.value if last_mode else None,
+        "last_session_mode_ended_at": last_mode_ended_at,
+        "active_session_mode_policy": active_summary,
+    }
+
+
+def refresh_session_posture_projection(*, subject: str, data_root: Path) -> dict[str, Any]:
+    live = live_root(data_root)
+    state_path = live / "STATE.yaml"
+    manifold_path = live / "MANIFOLD.yaml"
+    run_path = live / "ACTIVE_RUN.yaml"
+    state = _load_state(state_path, subject)
+    manifold = _load_manifold(manifold_path, subject)
+    active_run = _load_active_run(run_path, subject)
+    projection = _apply_session_posture_projection(
+        active_run=active_run,
+        state=state,
+        manifold=manifold,
+    )
+    _write_yaml(state_path, state)
+    manifold["last_updated_at"] = _now_iso()
+    _write_yaml(manifold_path, manifold)
+    return {
+        "state_path": str(state_path),
+        "manifold_path": str(manifold_path),
+        **projection,
+    }
+
+
 def refresh_quest_lifecycle_projection(*, subject: str, data_root: Path) -> dict[str, Any]:
     live = live_root(data_root)
     state_path = live / "STATE.yaml"
@@ -173,6 +235,12 @@ def _sync_sidecar(
         manifold["current_discovery_ledger_path"] = str(discoveries_path)
     if disclosures_path is not None:
         manifold["current_disclosure_ledger_path"] = str(disclosures_path)
+
+    _apply_session_posture_projection(
+        active_run=active_run,
+        state=state,
+        manifold=manifold,
+    )
 
     accepted_details = load_accepted_quest_details(subject, data_root)
     current_accepted = select_current_accepted_quest(accepted_details)

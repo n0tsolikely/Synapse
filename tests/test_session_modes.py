@@ -254,6 +254,15 @@ class SessionModeLifecycleTests(unittest.TestCase):
     def _read_active_run(self) -> dict:
         return yaml.safe_load((self.data_root / ".synapse" / "ACTIVE_RUN.yaml").read_text(encoding="utf-8"))
 
+    def _read_state(self) -> dict:
+        return yaml.safe_load((self.data_root / ".synapse" / "STATE.yaml").read_text(encoding="utf-8"))
+
+    def _read_manifold(self) -> dict:
+        return yaml.safe_load((self.data_root / ".synapse" / "MANIFOLD.yaml").read_text(encoding="utf-8"))
+
+    def _read_rehydrate(self) -> str:
+        return (self.data_root / ".synapse" / "REHYDRATE.md").read_text(encoding="utf-8")
+
     def _start_brainstorm_session(self) -> None:
         result = run_synapse(["session-start", "--title", "Spec pass", "--json", *self.subject_args], cwd=REPO_ROOT, home=self.home)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -261,9 +270,11 @@ class SessionModeLifecycleTests(unittest.TestCase):
     def test_session_start_new_run_defaults_to_brainstorm_spec(self) -> None:
         result = run_synapse(["session-start", "--title", "Spec pass", "--json", *self.subject_args], cwd=REPO_ROOT, home=self.home)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
         active = self._read_active_run()
         self.assertEqual(active["session_mode"], SessionMode.BRAINSTORM_SPEC.value)
         self.assertEqual(active["session_mode_source"], "command_default")
+        self.assertEqual(payload["run"]["event"]["payload"]["signals"]["session_mode"], SessionMode.BRAINSTORM_SPEC.value)
 
     def test_session_tick_create_defaults_to_brainstorm_spec(self) -> None:
         result = run_synapse(
@@ -282,6 +293,7 @@ class SessionModeLifecycleTests(unittest.TestCase):
         self.assertEqual(active["session_mode"], SessionMode.EXECUTION.value)
         payload = json.loads(result.stdout)
         self.assertEqual(payload["session_mode"], SessionMode.EXECUTION.value)
+        self.assertEqual(payload["event"]["payload"]["signals"]["session_mode"], SessionMode.EXECUTION.value)
 
     def test_finalize_clears_active_posture_and_preserves_last_posture_in_archive(self) -> None:
         result = run_synapse(["run-start", "--title", "Build path", "--plan-item", "Ship it", "--json", *self.subject_args], cwd=REPO_ROOT, home=self.home)
@@ -307,6 +319,27 @@ class SessionModeLifecycleTests(unittest.TestCase):
         payload = json.loads(result.stdout)
         self.assertEqual(payload["active_session_mode"], SessionMode.BRAINSTORM_SPEC.value)
         self.assertIn("scope_planning", payload["allowed_next_modes"])
+
+    def test_active_posture_projects_into_state_manifold_and_rehydrate(self) -> None:
+        self._start_brainstorm_session()
+
+        state = self._read_state()
+        manifold = self._read_manifold()
+        rehydrate = self._read_rehydrate()
+
+        self.assertEqual(state["active_session_mode"], SessionMode.BRAINSTORM_SPEC.value)
+        self.assertNotIn(SessionMode.BRAINSTORM_SPEC.value, state["active_modes"])
+        self.assertEqual(manifold["active_session_mode"], SessionMode.BRAINSTORM_SPEC.value)
+        self.assertEqual(manifold["active_session_mode_source"], "command_default")
+        self.assertEqual(
+            manifold["active_session_mode_policy"]["blocked_mutation_commands"],
+            ["formalize", "accept-quest"],
+        )
+        self.assertIn("scope_planning", manifold["active_session_mode_policy"]["allowed_next_modes"])
+        self.assertIn("## Session posture", rehydrate)
+        self.assertIn("Current session mode: brainstorm_spec", rehydrate)
+        self.assertIn("Blocked mutation commands: formalize, accept-quest", rehydrate)
+        self.assertIn("Allowed next modes: control_sync, scope_planning, closeout", rehydrate)
 
     def test_valid_session_mode_transition_emits_event_and_updates_active_run(self) -> None:
         self._start_brainstorm_session()
@@ -334,6 +367,7 @@ class SessionModeLifecycleTests(unittest.TestCase):
             payload["event"]["payload"]["signals"]["session_mode_reason"],
             "Moving from ideation into scoped planning",
         )
+        self.assertEqual(payload["event"]["payload"]["signals"]["session_mode"], SessionMode.SCOPE_PLANNING.value)
         active = self._read_active_run()
         self.assertEqual(active["session_mode"], SessionMode.SCOPE_PLANNING.value)
 
@@ -416,6 +450,54 @@ class SessionModeLifecycleTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertIn("session-mode --set", result.stdout + result.stderr)
+
+    def test_finalize_projects_last_posture_and_clears_active_posture(self) -> None:
+        result = run_synapse(
+            ["run-start", "--title", "Build path", "--plan-item", "Ship it", "--json", *self.subject_args],
+            cwd=REPO_ROOT,
+            home=self.home,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        result = run_synapse(
+            [
+                "session-mode",
+                "--set",
+                "scope_planning",
+                "--reason",
+                "Moving from implementation to scoped closeout planning",
+                "--json",
+                *self.subject_args,
+            ],
+            cwd=REPO_ROOT,
+            home=self.home,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        result = run_synapse(
+            ["run-update", "--set-item-status", "ITEM-001:DONE", "--json", *self.subject_args],
+            cwd=REPO_ROOT,
+            home=self.home,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        result = run_synapse(
+            ["run-finalize", "--status", "completed", "--json", *self.subject_args],
+            cwd=REPO_ROOT,
+            home=self.home,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+        state = self._read_state()
+        manifold = self._read_manifold()
+        rehydrate = self._read_rehydrate()
+
+        self.assertIsNone(state["active_session_mode"])
+        self.assertEqual(state["last_session_mode"], SessionMode.SCOPE_PLANNING.value)
+        self.assertTrue(state["last_session_mode_ended_at"])
+        self.assertIsNone(manifold["active_session_mode"])
+        self.assertIsNone(manifold["active_session_mode_policy"])
+        self.assertEqual(manifold["last_session_mode"], SessionMode.SCOPE_PLANNING.value)
+        self.assertTrue(manifold["last_session_mode_ended_at"])
+        self.assertIn("Current session mode: none", rehydrate)
+        self.assertIn("Last session mode: scope_planning", rehydrate)
 
 
 if __name__ == "__main__":
