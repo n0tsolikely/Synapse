@@ -548,6 +548,51 @@ def _resolved_session_id(args: argparse.Namespace) -> str | None:
     return raw or None
 
 
+def _normalize_session_id(value: Any) -> str | None:
+    text = str(value or "").strip()
+    return text or None
+
+
+def _repair_active_run_session_id(
+    *,
+    data_root: Path,
+    active_run: dict[str, Any],
+    session_id: str | None,
+) -> dict[str, Any]:
+    repaired_session_id = _normalize_session_id(session_id)
+    if not active_run.get("run_id") or _normalize_session_id(active_run.get("session_id")) or not repaired_session_id:
+        return active_run
+
+    repaired_run = dict(active_run)
+    repaired_run["session_id"] = repaired_session_id
+    run_path = data_root / ".synapse" / "ACTIVE_RUN.yaml"
+    run_path.write_text(yaml.safe_dump(repaired_run, sort_keys=False), encoding="utf-8")
+    return repaired_run
+
+
+def _load_active_run_with_session_repair(ctx: dict[str, Any]) -> dict[str, Any]:
+    data_root = Path(ctx["data_root"])
+    active_run = load_active_run_record(subject=ctx["subject"], data_root=data_root)
+    return _repair_active_run_session_id(
+        data_root=data_root,
+        active_run=active_run,
+        session_id=ctx.get("session_id"),
+    )
+
+
+def _effective_session_id(
+    ctx: dict[str, Any],
+    *,
+    active_run: dict[str, Any] | None = None,
+    session_id: str | None = None,
+) -> str | None:
+    return (
+        _normalize_session_id(session_id)
+        or _normalize_session_id(ctx.get("session_id"))
+        or _normalize_session_id((active_run or {}).get("session_id"))
+    )
+
+
 def _session_run_overlay_path(session_id: str) -> Path:
     return session_focus_lock_path(session_id, Path.home().resolve()).parent / "ACTIVE_RUN.json"
 
@@ -716,10 +761,11 @@ def _event_pipeline(
     outputs: dict[str, Any],
     status: str = "ok",
     refresh_continuity: bool = True,
+    session_id: str | None = None,
 ) -> dict[str, Any]:
     data_root = Path(ctx["data_root"])
     engine_root = Path(ctx["engine_root"])
-    session_id = str(ctx.get("session_id") or "").strip() or None
+    session_id = _normalize_session_id(session_id) or _normalize_session_id(ctx.get("session_id"))
     run_id = str(outputs.get("run_id") or signals.get("run_id") or "").strip() or None
     base_reducer = _empty_reducer_receipt()
     try:
@@ -1901,12 +1947,12 @@ def _default_session_title(ctx: dict[str, Any]) -> str:
 
 
 def _current_session_mode_fields(ctx: dict[str, Any]) -> dict[str, Any]:
-    active_run = load_active_run_record(subject=ctx["subject"], data_root=Path(ctx["data_root"]))
+    active_run = _load_active_run_with_session_repair(ctx)
     return session_mode_signal_fields(active_run)
 
 
 def _active_session_policy(ctx: dict[str, Any]) -> tuple[dict[str, Any], Any | None]:
-    active_run = load_active_run_record(subject=ctx["subject"], data_root=Path(ctx["data_root"]))
+    active_run = _load_active_run_with_session_repair(ctx)
     return active_run, policy_for_run(active_run)
 
 
@@ -1973,7 +2019,7 @@ def _read_capture_payload(args: argparse.Namespace) -> Any:
 
 def _session_mode_payload(ctx: dict[str, Any]) -> dict[str, Any]:
     data_root = Path(ctx["data_root"])
-    active_run = load_active_run_record(subject=ctx["subject"], data_root=data_root)
+    active_run = _load_active_run_with_session_repair(ctx)
     live = data_root / ".synapse"
     try:
         state = yaml.safe_load((live / "STATE.yaml").read_text(encoding="utf-8")) or {}
@@ -2012,8 +2058,14 @@ def _session_mode_change_error(payload: dict[str, Any], *, json_mode: bool, mess
     return 2
 
 
-def _write_session_overlay(ctx: dict[str, Any], run_payload: dict[str, Any] | None) -> str | None:
-    session_id = str(ctx.get("session_id") or "").strip()
+def _write_session_overlay(
+    ctx: dict[str, Any],
+    run_payload: dict[str, Any] | None,
+    *,
+    active_run: dict[str, Any] | None = None,
+    session_id: str | None = None,
+) -> str | None:
+    session_id = _effective_session_id(ctx, active_run=active_run, session_id=session_id)
     if not session_id:
         return None
     payload = {
@@ -2037,7 +2089,7 @@ def _start_or_resume_session_run(
     command_name: str,
     requested_session_mode: str | None = None,
 ) -> dict[str, Any]:
-    active_run = load_active_run_record(subject=ctx["subject"], data_root=Path(ctx["data_root"]))
+    active_run = _load_active_run_with_session_repair(ctx)
     if active_run.get("run_id"):
         current_mode = str(active_run.get("session_mode") or "").strip()
         requested_mode = str(requested_session_mode or "").strip()
@@ -2048,6 +2100,7 @@ def _start_or_resume_session_run(
             )
         return {
             "run_id": active_run["run_id"],
+            "session_id": active_run.get("session_id"),
             "run_path": str(Path(ctx["data_root"]) / ".synapse" / "ACTIVE_RUN.yaml"),
             "title": active_run.get("title"),
             "goal": active_run.get("goal"),
@@ -2067,6 +2120,7 @@ def _start_or_resume_session_run(
         items=items,
         command_name=command_name,
         session_mode=requested_session_mode,
+        session_id=_effective_session_id(ctx),
     )
 
 
@@ -2090,11 +2144,14 @@ def cmd_run_start(args: argparse.Namespace) -> int:
             items=items,
             command_name="run-start",
             session_mode=getattr(args, "session_mode", None),
+            session_id=_effective_session_id(ctx),
         )
+        session_id = _effective_session_id(ctx, session_id=result.get("session_id"))
         event_info = _event_pipeline(
             ctx=ctx,
             action_name="run-start",
             summary=f"Started active run: {result.get('title')}",
+            session_id=session_id,
             signals={
                 "run_id": result.get("run_id"),
                 "run_title": result.get("title"),
@@ -2128,7 +2185,7 @@ def cmd_run_start(args: argparse.Namespace) -> int:
         print(f"FAIL: {exc}")
         return 2
 
-    overlay_path = _write_session_overlay(ctx, result)
+    overlay_path = _write_session_overlay(ctx, result, session_id=session_id)
     if overlay_path:
         result["session_overlay_path"] = overlay_path
 
@@ -2171,10 +2228,12 @@ def cmd_session_start(args: argparse.Namespace) -> int:
             command_name="session-start",
             requested_session_mode=getattr(args, "session_mode", None),
         )
+        session_id = _effective_session_id(ctx, session_id=result.get("session_id"))
         event_info = _event_pipeline(
             ctx=ctx,
             action_name="session-start",
             summary=f"Started or resumed session run: {result.get('title') or ctx['subject']}",
+            session_id=session_id,
             signals={
                 "run_id": result.get("run_id"),
                 "run_title": result.get("title"),
@@ -2207,7 +2266,7 @@ def cmd_session_start(args: argparse.Namespace) -> int:
         print(f"FAIL: {exc}")
         return 2
 
-    overlay_path = _write_session_overlay(ctx, result)
+    overlay_path = _write_session_overlay(ctx, result, session_id=session_id)
     if overlay_path:
         result["session_overlay_path"] = overlay_path
 
@@ -2240,6 +2299,8 @@ def cmd_run_update(args: argparse.Namespace) -> int:
         return 2
 
     try:
+        active_run = _load_active_run_with_session_repair(ctx)
+        session_id = _effective_session_id(ctx, active_run=active_run)
         result = run_update(
             subject=ctx["subject"],
             data_root=Path(ctx["data_root"]),
@@ -2258,6 +2319,7 @@ def cmd_run_update(args: argparse.Namespace) -> int:
             ctx=ctx,
             action_name="run-update",
             summary=args.summary or f"Updated active run {result.get('run_id')}",
+            session_id=session_id,
             signals={
                 "run_id": result.get("run_id"),
                 "plan_items_added": _compact_plan_items(result.get("added_items")),
@@ -2273,7 +2335,7 @@ def cmd_run_update(args: argparse.Namespace) -> int:
                 "related_quest_ids": list(args.related_quest or []),
                 "related_sidequest_ids": list(args.related_sidequest or []),
                 "accepted_context": _accepted_context_snapshot(Path(ctx["data_root"])),
-                **_current_session_mode_fields(ctx),
+                **session_mode_signal_fields(active_run),
             },
             truth_flags={
                 "canon_mutated": False,
@@ -2296,7 +2358,7 @@ def cmd_run_update(args: argparse.Namespace) -> int:
         print(f"FAIL: {exc}")
         return 2
 
-    overlay_path = _write_session_overlay(ctx, result)
+    overlay_path = _write_session_overlay(ctx, result, active_run=active_run, session_id=session_id)
     if overlay_path:
         result["session_overlay_path"] = overlay_path
 
@@ -2334,7 +2396,7 @@ def cmd_session_tick(args: argparse.Namespace) -> int:
         return 2
 
     try:
-        _start_or_resume_session_run(
+        start_result = _start_or_resume_session_run(
             ctx,
             title=args.title or _default_session_title(ctx),
             goal=args.goal,
@@ -2342,6 +2404,7 @@ def cmd_session_tick(args: argparse.Namespace) -> int:
             command_name="session-tick",
             requested_session_mode=getattr(args, "session_mode", None),
         )
+        session_id = _effective_session_id(ctx, session_id=start_result.get("session_id"))
         files_touched = list(args.file)
         if args.capture_git:
             files_touched.extend(_git_status_changed_files(detect_canonical_working_tree()))
@@ -2377,6 +2440,7 @@ def cmd_session_tick(args: argparse.Namespace) -> int:
             ctx=ctx,
             action_name="session-tick",
             summary=args.summary or f"Session tick for {result.get('run_id')}",
+            session_id=session_id,
             signals={
                 "run_id": result.get("run_id"),
                 "plan_items": _compact_plan_items(items),
@@ -2416,7 +2480,7 @@ def cmd_session_tick(args: argparse.Namespace) -> int:
         print(f"FAIL: {exc}")
         return 2
 
-    overlay_path = _write_session_overlay(ctx, result)
+    overlay_path = _write_session_overlay(ctx, result, session_id=session_id)
     payload = {
         "subject": ctx,
         "run_update": result,
@@ -2451,16 +2515,19 @@ def cmd_run_finalize(args: argparse.Namespace) -> int:
         return 2
 
     try:
+        active_run = _load_active_run_with_session_repair(ctx)
         result = run_finalize(
             subject=ctx["subject"],
             data_root=Path(ctx["data_root"]),
             status=args.status,
             summary=args.summary,
         )
+        session_id = _effective_session_id(ctx, active_run=active_run, session_id=result.get("session_id"))
         event_info = _event_pipeline(
             ctx=ctx,
             action_name="run-finalize",
             summary=args.summary or f"Finalized run {result.get('run_id')}",
+            session_id=session_id,
             signals={
                 "run_id": result.get("run_id"),
                 "final_status": args.status,
@@ -2494,7 +2561,6 @@ def cmd_run_finalize(args: argparse.Namespace) -> int:
         return 2
 
     overlay_path = None
-    session_id = str(ctx.get("session_id") or "").strip()
     if session_id:
         overlay_path = _clear_session_run_overlay(session_id)
         result["session_overlay_path"] = overlay_path
@@ -2521,7 +2587,7 @@ def cmd_capture_chunk(args: argparse.Namespace) -> int:
 
     data_root = Path(ctx["data_root"])
     engine_root = Path(ctx["engine_root"])
-    active_run = load_active_run_record(subject=ctx["subject"], data_root=data_root)
+    active_run = _load_active_run_with_session_repair(ctx)
     if not active_run.get("run_id"):
         message = "capture-chunk requires an active run. Start or resume a session first."
         if args.json:
@@ -2556,6 +2622,7 @@ def cmd_capture_chunk(args: argparse.Namespace) -> int:
         return 2
 
     capture_batch = capture_receipt["batch"]
+    session_id = _effective_session_id(ctx, active_run=active_run)
     capture_ids = [str(item.get("capture_id")) for item in capture_batch.get("captures") or [] if str(item.get("capture_id") or "").strip()]
     capture_signal = AmbientSignal(
         source="capture-chunk",
@@ -2623,6 +2690,7 @@ def cmd_capture_chunk(args: argparse.Namespace) -> int:
         ctx=ctx,
         action_name="capture-chunk",
         summary=str(args.title or capture_batch.get("title") or "Recorded semantic capture batch."),
+        session_id=session_id,
         signals={
             "capture_batch_id": capture_batch.get("capture_batch_id"),
             "capture_count": len(capture_ids),
@@ -2751,6 +2819,7 @@ def cmd_session_mode(args: argparse.Namespace) -> int:
 
     run_path = data_root / ".synapse" / "ACTIVE_RUN.yaml"
     transition_at = dt.datetime.now().astimezone().isoformat()
+    session_id = _effective_session_id(ctx, active_run=active_run)
     active_run["session_mode"] = target_mode.value
     active_run["session_mode_source"] = "explicit_transition"
     active_run["session_mode_set_at"] = transition_at
@@ -2762,6 +2831,7 @@ def cmd_session_mode(args: argparse.Namespace) -> int:
         ctx=ctx,
         action_name="session-mode-set",
         summary=f"Changed session posture from {current_mode.value} to {target_mode.value}.",
+        session_id=session_id,
         signals={
             "run_id": active_run.get("run_id"),
             "from_session_mode": current_mode.value,
@@ -2811,6 +2881,8 @@ def cmd_log_decision(args: argparse.Namespace) -> int:
         return 2
 
     try:
+        active_run = _load_active_run_with_session_repair(ctx)
+        session_id = _effective_session_id(ctx, active_run=active_run)
         result = log_decision(
             subject=ctx["subject"],
             data_root=Path(ctx["data_root"]),
@@ -2826,6 +2898,7 @@ def cmd_log_decision(args: argparse.Namespace) -> int:
             ctx=ctx,
             action_name="log-decision",
             summary=args.summary,
+            session_id=session_id,
             signals={
                 "decision_title": args.title,
                 "decisions": [args.title],
@@ -2837,7 +2910,7 @@ def cmd_log_decision(args: argparse.Namespace) -> int:
                 "changed_files": [result.get("decision_path")] if result.get("decision_path") else [],
                 "verification_entries": [],
                 "accepted_context": _accepted_context_snapshot(Path(ctx["data_root"])),
-                **_current_session_mode_fields(ctx),
+                **session_mode_signal_fields(active_run),
             },
             truth_flags={
                 "canon_mutated": False,
@@ -2875,6 +2948,8 @@ def cmd_log_disclosure(args: argparse.Namespace) -> int:
         return 2
 
     try:
+        active_run = _load_active_run_with_session_repair(ctx)
+        session_id = _effective_session_id(ctx, active_run=active_run)
         result = log_disclosure(
             subject=ctx["subject"],
             data_root=Path(ctx["data_root"]),
@@ -2892,6 +2967,7 @@ def cmd_log_disclosure(args: argparse.Namespace) -> int:
             ctx=ctx,
             action_name="log-disclosure",
             summary=args.impact,
+            session_id=session_id,
             signals={
                 "disclosure_trigger": args.trigger,
                 "disclosures": [args.trigger],
@@ -2907,7 +2983,7 @@ def cmd_log_disclosure(args: argparse.Namespace) -> int:
                 "changed_files": [result.get("disclosure_path")] if result.get("disclosure_path") else [],
                 "verification_entries": [],
                 "accepted_context": _accepted_context_snapshot(Path(ctx["data_root"])),
-                **_current_session_mode_fields(ctx),
+                **session_mode_signal_fields(active_run),
             },
             truth_flags={
                 "canon_mutated": False,
@@ -2996,6 +3072,7 @@ def cmd_accept_quest(args: argparse.Namespace) -> int:
     data_root = Path(ctx["data_root"])
     engine_root = Path(ctx["engine_root"])
     active_run, session_policy = _active_session_policy(ctx)
+    session_id = _effective_session_id(ctx, active_run=active_run)
     if session_policy is not None and not session_policy.quest_acceptance_allowed:
         return _fail_blocked_by_session_posture(
             action_name="accept-quest",
@@ -3027,13 +3104,14 @@ def cmd_accept_quest(args: argparse.Namespace) -> int:
             ctx=ctx,
             action_name="accept-quest",
             summary=f"Accepted quest {acceptance.get('quest_id')} for governed execution.",
+            session_id=session_id,
             signals={
                 "related_quest_ids": [acceptance.get("quest_id")],
                 "related_sidequest_ids": [],
                 "changed_files": [acceptance.get("accepted_path"), acceptance.get("audit_bundle_path")],
                 "verification_entries": [],
                 "accepted_context": _accepted_context_snapshot(data_root),
-                **_current_session_mode_fields(ctx),
+                **session_mode_signal_fields(active_run),
             },
             truth_flags={
                 "canon_mutated": True,
@@ -3740,6 +3818,7 @@ def cmd_formalize(args: argparse.Namespace) -> int:
                 print(f"title: {proposal.get('title')}")
             return 0
         active_run, session_policy = _active_session_policy(ctx)
+        session_id = _effective_session_id(ctx, active_run=active_run)
         if session_policy is not None and not session_policy.manual_formalize_allowed:
             return _fail_blocked_by_session_posture(
                 action_name="formalize",
@@ -3770,6 +3849,7 @@ def cmd_formalize(args: argparse.Namespace) -> int:
             ctx=ctx,
             action_name="formalize",
             summary=f"Formalized proposal {args.proposal_id} as {kind.value}.",
+            session_id=session_id,
             signals={
                 "proposal_id": args.proposal_id,
                 "proposal_kind": kind.value,
@@ -3778,7 +3858,7 @@ def cmd_formalize(args: argparse.Namespace) -> int:
                 "changed_files": [result.get("artifact_path")] if result.get("artifact_path") else [],
                 "verification_entries": [],
                 "accepted_context": _accepted_context_snapshot(data_root),
-                **_current_session_mode_fields(ctx),
+                **session_mode_signal_fields(active_run),
             },
             truth_flags={
                 "canon_mutated": True,
@@ -3872,7 +3952,13 @@ def cmd_watch(args: argparse.Namespace) -> int:
                     summary=f"watch tick {idx + 1}",
                 )
                 payloads.append(result)
-                _write_session_overlay(ctx, result)
+                active_run = _load_active_run_with_session_repair(ctx)
+                _write_session_overlay(
+                    ctx,
+                    result,
+                    active_run=active_run,
+                    session_id=_effective_session_id(ctx, active_run=active_run),
+                )
                 _render_and_refresh_continuity(ctx["subject"], Path(ctx["data_root"]), Path(ctx["engine_root"]))
             except LiveMemoryError as exc:
                 print(f"FAIL: {exc}")

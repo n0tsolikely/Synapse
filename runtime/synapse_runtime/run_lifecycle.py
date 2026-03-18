@@ -70,6 +70,7 @@ def run_start(
     session_mode: str | SessionMode | None = None,
     session_mode_source: str | None = None,
     session_mode_reason: str | None = None,
+    session_id: str | None = None,
 ) -> dict[str, Any]:
     live = live_root(data_root)
     scaffold = ensure_live_scaffold(subject, data_root)
@@ -82,7 +83,7 @@ def run_start(
 
     run_id = f"RUN-{_now().strftime('%Y%m%d-%H%M%S')}"
     plan_items = _normalize_items(items, existing_run.get("plan", {}).get("items", []))
-    session_id = current_session_id()
+    session_id = str(session_id or "").strip() or current_session_id()
     signal = AmbientSignal(
         source="run-start",
         subject=subject,
@@ -138,6 +139,7 @@ def run_start(
     return {
         "run_path": str(run_path),
         "run_id": run_id,
+        "session_id": session_id,
         "title": title,
         "goal": goal,
         "items": plan_items,
@@ -361,6 +363,7 @@ def run_finalize(
     return {
         "archive_path": str(archive_path),
         "run_id": run_id,
+        "session_id": run_data.get("session_id"),
         "session_mode": run_data.get("session_mode"),
         "session_mode_source": run_data.get("session_mode_source"),
         "session_mode_policy_version": run_data.get("session_mode_policy_version"),
