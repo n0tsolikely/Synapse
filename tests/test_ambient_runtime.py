@@ -7,6 +7,8 @@ import tempfile
 from pathlib import Path
 import unittest
 
+import yaml
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RUNTIME_ROOT = REPO_ROOT / "runtime"
@@ -74,6 +76,64 @@ class AmbientRuntimeTests(unittest.TestCase):
         self.assertTrue(overlay.exists())
         self.assertEqual(payload["run"]["session_overlay_path"], str(overlay.resolve()))
         self.assertFalse((self.home / ".synapse" / "ACTIVE_SUBJECT.json").exists())
+
+    def test_session_start_persists_cli_session_id_to_active_run(self):
+        session_id = "sess-cli"
+        result = run_synapse(
+            ["session-start", "--title", "Ambient", "--session-id", session_id, "--json"],
+            cwd=self.repo,
+            home=self.home,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        active_run = yaml.safe_load(Path(payload["run"]["run_path"]).read_text(encoding="utf-8"))
+        self.assertEqual(active_run["session_id"], session_id)
+
+    def test_run_start_persists_cli_session_id_to_active_run(self):
+        session_id = "sid-123"
+        result = run_synapse(
+            ["run-start", "--title", "Ambient run", "--session-id", session_id, "--json"],
+            cwd=self.repo,
+            home=self.home,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        active_run = yaml.safe_load(Path(payload["run_path"]).read_text(encoding="utf-8"))
+        self.assertEqual(active_run["session_id"], session_id)
+
+    def test_session_tick_create_path_persists_cli_session_id(self):
+        session_id = "sid-456"
+        result = run_synapse(
+            ["session-tick", "--summary", "tick create", "--session-id", session_id, "--json"],
+            cwd=self.repo,
+            home=self.home,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        active_run = yaml.safe_load(Path(payload["run_update"]["run_path"]).read_text(encoding="utf-8"))
+        self.assertEqual(active_run["session_id"], session_id)
+
+    def test_follow_up_overlay_write_uses_persisted_session_id(self):
+        session_id = "sess-overlay"
+        start = run_synapse(
+            ["session-start", "--title", "Ambient", "--session-id", session_id, "--json"],
+            cwd=self.repo,
+            home=self.home,
+        )
+        self.assertEqual(start.returncode, 0, start.stdout + start.stderr)
+
+        update = run_synapse(
+            ["run-update", "--summary", "overlay follow-up", "--json"],
+            cwd=self.repo,
+            home=self.home,
+        )
+        self.assertEqual(update.returncode, 0, update.stdout + update.stderr)
+
+        overlay = self.home / ".synapse" / "sessions" / session_id / "ACTIVE_RUN.json"
+        self.assertTrue(overlay.exists())
+        overlay_payload = json.loads(overlay.read_text(encoding="utf-8"))
+        update_payload = json.loads(update.stdout)
+        self.assertEqual(overlay_payload["run_id"], update_payload["run_id"])
 
     def test_render_rehydrate_migrates_legacy_subject_without_sidecar(self):
         subject = "LegacySubject"

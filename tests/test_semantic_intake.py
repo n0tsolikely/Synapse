@@ -425,6 +425,35 @@ class CaptureChunkCommandTests(unittest.TestCase):
         payload = json.loads(result.stdout)
         self.assertIn("active run", payload["error"])
 
+    def test_capture_chunk_succeeds_after_cli_only_session_creation_without_env(self) -> None:
+        start = run_synapse(
+            ["session-start", "--title", "CLI session", "--session-id", "sess-cli", "--json"],
+            cwd=self.engine_root,
+            home=self.home,
+        )
+        self.assertEqual(start.returncode, 0, start.stdout + start.stderr)
+        active_run_path = self.data_root / ".synapse" / "ACTIVE_RUN.yaml"
+        active_run = yaml.safe_load(active_run_path.read_text(encoding="utf-8"))
+        self.assertEqual(active_run["session_id"], "sess-cli")
+
+        result = run_synapse(
+            [
+                "capture-chunk",
+                "--text",
+                "CLI-only session continuity.",
+                "--captures-json",
+                json.dumps({"captures": [{"kind": "idea", "summary": "Carry session continuity from active run"}]}),
+                "--json",
+            ],
+            cwd=self.engine_root,
+            home=self.home,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertTrue(Path(payload["capture_artifact_path"]).exists())
+        self.assertTrue(Path(payload["capture_ledger_path"]).exists())
+        self.assertEqual(payload["event"]["payload"]["session_id"], "sess-cli")
+
     def test_capture_chunk_records_event_metadata_without_raw_text(self) -> None:
         self._run_start()
         result = run_synapse(
@@ -520,6 +549,39 @@ class CaptureChunkCommandTests(unittest.TestCase):
         persisted = yaml.safe_load(active_run_path.read_text(encoding="utf-8"))
         self.assertEqual(persisted["session_mode"], "control_sync")
         self.assertEqual(persisted["session_mode_source"], "legacy_backfill")
+
+    def test_capture_chunk_repairs_missing_active_run_session_id_from_cli_context(self) -> None:
+        start = run_synapse(
+            ["session-start", "--title", "Repair session", "--session-id", "broken-sid", "--json"],
+            cwd=self.engine_root,
+            home=self.home,
+        )
+        self.assertEqual(start.returncode, 0, start.stdout + start.stderr)
+
+        active_run_path = self.data_root / ".synapse" / "ACTIVE_RUN.yaml"
+        active_run = yaml.safe_load(active_run_path.read_text(encoding="utf-8"))
+        active_run["session_id"] = None
+        active_run_path.write_text(yaml.safe_dump(active_run, sort_keys=False), encoding="utf-8")
+
+        capture = run_synapse(
+            [
+                "capture-chunk",
+                "--session-id",
+                "repaired-sid",
+                "--text",
+                "Repair broken active run session identity.",
+                "--captures-json",
+                json.dumps({"captures": [{"kind": "constraint", "summary": "Repair before capture"}]}),
+                "--json",
+            ],
+            cwd=self.engine_root,
+            home=self.home,
+        )
+        self.assertEqual(capture.returncode, 0, capture.stdout + capture.stderr)
+        persisted = yaml.safe_load(active_run_path.read_text(encoding="utf-8"))
+        payload = json.loads(capture.stdout)
+        self.assertEqual(persisted["session_id"], "repaired-sid")
+        self.assertEqual(payload["event"]["payload"]["session_id"], "repaired-sid")
 
     def test_scaffold_thread_upgrades_to_managed_thread_and_excludes_risks(self) -> None:
         self._run_start()
