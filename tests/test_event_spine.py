@@ -231,6 +231,42 @@ class EventSpineTests(unittest.TestCase):
         self.assertEqual(payload["event"]["payload"]["session_id"], "sid-event")
         self.assertEqual(persisted_event["session_id"], "sid-event")
 
+    def test_session_mode_set_uses_persisted_active_run_session_id(self) -> None:
+        start = run_synapse(
+            [
+                "session-start",
+                "--title",
+                "Evented session",
+                "--session-id",
+                "sid-mode",
+                "--json",
+                *self.subject_args,
+            ],
+            cwd=REPO_ROOT,
+            home=self.home,
+        )
+        self.assertEqual(start.returncode, 0, start.stdout + start.stderr)
+
+        transition = run_synapse(
+            [
+                "session-mode",
+                "--set",
+                "scope_planning",
+                "--reason",
+                "Need a scoped planning posture",
+                "--json",
+                *self.subject_args,
+            ],
+            cwd=REPO_ROOT,
+            home=self.home,
+        )
+        self.assertEqual(transition.returncode, 0, transition.stdout + transition.stderr)
+
+        payload = json.loads(transition.stdout)
+        persisted_event = self._event_entries()[-1]
+        self.assertEqual(payload["event"]["payload"]["session_id"], "sid-mode")
+        self.assertEqual(persisted_event["session_id"], "sid-mode")
+
     def test_run_finalize_event_preserves_prior_session_posture_signals(self) -> None:
         start = run_synapse(
             ["run-start", "--title", "Evented run", "--plan-item", "Do the thing", "--json", *self.subject_args],

@@ -2776,7 +2776,7 @@ def cmd_session_mode(args: argparse.Namespace) -> int:
             print(f"last_session_mode_ended_at: {payload.get('last_session_mode_ended_at')}")
         return 0
 
-    active_run = load_active_run_record(subject=ctx["subject"], data_root=data_root)
+    active_run = _load_active_run_with_session_repair(ctx)
     if not active_run.get("run_id"):
         return _session_mode_change_error(
             payload,
