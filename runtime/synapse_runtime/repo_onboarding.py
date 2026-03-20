@@ -498,13 +498,6 @@ def onboarding_update(
         linked_capture_batch_ids=list(session.get("clarification_capture_batch_ids") or []),
         prior_question_set=prior_questions,
     )
-    readiness_ok, _ = evaluate_confirmation_readiness(
-        onboarding_state="awaiting_confirmation",
-        current_scan_id=str(session.get("current_scan_id") or ""),
-        unincorporated_capture_batch_ids=list(session.get("unincorporated_capture_batch_ids") or []),
-        draft=normalized_draft,
-        question_set=normalized_questions,
-    )
     revision_path = onboarding_draft_path(data_root, str(normalized_draft["revision_id"]))
     revision_path.write_text(yaml.safe_dump(normalized_draft, sort_keys=False), encoding="utf-8")
     question_path = onboarding_question_set_path(data_root, str(normalized_questions["question_set_id"]))
@@ -526,9 +519,17 @@ def onboarding_update(
         session.setdefault("revision_delta_ids", [])
         session["revision_delta_ids"] = list(session.get("revision_delta_ids") or []) + [delta_id]
     incorporated = set(normalized_draft.get("based_on_capture_batch_ids") or [])
-    session["unincorporated_capture_batch_ids"] = [
+    remaining_unincorporated = [
         item for item in list(session.get("unincorporated_capture_batch_ids") or []) if item not in incorporated
     ]
+    session["unincorporated_capture_batch_ids"] = remaining_unincorporated
+    readiness_ok, _ = evaluate_confirmation_readiness(
+        onboarding_state="awaiting_confirmation",
+        current_scan_id=str(session.get("current_scan_id") or ""),
+        unincorporated_capture_batch_ids=remaining_unincorporated,
+        draft=normalized_draft,
+        question_set=normalized_questions,
+    )
     blocking_count, _ = _question_priority_counts(normalized_questions)
     session["state"] = "awaiting_confirmation" if blocking_count == 0 and readiness_ok else "awaiting_user_clarification"
     save_onboarding_session(data_root=data_root, session=session)
