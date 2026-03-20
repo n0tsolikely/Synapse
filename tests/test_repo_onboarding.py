@@ -559,6 +559,147 @@ class RepoOnboardingCommandTests(unittest.TestCase):
         pointer = self._current_pointer()
         self.assertIsNone(pointer["current_onboarding_id"])
 
+    def test_onboarding_confirm_publishes_archived_and_canonical_artifacts_and_projects_state(self) -> None:
+        first = self._start_onboarding()
+        draft = {
+            "onboarding_id": first["onboarding_id"],
+            "revision_id": "REVISION-1",
+            "supersedes_revision_id": None,
+            "created_at": "2026-03-20T10:00:00-04:00",
+            "based_on_scan_ids": [first["scan_id"]],
+            "based_on_capture_batch_ids": [],
+            "summary_hypothesis": "Project onboard",
+            "purpose_hypothesis": "Exercise onboarding.",
+            "vision_hypothesis": "Track repo story.",
+            "maturity_hypothesis": "Prototype.",
+            "user_or_stakeholder_hypotheses": [],
+            "capability_hypotheses": [
+                {
+                    "id": "CAP-1",
+                    "summary": "CLI can onboard an existing repo.",
+                    "status": "partial",
+                    "confidence": "high",
+                    "evidence_refs": ["scan:%s:entrypoint_inventory:cap1" % first["scan_id"]],
+                    "answer_refs": [],
+                }
+            ],
+            "component_hypotheses": [
+                {
+                    "id": "COMP-1",
+                    "summary": "Onboarding state lives in .synapse/ONBOARDING.",
+                    "status": "implemented",
+                    "confidence": "medium",
+                    "evidence_refs": ["scan:%s:tree_inventory:comp1" % first["scan_id"]],
+                    "answer_refs": [],
+                }
+            ],
+            "interface_hypotheses": [
+                {
+                    "id": "INT-1",
+                    "summary": "onboard-repo is the entry surface.",
+                    "status": "implemented",
+                    "confidence": "high",
+                    "evidence_refs": ["scan:%s:entrypoint_inventory:int1" % first["scan_id"]],
+                    "answer_refs": [],
+                }
+            ],
+            "constraint_hypotheses": [],
+            "non_goal_hypotheses": [],
+            "dependency_hypotheses": [
+                {
+                    "id": "DEP-1",
+                    "summary": "PyYAML persists artifacts.",
+                    "status": "implemented",
+                    "confidence": "medium",
+                    "evidence_refs": ["scan:%s:manifest_inventory:dep1" % first["scan_id"]],
+                    "answer_refs": [],
+                }
+            ],
+            "history_and_supersession_hypotheses": [
+                {
+                    "id": "HIST-1",
+                    "summary": "Repo story is published only after confirmation.",
+                    "status": "implemented",
+                    "confidence": "medium",
+                    "evidence_refs": ["scan:%s:existing_continuity_inventory:hist1" % first["scan_id"]],
+                    "answer_refs": [],
+                }
+            ],
+            "contradictions": [],
+            "open_unknowns": [],
+            "next_question_ids": [],
+        }
+        questions = {
+            "onboarding_id": first["onboarding_id"],
+            "question_set_id": "QUESTION_SET-1",
+            "draft_revision_id": "REVISION-1",
+            "generated_at": "2026-03-20T10:00:00-04:00",
+            "questions": [
+                {
+                    "question_id": "Q-1",
+                    "prompt": "What workflow matters most?",
+                    "category": "purpose",
+                    "priority": "important",
+                    "why_asked": "Need explicit operator framing.",
+                    "evidence_refs": ["scan:%s:docs_inventory:q1" % first["scan_id"]],
+                    "target_item_ids": ["CAP-1"],
+                    "status": "open",
+                    "answer_capture_batch_ids": [],
+                }
+            ],
+        }
+        update = run_synapse(
+            [
+                "onboarding-update",
+                "--draft-json",
+                json.dumps(draft),
+                "--questions-json",
+                json.dumps(questions),
+                "--json",
+            ],
+            cwd=self.repo,
+            home=self.home,
+            extra_env=self.extra_env,
+        )
+        self.assertEqual(update.returncode, 0, update.stdout + update.stderr)
+        update_payload = json.loads(update.stdout)
+        self.assertEqual(update_payload["onboarding_state"], "awaiting_confirmation")
+
+        confirm = run_synapse(
+            ["onboarding-confirm", "--yes-i-confirm", "--json"],
+            cwd=self.repo,
+            home=self.home,
+            extra_env=self.extra_env,
+        )
+        self.assertEqual(confirm.returncode, 0, confirm.stdout + confirm.stderr)
+        payload = json.loads(confirm.stdout)
+        self.assertTrue(Path(payload["published_project_model_path"]).exists())
+        self.assertTrue(Path(payload["published_project_story_path"]).exists())
+        self.assertTrue(Path(payload["published_vision_path"]).exists())
+        self.assertTrue(Path(payload["publication_receipt_path"]).exists())
+        self.assertTrue(payload["proposal_paths"])
+
+        pointer = self._current_pointer()
+        self.assertIsNone(pointer["current_onboarding_id"])
+        self.assertEqual(pointer["latest_confirmed_onboarding_id"], first["onboarding_id"])
+
+        live = self._data_root() / ".synapse"
+        state = yaml.safe_load((live / "STATE.yaml").read_text(encoding="utf-8"))
+        manifold = yaml.safe_load((live / "MANIFOLD.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(state["latest_confirmed_onboarding_id"], first["onboarding_id"])
+        self.assertEqual(manifold["latest_confirmed_onboarding_id"], first["onboarding_id"])
+
+        rehydrate = run_synapse(
+            ["render-rehydrate", "--json"],
+            cwd=self.repo,
+            home=self.home,
+            extra_env=self.extra_env,
+        )
+        self.assertEqual(rehydrate.returncode, 0, rehydrate.stdout + rehydrate.stderr)
+        text = (live / "REHYDRATE.md").read_text(encoding="utf-8")
+        self.assertIn("## Onboarding status", text)
+        self.assertIn("## Published project model", text)
+
 
 if __name__ == "__main__":
     unittest.main()

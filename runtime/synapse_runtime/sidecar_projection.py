@@ -23,6 +23,7 @@ from synapse_runtime.governance_model import (
 )
 from synapse_runtime.ledger_store import _classify_verification_status
 from synapse_runtime.live_memory_common import LiveMemoryError
+from synapse_runtime.repo_onboarding import onboarding_projection
 from synapse_runtime.quest_candidates import (
     QUEST_PROPOSAL_KINDS,
     _candidate_summary,
@@ -204,6 +205,66 @@ def refresh_quest_lifecycle_projection(*, subject: str, data_root: Path) -> dict
     }
 
 
+def _apply_onboarding_projection(
+    *,
+    subject: str,
+    data_root: Path,
+    state: dict[str, Any],
+    manifold: dict[str, Any],
+) -> dict[str, Any]:
+    projection = onboarding_projection(subject=subject, data_root=data_root)
+    state["onboarding_state"] = projection.get("onboarding_state")
+    state["active_onboarding_id"] = projection.get("active_onboarding_id")
+    state["latest_confirmed_onboarding_id"] = projection.get("latest_confirmed_onboarding_id")
+    state["published_project_model_path"] = projection.get("published_project_model_path")
+    state["published_project_story_path"] = projection.get("published_project_story_path")
+    state["published_vision_path"] = projection.get("published_vision_path")
+    state["project_model_confirmed_at"] = projection.get("project_model_confirmed_at")
+    state["project_model_open_questions_count"] = projection.get("project_model_open_questions_count") or 0
+    state["project_model_blocking_questions_count"] = projection.get("project_model_blocking_questions_count") or 0
+    state["project_summary"] = projection.get("project_summary")
+
+    manifold["active_onboarding_id"] = projection.get("active_onboarding_id")
+    manifold["latest_confirmed_onboarding_id"] = projection.get("latest_confirmed_onboarding_id")
+    manifold["onboarding_state"] = projection.get("onboarding_state")
+    manifold["current_scan_id"] = projection.get("current_scan_id")
+    manifold["current_draft_id"] = projection.get("current_draft_id")
+    manifold["current_question_set_id"] = projection.get("current_question_set_id")
+    manifold["unincorporated_capture_batch_ids"] = list(projection.get("unincorporated_capture_batch_ids") or [])
+    manifold["published_project_model_path"] = projection.get("published_project_model_path")
+    manifold["published_project_story_path"] = projection.get("published_project_story_path")
+    manifold["published_vision_path"] = projection.get("published_vision_path")
+    manifold["project_model_confirmed_at"] = projection.get("project_model_confirmed_at")
+    manifold["project_purpose_summary"] = projection.get("project_purpose_summary")
+    manifold["project_capability_summary"] = list(projection.get("project_capability_summary") or [])
+    manifold["project_constraint_summary"] = list(projection.get("project_constraint_summary") or [])
+    manifold["project_history_summary"] = list(projection.get("project_history_summary") or [])
+    manifold["project_open_question_details"] = list(projection.get("project_open_question_details") or [])
+    return projection
+
+
+def refresh_onboarding_projection(*, subject: str, data_root: Path) -> dict[str, Any]:
+    live = live_root(data_root)
+    state_path = live / "STATE.yaml"
+    manifold_path = live / "MANIFOLD.yaml"
+    state = _load_state(state_path, subject)
+    manifold = _load_manifold(manifold_path, subject)
+    projection = _apply_onboarding_projection(
+        subject=subject,
+        data_root=data_root,
+        state=state,
+        manifold=manifold,
+    )
+    _write_yaml(state_path, state)
+    manifold["last_updated_at"] = _now_iso()
+    _write_yaml(manifold_path, manifold)
+    return {
+        "state_path": str(state_path),
+        "manifold_path": str(manifold_path),
+        **projection,
+    }
+
+
 def _sync_open_questions_thread(*, data_root: Path, details: list[dict[str, Any]]) -> str | None:
     path = canonical_open_questions_path(data_root)
     rendered = render_managed_open_questions(details)
@@ -372,6 +433,12 @@ def _sync_sidecar(
         state=state,
         manifold=manifold,
     )
+    onboarding_state = _apply_onboarding_projection(
+        subject=subject,
+        data_root=data_root,
+        state=state,
+        manifold=manifold,
+    )
 
     semantic_projection = None
     if semantic_capture_batch is not None:
@@ -532,6 +599,9 @@ def _sync_sidecar(
         "capture_kinds": semantic_projection.get("capture_kinds") if semantic_projection else None,
         "interaction_mode": interaction_mode,
         "world_state": world_state.value,
+        "active_onboarding_id": onboarding_state.get("active_onboarding_id"),
+        "onboarding_state": onboarding_state.get("onboarding_state"),
+        "published_project_model_path": onboarding_state.get("published_project_model_path"),
         "current_accepted_quest_id": projection["current_accepted"]["quest_id"] if projection["current_accepted"] else None,
         "last_completed_quest_id": projection["latest_completed"]["quest_id"] if projection["latest_completed"] else None,
     }

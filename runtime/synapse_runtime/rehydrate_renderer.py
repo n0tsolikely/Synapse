@@ -11,6 +11,7 @@ from synapse_runtime.live_memory_common import _extract_decision_id, _extract_ru
 from synapse_runtime.quest_candidates import _auto_formalize_ready_quest_candidates, _load_proposal_records, _sync_candidate_backlog
 from synapse_runtime.sidecar_projection import (
     _append_recent_change,
+    refresh_onboarding_projection,
     refresh_semantic_capture_projection,
     refresh_quest_lifecycle_projection,
     refresh_session_posture_projection,
@@ -32,6 +33,7 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
         active_run=active_run,
     )
     refresh_semantic_capture_projection(subject=subject, data_root=data_root)
+    refresh_onboarding_projection(subject=subject, data_root=data_root)
     refresh_session_posture_projection(subject=subject, data_root=data_root)
     refresh_quest_lifecycle_projection(subject=subject, data_root=data_root)
 
@@ -139,6 +141,23 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
             for item in items:
                 lines.append(f"  - [{item.get('status')}] {item.get('id')}: {item.get('text')}")
         lines.append("")
+
+    lines.append("## Onboarding status")
+    onboarding_state = str(state.get("onboarding_state") or "").strip()
+    if onboarding_state:
+        lines.append(f"- Active onboarding id: {state.get('active_onboarding_id')}")
+        lines.append(f"- State: {onboarding_state}")
+        lines.append(f"- Draft stale: {'YES' if manifold.get('current_draft_id') and manifold.get('unincorporated_capture_batch_ids') else 'NO'}")
+        if manifold.get("unincorporated_capture_batch_ids"):
+            lines.append(
+                "- Unincorporated clarification batches: "
+                + ", ".join(str(item) for item in manifold.get("unincorporated_capture_batch_ids") or [])
+            )
+    else:
+        lines.append("- Active onboarding id: none")
+        if state.get("latest_confirmed_onboarding_id"):
+            lines.append(f"- Latest confirmed onboarding id: {state.get('latest_confirmed_onboarding_id')}")
+    lines.append("")
 
     if pending_proposals:
         lines.append("## Pending formalizations")
@@ -259,6 +278,35 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
                 lines.append(f"  - {detail.get('summary')}")
         else:
             lines.append("  - None yet.")
+        lines.append("")
+
+    if state.get("published_project_model_path"):
+        lines.append("## Published project model")
+        if state.get("project_summary"):
+            lines.append(f"- Summary: {state.get('project_summary')}")
+        if manifold.get("project_purpose_summary"):
+            lines.append(f"- Purpose: {manifold.get('project_purpose_summary')}")
+        if manifold.get("project_capability_summary"):
+            lines.append("- Capabilities:")
+            for item in manifold.get("project_capability_summary") or []:
+                lines.append(f"  - {item}")
+        if manifold.get("project_constraint_summary"):
+            lines.append("- Constraints:")
+            for item in manifold.get("project_constraint_summary") or []:
+                lines.append(f"  - {item}")
+        if manifold.get("project_history_summary"):
+            lines.append("- History / supersession:")
+            for item in manifold.get("project_history_summary") or []:
+                lines.append(f"  - {item}")
+        lines.append(f"- Project model path: {state.get('published_project_model_path')}")
+        lines.append(f"- Project story path: {state.get('published_project_story_path')}")
+        lines.append(f"- Vision path: {state.get('published_vision_path')}")
+        lines.append("")
+
+    if manifold.get("project_open_question_details"):
+        lines.append("## Open project questions")
+        for item in manifold.get("project_open_question_details") or []:
+            lines.append(f"- [{item.get('priority')}] {item.get('prompt')}")
         lines.append("")
 
     semantic_sections = [
