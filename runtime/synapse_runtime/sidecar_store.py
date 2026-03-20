@@ -78,6 +78,16 @@ def _default_state(subject: str) -> dict[str, Any]:
         "last_capture_at": None,
         "open_question_count": 0,
         "blocking_question_count": 0,
+        "onboarding_state": None,
+        "active_onboarding_id": None,
+        "latest_confirmed_onboarding_id": None,
+        "published_project_model_path": None,
+        "published_project_story_path": None,
+        "published_vision_path": None,
+        "project_model_confirmed_at": None,
+        "project_model_open_questions_count": 0,
+        "project_model_blocking_questions_count": 0,
+        "project_summary": None,
         "last_rehydrate_at": None,
         "last_event_id": None,
         "last_event_at": None,
@@ -137,6 +147,22 @@ def _default_manifold(subject: str) -> dict[str, Any]:
         "recent_non_goal_details": [],
         "recent_milestone_details": [],
         "candidate_decision_details": [],
+        "active_onboarding_id": None,
+        "latest_confirmed_onboarding_id": None,
+        "onboarding_state": None,
+        "current_scan_id": None,
+        "current_draft_id": None,
+        "current_question_set_id": None,
+        "unincorporated_capture_batch_ids": [],
+        "published_project_model_path": None,
+        "published_project_story_path": None,
+        "published_vision_path": None,
+        "project_model_confirmed_at": None,
+        "project_purpose_summary": None,
+        "project_capability_summary": [],
+        "project_constraint_summary": [],
+        "project_history_summary": [],
+        "project_open_question_details": [],
         "completed_quest_ids": [],
         "completed_quest_details": [],
         "last_completed_quest_id": None,
@@ -186,6 +212,15 @@ def _default_daily_ledger(subject: str, day: str) -> dict[str, Any]:
     }
 
 
+def _default_onboarding_pointer(subject: str) -> dict[str, Any]:
+    return {
+        "subject": subject,
+        "current_onboarding_id": None,
+        "latest_confirmed_onboarding_id": None,
+        "updated_at": _now_iso(),
+    }
+
+
 def ensure_live_scaffold(subject: str, data_root: Path) -> dict[str, Any]:
     live = live_root(data_root)
     events_dir = live / "EVENTS"
@@ -194,6 +229,13 @@ def ensure_live_scaffold(subject: str, data_root: Path) -> dict[str, Any]:
     disclosures_dir = live / "DISCLOSURES"
     captures_dir = live / "CAPTURES"
     capture_batches_dir = captures_dir / "BATCHES"
+    onboarding_dir = live / "ONBOARDING"
+    onboarding_sessions_dir = onboarding_dir / "SESSIONS"
+    onboarding_scans_dir = onboarding_dir / "SCANS"
+    onboarding_briefs_dir = onboarding_dir / "BRIEFS"
+    onboarding_drafts_dir = onboarding_dir / "DRAFTS"
+    onboarding_questions_dir = onboarding_dir / "QUESTIONS"
+    onboarding_published_dir = onboarding_dir / "PUBLISHED"
     runs_dir = live / "RUNS"
     threads_dir = live / "THREADS"
     proposals_dir = live / "PROPOSALS"
@@ -215,6 +257,13 @@ def ensure_live_scaffold(subject: str, data_root: Path) -> dict[str, Any]:
     disclosures_dir.mkdir(parents=True, exist_ok=True)
     captures_dir.mkdir(parents=True, exist_ok=True)
     capture_batches_dir.mkdir(parents=True, exist_ok=True)
+    onboarding_dir.mkdir(parents=True, exist_ok=True)
+    onboarding_sessions_dir.mkdir(parents=True, exist_ok=True)
+    onboarding_scans_dir.mkdir(parents=True, exist_ok=True)
+    onboarding_briefs_dir.mkdir(parents=True, exist_ok=True)
+    onboarding_drafts_dir.mkdir(parents=True, exist_ok=True)
+    onboarding_questions_dir.mkdir(parents=True, exist_ok=True)
+    onboarding_published_dir.mkdir(parents=True, exist_ok=True)
     runs_dir.mkdir(parents=True, exist_ok=True)
     threads_dir.mkdir(parents=True, exist_ok=True)
     proposals_dir.mkdir(parents=True, exist_ok=True)
@@ -287,6 +336,13 @@ Run `python3 runtime/synapse.py render-rehydrate` to refresh this file.
         created.append(str(active_run_path))
     else:
         existing.append(str(active_run_path))
+
+    onboarding_pointer_path = onboarding_dir / "CURRENT.yaml"
+    if not onboarding_pointer_path.exists():
+        _write_yaml(onboarding_pointer_path, _default_onboarding_pointer(subject))
+        created.append(str(onboarding_pointer_path))
+    else:
+        existing.append(str(onboarding_pointer_path))
 
     today = _now().date().isoformat()
     decision_ledger_path = decisions_dir / f"{today}.yaml"

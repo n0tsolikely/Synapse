@@ -255,6 +255,7 @@ def build_capture_batch(
     title_override: str | None = None,
     capture_batch_id: str | None = None,
     captured_at: str | None = None,
+    extra_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     raw = str(raw_text or "")
     if not raw.strip():
@@ -282,7 +283,7 @@ def build_capture_batch(
         capture["capture_id"] = capture_item_id(batch_id, index)
         captures.append(capture)
 
-    return {
+    batch = {
         "capture_batch_id": batch_id,
         "captured_at": when,
         "subject": subject,
@@ -297,6 +298,9 @@ def build_capture_batch(
         "raw_text": raw,
         "captures": captures,
     }
+    for key, value in (extra_context or {}).items():
+        batch[key] = value
+    return batch
 
 
 def capture_artifact_path(data_root: Path, *, batch: dict[str, Any]) -> Path:
@@ -326,6 +330,7 @@ def write_capture_batch(
     payload: Any,
     source_role: str | CaptureSourceRole | None = None,
     title_override: str | None = None,
+    extra_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     batch = build_capture_batch(
         subject=subject,
@@ -336,6 +341,7 @@ def write_capture_batch(
         engine_root=engine_root,
         data_root=data_root,
         title_override=title_override,
+        extra_context=extra_context,
     )
     artifact_path = capture_artifact_path(data_root, batch=batch)
     artifact_path.parent.mkdir(parents=True, exist_ok=True)
@@ -352,6 +358,10 @@ def write_capture_batch(
         "session_id": batch.get("session_id"),
         "capture_count": len(batch["captures"]),
         "capture_kinds": [str(item.get("kind")) for item in batch["captures"]],
+        "capture_context": batch.get("capture_context"),
+        "onboarding_id": batch.get("onboarding_id"),
+        "question_set_id": batch.get("question_set_id"),
+        "question_ids": list(batch.get("question_ids") or []),
         "artifact_path": str(artifact_path),
     }
     _append_ledger_entry(ledger_path, subject=subject, entry=ledger_entry)
