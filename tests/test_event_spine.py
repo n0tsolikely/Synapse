@@ -458,7 +458,7 @@ class EventSpineTests(unittest.TestCase):
 
     def test_all_event_pipeline_call_sites_route_through_shared_result_handler(self) -> None:
         source = (REPO_ROOT / "runtime" / "synapse.py").read_text(encoding="utf-8")
-        self.assertEqual(source.count("event_info = _event_pipeline("), 13)
+        self.assertEqual(source.count("event_info = _event_pipeline("), 19)
         for fn_name in (
             "cmd_attach_or_init",
             "cmd_live_bootstrap",
@@ -467,6 +467,11 @@ class EventSpineTests(unittest.TestCase):
             "cmd_run_update",
             "cmd_session_tick",
             "cmd_capture_chunk",
+            "cmd_onboard_repo",
+            "cmd_onboarding_update",
+            "cmd_onboarding_respond",
+            "cmd_onboarding_confirm",
+            "cmd_onboarding_abandon",
             "cmd_run_finalize",
             "cmd_session_mode",
             "cmd_log_decision",

@@ -470,6 +470,12 @@ def _sync_sidecar(
         verification_entries.extend(str(item) for item in signal.verification if str(item).strip())
         verification_entries = verification_entries[-10:]
         verification_status = _classify_verification_status(verification_entries) or verification_status
+    if (
+        mutate_proposals
+        and str(active_run.get("session_mode") or "").strip() == SessionMode.ONBOARDING_EXISTING_REPO.value
+    ):
+        mutate_proposals = False
+
     if mutate_proposals:
         if semantic_capture_batch is not None:
             promotions = derive_semantic_promotions(semantic_capture_batch)

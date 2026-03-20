@@ -2206,6 +2206,7 @@ def _require_onboarding_context(
             session_mode_source="command_default",
             session_mode_reason="defaulted from onboard-repo",
             session_id=effective_session_id,
+            mutate_proposals=False,
         )
         active_run = load_active_run_record(subject=ctx["subject"], data_root=Path(ctx["data_root"]))
         _write_session_overlay(ctx, run_receipt, active_run=active_run, session_id=effective_session_id)

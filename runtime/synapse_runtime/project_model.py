@@ -147,8 +147,8 @@ def validate_question_set(
     if str(normalized.get("draft_revision_id") or "").strip() != str(draft.get("revision_id") or "").strip():
         raise ProjectModelError("Question set draft_revision_id must match the submitted draft revision.")
     raw_questions = normalized.get("questions")
-    if not isinstance(raw_questions, list) or not raw_questions:
-        raise ProjectModelError("Question set must include at least one question.")
+    if not isinstance(raw_questions, list):
+        raise ProjectModelError("Question set field 'questions' must be a list.")
     if len(raw_questions) > 15:
         raise ProjectModelError("Question sets may contain at most 15 questions.")
 

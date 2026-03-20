@@ -16,6 +16,7 @@ if str(RUNTIME_ROOT) not in sys.path:
     sys.path.insert(0, str(RUNTIME_ROOT))
 
 from synapse_runtime.project_model import ProjectModelError, compute_revision_delta, validate_draft_revision, validate_question_set
+from synapse_runtime.reducer import ReducerError, reduce_after_event
 from synapse_runtime.repo_archaeology import ScanDepth, evidence_ref, run_repo_archaeology, stable_scan_item_id
 from synapse_runtime.repo_onboarding import (
     RepoOnboardingError,
@@ -272,6 +273,28 @@ class RepoOnboardingSchemaTests(unittest.TestCase):
                 linked_capture_batch_ids=[],
             )
 
+    def test_question_validation_allows_empty_question_set_for_confirmation_ready_revision(self) -> None:
+        draft = validate_draft_revision(
+            self._base_draft(),
+            onboarding_id="ONBOARDING-1",
+            current_scan_id="SCAN-1",
+            unincorporated_capture_batch_ids=[],
+        )
+        questions = {
+            "onboarding_id": "ONBOARDING-1",
+            "question_set_id": "QUESTION_SET-1",
+            "draft_revision_id": "REVISION-1",
+            "generated_at": "2026-03-20T10:00:00-04:00",
+            "questions": [],
+        }
+        normalized = validate_question_set(
+            questions,
+            onboarding_id="ONBOARDING-1",
+            draft=draft,
+            linked_capture_batch_ids=[],
+        )
+        self.assertEqual(normalized["questions"], [])
+
     def test_revision_delta_is_stable_by_item_id(self) -> None:
         prior = validate_draft_revision(
             self._base_draft(),
@@ -402,6 +425,8 @@ class RepoOnboardingCommandTests(unittest.TestCase):
         self.assertTrue(Path(first["analysis_brief_path"]).exists())
         pointer = self._current_pointer()
         self.assertEqual(pointer["current_onboarding_id"], first["onboarding_id"])
+        proposal_dir = self._data_root() / ".synapse" / "PROPOSALS"
+        self.assertFalse(list(proposal_dir.glob("**/*.yaml")))
 
         resumed = self._start_onboarding()
         self.assertTrue(resumed["resumed_existing"])
@@ -413,6 +438,23 @@ class RepoOnboardingCommandTests(unittest.TestCase):
         session = self._session_payload(first["onboarding_id"])
         self.assertEqual(session["state"], "needs_draft_submission")
         self.assertEqual(len(session["scan_ids"]), 2)
+
+    def test_onboard_repo_requires_allow_switch_when_active_run_is_not_onboarding(self) -> None:
+        started = run_synapse(
+            ["session-start", "--title", "Spec", "--session-mode", "brainstorm_spec", "--json"],
+            cwd=self.repo,
+            home=self.home,
+            extra_env=self.extra_env,
+        )
+        self.assertEqual(started.returncode, 0, started.stdout + started.stderr)
+        blocked = run_synapse(
+            ["onboard-repo", "--json"],
+            cwd=self.repo,
+            home=self.home,
+            extra_env=self.extra_env,
+        )
+        self.assertEqual(blocked.returncode, 2, blocked.stdout + blocked.stderr)
+        self.assertIn("onboarding_existing_repo", blocked.stdout + blocked.stderr)
 
     def test_onboarding_update_and_respond_preserve_revision_loop(self) -> None:
         first = self._start_onboarding()
@@ -542,6 +584,118 @@ class RepoOnboardingCommandTests(unittest.TestCase):
         session = self._session_payload(first["onboarding_id"])
         self.assertIn(respond_payload["capture_batch_id"], session["clarification_capture_batch_ids"])
         self.assertIn(respond_payload["capture_batch_id"], session["unincorporated_capture_batch_ids"])
+        proposal_dir = self._data_root() / ".synapse" / "PROPOSALS"
+        self.assertFalse(list(proposal_dir.glob("**/*.yaml")))
+
+    def test_onboarding_confirm_requires_explicit_confirmation_and_rejects_blocking_questions(self) -> None:
+        first = self._start_onboarding()
+        draft = {
+            "onboarding_id": first["onboarding_id"],
+            "revision_id": "REVISION-1",
+            "supersedes_revision_id": None,
+            "created_at": "2026-03-20T10:00:00-04:00",
+            "based_on_scan_ids": [first["scan_id"]],
+            "based_on_capture_batch_ids": [],
+            "summary_hypothesis": "Project onboard",
+            "purpose_hypothesis": "Exercise onboarding.",
+            "vision_hypothesis": "Track repo story.",
+            "maturity_hypothesis": "Prototype.",
+            "user_or_stakeholder_hypotheses": [],
+            "capability_hypotheses": [
+                {
+                    "id": "CAP-1",
+                    "summary": "CLI can onboard an existing repo.",
+                    "status": "partial",
+                    "confidence": "high",
+                    "evidence_refs": ["scan:%s:entrypoint_inventory:cap1" % first["scan_id"]],
+                    "answer_refs": [],
+                }
+            ],
+            "component_hypotheses": [],
+            "interface_hypotheses": [
+                {
+                    "id": "INT-1",
+                    "summary": "onboard-repo is the entry surface.",
+                    "status": "implemented",
+                    "confidence": "high",
+                    "evidence_refs": ["scan:%s:entrypoint_inventory:int1" % first["scan_id"]],
+                    "answer_refs": [],
+                }
+            ],
+            "constraint_hypotheses": [],
+            "non_goal_hypotheses": [],
+            "dependency_hypotheses": [
+                {
+                    "id": "DEP-1",
+                    "summary": "PyYAML persists artifacts.",
+                    "status": "implemented",
+                    "confidence": "medium",
+                    "evidence_refs": ["scan:%s:manifest_inventory:dep1" % first["scan_id"]],
+                    "answer_refs": [],
+                }
+            ],
+            "history_and_supersession_hypotheses": [
+                {
+                    "id": "HIST-1",
+                    "summary": "Repo story is published only after confirmation.",
+                    "status": "implemented",
+                    "confidence": "medium",
+                    "evidence_refs": ["scan:%s:existing_continuity_inventory:hist1" % first["scan_id"]],
+                    "answer_refs": [],
+                }
+            ],
+            "contradictions": [],
+            "open_unknowns": [],
+            "next_question_ids": ["Q-1"],
+        }
+        questions = {
+            "onboarding_id": first["onboarding_id"],
+            "question_set_id": "QUESTION_SET-1",
+            "draft_revision_id": "REVISION-1",
+            "generated_at": "2026-03-20T10:00:00-04:00",
+            "questions": [
+                {
+                    "question_id": "Q-1",
+                    "prompt": "What workflow matters most?",
+                    "category": "purpose",
+                    "priority": "blocking",
+                    "why_asked": "Need explicit operator framing.",
+                    "evidence_refs": ["scan:%s:docs_inventory:q1" % first["scan_id"]],
+                    "target_item_ids": ["CAP-1"],
+                    "status": "open",
+                    "answer_capture_batch_ids": [],
+                }
+            ],
+        }
+        update = run_synapse(
+            [
+                "onboarding-update",
+                "--draft-json",
+                json.dumps(draft),
+                "--questions-json",
+                json.dumps(questions),
+                "--json",
+            ],
+            cwd=self.repo,
+            home=self.home,
+            extra_env=self.extra_env,
+        )
+        self.assertEqual(update.returncode, 0, update.stdout + update.stderr)
+        missing_flag = run_synapse(
+            ["onboarding-confirm", "--json"],
+            cwd=self.repo,
+            home=self.home,
+            extra_env=self.extra_env,
+        )
+        self.assertEqual(missing_flag.returncode, 2, missing_flag.stdout + missing_flag.stderr)
+        blocked = run_synapse(
+            ["onboarding-confirm", "--yes-i-confirm", "--json"],
+            cwd=self.repo,
+            home=self.home,
+            extra_env=self.extra_env,
+        )
+        self.assertEqual(blocked.returncode, 2, blocked.stdout + blocked.stderr)
+        self.assertIn("blocking", (blocked.stdout + blocked.stderr).lower())
 
     def test_onboarding_abandon_marks_current_session_without_deleting_artifacts(self) -> None:
         first = self._start_onboarding()
@@ -699,6 +853,127 @@ class RepoOnboardingCommandTests(unittest.TestCase):
         text = (live / "REHYDRATE.md").read_text(encoding="utf-8")
         self.assertIn("## Onboarding status", text)
         self.assertIn("## Published project model", text)
+
+    def test_restart_after_confirmation_preserves_prior_archived_publication_and_current_canonical_until_replacement(self) -> None:
+        self.test_onboarding_confirm_publishes_archived_and_canonical_artifacts_and_projects_state()
+        live = self._data_root() / ".synapse"
+        archived = list((live / "ONBOARDING" / "PUBLISHED").glob("PROJECT_MODEL__*.yaml"))
+        self.assertEqual(len(archived), 1)
+        canonical_text = (live / "PROJECT_MODEL.yaml").read_text(encoding="utf-8")
+
+        restarted = run_synapse(
+            ["onboard-repo", "--restart", "--json"],
+            cwd=self.repo,
+            home=self.home,
+            extra_env=self.extra_env,
+        )
+        self.assertEqual(restarted.returncode, 0, restarted.stdout + restarted.stderr)
+        pointer = self._current_pointer()
+        self.assertIsNotNone(pointer["current_onboarding_id"])
+        self.assertEqual(len(list((live / "ONBOARDING" / "PUBLISHED").glob("PROJECT_MODEL__*.yaml"))), 1)
+        self.assertEqual((live / "PROJECT_MODEL.yaml").read_text(encoding="utf-8"), canonical_text)
+
+    def test_missing_onboarding_artifact_fails_reducer_refresh_explicitly(self) -> None:
+        first = self._start_onboarding()
+        draft = {
+            "onboarding_id": first["onboarding_id"],
+            "revision_id": "REVISION-1",
+            "supersedes_revision_id": None,
+            "created_at": "2026-03-20T10:00:00-04:00",
+            "based_on_scan_ids": [first["scan_id"]],
+            "based_on_capture_batch_ids": [],
+            "summary_hypothesis": "Project onboard",
+            "purpose_hypothesis": "Exercise onboarding.",
+            "vision_hypothesis": "Track repo story.",
+            "maturity_hypothesis": "Prototype.",
+            "user_or_stakeholder_hypotheses": [],
+            "capability_hypotheses": [
+                {
+                    "id": "CAP-1",
+                    "summary": "CLI can onboard an existing repo.",
+                    "status": "partial",
+                    "confidence": "high",
+                    "evidence_refs": ["scan:%s:entrypoint_inventory:cap1" % first["scan_id"]],
+                    "answer_refs": [],
+                }
+            ],
+            "component_hypotheses": [
+                {
+                    "id": "COMP-1",
+                    "summary": "Onboarding state lives in .synapse/ONBOARDING.",
+                    "status": "implemented",
+                    "confidence": "medium",
+                    "evidence_refs": ["scan:%s:tree_inventory:comp1" % first["scan_id"]],
+                    "answer_refs": [],
+                }
+            ],
+            "interface_hypotheses": [
+                {
+                    "id": "INT-1",
+                    "summary": "onboard-repo is the entry surface.",
+                    "status": "implemented",
+                    "confidence": "high",
+                    "evidence_refs": ["scan:%s:entrypoint_inventory:int1" % first["scan_id"]],
+                    "answer_refs": [],
+                }
+            ],
+            "constraint_hypotheses": [],
+            "non_goal_hypotheses": [],
+            "dependency_hypotheses": [
+                {
+                    "id": "DEP-1",
+                    "summary": "PyYAML persists artifacts.",
+                    "status": "implemented",
+                    "confidence": "medium",
+                    "evidence_refs": ["scan:%s:manifest_inventory:dep1" % first["scan_id"]],
+                    "answer_refs": [],
+                }
+            ],
+            "history_and_supersession_hypotheses": [
+                {
+                    "id": "HIST-1",
+                    "summary": "Repo story is published only after confirmation.",
+                    "status": "implemented",
+                    "confidence": "medium",
+                    "evidence_refs": ["scan:%s:existing_continuity_inventory:hist1" % first["scan_id"]],
+                    "answer_refs": [],
+                }
+            ],
+            "contradictions": [],
+            "open_unknowns": [],
+            "next_question_ids": [],
+        }
+        questions = {
+            "onboarding_id": first["onboarding_id"],
+            "question_set_id": "QUESTION_SET-1",
+            "draft_revision_id": "REVISION-1",
+            "generated_at": "2026-03-20T10:00:00-04:00",
+            "questions": [],
+        }
+        update = run_synapse(
+            [
+                "onboarding-update",
+                "--draft-json",
+                json.dumps(draft),
+                "--questions-json",
+                json.dumps(questions),
+                "--json",
+            ],
+            cwd=self.repo,
+            home=self.home,
+            extra_env=self.extra_env,
+        )
+        self.assertEqual(update.returncode, 0, update.stdout + update.stderr)
+        question_path = self._onboarding_dir() / "QUESTIONS" / "QUESTION_SET__QUESTION_SET-1.yaml"
+        question_path.unlink()
+        with self.assertRaises(ReducerError):
+            reduce_after_event(
+                subject="PROJECT-ONBOARD",
+                data_root=self._data_root(),
+                engine_root=self.repo,
+                event=json.loads(update.stdout)["event"]["payload"],
+                refresh_continuity=True,
+            )
 
 
 if __name__ == "__main__":

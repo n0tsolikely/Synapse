@@ -71,6 +71,7 @@ def run_start(
     session_mode_source: str | None = None,
     session_mode_reason: str | None = None,
     session_id: str | None = None,
+    mutate_proposals: bool = True,
 ) -> dict[str, Any]:
     live = live_root(data_root)
     scaffold = ensure_live_scaffold(subject, data_root)
@@ -134,7 +135,13 @@ def run_start(
     state["status"] = "active"
     _append_recent_change(state, f"Run started: {title}")
     _write_yaml(state_path, state)
-    sidecar = _sync_sidecar(subject=subject, data_root=data_root, active_run=run_data, signal=signal)
+    sidecar = _sync_sidecar(
+        subject=subject,
+        data_root=data_root,
+        active_run=run_data,
+        signal=signal,
+        mutate_proposals=mutate_proposals,
+    )
 
     return {
         "run_path": str(run_path),
