@@ -28,6 +28,18 @@ from synapse_runtime.governance_model import AmbientSignal, ProposalKind, Propos
 from synapse_runtime.live_journal import log_decision, log_disclosure, record_quest_acceptance
 from synapse_runtime.live_memory_common import LiveMemoryError
 from synapse_runtime.persona import resolve_persona
+from synapse_runtime.project_model import ProjectModelError
+from synapse_runtime.repo_archaeology import RepoArchaeologyError
+from synapse_runtime.repo_onboarding import (
+    RepoOnboardingError,
+    current_onboarding_session,
+    onboard_repo,
+    onboarding_abandon,
+    onboarding_confirm,
+    onboarding_respond,
+    onboarding_status_payload,
+    onboarding_update,
+)
 from synapse_runtime.quest_candidates import list_proposals, mark_proposal_state
 from synapse_runtime.reducer import ReducerError, reduce_after_event, reducer_mode
 from synapse_runtime.rehydration_pack import refresh_rehydration_pack
@@ -357,6 +369,68 @@ def build_parser() -> argparse.ArgumentParser:
     capture_chunk_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
     capture_chunk_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
     capture_chunk_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
+    onboard_repo_parser = subparsers.add_parser("onboard-repo", help="Run deterministic repo archaeology and bootstrap or resume onboarding")
+    onboard_repo_parser.add_argument("--subject", help="Optional subject override")
+    onboard_repo_parser.add_argument("--data-root", help="Override data root path")
+    onboard_repo_parser.add_argument("--engine-root", help="Override engine root path")
+    onboard_repo_parser.add_argument("--depth", choices=["quick", "deep"], default="deep", help="Archaeology depth (default: deep)")
+    onboard_repo_parser.add_argument("--allow-switch", action="store_true", help="Allow explicit posture transition to onboarding_existing_repo")
+    onboard_repo_parser.add_argument("--rescan", action="store_true", help="Append a new scan to the current onboarding session")
+    onboard_repo_parser.add_argument("--restart", action="store_true", help="Abandon current onboarding session and start a new one")
+    onboard_repo_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
+    onboarding_status_parser = subparsers.add_parser("onboarding-status", help="Inspect the current or latest confirmed onboarding session")
+    onboarding_status_parser.add_argument("--subject", help="Optional subject override")
+    onboarding_status_parser.add_argument("--data-root", help="Override data root path")
+    onboarding_status_parser.add_argument("--engine-root", help="Override engine root path")
+    onboarding_status_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
+    onboarding_update_parser = subparsers.add_parser("onboarding-update", help="Submit a draft project model and question set")
+    onboarding_update_parser.add_argument("--draft-file", help="Path to draft project model YAML/JSON")
+    onboarding_update_parser.add_argument("--draft-json", help="Inline draft project model JSON")
+    onboarding_update_parser.add_argument("--questions-file", help="Path to question-set YAML/JSON")
+    onboarding_update_parser.add_argument("--questions-json", help="Inline question-set JSON")
+    onboarding_update_parser.add_argument("--subject", help="Optional subject override")
+    onboarding_update_parser.add_argument("--data-root", help="Override data root path")
+    onboarding_update_parser.add_argument("--engine-root", help="Override engine root path")
+    onboarding_update_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
+    onboarding_respond_parser = subparsers.add_parser("onboarding-respond", help="Capture onboarding clarification canonically without proposal emission")
+    onboarding_respond_text = onboarding_respond_parser.add_mutually_exclusive_group(required=True)
+    onboarding_respond_text.add_argument("--text", help="Inline clarification text")
+    onboarding_respond_text.add_argument("--text-file", help="Path to clarification text file")
+    onboarding_respond_payload = onboarding_respond_parser.add_mutually_exclusive_group(required=True)
+    onboarding_respond_payload.add_argument("--captures-json", help="Inline structured captures JSON")
+    onboarding_respond_payload.add_argument("--captures-file", help="Path to structured captures YAML/JSON file")
+    onboarding_respond_parser.add_argument("--title", help="Optional response title")
+    onboarding_respond_parser.add_argument(
+        "--source-role",
+        choices=[role.value for role in CaptureSourceRole],
+        default="user",
+        help="Who produced the response capture batch (default: user)",
+    )
+    onboarding_respond_question_ids = onboarding_respond_parser.add_mutually_exclusive_group()
+    onboarding_respond_question_ids.add_argument("--question-ids-json", help="Inline JSON list of linked onboarding question ids")
+    onboarding_respond_question_ids.add_argument("--question-ids-file", help="Path to JSON/YAML list of linked onboarding question ids")
+    onboarding_respond_parser.add_argument("--subject", help="Optional subject override")
+    onboarding_respond_parser.add_argument("--data-root", help="Override data root path")
+    onboarding_respond_parser.add_argument("--engine-root", help="Override engine root path")
+    onboarding_respond_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
+    onboarding_confirm_parser = subparsers.add_parser("onboarding-confirm", help="Confirm and publish the current onboarding session")
+    onboarding_confirm_parser.add_argument("--yes-i-confirm", action="store_true", help="Required explicit confirmation flag")
+    onboarding_confirm_parser.add_argument("--subject", help="Optional subject override")
+    onboarding_confirm_parser.add_argument("--data-root", help="Override data root path")
+    onboarding_confirm_parser.add_argument("--engine-root", help="Override engine root path")
+    onboarding_confirm_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
+    onboarding_abandon_parser = subparsers.add_parser("onboarding-abandon", help="Abandon the current onboarding session explicitly")
+    onboarding_abandon_parser.add_argument("--reason", help="Reason for abandoning the current onboarding session")
+    onboarding_abandon_parser.add_argument("--subject", help="Optional subject override")
+    onboarding_abandon_parser.add_argument("--data-root", help="Override data root path")
+    onboarding_abandon_parser.add_argument("--engine-root", help="Override engine root path")
+    onboarding_abandon_parser.add_argument("--json", action="store_true", help="Print JSON output")
 
     session_mode_parser = subparsers.add_parser("session-mode", help="Inspect or explicitly transition the active session posture")
     session_mode_parser.add_argument("--set", dest="target_session_mode", choices=session_mode_choices, help="Target session posture")
@@ -1984,6 +2058,170 @@ def _fail_blocked_by_session_posture(
     return 2
 
 
+def _read_json_or_yaml_file(path: Path, *, label: str) -> Any:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except Exception as exc:
+        raise LiveMemoryError(f"Unable to read {label}: {path}") from exc
+    try:
+        if path.suffix.lower() == ".json":
+            return json.loads(text)
+        return yaml.safe_load(text)
+    except Exception as exc:
+        raise LiveMemoryError(f"Invalid {label}: {path}") from exc
+
+
+def _read_inline_json(raw: str, *, label: str) -> Any:
+    try:
+        return json.loads(str(raw))
+    except json.JSONDecodeError as exc:
+        raise LiveMemoryError(f"Invalid {label}: {exc}") from exc
+
+
+def _read_onboarding_payload(args: argparse.Namespace, *, kind: str) -> Any:
+    if kind == "draft":
+        if bool(args.draft_file) == bool(args.draft_json):
+            raise LiveMemoryError("onboarding-update requires exactly one of --draft-file or --draft-json.")
+        if args.draft_json is not None:
+            return _read_inline_json(args.draft_json, label="--draft-json payload")
+        return _read_json_or_yaml_file(Path(str(args.draft_file)).expanduser(), label="draft file")
+    if kind == "questions":
+        if bool(args.questions_file) == bool(args.questions_json):
+            raise LiveMemoryError("onboarding-update requires exactly one of --questions-file or --questions-json.")
+        if args.questions_json is not None:
+            return _read_inline_json(args.questions_json, label="--questions-json payload")
+        return _read_json_or_yaml_file(Path(str(args.questions_file)).expanduser(), label="question-set file")
+    raise LiveMemoryError(f"Unknown onboarding payload kind: {kind}")
+
+
+def _read_optional_id_list(args: argparse.Namespace) -> list[str]:
+    if getattr(args, "question_ids_json", None) is None and getattr(args, "question_ids_file", None) is None:
+        return []
+    if getattr(args, "question_ids_json", None) is not None and getattr(args, "question_ids_file", None) is not None:
+        raise LiveMemoryError("Use only one of --question-ids-json or --question-ids-file.")
+    payload = (
+        _read_inline_json(args.question_ids_json, label="--question-ids-json payload")
+        if getattr(args, "question_ids_json", None) is not None
+        else _read_json_or_yaml_file(Path(str(args.question_ids_file)).expanduser(), label="question ids file")
+    )
+    if not isinstance(payload, list):
+        raise LiveMemoryError("Linked onboarding question ids must be a list.")
+    ids: list[str] = []
+    seen: set[str] = set()
+    for raw in payload:
+        text = str(raw or "").strip()
+        if text and text not in seen:
+            ids.append(text)
+            seen.add(text)
+    return ids
+
+
+def _set_active_run_session_mode(
+    *,
+    ctx: dict[str, Any],
+    active_run: dict[str, Any],
+    target_mode: SessionMode,
+    reason: str,
+    source: str,
+) -> dict[str, Any]:
+    current_mode = SessionMode(str(active_run.get("session_mode") or ""))
+    if current_mode == target_mode:
+        return {
+            "changed": False,
+            "run_path": str(Path(ctx["data_root"]) / ".synapse" / "ACTIVE_RUN.yaml"),
+            "event": None,
+            "reducer": _empty_reducer_receipt(),
+            "rehydrate": None,
+            "continuity": None,
+        }
+    allowed, next_modes = validate_transition(current_mode, target_mode)
+    if not allowed:
+        raise LiveMemoryError(
+            f"Invalid session-mode transition: {current_mode.value} -> {target_mode.value}. "
+            f"Allowed next modes: {', '.join(mode.value for mode in next_modes)}"
+        )
+    run_path = Path(ctx["data_root"]) / ".synapse" / "ACTIVE_RUN.yaml"
+    transition_at = dt.datetime.now().astimezone().isoformat()
+    session_id = _effective_session_id(ctx, active_run=active_run)
+    active_run = dict(active_run)
+    active_run["session_mode"] = target_mode.value
+    active_run["session_mode_source"] = source
+    active_run["session_mode_set_at"] = transition_at
+    active_run["session_mode_reason"] = reason
+    active_run["session_mode_policy_version"] = active_run.get("session_mode_policy_version") or SESSION_MODE_POLICY_VERSION
+    run_path.write_text(yaml.safe_dump(active_run, sort_keys=False), encoding="utf-8")
+    event_info = _event_pipeline(
+        ctx=ctx,
+        action_name="session-mode-set",
+        summary=f"Changed session posture from {current_mode.value} to {target_mode.value}.",
+        session_id=session_id,
+        signals={
+            "run_id": active_run.get("run_id"),
+            "from_session_mode": current_mode.value,
+            "to_session_mode": target_mode.value,
+            "session_mode_reason": reason,
+            **session_mode_signal_fields(active_run),
+        },
+        truth_flags={
+            "canon_mutated": False,
+            "derived_state_changed": True,
+            "governed": False,
+            "uncertainty_present": False,
+        },
+        outputs={
+            "run_id": active_run.get("run_id"),
+            "run_path": str(run_path),
+        },
+    )
+    return {
+        "changed": True,
+        "run_path": str(run_path),
+        "active_run": active_run,
+        "event": event_info["event"],
+        "reducer": event_info["reducer"],
+        "rehydrate": event_info["reducer"]["rehydrate"],
+        "continuity": event_info["reducer"]["continuity"],
+    }
+
+
+def _require_onboarding_context(
+    *,
+    ctx: dict[str, Any],
+    action_name: str,
+    allow_create_onboard_run: bool = False,
+) -> tuple[dict[str, Any], str]:
+    active_run = _load_active_run_with_session_repair(ctx)
+    effective_session_id = _effective_session_id(ctx, active_run=active_run)
+    if allow_create_onboard_run and not active_run.get("run_id"):
+        if not effective_session_id:
+            raise LiveMemoryError(f"{action_name} requires a current session id to create an onboarding run.")
+        run_receipt = run_start(
+            subject=ctx["subject"],
+            data_root=Path(ctx["data_root"]),
+            title=f"{ctx['subject']} Existing Repo Onboarding",
+            goal="Build and confirm a durable project model for the existing repository.",
+            items=[],
+            command_name="session-start",
+            session_mode=SessionMode.ONBOARDING_EXISTING_REPO.value,
+            session_mode_source="command_default",
+            session_mode_reason="defaulted from onboard-repo",
+            session_id=effective_session_id,
+        )
+        active_run = load_active_run_record(subject=ctx["subject"], data_root=Path(ctx["data_root"]))
+        _write_session_overlay(ctx, run_receipt, active_run=active_run, session_id=effective_session_id)
+        return active_run, effective_session_id
+    if not active_run.get("run_id"):
+        raise LiveMemoryError(f"{action_name} requires an active run in onboarding_existing_repo posture.")
+    if not effective_session_id:
+        raise LiveMemoryError(f"{action_name} requires an active session with a non-null session_id.")
+    if str(active_run.get("session_mode") or "").strip() != SessionMode.ONBOARDING_EXISTING_REPO.value:
+        raise LiveMemoryError(
+            f"{action_name} requires active posture onboarding_existing_repo; current posture is "
+            f"{str(active_run.get('session_mode') or 'none').strip() or 'none'}."
+        )
+    return active_run, effective_session_id
+
+
 def _read_capture_text(args: argparse.Namespace) -> str:
     if args.text is not None:
         text = str(args.text)
@@ -2752,6 +2990,493 @@ def cmd_capture_chunk(args: argparse.Namespace) -> int:
         event_info=event_info,
         json_mode=args.json,
         text_emitter=_emit_capture_chunk,
+    )
+
+
+def cmd_onboard_repo(args: argparse.Namespace) -> int:
+    ctx = _resolve_or_attach_subject_from_args(args)
+    if not ctx:
+        return 2
+
+    try:
+        active_run = _load_active_run_with_session_repair(ctx)
+        if active_run.get("run_id") and str(active_run.get("session_mode") or "").strip() != SessionMode.ONBOARDING_EXISTING_REPO.value:
+            if not args.allow_switch:
+                message = (
+                    "onboard-repo requires posture onboarding_existing_repo. "
+                    "Use `python3 runtime/synapse.py session-mode --set onboarding_existing_repo --reason <text>` "
+                    "or rerun onboard-repo with --allow-switch."
+                )
+                if args.json:
+                    print(json.dumps({"error": message, "active_run_id": active_run.get("run_id")}, indent=2, sort_keys=True))
+                else:
+                    print(f"FAIL: {message}")
+                return 2
+            _set_active_run_session_mode(
+                ctx=ctx,
+                active_run=active_run,
+                target_mode=SessionMode.ONBOARDING_EXISTING_REPO,
+                reason="Explicit posture switch requested by onboard-repo --allow-switch.",
+                source="onboard_repo_allow_switch",
+            )
+            active_run = _load_active_run_with_session_repair(ctx)
+
+        active_run, session_id = _require_onboarding_context(
+            ctx=ctx,
+            action_name="onboard-repo",
+            allow_create_onboard_run=True,
+        )
+        result = onboard_repo(
+            subject=ctx["subject"],
+            data_root=Path(ctx["data_root"]),
+            engine_root=Path(ctx["engine_root"]),
+            active_run=active_run,
+            depth=args.depth,
+            rescan=bool(args.rescan),
+            restart=bool(args.restart),
+        )
+    except (LiveMemoryError, RepoOnboardingError, ProjectModelError, RepoArchaeologyError, SemanticIntakeError) as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    if result.get("resumed_existing") or result.get("already_completed"):
+        if args.json:
+            print(json.dumps(result, indent=2, sort_keys=True))
+            return 0
+        print("=== ONBOARDING STATUS ===")
+        print(f"onboarding_id: {result.get('onboarding_id') or 'none'}")
+        print(f"state: {result.get('state') or result.get('onboarding_state') or 'none'}")
+        if result.get("resumed_existing"):
+            print("resumed_existing: true")
+        if result.get("already_completed"):
+            print("already_completed: true")
+        return 0
+
+    written_artifacts = [
+        str(item)
+        for item in [
+            result.get("session_path"),
+            result.get("pointer_path"),
+            result.get("scan_artifact_path"),
+            result.get("analysis_brief_path"),
+        ]
+        if str(item or "").strip()
+    ]
+    event_info = _event_pipeline(
+        ctx=ctx,
+        action_name="onboard-repo",
+        summary=f"Prepared onboarding scan {result.get('scan_id')} for {ctx['subject']}.",
+        session_id=session_id,
+        signals={
+            "run_id": active_run.get("run_id"),
+            "onboarding_id": result.get("onboarding_id"),
+            "scan_id": result.get("scan_id"),
+            "changed_files": written_artifacts,
+            "verification_entries": [],
+            "related_quest_ids": [],
+            "related_sidequest_ids": [],
+            **session_mode_signal_fields(active_run),
+        },
+        truth_flags={
+            "canon_mutated": False,
+            "derived_state_changed": True,
+            "governed": False,
+            "uncertainty_present": True,
+        },
+        outputs={
+            "onboarding_id": result.get("onboarding_id"),
+            "scan_id": result.get("scan_id"),
+            "scan_artifact_path": result.get("scan_artifact_path"),
+            "analysis_brief_path": result.get("analysis_brief_path"),
+            "session_path": result.get("session_path"),
+            "pointer_path": result.get("pointer_path"),
+        },
+    )
+    payload = {
+        **result,
+        "subject": ctx,
+        "event": event_info["event"],
+        "reducer": event_info["reducer"],
+        "rehydrate": event_info["reducer"]["rehydrate"],
+        "continuity": event_info["reducer"]["continuity"],
+    }
+
+    def _emit_onboard_repo(rendered_payload: dict[str, Any]) -> None:
+        print("=== ONBOARDING STARTED ===")
+        print(f"onboarding_id: {rendered_payload.get('onboarding_id')}")
+        print(f"scan_id: {rendered_payload.get('scan_id')}")
+        print(f"scan_artifact_path: {rendered_payload.get('scan_artifact_path')}")
+        print(f"analysis_brief_path: {rendered_payload.get('analysis_brief_path')}")
+
+    return _finalize_mutation_result(
+        payload=payload,
+        event_info=event_info,
+        json_mode=args.json,
+        text_emitter=_emit_onboard_repo,
+    )
+
+
+def cmd_onboarding_status(args: argparse.Namespace) -> int:
+    ctx = _resolve_or_attach_subject_from_args(args)
+    if not ctx:
+        return 2
+    try:
+        payload = onboarding_status_payload(subject=ctx["subject"], data_root=Path(ctx["data_root"]))
+    except (LiveMemoryError, RepoOnboardingError, ProjectModelError, RepoArchaeologyError) as exc:
+        print(f"FAIL: {exc}")
+        return 2
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+    print("=== ONBOARDING STATUS ===")
+    print(f"onboarding_id: {payload.get('onboarding_id') or 'none'}")
+    print(f"state: {payload.get('state') or 'none'}")
+    if payload.get("depth"):
+        print(f"depth: {payload.get('depth')}")
+    if payload.get("draft_is_stale"):
+        print("draft_is_stale: true")
+    return 0
+
+
+def cmd_onboarding_update(args: argparse.Namespace) -> int:
+    ctx = _resolve_or_attach_subject_from_args(args)
+    if not ctx:
+        return 2
+    try:
+        active_run, session_id = _require_onboarding_context(ctx=ctx, action_name="onboarding-update")
+        session = current_onboarding_session(subject=ctx["subject"], data_root=Path(ctx["data_root"]), require_current=True)
+        if not session:
+            raise RepoOnboardingError("No current onboarding session exists.")
+        draft_payload = _read_onboarding_payload(args, kind="draft")
+        questions_payload = _read_onboarding_payload(args, kind="questions")
+        result = onboarding_update(
+            subject=ctx["subject"],
+            data_root=Path(ctx["data_root"]),
+            session=session,
+            draft_payload=draft_payload,
+            questions_payload=questions_payload,
+        )
+    except (LiveMemoryError, RepoOnboardingError, ProjectModelError, RepoArchaeologyError) as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    written_artifacts = [
+        str(item)
+        for item in [result.get("draft_path"), result.get("question_set_path"), result.get("delta_path")]
+        if str(item or "").strip()
+    ]
+    event_info = _event_pipeline(
+        ctx=ctx,
+        action_name="onboarding-update",
+        summary=f"Updated onboarding draft {result.get('draft_revision_id')}.",
+        session_id=session_id,
+        signals={
+            "run_id": active_run.get("run_id"),
+            "onboarding_id": result.get("onboarding_id"),
+            "draft_revision_id": result.get("draft_revision_id"),
+            "question_set_id": result.get("question_set_id"),
+            "changed_files": written_artifacts,
+            "verification_entries": [],
+            "related_quest_ids": [],
+            "related_sidequest_ids": [],
+            **session_mode_signal_fields(active_run),
+        },
+        truth_flags={
+            "canon_mutated": False,
+            "derived_state_changed": True,
+            "governed": False,
+            "uncertainty_present": True,
+        },
+        outputs={
+            "onboarding_id": result.get("onboarding_id"),
+            "draft_revision_id": result.get("draft_revision_id"),
+            "question_set_id": result.get("question_set_id"),
+            "revision_delta_id": result.get("revision_delta_id"),
+            "draft_path": result.get("draft_path"),
+            "question_set_path": result.get("question_set_path"),
+            "delta_path": result.get("delta_path"),
+        },
+    )
+    payload = {
+        **result,
+        "subject": ctx,
+        "event": event_info["event"],
+        "reducer": event_info["reducer"],
+        "rehydrate": event_info["reducer"]["rehydrate"],
+        "continuity": event_info["reducer"]["continuity"],
+    }
+
+    def _emit_onboarding_update(rendered_payload: dict[str, Any]) -> None:
+        print("=== ONBOARDING UPDATED ===")
+        print(f"onboarding_id: {rendered_payload.get('onboarding_id')}")
+        print(f"draft_revision_id: {rendered_payload.get('draft_revision_id')}")
+        print(f"question_set_id: {rendered_payload.get('question_set_id')}")
+        if rendered_payload.get("revision_delta_id"):
+            print(f"revision_delta_id: {rendered_payload.get('revision_delta_id')}")
+
+    return _finalize_mutation_result(
+        payload=payload,
+        event_info=event_info,
+        json_mode=args.json,
+        text_emitter=_emit_onboarding_update,
+    )
+
+
+def cmd_onboarding_respond(args: argparse.Namespace) -> int:
+    ctx = _resolve_or_attach_subject_from_args(args)
+    if not ctx:
+        return 2
+    data_root = Path(ctx["data_root"])
+    engine_root = Path(ctx["engine_root"])
+    try:
+        active_run, session_id = _require_onboarding_context(ctx=ctx, action_name="onboarding-respond")
+        session = current_onboarding_session(subject=ctx["subject"], data_root=data_root, require_current=True)
+        if not session:
+            raise RepoOnboardingError("No current onboarding session exists.")
+        raw_text = _read_capture_text(args)
+        payload = _read_capture_payload(args)
+        source_role = normalize_capture_source_role(args.source_role)
+        linked_question_ids = _read_optional_id_list(args)
+        result = onboarding_respond(
+            subject=ctx["subject"],
+            data_root=data_root,
+            engine_root=engine_root,
+            session=session,
+            active_run=active_run,
+            raw_text=raw_text,
+            payload=payload,
+            title=args.title,
+            source_role=source_role.value,
+            linked_question_ids=linked_question_ids,
+        )
+        sidecar = _sync_sidecar(
+            subject=ctx["subject"],
+            data_root=data_root,
+            active_run=active_run,
+            signal=AmbientSignal(
+                source="onboarding-respond",
+                subject=ctx["subject"],
+                title=str(args.title or "Onboarding clarification"),
+                summary=f"Captured onboarding clarification batch {result.get('capture_batch_id')}.",
+                status="captured",
+            ),
+            semantic_capture_batch=result["batch"],
+            mutate_proposals=False,
+        )
+    except (LiveMemoryError, RepoOnboardingError, ProjectModelError, RepoArchaeologyError, SemanticIntakeError) as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    written_artifacts = [
+        result.get("capture_artifact_path"),
+        result.get("capture_ledger_path"),
+    ]
+    if sidecar.get("open_questions_path"):
+        written_artifacts.append(sidecar.get("open_questions_path"))
+    event_info = _event_pipeline(
+        ctx=ctx,
+        action_name="onboarding-respond",
+        summary=f"Captured onboarding clarification batch {result.get('capture_batch_id')}.",
+        session_id=session_id,
+        signals={
+            "run_id": active_run.get("run_id"),
+            "onboarding_id": result.get("onboarding_id"),
+            "question_set_id": session.get("current_question_set_id"),
+            "capture_batch_id": result.get("capture_batch_id"),
+            "linked_question_ids": list(result.get("linked_question_ids") or []),
+            "changed_files": [str(item) for item in written_artifacts if str(item or "").strip()],
+            "verification_entries": [],
+            "related_quest_ids": [],
+            "related_sidequest_ids": [],
+            **session_mode_signal_fields(active_run),
+        },
+        truth_flags={
+            "canon_mutated": False,
+            "derived_state_changed": True,
+            "governed": False,
+            "uncertainty_present": True,
+        },
+        outputs={
+            "onboarding_id": result.get("onboarding_id"),
+            "capture_batch_id": result.get("capture_batch_id"),
+            "capture_artifact_path": result.get("capture_artifact_path"),
+            "capture_ledger_path": result.get("capture_ledger_path"),
+            "linked_question_ids": list(result.get("linked_question_ids") or []),
+        },
+    )
+    payload_out = {
+        **{key: value for key, value in result.items() if key != "batch"},
+        "subject": ctx,
+        "sidecar": sidecar,
+        "event": event_info["event"],
+        "reducer": event_info["reducer"],
+        "rehydrate": event_info["reducer"]["rehydrate"],
+        "continuity": event_info["reducer"]["continuity"],
+    }
+
+    def _emit_onboarding_respond(rendered_payload: dict[str, Any]) -> None:
+        print("=== ONBOARDING RESPONSE CAPTURED ===")
+        print(f"onboarding_id: {rendered_payload.get('onboarding_id')}")
+        print(f"capture_batch_id: {rendered_payload.get('capture_batch_id')}")
+        print(f"capture_artifact_path: {rendered_payload.get('capture_artifact_path')}")
+
+    return _finalize_mutation_result(
+        payload=payload_out,
+        event_info=event_info,
+        json_mode=args.json,
+        text_emitter=_emit_onboarding_respond,
+    )
+
+
+def cmd_onboarding_confirm(args: argparse.Namespace) -> int:
+    if not args.yes_i_confirm:
+        print("FAIL: onboarding-confirm requires --yes-i-confirm.")
+        return 2
+    ctx = _resolve_or_attach_subject_from_args(args)
+    if not ctx:
+        return 2
+    try:
+        active_run, session_id = _require_onboarding_context(ctx=ctx, action_name="onboarding-confirm")
+        session = current_onboarding_session(subject=ctx["subject"], data_root=Path(ctx["data_root"]), require_current=True)
+        if not session:
+            raise RepoOnboardingError("No current onboarding session exists.")
+        result = onboarding_confirm(
+            subject=ctx["subject"],
+            data_root=Path(ctx["data_root"]),
+            session=session,
+            active_run=active_run,
+        )
+    except (LiveMemoryError, RepoOnboardingError, ProjectModelError, RepoArchaeologyError) as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    written_artifacts = [
+        result.get("published_project_model_path"),
+        result.get("published_project_story_path"),
+        result.get("published_vision_path"),
+        result.get("publication_receipt_path"),
+        *list(result.get("proposal_paths") or []),
+    ]
+    event_info = _event_pipeline(
+        ctx=ctx,
+        action_name="onboarding-confirm",
+        summary=f"Confirmed onboarding session {result.get('onboarding_id')}.",
+        session_id=session_id,
+        signals={
+            "run_id": active_run.get("run_id"),
+            "onboarding_id": result.get("onboarding_id"),
+            "publication_receipt_path": result.get("publication_receipt_path"),
+            "changed_files": [str(item) for item in written_artifacts if str(item or "").strip()],
+            "verification_entries": [],
+            "related_quest_ids": [],
+            "related_sidequest_ids": [],
+            **session_mode_signal_fields(active_run),
+        },
+        truth_flags={
+            "canon_mutated": True,
+            "derived_state_changed": True,
+            "governed": False,
+            "uncertainty_present": False,
+        },
+        outputs={
+            "onboarding_id": result.get("onboarding_id"),
+            "publication_receipt_path": result.get("publication_receipt_path"),
+            "published_project_model_path": result.get("published_project_model_path"),
+            "published_project_story_path": result.get("published_project_story_path"),
+            "published_vision_path": result.get("published_vision_path"),
+            "proposal_paths": list(result.get("proposal_paths") or []),
+        },
+    )
+    payload = {
+        **result,
+        "subject": ctx,
+        "event": event_info["event"],
+        "reducer": event_info["reducer"],
+        "rehydrate": event_info["reducer"]["rehydrate"],
+        "continuity": event_info["reducer"]["continuity"],
+    }
+
+    def _emit_onboarding_confirm(rendered_payload: dict[str, Any]) -> None:
+        print("=== ONBOARDING CONFIRMED ===")
+        print(f"onboarding_id: {rendered_payload.get('onboarding_id')}")
+        print(f"published_project_model_path: {rendered_payload.get('published_project_model_path')}")
+        print(f"published_project_story_path: {rendered_payload.get('published_project_story_path')}")
+        print(f"published_vision_path: {rendered_payload.get('published_vision_path')}")
+
+    return _finalize_mutation_result(
+        payload=payload,
+        event_info=event_info,
+        json_mode=args.json,
+        text_emitter=_emit_onboarding_confirm,
+    )
+
+
+def cmd_onboarding_abandon(args: argparse.Namespace) -> int:
+    if not str(args.reason or "").strip():
+        print("FAIL: onboarding-abandon requires --reason.")
+        return 2
+    ctx = _resolve_or_attach_subject_from_args(args)
+    if not ctx:
+        return 2
+    try:
+        active_run, session_id = _require_onboarding_context(ctx=ctx, action_name="onboarding-abandon")
+        session = current_onboarding_session(subject=ctx["subject"], data_root=Path(ctx["data_root"]), require_current=True)
+        if not session:
+            raise RepoOnboardingError("No current onboarding session exists.")
+        result = onboarding_abandon(
+            subject=ctx["subject"],
+            data_root=Path(ctx["data_root"]),
+            session=session,
+            reason=args.reason,
+        )
+    except (LiveMemoryError, RepoOnboardingError, ProjectModelError) as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    event_info = _event_pipeline(
+        ctx=ctx,
+        action_name="onboarding-abandon",
+        summary=f"Abandoned onboarding session {result.get('onboarding_id')}.",
+        session_id=session_id,
+        signals={
+            "run_id": active_run.get("run_id"),
+            "onboarding_id": result.get("onboarding_id"),
+            "changed_files": [str(Path(ctx["data_root"]) / ".synapse" / "ONBOARDING" / "CURRENT.yaml")],
+            "verification_entries": [],
+            "related_quest_ids": [],
+            "related_sidequest_ids": [],
+            **session_mode_signal_fields(active_run),
+        },
+        truth_flags={
+            "canon_mutated": False,
+            "derived_state_changed": True,
+            "governed": False,
+            "uncertainty_present": False,
+        },
+        outputs={
+            "onboarding_id": result.get("onboarding_id"),
+            "abandon_reason": result.get("abandon_reason"),
+        },
+    )
+    payload = {
+        **result,
+        "subject": ctx,
+        "event": event_info["event"],
+        "reducer": event_info["reducer"],
+        "rehydrate": event_info["reducer"]["rehydrate"],
+        "continuity": event_info["reducer"]["continuity"],
+    }
+
+    def _emit_onboarding_abandon(rendered_payload: dict[str, Any]) -> None:
+        print("=== ONBOARDING ABANDONED ===")
+        print(f"onboarding_id: {rendered_payload.get('onboarding_id')}")
+        print(f"reason: {rendered_payload.get('abandon_reason')}")
+
+    return _finalize_mutation_result(
+        payload=payload,
+        event_info=event_info,
+        json_mode=args.json,
+        text_emitter=_emit_onboarding_abandon,
     )
 
 
@@ -4140,6 +4865,18 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_session_tick(args)
     if args.command == "capture-chunk":
         return cmd_capture_chunk(args)
+    if args.command == "onboard-repo":
+        return cmd_onboard_repo(args)
+    if args.command == "onboarding-status":
+        return cmd_onboarding_status(args)
+    if args.command == "onboarding-update":
+        return cmd_onboarding_update(args)
+    if args.command == "onboarding-respond":
+        return cmd_onboarding_respond(args)
+    if args.command == "onboarding-confirm":
+        return cmd_onboarding_confirm(args)
+    if args.command == "onboarding-abandon":
+        return cmd_onboarding_abandon(args)
     if args.command == "run-finalize":
         return cmd_run_finalize(args)
     if args.command == "log-decision":

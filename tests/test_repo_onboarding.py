@@ -5,6 +5,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -29,6 +30,23 @@ from synapse_runtime.repo_onboarding import (
     transition_onboarding_state,
 )
 from synapse_runtime.sidecar_store import ensure_live_scaffold
+
+SYNAPSE = [sys.executable, str(REPO_ROOT / "runtime" / "synapse.py")]
+
+
+def run_synapse(
+    args: list[str],
+    *,
+    cwd: Path,
+    home: Path,
+    extra_env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    env = os.environ.copy()
+    env["HOME"] = str(home)
+    env.setdefault("SYNAPSE_ROOT", str(REPO_ROOT))
+    if extra_env:
+        env.update(extra_env)
+    return subprocess.run(SYNAPSE + args, cwd=cwd, env=env, capture_output=True, text=True)
 
 
 class RepoOnboardingSchemaTests(unittest.TestCase):
@@ -331,6 +349,215 @@ class RepoOnboardingSchemaTests(unittest.TestCase):
         save_onboarding_pointer(data_root=self.data_root, pointer=pointer)
         projection = onboarding_projection(subject="Subject", data_root=self.data_root)
         self.assertEqual(projection["latest_confirmed_onboarding_id"], "ONBOARDING-1")
+
+
+class RepoOnboardingCommandTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.home = self.root / "home"
+        self.repo = self.root / "project-onboard"
+        self.home.mkdir(parents=True, exist_ok=True)
+        self.repo.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["git", "init"], cwd=self.repo, check=True, capture_output=True, text=True)
+        subprocess.run(["git", "config", "user.email", "tests@example.com"], cwd=self.repo, check=True, capture_output=True, text=True)
+        subprocess.run(["git", "config", "user.name", "Synapse Tests"], cwd=self.repo, check=True, capture_output=True, text=True)
+        (self.repo / "README.md").write_text("# Project Onboard\n", encoding="utf-8")
+        (self.repo / "pyproject.toml").write_text("[project]\nname='project-onboard'\n", encoding="utf-8")
+        (self.repo / "src").mkdir(parents=True, exist_ok=True)
+        (self.repo / "src" / "app.py").write_text("print('hello')\n", encoding="utf-8")
+        (self.repo / "docs").mkdir(parents=True, exist_ok=True)
+        (self.repo / "docs" / "ARCH.md").write_text("# Architecture\n", encoding="utf-8")
+        self.extra_env = {"SYNAPSE_SESSION_ID": "sess-onboard"}
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def _data_root(self) -> Path:
+        return (self.repo.parent / f"{self.repo.name}_Data").resolve()
+
+    def _onboarding_dir(self) -> Path:
+        return self._data_root() / ".synapse" / "ONBOARDING"
+
+    def _current_pointer(self) -> dict[str, Any]:
+        return yaml.safe_load((self._onboarding_dir() / "CURRENT.yaml").read_text(encoding="utf-8"))
+
+    def _session_payload(self, onboarding_id: str) -> dict[str, Any]:
+        path = self._onboarding_dir() / "SESSIONS" / f"ONBOARDING__{onboarding_id}.yaml"
+        return yaml.safe_load(path.read_text(encoding="utf-8"))
+
+    def _start_onboarding(self, *, extra_args: list[str] | None = None) -> dict[str, Any]:
+        result = run_synapse(
+            ["onboard-repo", "--json", *(extra_args or [])],
+            cwd=self.repo,
+            home=self.home,
+            extra_env=self.extra_env,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        return json.loads(result.stdout)
+
+    def test_onboard_repo_creates_session_and_scan_then_resume_and_rescan_behave_deterministically(self) -> None:
+        first = self._start_onboarding()
+        self.assertTrue(Path(first["scan_artifact_path"]).exists())
+        self.assertTrue(Path(first["analysis_brief_path"]).exists())
+        pointer = self._current_pointer()
+        self.assertEqual(pointer["current_onboarding_id"], first["onboarding_id"])
+
+        resumed = self._start_onboarding()
+        self.assertTrue(resumed["resumed_existing"])
+        self.assertEqual(resumed["onboarding_id"], first["onboarding_id"])
+
+        rescanned = self._start_onboarding(extra_args=["--rescan"])
+        self.assertEqual(rescanned["onboarding_id"], first["onboarding_id"])
+        self.assertNotEqual(rescanned["scan_id"], first["scan_id"])
+        session = self._session_payload(first["onboarding_id"])
+        self.assertEqual(session["state"], "needs_draft_submission")
+        self.assertEqual(len(session["scan_ids"]), 2)
+
+    def test_onboarding_update_and_respond_preserve_revision_loop(self) -> None:
+        first = self._start_onboarding()
+        draft = {
+            "onboarding_id": first["onboarding_id"],
+            "revision_id": "REVISION-1",
+            "supersedes_revision_id": None,
+            "created_at": "2026-03-20T10:00:00-04:00",
+            "based_on_scan_ids": [first["scan_id"]],
+            "based_on_capture_batch_ids": [],
+            "summary_hypothesis": "Project onboard",
+            "purpose_hypothesis": "Exercise onboarding.",
+            "vision_hypothesis": "Track repo story.",
+            "maturity_hypothesis": "Prototype.",
+            "user_or_stakeholder_hypotheses": [],
+            "capability_hypotheses": [
+                {
+                    "id": "CAP-1",
+                    "summary": "CLI can onboard an existing repo.",
+                    "status": "partial",
+                    "confidence": "high",
+                    "evidence_refs": ["scan:%s:entrypoint_inventory:cap1" % first["scan_id"]],
+                    "answer_refs": [],
+                }
+            ],
+            "component_hypotheses": [
+                {
+                    "id": "COMP-1",
+                    "summary": "Onboarding state lives in .synapse/ONBOARDING.",
+                    "status": "implemented",
+                    "confidence": "medium",
+                    "evidence_refs": ["scan:%s:tree_inventory:comp1" % first["scan_id"]],
+                    "answer_refs": [],
+                }
+            ],
+            "interface_hypotheses": [
+                {
+                    "id": "INT-1",
+                    "summary": "onboard-repo is the entry surface.",
+                    "status": "implemented",
+                    "confidence": "high",
+                    "evidence_refs": ["scan:%s:entrypoint_inventory:int1" % first["scan_id"]],
+                    "answer_refs": [],
+                }
+            ],
+            "constraint_hypotheses": [],
+            "non_goal_hypotheses": [],
+            "dependency_hypotheses": [
+                {
+                    "id": "DEP-1",
+                    "summary": "PyYAML persists artifacts.",
+                    "status": "implemented",
+                    "confidence": "medium",
+                    "evidence_refs": ["scan:%s:manifest_inventory:dep1" % first["scan_id"]],
+                    "answer_refs": [],
+                }
+            ],
+            "history_and_supersession_hypotheses": [
+                {
+                    "id": "HIST-1",
+                    "summary": "Repo story is published only after confirmation.",
+                    "status": "implemented",
+                    "confidence": "medium",
+                    "evidence_refs": ["scan:%s:existing_continuity_inventory:hist1" % first["scan_id"]],
+                    "answer_refs": [],
+                }
+            ],
+            "contradictions": [],
+            "open_unknowns": [],
+            "next_question_ids": ["Q-1"],
+        }
+        questions = {
+            "onboarding_id": first["onboarding_id"],
+            "question_set_id": "QUESTION_SET-1",
+            "draft_revision_id": "REVISION-1",
+            "generated_at": "2026-03-20T10:00:00-04:00",
+            "questions": [
+                {
+                    "question_id": "Q-1",
+                    "prompt": "What workflow matters most?",
+                    "category": "purpose",
+                    "priority": "blocking",
+                    "why_asked": "Need explicit operator framing.",
+                    "evidence_refs": ["scan:%s:docs_inventory:q1" % first["scan_id"]],
+                    "target_item_ids": ["CAP-1"],
+                    "status": "open",
+                    "answer_capture_batch_ids": [],
+                }
+            ],
+        }
+        update = run_synapse(
+            [
+                "onboarding-update",
+                "--draft-json",
+                json.dumps(draft),
+                "--questions-json",
+                json.dumps(questions),
+                "--json",
+            ],
+            cwd=self.repo,
+            home=self.home,
+            extra_env=self.extra_env,
+        )
+        self.assertEqual(update.returncode, 0, update.stdout + update.stderr)
+        update_payload = json.loads(update.stdout)
+        self.assertEqual(update_payload["onboarding_state"], "awaiting_user_clarification")
+
+        respond = run_synapse(
+            [
+                "onboarding-respond",
+                "--text",
+                "Most of that is right, but this is also for agent continuity.",
+                "--captures-json",
+                json.dumps({"captures": [{"kind": "repo_fact", "summary": "Also used for agent continuity"}]}),
+                "--question-ids-json",
+                json.dumps(["Q-1"]),
+                "--json",
+            ],
+            cwd=self.repo,
+            home=self.home,
+            extra_env=self.extra_env,
+        )
+        self.assertEqual(respond.returncode, 0, respond.stdout + respond.stderr)
+        respond_payload = json.loads(respond.stdout)
+        self.assertEqual(respond_payload["onboarding_state"], "needs_draft_revision")
+        self.assertTrue(Path(respond_payload["capture_artifact_path"]).exists())
+        session = self._session_payload(first["onboarding_id"])
+        self.assertIn(respond_payload["capture_batch_id"], session["clarification_capture_batch_ids"])
+        self.assertIn(respond_payload["capture_batch_id"], session["unincorporated_capture_batch_ids"])
+
+    def test_onboarding_abandon_marks_current_session_without_deleting_artifacts(self) -> None:
+        first = self._start_onboarding()
+        session_path = self._onboarding_dir() / "SESSIONS" / f"ONBOARDING__{first['onboarding_id']}.yaml"
+        result = run_synapse(
+            ["onboarding-abandon", "--reason", "Operator reset", "--json"],
+            cwd=self.repo,
+            home=self.home,
+            extra_env=self.extra_env,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["state"], "abandoned")
+        self.assertTrue(session_path.exists())
+        pointer = self._current_pointer()
+        self.assertIsNone(pointer["current_onboarding_id"])
 
 
 if __name__ == "__main__":
