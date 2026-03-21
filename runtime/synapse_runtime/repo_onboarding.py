@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 from pathlib import Path
 from typing import Any
@@ -127,6 +128,21 @@ def canonical_project_story_path(data_root: Path) -> Path:
 
 def canonical_vision_path(data_root: Path) -> Path:
     return live_root(data_root) / "VISION.md"
+
+
+def _write_publication_receipt(path: Path, payload: dict[str, Any]) -> None:
+    path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+
+
+def _atomic_publish_copy(source: Path, destination: Path) -> None:
+    suffix = _now_iso().replace(":", "").replace("-", "").replace("+", "Z").replace(".", "")
+    temp_path = destination.with_name(f".{destination.name}.{os.getpid()}.{suffix}.tmp")
+    try:
+        shutil.copyfile(source, temp_path)
+        os.replace(temp_path, destination)
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
 
 
 def generate_onboarding_id() -> str:
@@ -640,13 +656,6 @@ def onboarding_confirm(
     archive_model.write_text(yaml.safe_dump(published_model, sort_keys=False), encoding="utf-8")
     archive_story.write_text(project_story, encoding="utf-8")
     archive_vision.write_text(vision_text, encoding="utf-8")
-    proposal_paths = seed_onboarding_proposals(
-        subject=subject,
-        data_root=data_root,
-        active_run=active_run,
-        published_model=published_model,
-        question_set=question_set,
-    )
     receipt = {
         "onboarding_id": onboarding_id,
         "confirmed_at": confirmed_at,
@@ -656,12 +665,21 @@ def onboarding_confirm(
         "published_project_model_path": str(archive_model.resolve()),
         "published_project_story_path": str(archive_story.resolve()),
         "published_vision_path": str(archive_vision.resolve()),
-        "proposal_paths": proposal_paths,
+        "proposal_paths": [],
     }
-    archive_receipt.write_text(yaml.safe_dump(receipt, sort_keys=False), encoding="utf-8")
-    shutil.copyfile(archive_model, canonical_project_model_path(data_root))
-    shutil.copyfile(archive_story, canonical_project_story_path(data_root))
-    shutil.copyfile(archive_vision, canonical_vision_path(data_root))
+    _write_publication_receipt(archive_receipt, receipt)
+    _atomic_publish_copy(archive_model, canonical_project_model_path(data_root))
+    _atomic_publish_copy(archive_story, canonical_project_story_path(data_root))
+    _atomic_publish_copy(archive_vision, canonical_vision_path(data_root))
+    proposal_paths = seed_onboarding_proposals(
+        subject=subject,
+        data_root=data_root,
+        active_run=active_run,
+        published_model=published_model,
+        question_set=question_set,
+    )
+    receipt["proposal_paths"] = proposal_paths
+    _write_publication_receipt(archive_receipt, receipt)
 
     session = dict(session)
     session["state"] = "confirmed"

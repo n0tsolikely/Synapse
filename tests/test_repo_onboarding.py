@@ -24,6 +24,7 @@ from synapse_runtime.repo_onboarding import (
     current_onboarding_session,
     default_onboarding_session,
     default_onboarding_pointer,
+    onboarding_confirm,
     onboarding_projection,
     onboarding_session_path,
     reconstruct_onboarding_pointer,
@@ -1226,6 +1227,63 @@ class RepoOnboardingCommandTests(unittest.TestCase):
         text = (live / "REHYDRATE.md").read_text(encoding="utf-8")
         self.assertIn("## Onboarding status", text)
         self.assertIn("## Published project model", text)
+
+    def test_onboarding_confirm_writes_receipt_then_atomically_replaces_canonical_outputs_before_seeding_proposals(self) -> None:
+        first = self._start_onboarding()
+        draft = self._confirmation_ready_draft(first["onboarding_id"], first["scan_id"])
+        questions = self._question_set(first["onboarding_id"], first["scan_id"], include_question=False)
+        update = run_synapse(
+            [
+                "onboarding-update",
+                "--draft-json",
+                json.dumps(draft),
+                "--questions-json",
+                json.dumps(questions),
+                "--json",
+            ],
+            cwd=self.repo,
+            home=self.home,
+            extra_env=self.extra_env,
+        )
+        self.assertEqual(update.returncode, 0, update.stdout + update.stderr)
+
+        session = self._session_payload(first["onboarding_id"])
+        active_run = yaml.safe_load((self._data_root() / ".synapse" / "ACTIVE_RUN.yaml").read_text(encoding="utf-8"))
+        events: list[str] = []
+        real_replace = os.replace
+
+        def record_receipt(path: Path, payload: dict[str, Any]) -> None:
+            events.append("receipt")
+            path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+
+        def record_replace(src: Path, dest: Path) -> None:
+            events.append(f"replace:{Path(dest).name}")
+            real_replace(src, dest)
+
+        def record_seed(**_: Any) -> list[str]:
+            events.append("seed")
+            return []
+
+        with mock.patch("synapse_runtime.repo_onboarding._write_publication_receipt", side_effect=record_receipt), mock.patch(
+            "synapse_runtime.repo_onboarding.os.replace",
+            side_effect=record_replace,
+        ), mock.patch("synapse_runtime.repo_onboarding.seed_onboarding_proposals", side_effect=record_seed):
+            payload = onboarding_confirm(
+                subject="PROJECT-ONBOARD",
+                data_root=self._data_root(),
+                session=session,
+                active_run=active_run,
+            )
+
+        self.assertEqual(payload["proposal_paths"], [])
+        self.assertGreaterEqual(events.count("receipt"), 2)
+        self.assertEqual(events[0], "receipt")
+        replace_events = [item for item in events if item.startswith("replace:")]
+        self.assertEqual(
+            replace_events,
+            ["replace:PROJECT_MODEL.yaml", "replace:PROJECT_STORY.md", "replace:VISION.md"],
+        )
+        self.assertGreater(events.index("seed"), events.index("replace:VISION.md"))
 
     def test_restart_after_confirmation_preserves_prior_archived_publication_and_current_canonical_until_replacement(self) -> None:
         self.test_onboarding_confirm_publishes_archived_and_canonical_artifacts_and_projects_state()
