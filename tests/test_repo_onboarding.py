@@ -319,6 +319,28 @@ class RepoOnboardingSchemaTests(unittest.TestCase):
         self.assertEqual(delta["changed_item_ids"], ["CAP-1"])
         self.assertEqual(delta["new_item_ids"], [])
 
+    def test_revision_delta_treats_full_snapshot_omission_as_removed(self) -> None:
+        prior = validate_draft_revision(
+            self._base_draft(),
+            onboarding_id="ONBOARDING-1",
+            current_scan_id="SCAN-1",
+            unincorporated_capture_batch_ids=[],
+        )
+        updated = self._base_draft()
+        updated["revision_id"] = "REVISION-2"
+        updated["supersedes_revision_id"] = "REVISION-1"
+        updated["interface_hypotheses"] = []
+        current = validate_draft_revision(
+            updated,
+            onboarding_id="ONBOARDING-1",
+            current_scan_id="SCAN-1",
+            unincorporated_capture_batch_ids=[],
+            prior_draft=prior,
+        )
+        delta = compute_revision_delta(current, prior, reason_summary="Dropped stale interface hypothesis")
+        self.assertEqual(delta["removed_item_ids"], ["INT-1"])
+        self.assertEqual(delta["new_item_ids"], [])
+
     def test_quick_and_deep_archaeology_write_bounded_artifacts_with_stable_ids(self) -> None:
         quick = run_repo_archaeology(
             onboarding_id="ONBOARDING-1",
@@ -650,6 +672,31 @@ class RepoOnboardingCommandTests(unittest.TestCase):
         self.assertEqual(blocked.returncode, 2, blocked.stdout + blocked.stderr)
         self.assertIn("without --restart", blocked.stdout + blocked.stderr)
 
+    def test_onboard_repo_returns_already_completed_and_status_targets_latest_confirmed(self) -> None:
+        self.test_onboarding_confirm_publishes_archived_and_canonical_artifacts_and_projects_state()
+        completed = run_synapse(
+            ["onboard-repo", "--json"],
+            cwd=self.repo,
+            home=self.home,
+            extra_env=self.extra_env,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        completed_payload = json.loads(completed.stdout)
+        self.assertTrue(completed_payload["already_completed"])
+        self.assertFalse(completed_payload["resumed_existing"])
+
+        status = run_synapse(
+            ["onboarding-status", "--json"],
+            cwd=self.repo,
+            home=self.home,
+            extra_env=self.extra_env,
+        )
+        self.assertEqual(status.returncode, 0, status.stdout + status.stderr)
+        status_payload = json.loads(status.stdout)
+        self.assertEqual(status_payload["onboarding_id"], completed_payload["onboarding_id"])
+        self.assertEqual(status_payload["latest_confirmed_onboarding_id"], completed_payload["onboarding_id"])
+        self.assertEqual(status_payload["state"], "confirmed")
+
     def test_onboarding_update_and_respond_preserve_revision_loop(self) -> None:
         first = self._start_onboarding()
         draft = {
@@ -774,6 +821,7 @@ class RepoOnboardingCommandTests(unittest.TestCase):
         self.assertEqual(respond.returncode, 0, respond.stdout + respond.stderr)
         respond_payload = json.loads(respond.stdout)
         self.assertEqual(respond_payload["onboarding_state"], "needs_draft_revision")
+        self.assertEqual(respond_payload["linked_question_ids"], ["Q-1"])
         self.assertTrue(Path(respond_payload["capture_artifact_path"]).exists())
         session = self._session_payload(first["onboarding_id"])
         self.assertIn(respond_payload["capture_batch_id"], session["clarification_capture_batch_ids"])
@@ -830,6 +878,96 @@ class RepoOnboardingCommandTests(unittest.TestCase):
         revised_payload = json.loads(revised.stdout)
         self.assertEqual(revised_payload["onboarding_state"], "awaiting_confirmation")
         self.assertEqual(revised_payload["revision_delta_id"], "REVISION-2")
+        session = self._session_payload(first["onboarding_id"])
+        self.assertEqual(session["unincorporated_capture_batch_ids"], [])
+
+    def test_onboarding_response_batch_remains_unincorporated_until_revision_consumes_it(self) -> None:
+        first = self._start_onboarding()
+        draft = self._confirmation_ready_draft(first["onboarding_id"], first["scan_id"])
+        draft["next_question_ids"] = ["Q-1"]
+        questions = self._question_set(first["onboarding_id"], first["scan_id"])
+        update = run_synapse(
+            [
+                "onboarding-update",
+                "--draft-json",
+                json.dumps(draft),
+                "--questions-json",
+                json.dumps(questions),
+                "--json",
+            ],
+            cwd=self.repo,
+            home=self.home,
+            extra_env=self.extra_env,
+        )
+        self.assertEqual(update.returncode, 0, update.stdout + update.stderr)
+
+        response = run_synapse(
+            [
+                "onboarding-respond",
+                "--text",
+                "Clarification to incorporate before publish.",
+                "--captures-json",
+                json.dumps({"captures": [{"kind": "repo_fact", "summary": "Clarification to incorporate"}]}),
+                "--question-ids-json",
+                json.dumps(["Q-1"]),
+                "--json",
+            ],
+            cwd=self.repo,
+            home=self.home,
+            extra_env=self.extra_env,
+        )
+        self.assertEqual(response.returncode, 0, response.stdout + response.stderr)
+        response_payload = json.loads(response.stdout)
+
+        session = self._session_payload(first["onboarding_id"])
+        self.assertEqual(session["unincorporated_capture_batch_ids"], [response_payload["capture_batch_id"]])
+        self.assertEqual(session["clarification_capture_batch_ids"], [response_payload["capture_batch_id"]])
+
+        revised_draft = {
+            **draft,
+            "revision_id": "REVISION-2",
+            "supersedes_revision_id": "REVISION-1",
+            "based_on_capture_batch_ids": [response_payload["capture_batch_id"]],
+            "capability_hypotheses": [
+                {
+                    "id": "CAP-2",
+                    "summary": "CLI onboards repos with clarification-aware revision support.",
+                    "status": "partial",
+                    "confidence": "high",
+                    "evidence_refs": ["scan:%s:entrypoint_inventory:cap1" % first["scan_id"]],
+                    "answer_refs": [f"capture:{response_payload['capture_batch_id']}:CAPTURE-001"],
+                    "supersedes": "CAP-1",
+                }
+            ],
+            "next_question_ids": [],
+        }
+        revised_questions = {
+            **questions,
+            "question_set_id": "QUESTION_SET-2",
+            "draft_revision_id": "REVISION-2",
+            "questions": [
+                {
+                    **questions["questions"][0],
+                    "target_item_ids": ["CAP-2"],
+                    "status": "answered",
+                    "answer_capture_batch_ids": [response_payload["capture_batch_id"]],
+                }
+            ],
+        }
+        revised = run_synapse(
+            [
+                "onboarding-update",
+                "--draft-json",
+                json.dumps(revised_draft),
+                "--questions-json",
+                json.dumps(revised_questions),
+                "--json",
+            ],
+            cwd=self.repo,
+            home=self.home,
+            extra_env=self.extra_env,
+        )
+        self.assertEqual(revised.returncode, 0, revised.stdout + revised.stderr)
         session = self._session_payload(first["onboarding_id"])
         self.assertEqual(session["unincorporated_capture_batch_ids"], [])
 
