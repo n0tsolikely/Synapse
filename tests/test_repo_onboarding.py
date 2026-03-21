@@ -558,6 +558,50 @@ class RepoOnboardingCommandTests(unittest.TestCase):
         self.assertEqual(session["state"], "needs_draft_submission")
         self.assertEqual(len(session["scan_ids"]), 2)
 
+    def test_rehydrate_marks_draft_stale_after_rescan_even_without_new_clarifications(self) -> None:
+        first = self._start_onboarding()
+        draft = self._confirmation_ready_draft(first["onboarding_id"], first["scan_id"])
+        questions = self._question_set(first["onboarding_id"], first["scan_id"], include_question=False)
+        update = run_synapse(
+            [
+                "onboarding-update",
+                "--draft-json",
+                json.dumps(draft),
+                "--questions-json",
+                json.dumps(questions),
+                "--json",
+            ],
+            cwd=self.repo,
+            home=self.home,
+            extra_env=self.extra_env,
+        )
+        self.assertEqual(update.returncode, 0, update.stdout + update.stderr)
+
+        rescanned = self._start_onboarding(extra_args=["--rescan"])
+        self.assertNotEqual(rescanned["scan_id"], first["scan_id"])
+
+        status = run_synapse(
+            ["onboarding-status", "--json"],
+            cwd=self.repo,
+            home=self.home,
+            extra_env=self.extra_env,
+        )
+        self.assertEqual(status.returncode, 0, status.stdout + status.stderr)
+        status_payload = json.loads(status.stdout)
+        self.assertTrue(status_payload["draft_is_stale"])
+
+        rehydrate = run_synapse(
+            ["render-rehydrate", "--json"],
+            cwd=self.repo,
+            home=self.home,
+            extra_env=self.extra_env,
+        )
+        self.assertEqual(rehydrate.returncode, 0, rehydrate.stdout + rehydrate.stderr)
+        manifold = yaml.safe_load((self._data_root() / ".synapse" / "MANIFOLD.yaml").read_text(encoding="utf-8"))
+        self.assertTrue(manifold["draft_is_stale"])
+        text = (self._data_root() / ".synapse" / "REHYDRATE.md").read_text(encoding="utf-8")
+        self.assertIn("- Draft stale: YES", text)
+
     def test_deep_onboarding_scan_records_git_summary_when_repo_metadata_exists(self) -> None:
         subprocess.run(["git", "add", "."], cwd=self.repo, check=True, capture_output=True, text=True)
         subprocess.run(["git", "commit", "-m", "seed"], cwd=self.repo, check=True, capture_output=True, text=True)

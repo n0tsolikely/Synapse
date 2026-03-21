@@ -229,6 +229,7 @@ def _apply_onboarding_projection(
     manifold["onboarding_state"] = projection.get("onboarding_state")
     manifold["current_scan_id"] = projection.get("current_scan_id")
     manifold["current_draft_id"] = projection.get("current_draft_id")
+    manifold["draft_is_stale"] = bool(projection.get("draft_is_stale"))
     manifold["current_question_set_id"] = projection.get("current_question_set_id")
     manifold["unincorporated_capture_batch_ids"] = list(projection.get("unincorporated_capture_batch_ids") or [])
     manifold["published_project_model_path"] = projection.get("published_project_model_path")

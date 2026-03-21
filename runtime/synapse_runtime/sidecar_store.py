@@ -152,6 +152,7 @@ def _default_manifold(subject: str) -> dict[str, Any]:
         "onboarding_state": None,
         "current_scan_id": None,
         "current_draft_id": None,
+        "draft_is_stale": False,
         "current_question_set_id": None,
         "unincorporated_capture_batch_ids": [],
         "published_project_model_path": None,

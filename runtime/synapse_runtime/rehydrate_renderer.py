@@ -147,7 +147,7 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
     if onboarding_state:
         lines.append(f"- Active onboarding id: {state.get('active_onboarding_id')}")
         lines.append(f"- State: {onboarding_state}")
-        lines.append(f"- Draft stale: {'YES' if manifold.get('current_draft_id') and manifold.get('unincorporated_capture_batch_ids') else 'NO'}")
+        lines.append(f"- Draft stale: {'YES' if manifold.get('draft_is_stale') else 'NO'}")
         if manifold.get("unincorporated_capture_batch_ids"):
             lines.append(
                 "- Unincorporated clarification batches: "
