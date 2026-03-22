@@ -55,3 +55,6 @@ runtime/artifacts/
 secrets/
 credentials/
 *.secrets.*
+
+# Local private planning workspace
+/workspace/
