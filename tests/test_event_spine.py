@@ -459,7 +459,7 @@ class EventSpineTests(unittest.TestCase):
     def test_all_event_pipeline_call_sites_route_through_shared_result_handler(self) -> None:
         source = (REPO_ROOT / "runtime" / "synapse.py").read_text(encoding="utf-8")
         self.assertEqual(source.count("event_info = _event_pipeline("), 19)
-        for fn_name in (
+        inline_event_commands = (
             "cmd_attach_or_init",
             "cmd_live_bootstrap",
             "cmd_run_start",
@@ -476,15 +476,31 @@ class EventSpineTests(unittest.TestCase):
             "cmd_session_mode",
             "cmd_log_decision",
             "cmd_log_disclosure",
-            "cmd_accept_quest",
-            "cmd_formalize",
-        ):
+        )
+        helper_event_commands = {
+            "cmd_accept_quest": "_accept_quest_mutation(",
+            "cmd_formalize": "_formalize_candidate_mutation(",
+        }
+        for fn_name in inline_event_commands:
             marker = f"def {fn_name}("
             start = source.index(marker)
             end = source.find("\ndef ", start + 1)
             block = source[start:end if end != -1 else None]
             self.assertIn("_event_pipeline(", block, fn_name)
             self.assertIn("_finalize_mutation_result(", block, fn_name)
+        for fn_name, helper_call in helper_event_commands.items():
+            marker = f"def {fn_name}("
+            start = source.index(marker)
+            end = source.find("\ndef ", start + 1)
+            block = source[start:end if end != -1 else None]
+            self.assertIn(helper_call, block, fn_name)
+            self.assertIn("_finalize_mutation_result(", block, fn_name)
+        for helper_name in ("_accept_quest_mutation", "_formalize_candidate_mutation"):
+            marker = f"def {helper_name}("
+            start = source.index(marker)
+            end = source.find("\ndef ", start + 1)
+            block = source[start:end if end != -1 else None]
+            self.assertIn("_event_pipeline(", block, helper_name)
 
 
 if __name__ == "__main__":
