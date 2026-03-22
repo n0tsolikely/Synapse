@@ -221,8 +221,16 @@ def ensure_onboarding_scaffold(subject: str, data_root: Path) -> None:
     ensure_live_scaffold(subject, data_root)
 
 
-def load_onboarding_pointer(*, subject: str, data_root: Path, rebuild: bool = True) -> dict[str, Any]:
-    ensure_onboarding_scaffold(subject, data_root)
+def load_onboarding_pointer(
+    *,
+    subject: str,
+    data_root: Path,
+    rebuild: bool = True,
+    persist: bool = True,
+    ensure_scaffold: bool = True,
+) -> dict[str, Any]:
+    if ensure_scaffold:
+        ensure_onboarding_scaffold(subject, data_root)
     path = onboarding_current_path(data_root)
     payload = _read_yaml(path)
     if isinstance(payload, dict):
@@ -232,15 +240,18 @@ def load_onboarding_pointer(*, subject: str, data_root: Path, rebuild: bool = Tr
         payload.setdefault("updated_at", _now_iso())
         if rebuild and _pointer_is_stale(payload, data_root):
             rebuilt = reconstruct_onboarding_pointer(subject=subject, data_root=data_root)
-            save_onboarding_pointer(data_root=data_root, pointer=rebuilt)
+            if persist:
+                save_onboarding_pointer(data_root=data_root, pointer=rebuilt)
             return rebuilt
         return payload
     if rebuild:
         rebuilt = reconstruct_onboarding_pointer(subject=subject, data_root=data_root)
-        save_onboarding_pointer(data_root=data_root, pointer=rebuilt)
+        if persist:
+            save_onboarding_pointer(data_root=data_root, pointer=rebuilt)
         return rebuilt
     pointer = default_onboarding_pointer(subject)
-    save_onboarding_pointer(data_root=data_root, pointer=pointer)
+    if persist:
+        save_onboarding_pointer(data_root=data_root, pointer=pointer)
     return pointer
 
 
@@ -305,8 +316,22 @@ def transition_onboarding_state(session: dict[str, Any], target_state: str) -> d
     return updated
 
 
-def current_onboarding_session(*, subject: str, data_root: Path, require_current: bool = True) -> dict[str, Any] | None:
-    pointer = load_onboarding_pointer(subject=subject, data_root=data_root, rebuild=True)
+def current_onboarding_session(
+    *,
+    subject: str,
+    data_root: Path,
+    require_current: bool = True,
+    rebuild: bool = True,
+    persist_pointer: bool = True,
+    ensure_scaffold: bool = True,
+) -> dict[str, Any] | None:
+    pointer = load_onboarding_pointer(
+        subject=subject,
+        data_root=data_root,
+        rebuild=rebuild,
+        persist=persist_pointer,
+        ensure_scaffold=ensure_scaffold,
+    )
     current_id = str(pointer.get("current_onboarding_id") or "").strip()
     if current_id:
         session = load_onboarding_session(onboarding_session_path(data_root, current_id))
@@ -319,9 +344,29 @@ def current_onboarding_session(*, subject: str, data_root: Path, require_current
     return None
 
 
-def onboarding_status_payload(*, subject: str, data_root: Path) -> dict[str, Any]:
-    pointer = load_onboarding_pointer(subject=subject, data_root=data_root, rebuild=True)
-    session = current_onboarding_session(subject=subject, data_root=data_root, require_current=False)
+def onboarding_status_payload(
+    *,
+    subject: str,
+    data_root: Path,
+    rebuild: bool = True,
+    persist_pointer: bool = True,
+    ensure_scaffold: bool = True,
+) -> dict[str, Any]:
+    pointer = load_onboarding_pointer(
+        subject=subject,
+        data_root=data_root,
+        rebuild=rebuild,
+        persist=persist_pointer,
+        ensure_scaffold=ensure_scaffold,
+    )
+    session = current_onboarding_session(
+        subject=subject,
+        data_root=data_root,
+        require_current=False,
+        rebuild=rebuild,
+        persist_pointer=persist_pointer,
+        ensure_scaffold=ensure_scaffold,
+    )
     if not session:
         return {
             "onboarding_id": None,

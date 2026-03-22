@@ -2133,6 +2133,7 @@ def _set_active_run_session_mode(
             "reducer": _empty_reducer_receipt(),
             "rehydrate": None,
             "continuity": None,
+            "runtime_status": None,
         }
     allowed, next_modes = validate_transition(current_mode, target_mode)
     if not allowed:
@@ -2181,6 +2182,7 @@ def _set_active_run_session_mode(
         "reducer": event_info["reducer"],
         "rehydrate": event_info["reducer"]["rehydrate"],
         "continuity": event_info["reducer"]["continuity"],
+        "runtime_status": event_info.get("runtime_status"),
     }
 
 
@@ -2189,10 +2191,17 @@ def _require_onboarding_context(
     ctx: dict[str, Any],
     action_name: str,
     allow_create_onboard_run: bool = False,
+    allow_replace_onboard_run: bool = False,
 ) -> tuple[dict[str, Any], str]:
     active_run = _load_active_run_with_session_repair(ctx)
     effective_session_id = _effective_session_id(ctx, active_run=active_run)
-    if allow_create_onboard_run and not active_run.get("run_id"):
+    if allow_create_onboard_run and (
+        not active_run.get("run_id")
+        or (
+            allow_replace_onboard_run
+            and str(active_run.get("session_mode") or "").strip() != SessionMode.ONBOARDING_EXISTING_REPO.value
+        )
+    ):
         if not effective_session_id:
             raise LiveMemoryError(f"{action_name} requires a current session id to create an onboarding run.")
         run_receipt = run_start(
@@ -3000,32 +3009,11 @@ def cmd_onboard_repo(args: argparse.Namespace) -> int:
         return 2
 
     try:
-        active_run = _load_active_run_with_session_repair(ctx)
-        if active_run.get("run_id") and str(active_run.get("session_mode") or "").strip() != SessionMode.ONBOARDING_EXISTING_REPO.value:
-            if not args.allow_switch:
-                message = (
-                    "onboard-repo requires posture onboarding_existing_repo. "
-                    "Use `python3 runtime/synapse.py session-mode --set onboarding_existing_repo --reason <text>` "
-                    "or rerun onboard-repo with --allow-switch."
-                )
-                if args.json:
-                    print(json.dumps({"error": message, "active_run_id": active_run.get("run_id")}, indent=2, sort_keys=True))
-                else:
-                    print(f"FAIL: {message}")
-                return 2
-            _set_active_run_session_mode(
-                ctx=ctx,
-                active_run=active_run,
-                target_mode=SessionMode.ONBOARDING_EXISTING_REPO,
-                reason="Explicit posture switch requested by onboard-repo --allow-switch.",
-                source="onboard_repo_allow_switch",
-            )
-            active_run = _load_active_run_with_session_repair(ctx)
-
         active_run, session_id = _require_onboarding_context(
             ctx=ctx,
             action_name="onboard-repo",
             allow_create_onboard_run=True,
+            allow_replace_onboard_run=bool(args.allow_switch),
         )
         result = onboard_repo(
             subject=ctx["subject"],
@@ -3790,15 +3778,76 @@ def cmd_refresh_continuity(args: argparse.Namespace) -> int:
     return 0
 
 
+def _accept_quest_mutation(
+    ctx: dict[str, Any],
+    quest_ref: str,
+    *,
+    active_run: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    data_root = Path(ctx["data_root"])
+    engine_root = Path(ctx["engine_root"])
+    active_run = active_run or _active_session_policy(ctx)[0]
+    session_id = _effective_session_id(ctx, active_run=active_run)
+    acceptance = accept_quest(
+        subject=ctx["subject"],
+        data_root=data_root,
+        engine_root=engine_root,
+        quest_ref=quest_ref,
+    )
+    sidecar = record_quest_acceptance(
+        subject=ctx["subject"],
+        data_root=data_root,
+        quest_id=str(acceptance["quest_id"]),
+        quest_title=str(acceptance["quest_title"]),
+        accepted_path=Path(str(acceptance["accepted_path"])),
+        audit_bundle_path=Path(str(acceptance["audit_bundle_path"])),
+        control_sync_state_path=Path(str(acceptance["control_sync_state_path"])),
+    )
+    event_info = _event_pipeline(
+        ctx=ctx,
+        action_name="accept-quest",
+        summary=f"Accepted quest {acceptance.get('quest_id')} for governed execution.",
+        session_id=session_id,
+        signals={
+            "related_quest_ids": [acceptance.get("quest_id")],
+            "related_sidequest_ids": [],
+            "changed_files": [acceptance.get("accepted_path"), acceptance.get("audit_bundle_path")],
+            "verification_entries": [],
+            "accepted_context": _accepted_context_snapshot(data_root),
+            **session_mode_signal_fields(active_run),
+        },
+        truth_flags={
+            "canon_mutated": True,
+            "derived_state_changed": True,
+            "governed": True,
+            "governed_execution_changed": True,
+            "uncertainty_present": False,
+        },
+        outputs={
+            "accepted_path": acceptance.get("accepted_path"),
+            "audit_bundle_path": acceptance.get("audit_bundle_path"),
+            "quest_id": acceptance.get("quest_id"),
+            "accepted_quest_id": acceptance.get("quest_id"),
+            "written_artifacts": [acceptance.get("accepted_path"), acceptance.get("audit_bundle_path")],
+        },
+    )
+    return {
+        "subject": ctx,
+        "acceptance": acceptance,
+        "sidecar": sidecar,
+        "event": event_info["event"],
+        "reducer": event_info["reducer"],
+        "rehydrate": event_info["reducer"]["rehydrate"],
+        "continuity": event_info["reducer"]["continuity"],
+    }
+
+
 def cmd_accept_quest(args: argparse.Namespace) -> int:
     ctx = _resolve_or_attach_subject_from_args(args)
     if not ctx:
         return 2
 
-    data_root = Path(ctx["data_root"])
-    engine_root = Path(ctx["engine_root"])
     active_run, session_policy = _active_session_policy(ctx)
-    session_id = _effective_session_id(ctx, active_run=active_run)
     if session_policy is not None and not session_policy.quest_acceptance_allowed:
         return _fail_blocked_by_session_posture(
             action_name="accept-quest",
@@ -3806,58 +3855,8 @@ def cmd_accept_quest(args: argparse.Namespace) -> int:
             json_mode=args.json,
         )
     try:
-        acceptance = accept_quest(
-            subject=ctx["subject"],
-            data_root=data_root,
-            engine_root=engine_root,
-            quest_ref=args.quest,
-        )
-        sidecar = record_quest_acceptance(
-            subject=ctx["subject"],
-            data_root=data_root,
-            quest_id=str(acceptance["quest_id"]),
-            quest_title=str(acceptance["quest_title"]),
-            accepted_path=Path(str(acceptance["accepted_path"])),
-            audit_bundle_path=Path(str(acceptance["audit_bundle_path"])),
-            control_sync_state_path=Path(str(acceptance["control_sync_state_path"])),
-        )
-        payload = {
-            "subject": ctx,
-            "acceptance": acceptance,
-            "sidecar": sidecar,
-        }
-        event_info = _event_pipeline(
-            ctx=ctx,
-            action_name="accept-quest",
-            summary=f"Accepted quest {acceptance.get('quest_id')} for governed execution.",
-            session_id=session_id,
-            signals={
-                "related_quest_ids": [acceptance.get("quest_id")],
-                "related_sidequest_ids": [],
-                "changed_files": [acceptance.get("accepted_path"), acceptance.get("audit_bundle_path")],
-                "verification_entries": [],
-                "accepted_context": _accepted_context_snapshot(data_root),
-                **session_mode_signal_fields(active_run),
-            },
-            truth_flags={
-                "canon_mutated": True,
-                "derived_state_changed": True,
-                "governed": True,
-                "governed_execution_changed": True,
-                "uncertainty_present": False,
-            },
-            outputs={
-                "accepted_path": acceptance.get("accepted_path"),
-                "audit_bundle_path": acceptance.get("audit_bundle_path"),
-                "quest_id": acceptance.get("quest_id"),
-                "accepted_quest_id": acceptance.get("quest_id"),
-                "written_artifacts": [acceptance.get("accepted_path"), acceptance.get("audit_bundle_path")],
-            },
-        )
-        payload["event"] = event_info["event"]
-        payload["reducer"] = event_info["reducer"]
-        payload["rehydrate"] = event_info["reducer"]["rehydrate"]
-        payload["continuity"] = event_info["reducer"]["continuity"]
+        payload = _accept_quest_mutation(ctx, args.quest, active_run=active_run)
+        event_info = {"event": payload["event"], "reducer": payload["reducer"]}
     except (QuestAcceptanceError, LiveMemoryError) as exc:
         print(f"FAIL: {exc}")
         return 2
@@ -4503,6 +4502,96 @@ def _formalize_disclosure(ctx: dict[str, Any], proposal: dict[str, Any]) -> dict
     }
 
 
+def _formalize_candidate_dry_run(
+    ctx: dict[str, Any],
+    proposal_id: str,
+    *,
+    topic: str | None = None,
+) -> dict[str, Any]:
+    proposal = _proposal_by_id(Path(ctx["data_root"]), proposal_id)
+    kind = ProposalKind(str(proposal.get("kind")))
+    return {
+        "subject": ctx,
+        "proposal": proposal,
+        "would_formalize_as": kind.value,
+        "topic": topic,
+        "dry_run": True,
+    }
+
+
+def _formalize_candidate_mutation(
+    ctx: dict[str, Any],
+    proposal_id: str,
+    *,
+    topic: str | None = None,
+    active_run: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    data_root = Path(ctx["data_root"])
+    proposal = _proposal_by_id(data_root, proposal_id)
+    kind = ProposalKind(str(proposal.get("kind")))
+    active_run = active_run or _active_session_policy(ctx)[0]
+    session_id = _effective_session_id(ctx, active_run=active_run)
+
+    if kind == ProposalKind.SNAPSHOT:
+        result = _formalize_snapshot(ctx, proposal, control_sync=False)
+    elif kind == ProposalKind.CONTROL_SYNC:
+        result = _formalize_snapshot(ctx, proposal, control_sync=True)
+    elif kind == ProposalKind.QUEST:
+        result = _formalize_quest(ctx, proposal, prefix="QUEST")
+    elif kind == ProposalKind.SIDE_QUEST:
+        result = _formalize_quest(ctx, proposal, prefix="SIDE-QUEST")
+    elif kind == ProposalKind.CODEX:
+        result = _formalize_codex(ctx, proposal)
+    elif kind == ProposalKind.BUILD_MANUAL:
+        result = _formalize_build_manual(ctx, proposal)
+    elif kind == ProposalKind.TALENT:
+        result = _formalize_talent(ctx, proposal)
+    elif kind == ProposalKind.GUILD_ORDERS:
+        result = _formalize_guild_orders(ctx, proposal, topic=topic)
+    elif kind == ProposalKind.DISCLOSURE:
+        result = _formalize_disclosure(ctx, proposal)
+    else:
+        raise LiveMemoryError(f"Formalization is not implemented for proposal kind {kind.value}.")
+
+    event_info = _event_pipeline(
+        ctx=ctx,
+        action_name="formalize",
+        summary=f"Formalized proposal {proposal_id} as {kind.value}.",
+        session_id=session_id,
+        signals={
+            "proposal_id": proposal_id,
+            "proposal_kind": kind.value,
+            "related_quest_ids": [proposal.get("proposal_id")] if kind in {ProposalKind.QUEST, ProposalKind.SIDE_QUEST} else [],
+            "related_sidequest_ids": [],
+            "changed_files": [result.get("artifact_path")] if result.get("artifact_path") else [],
+            "verification_entries": [],
+            "accepted_context": _accepted_context_snapshot(data_root),
+            **session_mode_signal_fields(active_run),
+        },
+        truth_flags={
+            "canon_mutated": True,
+            "derived_state_changed": True,
+            "governed": False,
+            "uncertainty_present": False,
+        },
+        outputs={
+            "proposal_id": proposal_id,
+            "proposal_kind": kind.value,
+            "artifact_path": result.get("artifact_path"),
+        },
+    )
+    return {
+        "subject": ctx,
+        "result": result,
+        "proposal": proposal,
+        "proposal_kind": kind.value,
+        "event": event_info["event"],
+        "reducer": event_info["reducer"],
+        "rehydrate": event_info["reducer"]["rehydrate"],
+        "continuity": event_info["reducer"]["continuity"],
+    }
+
+
 def cmd_formalize(args: argparse.Namespace) -> int:
     ctx = _resolve_or_attach_subject_from_args(args)
     if not ctx:
@@ -4525,87 +4614,25 @@ def cmd_formalize(args: argparse.Namespace) -> int:
         return 0
 
     try:
-        proposal = _proposal_by_id(data_root, args.proposal_id)
-        kind = ProposalKind(str(proposal.get("kind")))
         if args.dry_run:
-            payload = {
-                "subject": ctx,
-                "proposal": proposal,
-                "would_formalize_as": kind.value,
-                "topic": args.topic,
-                "dry_run": True,
-            }
+            payload = _formalize_candidate_dry_run(ctx, args.proposal_id, topic=args.topic)
             if args.json:
                 print(json.dumps(payload, indent=2, sort_keys=True))
             else:
                 print("=== FORMALIZE DRY RUN ===")
-                print(f"proposal_id: {proposal.get('proposal_id')}")
-                print(f"kind: {kind.value}")
-                print(f"title: {proposal.get('title')}")
+                print(f"proposal_id: {payload['proposal'].get('proposal_id')}")
+                print(f"kind: {payload.get('would_formalize_as')}")
+                print(f"title: {payload['proposal'].get('title')}")
             return 0
         active_run, session_policy = _active_session_policy(ctx)
-        session_id = _effective_session_id(ctx, active_run=active_run)
         if session_policy is not None and not session_policy.manual_formalize_allowed:
             return _fail_blocked_by_session_posture(
                 action_name="formalize",
                 active_run=active_run,
                 json_mode=args.json,
             )
-        if kind == ProposalKind.SNAPSHOT:
-            result = _formalize_snapshot(ctx, proposal, control_sync=False)
-        elif kind == ProposalKind.CONTROL_SYNC:
-            result = _formalize_snapshot(ctx, proposal, control_sync=True)
-        elif kind == ProposalKind.QUEST:
-            result = _formalize_quest(ctx, proposal, prefix="QUEST")
-        elif kind == ProposalKind.SIDE_QUEST:
-            result = _formalize_quest(ctx, proposal, prefix="SIDE-QUEST")
-        elif kind == ProposalKind.CODEX:
-            result = _formalize_codex(ctx, proposal)
-        elif kind == ProposalKind.BUILD_MANUAL:
-            result = _formalize_build_manual(ctx, proposal)
-        elif kind == ProposalKind.TALENT:
-            result = _formalize_talent(ctx, proposal)
-        elif kind == ProposalKind.GUILD_ORDERS:
-            result = _formalize_guild_orders(ctx, proposal, topic=args.topic)
-        elif kind == ProposalKind.DISCLOSURE:
-            result = _formalize_disclosure(ctx, proposal)
-        else:
-            raise LiveMemoryError(f"Formalization is not implemented for proposal kind {kind.value}.")
-        event_info = _event_pipeline(
-            ctx=ctx,
-            action_name="formalize",
-            summary=f"Formalized proposal {args.proposal_id} as {kind.value}.",
-            session_id=session_id,
-            signals={
-                "proposal_id": args.proposal_id,
-                "proposal_kind": kind.value,
-                "related_quest_ids": [proposal.get("proposal_id")] if kind in {ProposalKind.QUEST, ProposalKind.SIDE_QUEST} else [],
-                "related_sidequest_ids": [],
-                "changed_files": [result.get("artifact_path")] if result.get("artifact_path") else [],
-                "verification_entries": [],
-                "accepted_context": _accepted_context_snapshot(data_root),
-                **session_mode_signal_fields(active_run),
-            },
-            truth_flags={
-                "canon_mutated": True,
-                "derived_state_changed": True,
-                "governed": False,
-                "uncertainty_present": False,
-            },
-            outputs={
-                "proposal_id": args.proposal_id,
-                "proposal_kind": kind.value,
-                "artifact_path": result.get("artifact_path"),
-            },
-        )
-        payload = {
-            "subject": ctx,
-            "result": result,
-            "rehydrate": event_info["reducer"]["rehydrate"],
-            "continuity": event_info["reducer"]["continuity"],
-            "event": event_info["event"],
-            "reducer": event_info["reducer"],
-        }
+        payload = _formalize_candidate_mutation(ctx, args.proposal_id, topic=args.topic, active_run=active_run)
+        event_info = {"event": payload["event"], "reducer": payload["reducer"]}
     except LiveMemoryError as exc:
         print(f"FAIL: {exc}")
         return 2

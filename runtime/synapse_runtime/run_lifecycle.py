@@ -29,8 +29,9 @@ from synapse_runtime.sidecar_store import (
 from synapse_runtime.session_modes import SESSION_MODE_POLICY_VERSION, SessionMode, default_mode_for_command
 
 
-def load_active_run_record(*, subject: str, data_root: Path) -> dict[str, Any]:
-    ensure_live_scaffold(subject, data_root)
+def load_active_run_record(*, subject: str, data_root: Path, ensure_scaffold: bool = True) -> dict[str, Any]:
+    if ensure_scaffold:
+        ensure_live_scaffold(subject, data_root)
     return _load_active_run(live_root(data_root) / "ACTIVE_RUN.yaml", subject)
 
 
