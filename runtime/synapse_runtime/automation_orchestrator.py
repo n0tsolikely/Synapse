@@ -359,6 +359,7 @@ def plan_automation_side_effects(
         activity.get("decision_boundary")
         and not activity.get("explicit_decision_logged")
         and not fingerprint_seen
+        and not activity.get("explicit_capture_written")
     ):
         title = str(activity.get("decision_title") or activity.get("summary") or "").strip()
         if title:
@@ -376,6 +377,7 @@ def plan_automation_side_effects(
         activity.get("uncertainty_present")
         and not activity.get("explicit_disclosure_logged")
         and not fingerprint_seen
+        and not activity.get("explicit_capture_written")
     ):
         trigger = str(activity.get("summary") or "").strip() or "Executor activity surfaced uncertainty."
         actions.append(
