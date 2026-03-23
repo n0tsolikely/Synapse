@@ -234,6 +234,58 @@ class EventSpineTests(unittest.TestCase):
         self.assertEqual(payload["event"]["payload"]["session_id"], "sid-event")
         self.assertEqual(persisted_event["session_id"], "sid-event")
 
+    def test_run_update_records_automation_metadata_and_side_effect_outputs(self) -> None:
+        start = run_synapse(
+            [
+                "session-start",
+                "--title",
+                "Automation event run",
+                "--session-mode",
+                "control_sync",
+                "--session-id",
+                "sid-auto",
+                "--json",
+                *self.subject_args,
+            ],
+            cwd=REPO_ROOT,
+            home=self.home,
+        )
+        self.assertEqual(start.returncode, 0, start.stdout + start.stderr)
+
+        update = run_synapse(
+            [
+                "run-update",
+                "--summary",
+                "Risk surfaced in runtime bridge",
+                "--note",
+                "risk: event replay may miss automation capture context",
+                "--json",
+                *self.subject_args,
+            ],
+            cwd=REPO_ROOT,
+            home=self.home,
+        )
+        self.assertEqual(update.returncode, 0, update.stdout + update.stderr)
+        payload = json.loads(update.stdout)
+        event_payload = payload["event"]["payload"]
+        self.assertTrue(event_payload["signals"]["automation_triggered"])
+        self.assertIn("semantic_capture", event_payload["signals"]["automation_action_kinds"])
+        self.assertIn("disclosure_log", event_payload["signals"]["automation_action_kinds"])
+        self.assertIn("continuity_refresh", event_payload["signals"]["automation_action_kinds"])
+        self.assertEqual(event_payload["signals"]["automation_context"]["activity_kind"], "run-update")
+        self.assertIsNotNone(event_payload["outputs"]["capture_artifact_path"])
+        self.assertIsNotNone(event_payload["outputs"]["disclosures_ledger_path"])
+
+        persisted_event = self._event_entries()[-1]
+        self.assertEqual(
+            persisted_event["signals"]["automation_action_kinds"],
+            event_payload["signals"]["automation_action_kinds"],
+        )
+        self.assertEqual(
+            persisted_event["outputs"]["capture_artifact_path"],
+            event_payload["outputs"]["capture_artifact_path"],
+        )
+
     def test_session_mode_set_uses_persisted_active_run_session_id(self) -> None:
         start = run_synapse(
             [
@@ -470,7 +522,6 @@ class EventSpineTests(unittest.TestCase):
             "cmd_run_update",
             "cmd_session_tick",
             "cmd_capture_chunk",
-            "cmd_onboard_repo",
             "cmd_onboarding_update",
             "cmd_onboarding_respond",
             "cmd_onboarding_confirm",
@@ -483,6 +534,7 @@ class EventSpineTests(unittest.TestCase):
             "cmd_log_disclosure",
         )
         helper_event_commands = {
+            "cmd_onboard_repo": "_run_onboarding_bootstrap(",
             "cmd_accept_quest": "_accept_quest_mutation(",
             "cmd_formalize": "_formalize_candidate_mutation(",
         }
@@ -505,7 +557,7 @@ class EventSpineTests(unittest.TestCase):
             block = source[start:end if end != -1 else None]
             self.assertIn(helper_call, block, fn_name)
             self.assertIn("_finalize_mutation_result(", block, fn_name)
-        for helper_name in ("_accept_quest_mutation", "_formalize_candidate_mutation"):
+        for helper_name in ("_run_onboarding_bootstrap", "_accept_quest_mutation", "_formalize_candidate_mutation"):
             marker = f"def {helper_name}("
             start = source.index(marker)
             end = source.find("\ndef ", start + 1)

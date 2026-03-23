@@ -258,6 +258,7 @@ def _apply_automation_projection(
     summary = automation_summary(data_root)
     state["onboarding_required"] = bool(summary.get("onboarding_required"))
     state["onboarding_requirement_reason"] = summary.get("onboarding_requirement_reason")
+    state["onboarding_confirmed"] = bool(summary.get("onboarding_confirmed"))
     state["project_identity_ready"] = bool(summary.get("project_identity_ready"))
     state["continuity_ready"] = bool(summary.get("continuity_ready"))
     state["automation_status"] = summary.get("automation_status")
@@ -272,6 +273,7 @@ def _apply_automation_projection(
 
     manifold["onboarding_required"] = bool(summary.get("onboarding_required"))
     manifold["onboarding_requirement_reason"] = summary.get("onboarding_requirement_reason")
+    manifold["onboarding_confirmed"] = bool(summary.get("onboarding_confirmed"))
     manifold["project_identity_ready"] = bool(summary.get("project_identity_ready"))
     manifold["continuity_ready"] = bool(summary.get("continuity_ready"))
     manifold["automation_status"] = summary.get("automation_status")
@@ -750,6 +752,7 @@ def _sync_sidecar(
         "onboarding_state": onboarding_state.get("onboarding_state"),
         "published_project_model_path": onboarding_state.get("published_project_model_path"),
         "onboarding_required": automation_state.get("onboarding_required"),
+        "onboarding_confirmed": automation_state.get("onboarding_confirmed"),
         "project_identity_ready": automation_state.get("project_identity_ready"),
         "continuity_ready": automation_state.get("continuity_ready"),
         "automation_status": automation_state.get("automation_status"),

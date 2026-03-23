@@ -362,6 +362,21 @@ class McpIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 session_id,
             )
 
+    async def test_current_context_includes_automation_readiness_truth(self) -> None:
+        workspace = self._make_workspace("mcp-automation-context")
+        async with self._session(workspace) as session:
+            bootstrap = await self._call(session, "bootstrap_session", {"title": "Automation context"})
+            self.assertEqual(bootstrap["status"], "ok")
+            current = await self._call(session, "get_current_context")
+            automation = current["data"]["context"]["automation"]
+            self.assertTrue(automation["onboarding_required"])
+            self.assertFalse(automation["continuity_ready"])
+            self.assertEqual(automation["automation_status"], "onboarding_required")
+            self.assertEqual(
+                automation["automation_pending_gate"],
+                "adopted_existing_repo_missing_confirmed_project_identity",
+            )
+
     async def test_explicit_context_override_does_not_mutate_defaults(self) -> None:
         workspace = self._make_workspace("mcp-default-a")
         other_engine = self.root / "OtherSubject"
@@ -516,8 +531,24 @@ class McpIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_transition_session_mode_and_finalize_preserve_last_posture(self) -> None:
         workspace = self._make_workspace("mcp-finalize")
+        subject = "FinalizeSubject"
+        data_root = self.root / f"{subject}_Data"
+        initialize_subject_state(subject, data_root, workspace)
+        ensure_live_scaffold(subject, data_root)
         async with self._session(workspace) as session:
-            bootstrap = await self._call(session, "bootstrap_session", {"title": "Finalize test"})
+            bootstrap = await self._call(
+                session,
+                "bootstrap_session",
+                {
+                    "title": "Finalize test",
+                    "adopt_current_repo": False,
+                    "context": {
+                        "subject": subject,
+                        "engine_root": str(workspace),
+                        "data_root": str(data_root),
+                    },
+                },
+            )
             self.assertEqual(bootstrap["data"]["current_context"]["session_posture"]["active_session_mode"], "brainstorm_spec")
 
             changed = await self._call(
@@ -583,6 +614,36 @@ class McpIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 },
             )
             self.assertIn(disclosure["status"], {"ok", "partial"})
+
+    async def test_record_activity_reuses_runtime_automation_logic(self) -> None:
+        workspace = self._make_workspace("mcp-automation-activity")
+        async with self._session(workspace) as session:
+            bootstrap = await self._call(session, "bootstrap_session", {"title": "Automation activity"})
+            data_root = Path(bootstrap["subject_context"]["data_root"])
+            result = await self._call(
+                session,
+                "record_activity",
+                {
+                    "summary": "Mapped reducer replay seam",
+                    "files": ["src/main.py"],
+                    "notes": [
+                        "question: who owns replay coordination?",
+                        "risk: stale replay may hide automation deltas",
+                    ],
+                },
+            )
+            self.assertEqual(result["status"], "ok")
+            automation = result["data"]["automation"]
+            self.assertIn("semantic_capture", automation["automation_action_kinds"])
+            self.assertIn("disclosure_log", automation["automation_action_kinds"])
+            self.assertIn("continuity_refresh", automation["automation_action_kinds"])
+
+            latest_event = self._event_entries(data_root)[-1]
+            self.assertTrue(latest_event["signals"]["automation_triggered"])
+            self.assertEqual(latest_event["signals"]["automation_context"]["activity_source"], "mcp")
+            self.assertEqual(latest_event["signals"]["automation_context"]["activity_kind"], "record-activity")
+            self.assertIsNotNone(latest_event["outputs"]["capture_artifact_path"])
+            self.assertIsNotNone(latest_event["outputs"]["disclosures_ledger_path"])
 
     async def test_capture_chunk_updates_continuity_without_leaking_raw_text(self) -> None:
         workspace = self._make_workspace("mcp-capture")
@@ -719,7 +780,7 @@ class McpIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 "run_repo_onboarding",
                 {"context": {"allow_switch": True}, "depth": "quick"},
             )
-            self.assertEqual(started["status"], "ok")
+            self.assertIn(started["status"], {"ok", "noop"})
             abandoned = await self._call(session, "abandon_onboarding", {})
             self.assertEqual(abandoned["status"], "ok")
             status = json.loads(await self._read_text_resource(session, "synapse://current/onboarding/status.json"))
@@ -791,11 +852,24 @@ class McpIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_accept_quest_resolves_quest_path_and_id(self) -> None:
         workspace = self._make_workspace("mcp-accept")
+        subject = "AcceptSubject"
+        data_root = self.root / f"{subject}_Data"
+        initialize_subject_state(subject, data_root, workspace)
+        ensure_live_scaffold(subject, data_root)
         async with self._session(workspace) as session:
             bootstrap = await self._call(
                 session,
                 "bootstrap_session",
-                {"title": "Governed accept bootstrap", "session_mode": "scope_planning"},
+                {
+                    "title": "Governed accept bootstrap",
+                    "session_mode": "scope_planning",
+                    "adopt_current_repo": False,
+                    "context": {
+                        "subject": subject,
+                        "engine_root": str(workspace),
+                        "data_root": str(data_root),
+                    },
+                },
             )
             subject = bootstrap["subject_context"]["subject"]
             data_root = Path(bootstrap["subject_context"]["data_root"])

@@ -208,7 +208,7 @@ def _classify_text_item(text: str) -> tuple[str | None, str]:
             return kind, text[len(prefix):].strip() or text.strip()
     if "?" in text:
         return "question", text.strip()
-    return None, text.strip()
+    return "neutral", text.strip()
 
 
 def _build_capture_payload(classification: dict[str, Any]) -> dict[str, Any] | None:
@@ -245,6 +245,7 @@ def classify_runtime_activity(
     uncertainty_present: bool = False,
     explicit_decision_logged: bool = False,
     explicit_disclosure_logged: bool = False,
+    explicit_capture_written: bool = False,
     onboarding_response: bool = False,
 ) -> dict[str, Any]:
     texts = _normalize_texts(summary, notes)
@@ -266,7 +267,7 @@ def classify_runtime_activity(
         elif kind == "decision":
             surfaced_decision = cleaned
             decision_boundary = True
-        elif kind in {"repo_fact", None}:
+        elif kind == "repo_fact":
             repo_facts.append(cleaned)
 
     if uncertainty_present and not risks and texts:
@@ -298,6 +299,8 @@ def classify_runtime_activity(
         "risks": risks,
         "decision_boundary": bool(decision_boundary),
         "uncertainty_present": bool(uncertainty_present),
+        "explicit_capture_written": bool(explicit_capture_written),
+        "onboarding_response": bool(onboarding_response),
     }
     fingerprint = hashlib.sha256(
         json.dumps(fingerprint_payload, sort_keys=True).encode("utf-8")
@@ -310,6 +313,8 @@ def classify_runtime_activity(
         "uncertainty_present": bool(uncertainty_present or risks),
         "explicit_decision_logged": bool(explicit_decision_logged),
         "explicit_disclosure_logged": bool(explicit_disclosure_logged),
+        "explicit_capture_written": bool(explicit_capture_written),
+        "onboarding_response": bool(onboarding_response),
         "capture_title": str(summary or "").strip() or f"{activity_kind} continuity update",
         "capture_payload": None,
         "decision_title": surfaced_decision,
@@ -329,8 +334,13 @@ def plan_automation_side_effects(
     if not activity.get("meaningful_activity"):
         return []
     recent = recent_capture_fingerprints or set()
+    fingerprint_seen = activity.get("automation_fingerprint") in recent
     actions: list[dict[str, Any]] = []
-    if activity.get("capture_payload") and activity.get("automation_fingerprint") not in recent:
+    if (
+        activity.get("capture_payload")
+        and not activity.get("explicit_capture_written")
+        and not fingerprint_seen
+    ):
         actions.append(
             {
                 "action": AutomationAction.SEMANTIC_CAPTURE.value,
@@ -345,7 +355,11 @@ def plan_automation_side_effects(
                 ),
             }
         )
-    if activity.get("decision_boundary") and not activity.get("explicit_decision_logged"):
+    if (
+        activity.get("decision_boundary")
+        and not activity.get("explicit_decision_logged")
+        and not fingerprint_seen
+    ):
         title = str(activity.get("decision_title") or activity.get("summary") or "").strip()
         if title:
             actions.append(
@@ -358,7 +372,11 @@ def plan_automation_side_effects(
                     "why": "Automatically logged from executor activity that crossed a decision boundary.",
                 }
             )
-    if activity.get("uncertainty_present") and not activity.get("explicit_disclosure_logged"):
+    if (
+        activity.get("uncertainty_present")
+        and not activity.get("explicit_disclosure_logged")
+        and not fingerprint_seen
+    ):
         trigger = str(activity.get("summary") or "").strip() or "Executor activity surfaced uncertainty."
         actions.append(
             {
@@ -385,7 +403,7 @@ def plan_automation_side_effects(
                 "draft_safe": True,
             }
         )
-    if actions:
+    if actions or activity.get("code_mutation_progress") or activity.get("onboarding_response"):
         actions.append(
             {
                 "action": AutomationAction.CONTINUITY_REFRESH.value,

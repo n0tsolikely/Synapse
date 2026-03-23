@@ -32,6 +32,7 @@ from synapse_runtime.repo_onboarding import (
     canonical_project_story_path,
     canonical_vision_path,
     current_onboarding_session,
+    mark_adopted_existing_repo,
     onboard_repo,
     onboarding_abandon,
     onboarding_brief_path,
@@ -390,6 +391,7 @@ def build_current_context_bundle(
         "current_wrapper_proof_status": manifold_payload.get("current_wrapper_proof_status") or state_payload.get("current_wrapper_proof_status"),
         "git_hooks_status": manifold_payload.get("git_hooks_status") or state_payload.get("git_hooks_status"),
     }
+    automation_summary = cli_runtime._readiness_payload(data_root)
     bundle = {
         "resolved_subject_context": {
             "subject": ctx["subject"],
@@ -408,6 +410,7 @@ def build_current_context_bundle(
             "session_mode": active_run.get("session_mode"),
         },
         "session_posture": session_posture,
+        "automation": automation_summary,
         "provenance": provenance_summary,
         "accepted_and_completed_quests": accepted_summary,
         "semantic_intake": semantic_summary,
@@ -605,6 +608,43 @@ def bootstrap_session(*, state: ConnectionState, context: ContextInput | dict[st
     transitioned_mode = False
     status = STATUS_OK
     event_info: dict[str, Any] | None = None
+    onboarding_bootstrap: dict[str, Any] | None = None
+
+    if adopt_current_repo:
+        mark_adopted_existing_repo(subject=ctx["subject"], data_root=Path(ctx["data_root"]))
+        readiness = cli_runtime._readiness_payload(Path(ctx["data_root"]))
+        if readiness.get("onboarding_required"):
+            prior_run_id = str(active_run.get("run_id") or "").strip() or None
+            onboarding_bootstrap, event_info = cli_runtime._run_onboarding_bootstrap(
+                ctx=ctx,
+                allow_switch_for_run=True,
+            )
+            active_run = load_active_run_record(subject=ctx["subject"], data_root=Path(ctx["data_root"]))
+            current_run_id = str(active_run.get("run_id") or "").strip() or None
+            created_run = bool(current_run_id) and current_run_id != prior_run_id
+            transitioned_mode = (
+                str(active_run.get("session_mode") or "").strip()
+                == SessionMode.ONBOARDING_EXISTING_REPO.value
+            )
+            if not _event_is_partial(event_info):
+                state.update_after_bootstrap(
+                    subject=ctx["subject"],
+                    engine_root=ctx["engine_root"],
+                    data_root=ctx["data_root"],
+                    session_id=ctx.get("session_id") or active_run.get("session_id"),
+                )
+            current_ctx, bundle = build_current_context_bundle(
+                state=state,
+                context=ctx if _event_is_partial(event_info) else None,
+            )
+            data = {
+                "created_subject": created_subject,
+                "created_run": created_run,
+                "transitioned_mode": transitioned_mode,
+                "current_context": bundle["context"],
+                "onboarding_bootstrap": onboarding_bootstrap,
+            }
+            return current_ctx, data, status, event_info
 
     if active_run.get("run_id"):
         current_mode = str(active_run.get("session_mode") or "").strip()
@@ -770,46 +810,69 @@ def record_activity(*, state: ConnectionState, context: ContextInput | dict[str,
             related_runs=[str(result.get("run_id") or "")],
             related_quests=list(related_quest_ids or []),
         )
+    automation = cli_runtime._execute_automation_side_effects(
+        ctx=ctx,
+        active_run=active_run,
+        activity_source="mcp",
+        activity_kind="record-activity",
+        summary=summary,
+        changed_files=list(files_touched),
+        notes=list(merged_notes),
+        decision_boundary=bool(decision),
+        explicit_decision_logged=bool(decision_result),
+    )
+    signals = {
+        "run_id": result.get("run_id"),
+        "plan_items": cli_runtime._compact_plan_items(plan_items),
+        "commands": list(commands or []),
+        "changed_files": list(files_touched),
+        "notes": list(merged_notes),
+        "discoveries": list(merged_notes),
+        "decisions": [decision.get("title")] if decision else [],
+        "run_summary": summary,
+        "run_status": status,
+        "verification_entries": list(verifications or []),
+        "decision_titles": [decision.get("title")] if decision else [],
+        "related_quest_ids": list(related_quest_ids or []),
+        "related_sidequest_ids": list(related_sidequest_ids or []),
+        "accepted_context": cli_runtime._accepted_context_snapshot(Path(ctx["data_root"])),
+        **cli_runtime._current_session_mode_fields(ctx),
+    }
+    outputs = {
+        "run_id": result.get("run_id"),
+        "run_path": result.get("run_path"),
+        "discoveries_path": result.get("discoveries_path"),
+        "decision_path": decision_result.get("decision_path") if decision_result else None,
+        "decisions_ledger_path": decision_result.get("decisions_ledger_path") if decision_result else None,
+    }
+    truth_flags = {
+        "canon_mutated": False,
+        "derived_state_changed": True,
+        "governed": False,
+        "verification_present": bool(verifications),
+        "uncertainty_present": False,
+    }
+    cli_runtime._apply_automation_event_metadata(
+        signals=signals,
+        outputs=outputs,
+        truth_flags=truth_flags,
+        automation=automation,
+    )
     event_info = cli_runtime._event_pipeline(
         ctx=ctx,
         action_name="session-tick",
         summary=summary,
         session_id=session_id,
-        signals={
-            "run_id": result.get("run_id"),
-            "plan_items": cli_runtime._compact_plan_items(plan_items),
-            "commands": list(commands or []),
-            "changed_files": list(files_touched),
-            "notes": list(merged_notes),
-            "discoveries": list(merged_notes),
-            "decisions": [decision.get("title")] if decision else [],
-            "run_summary": summary,
-            "run_status": status,
-            "verification_entries": list(verifications or []),
-            "decision_titles": [decision.get("title")] if decision else [],
-            "related_quest_ids": list(related_quest_ids or []),
-            "related_sidequest_ids": list(related_sidequest_ids or []),
-            "accepted_context": cli_runtime._accepted_context_snapshot(Path(ctx["data_root"])),
-            **cli_runtime._current_session_mode_fields(ctx),
-        },
-        truth_flags={
-            "canon_mutated": False,
-            "derived_state_changed": True,
-            "governed": False,
-            "verification_present": bool(verifications),
-            "uncertainty_present": False,
-        },
-        outputs={
-            "run_id": result.get("run_id"),
-            "run_path": result.get("run_path"),
-            "discoveries_path": result.get("discoveries_path"),
-            "decision_path": decision_result.get("decision_path") if decision_result else None,
-        },
+        signals=signals,
+        truth_flags=truth_flags,
+        outputs=outputs,
     )
+    event_info = cli_runtime._apply_automation_partial_status(event_info=event_info, automation=automation)
     cli_runtime._write_session_overlay(ctx, result, session_id=session_id)
     payload = {
         "run_update": result,
         "decision": decision_result,
+        "automation": automation,
         "event": event_info.get("event"),
         "reducer": event_info.get("reducer"),
         "rehydrate": event_info.get("reducer", {}).get("rehydrate"),
@@ -993,38 +1056,62 @@ def capture_chunk(*, state: ConnectionState, context: ContextInput | dict[str, A
     if open_questions_path:
         written_artifacts.append(str(open_questions_path))
     written_artifacts.extend(proposal_paths)
+    automation = cli_runtime._execute_automation_side_effects(
+        ctx=ctx,
+        active_run=active_run,
+        activity_source="mcp",
+        activity_kind="capture-chunk",
+        summary=str(title or capture_batch.get("title") or "Recorded semantic capture batch."),
+        notes=[
+            str(item.get("summary") or "").strip()
+            for item in capture_batch.get("captures") or []
+            if isinstance(item, dict) and str(item.get("summary") or "").strip()
+        ],
+        uncertainty_present=batch_uncertainty_present(capture_batch),
+        explicit_capture_written=True,
+    )
+    signals = {
+        "capture_batch_id": capture_batch.get("capture_batch_id"),
+        "capture_count": len(capture_ids),
+        "capture_kinds": semantic_capture_kinds(capture_batch),
+        "capture_source_role": source_role_value.value,
+        "changed_files": written_artifacts,
+        "verification_entries": [],
+        "related_quest_ids": [],
+        "related_sidequest_ids": [],
+        **session_mode_signal_fields(active_run),
+    }
+    outputs = {
+        "capture_batch_id": capture_batch.get("capture_batch_id"),
+        "capture_artifact_path": receipt["artifact_path"],
+        "capture_ledger_path": receipt["ledger_path"],
+        "open_questions_path": open_questions_path,
+        "proposal_paths": proposal_paths,
+        "written_artifacts": written_artifacts,
+    }
+    truth_flags = {
+        "canon_mutated": False,
+        "derived_state_changed": True,
+        "governed": False,
+        "uncertainty_present": batch_uncertainty_present(capture_batch),
+        "disclosure_open": batch_disclosure_needed(capture_batch),
+    }
+    cli_runtime._apply_automation_event_metadata(
+        signals=signals,
+        outputs=outputs,
+        truth_flags=truth_flags,
+        automation=automation,
+    )
     event_info = cli_runtime._event_pipeline(
         ctx=ctx,
         action_name="capture-chunk",
         summary=str(title or capture_batch.get("title") or "Recorded semantic capture batch."),
         session_id=cli_runtime._effective_session_id(ctx, active_run=active_run),
-        signals={
-            "capture_batch_id": capture_batch.get("capture_batch_id"),
-            "capture_count": len(capture_ids),
-            "capture_kinds": semantic_capture_kinds(capture_batch),
-            "capture_source_role": source_role_value.value,
-            "changed_files": written_artifacts,
-            "verification_entries": [],
-            "related_quest_ids": [],
-            "related_sidequest_ids": [],
-            **session_mode_signal_fields(active_run),
-        },
-        truth_flags={
-            "canon_mutated": False,
-            "derived_state_changed": True,
-            "governed": False,
-            "uncertainty_present": batch_uncertainty_present(capture_batch),
-            "disclosure_open": batch_disclosure_needed(capture_batch),
-        },
-        outputs={
-            "capture_batch_id": capture_batch.get("capture_batch_id"),
-            "capture_artifact_path": receipt["artifact_path"],
-            "capture_ledger_path": receipt["ledger_path"],
-            "open_questions_path": open_questions_path,
-            "proposal_paths": proposal_paths,
-            "written_artifacts": written_artifacts,
-        },
+        signals=signals,
+        truth_flags=truth_flags,
+        outputs=outputs,
     )
+    event_info = cli_runtime._apply_automation_partial_status(event_info=event_info, automation=automation)
     payload = {
         "capture_batch_id": capture_batch.get("capture_batch_id"),
         "capture_artifact_path": receipt["artifact_path"],
@@ -1034,6 +1121,7 @@ def capture_chunk(*, state: ConnectionState, context: ContextInput | dict[str, A
         "proposal_paths": proposal_paths,
         "written_artifacts": written_artifacts,
         "sidecar": sidecar,
+        "automation": automation,
         "event": event_info.get("event"),
         "reducer": event_info.get("reducer"),
         "rehydrate": event_info.get("reducer", {}).get("rehydrate"),
@@ -1051,6 +1139,7 @@ def run_repo_onboarding_tool(*, state: ConnectionState, context: ContextInput | 
         generate_session=True,
         require_allow_switch_for_default_change=True,
     )
+    mark_adopted_existing_repo(subject=ctx["subject"], data_root=Path(ctx["data_root"]))
     active_run, session_id = cli_runtime._require_onboarding_context(
         ctx=ctx,
         action_name="run_repo_onboarding",
@@ -1235,43 +1324,69 @@ def submit_onboarding_responses(*, state: ConnectionState, context: ContextInput
     written_artifacts = [result.get("capture_artifact_path"), result.get("capture_ledger_path")]
     if sidecar.get("open_questions_path"):
         written_artifacts.append(sidecar.get("open_questions_path"))
+    automation = cli_runtime._execute_automation_side_effects(
+        ctx=ctx,
+        active_run=active_run,
+        activity_source="onboarding_response",
+        activity_kind="onboarding-respond",
+        summary=f"Captured onboarding clarification batch {result.get('capture_batch_id')}.",
+        notes=[
+            str(item.get("summary") or "").strip()
+            for item in result["batch"].get("captures") or []
+            if isinstance(item, dict) and str(item.get("summary") or "").strip()
+        ],
+        uncertainty_present=batch_uncertainty_present(result["batch"]),
+        explicit_capture_written=True,
+        onboarding_response=True,
+    )
+    signals = {
+        "run_id": active_run.get("run_id"),
+        "onboarding_id": result.get("onboarding_id"),
+        "question_set_id": session.get("current_question_set_id"),
+        "capture_batch_id": result.get("capture_batch_id"),
+        "linked_question_ids": list(result.get("linked_question_ids") or []),
+        "changed_files": [str(item) for item in written_artifacts if str(item or "").strip()],
+        "verification_entries": [],
+        "related_quest_ids": [],
+        "related_sidequest_ids": [],
+        **session_mode_signal_fields(active_run),
+    }
+    outputs = {
+        "onboarding_id": result.get("onboarding_id"),
+        "capture_batch_id": result.get("capture_batch_id"),
+        "capture_artifact_path": result.get("capture_artifact_path"),
+        "capture_ledger_path": result.get("capture_ledger_path"),
+        "linked_question_ids": list(result.get("linked_question_ids") or []),
+    }
+    truth_flags = {
+        "canon_mutated": False,
+        "derived_state_changed": True,
+        "governed": False,
+        "uncertainty_present": True,
+    }
+    cli_runtime._apply_automation_event_metadata(
+        signals=signals,
+        outputs=outputs,
+        truth_flags=truth_flags,
+        automation=automation,
+    )
     event_info = cli_runtime._event_pipeline(
         ctx=ctx,
         action_name="onboarding-respond",
         summary=f"Captured onboarding clarification batch {result.get('capture_batch_id')}.",
         session_id=session_id,
-        signals={
-            "run_id": active_run.get("run_id"),
-            "onboarding_id": result.get("onboarding_id"),
-            "question_set_id": session.get("current_question_set_id"),
-            "capture_batch_id": result.get("capture_batch_id"),
-            "linked_question_ids": list(result.get("linked_question_ids") or []),
-            "changed_files": [str(item) for item in written_artifacts if str(item or "").strip()],
-            "verification_entries": [],
-            "related_quest_ids": [],
-            "related_sidequest_ids": [],
-            **session_mode_signal_fields(active_run),
-        },
-        truth_flags={
-            "canon_mutated": False,
-            "derived_state_changed": True,
-            "governed": False,
-            "uncertainty_present": True,
-        },
-        outputs={
-            "onboarding_id": result.get("onboarding_id"),
-            "capture_batch_id": result.get("capture_batch_id"),
-            "capture_artifact_path": result.get("capture_artifact_path"),
-            "capture_ledger_path": result.get("capture_ledger_path"),
-            "linked_question_ids": list(result.get("linked_question_ids") or []),
-        },
+        signals=signals,
+        truth_flags=truth_flags,
+        outputs=outputs,
     )
+    event_info = cli_runtime._apply_automation_partial_status(event_info=event_info, automation=automation)
     payload = {
         "onboarding_id": result.get("onboarding_id"),
         "capture_batch_id": result.get("capture_batch_id"),
         "capture_artifact_path": result.get("capture_artifact_path"),
         "capture_ledger_path": result.get("capture_ledger_path"),
         "linked_question_ids": list(result.get("linked_question_ids") or []),
+        "automation": automation,
         "event": event_info.get("event"),
         "reducer": event_info.get("reducer"),
     }

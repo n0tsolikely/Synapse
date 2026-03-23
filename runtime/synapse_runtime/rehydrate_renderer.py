@@ -113,6 +113,7 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
 
     lines.append("## Repository readiness")
     lines.append(f"- Onboarding required: {'YES' if state.get('onboarding_required') else 'NO'}")
+    lines.append(f"- Onboarding confirmed: {'YES' if state.get('onboarding_confirmed') else 'NO'}")
     if state.get("onboarding_requirement_reason"):
         lines.append(f"- Onboarding requirement reason: {state.get('onboarding_requirement_reason')}")
     lines.append(f"- Project identity ready: {'YES' if state.get('project_identity_ready') else 'NO'}")

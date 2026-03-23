@@ -23,12 +23,16 @@ from zoneinfo import ZoneInfo
 import yaml
 
 from synapse_runtime.automation_orchestrator import (
+    AutomationAction,
     automation_summary,
+    automation_policy_for_context,
+    classify_runtime_activity,
+    plan_automation_side_effects,
     ready_state_gate_for_mode,
 )
 from synapse_runtime.cwt import detect_canonical_working_tree
 from synapse_runtime.doctor import run_doctor
-from synapse_runtime.event_log import EventLogError, REDUCER_VERSION, append_event, build_event
+from synapse_runtime.event_log import EventLogError, REDUCER_VERSION, append_event, build_event, load_event_records
 from synapse_runtime.governance_pack import resolve_governance_asset, resolve_governance_root
 from synapse_runtime.governance_inventory import build_governance_inventory, write_governance_inventory
 from synapse_runtime.governance_model import AmbientSignal, ProposalKind, ProposalState
@@ -819,6 +823,306 @@ def _assert_ready_state_mode_allowed(ctx: dict[str, Any], target_mode: SessionMo
                 gate=gate,
             )
         )
+
+
+def _current_onboarding_session_for_automation(
+    *,
+    ctx: dict[str, Any],
+    data_root: Path,
+) -> dict[str, Any] | None:
+    try:
+        return current_onboarding_session(
+            subject=ctx["subject"],
+            data_root=data_root,
+            require_current=False,
+        )
+    except Exception:
+        return None
+
+
+def _recent_automation_fingerprints(
+    *,
+    data_root: Path,
+    limit: int = 25,
+) -> set[str]:
+    try:
+        records = load_event_records(data_root)
+    except EventLogError:
+        return set()
+    fingerprints: set[str] = set()
+    for payload in reversed(records[-limit:]):
+        signals = payload.get("signals")
+        if not isinstance(signals, dict):
+            continue
+        automation_context = signals.get("automation_context")
+        if not isinstance(automation_context, dict):
+            continue
+        fingerprint = str(automation_context.get("automation_fingerprint") or "").strip()
+        if fingerprint:
+            fingerprints.add(fingerprint)
+    return fingerprints
+
+
+def _execute_automation_side_effects(
+    *,
+    ctx: dict[str, Any],
+    active_run: dict[str, Any],
+    activity_source: str,
+    activity_kind: str,
+    summary: str | None,
+    changed_files: list[str] | None = None,
+    notes: list[str] | None = None,
+    decision_boundary: bool = False,
+    uncertainty_present: bool = False,
+    explicit_decision_logged: bool = False,
+    explicit_disclosure_logged: bool = False,
+    explicit_capture_written: bool = False,
+    onboarding_response: bool = False,
+) -> dict[str, Any]:
+    data_root = Path(ctx["data_root"])
+    engine_root = Path(ctx["engine_root"])
+    session_mode = str(active_run.get("session_mode") or "").strip() or None
+    onboarding_session = _current_onboarding_session_for_automation(ctx=ctx, data_root=data_root)
+    policy = automation_policy_for_context(data_root=data_root)
+    activity = classify_runtime_activity(
+        activity_source=activity_source,
+        activity_kind=activity_kind,
+        session_mode=session_mode,
+        onboarding_id=str((onboarding_session or {}).get("onboarding_id") or "").strip() or None,
+        run_id=str(active_run.get("run_id") or "").strip() or None,
+        session_id=_effective_session_id(ctx, active_run=active_run),
+        subject=ctx["subject"],
+        changed_files=list(changed_files or []),
+        summary=summary,
+        notes=list(notes or []),
+        decision_boundary=decision_boundary,
+        uncertainty_present=uncertainty_present,
+        explicit_decision_logged=explicit_decision_logged,
+        explicit_disclosure_logged=explicit_disclosure_logged,
+        explicit_capture_written=explicit_capture_written,
+        onboarding_response=onboarding_response,
+    )
+    actions = plan_automation_side_effects(
+        policy=policy,
+        activity=activity,
+        recent_capture_fingerprints=_recent_automation_fingerprints(data_root=data_root),
+    )
+    result: dict[str, Any] = {
+        "automation_context": {
+            "activity_source": activity.get("activity_source"),
+            "activity_kind": activity.get("activity_kind"),
+            "session_mode": activity.get("session_mode"),
+            "onboarding_id": activity.get("onboarding_id"),
+            "run_id": activity.get("run_id"),
+            "session_id": activity.get("session_id"),
+            "subject": activity.get("subject"),
+            "changed_files": list(activity.get("changed_files") or []),
+            "summary": activity.get("summary"),
+            "decision_boundary": bool(activity.get("decision_boundary")),
+            "uncertainty_present": bool(activity.get("uncertainty_present")),
+            "meaningful_activity": bool(activity.get("meaningful_activity")),
+            "automation_fingerprint": activity.get("automation_fingerprint"),
+        },
+        "automation_triggered": bool(actions),
+        "automation_action_kinds": [],
+        "continuity_side_effects": [],
+        "written_artifacts": [],
+        "capture_batch_id": None,
+        "capture_artifact_path": None,
+        "capture_ledger_path": None,
+        "capture_ids": [],
+        "decision_path": None,
+        "decisions_ledger_path": None,
+        "disclosure_path": None,
+        "disclosures_ledger_path": None,
+        "error_code": None,
+        "error_message": None,
+    }
+
+    for action in actions:
+        action_kind = str(action.get("action") or "").strip()
+        if not action_kind:
+            continue
+        try:
+            if action_kind == AutomationAction.SEMANTIC_CAPTURE.value:
+                capture_payload = action.get("capture_payload")
+                raw_text = str(action.get("raw_text") or "").strip()
+                extra_context = {
+                    "capture_context": "automation_activity",
+                    "suppress_proposals": True,
+                }
+                if onboarding_session:
+                    extra_context["onboarding_id"] = onboarding_session.get("onboarding_id")
+                    extra_context["question_set_id"] = onboarding_session.get("current_question_set_id")
+                receipt = write_capture_batch(
+                    subject=ctx["subject"],
+                    data_root=data_root,
+                    engine_root=engine_root,
+                    run_data=active_run,
+                    raw_text=raw_text or str(summary or activity_kind),
+                    payload=capture_payload,
+                    source_role=CaptureSourceRole.AGENT,
+                    title_override=action.get("capture_payload", {}).get("title"),
+                    extra_context=extra_context,
+                )
+                batch = receipt["batch"]
+                batch_id = str(batch.get("capture_batch_id") or "").strip() or None
+                if (
+                    onboarding_session
+                    and session_mode == SessionMode.ONBOARDING_EXISTING_REPO.value
+                    and batch_id
+                ):
+                    onboarding_session = register_onboarding_continuity_capture(
+                        data_root=data_root,
+                        session=onboarding_session,
+                        capture_batch_id=batch_id,
+                    )
+                capture_ids = [
+                    str(item.get("capture_id"))
+                    for item in batch.get("captures") or []
+                    if str(item.get("capture_id") or "").strip()
+                ]
+                result["capture_batch_id"] = batch_id
+                result["capture_artifact_path"] = receipt["artifact_path"]
+                result["capture_ledger_path"] = receipt["ledger_path"]
+                result["capture_ids"] = capture_ids
+                result["written_artifacts"].extend([receipt["artifact_path"], receipt["ledger_path"]])
+                result["continuity_side_effects"].append(
+                    {
+                        "action": action_kind,
+                        "status": "ok",
+                        "capture_batch_id": batch_id,
+                        "capture_artifact_path": receipt["artifact_path"],
+                        "capture_ledger_path": receipt["ledger_path"],
+                    }
+                )
+            elif action_kind == AutomationAction.DECISION_LOG.value:
+                decision_receipt = log_decision(
+                    subject=ctx["subject"],
+                    data_root=data_root,
+                    title=str(action.get("title") or summary or "Automation decision").strip(),
+                    summary=str(action.get("summary") or summary or "").strip(),
+                    why=str(action.get("why") or "").strip() or None,
+                    constraints=[],
+                    tradeoffs=[],
+                    related_runs=[str(active_run.get("run_id") or "").strip()] if str(active_run.get("run_id") or "").strip() else [],
+                    related_quests=[],
+                )
+                result["decision_path"] = decision_receipt.get("decision_path")
+                result["decisions_ledger_path"] = decision_receipt.get("decisions_ledger_path")
+                if decision_receipt.get("decision_path"):
+                    result["written_artifacts"].append(decision_receipt["decision_path"])
+                result["continuity_side_effects"].append(
+                    {
+                        "action": action_kind,
+                        "status": "ok",
+                        "decision_path": decision_receipt.get("decision_path"),
+                        "decisions_ledger_path": decision_receipt.get("decisions_ledger_path"),
+                    }
+                )
+            elif action_kind == AutomationAction.DISCLOSURE_LOG.value:
+                disclosure_receipt = log_disclosure(
+                    subject=ctx["subject"],
+                    data_root=data_root,
+                    trigger=str(action.get("trigger") or summary or "Automation surfaced uncertainty.").strip(),
+                    expected=str(action.get("expected") or "Continuity should remain truthful.").strip(),
+                    provable=str(action.get("provable") or "Automation classification surfaced uncertainty or risk.").strip(),
+                    status_labels=list(action.get("status_labels") or []),
+                    impact=str(action.get("impact") or summary or "Automation surfaced uncertainty during executor work.").strip(),
+                    safe_options=list(action.get("safe_options") or []),
+                    decision_needed=str(action.get("decision_needed") or "Clarify the uncertain path before binding canon or governed execution.").strip(),
+                    related_runs=[str(active_run.get("run_id") or "").strip()] if str(active_run.get("run_id") or "").strip() else [],
+                    related_quests=[],
+                )
+                result["disclosure_path"] = disclosure_receipt.get("disclosure_path")
+                result["disclosures_ledger_path"] = disclosure_receipt.get("disclosures_ledger_path")
+                if disclosure_receipt.get("disclosure_path"):
+                    result["written_artifacts"].append(disclosure_receipt["disclosure_path"])
+                result["continuity_side_effects"].append(
+                    {
+                        "action": action_kind,
+                        "status": "ok",
+                        "disclosure_path": disclosure_receipt.get("disclosure_path"),
+                        "disclosures_ledger_path": disclosure_receipt.get("disclosures_ledger_path"),
+                    }
+                )
+            else:
+                result["continuity_side_effects"].append({"action": action_kind, "status": "ok"})
+            result["automation_action_kinds"].append(action_kind)
+        except Exception as exc:
+            result["error_code"] = "AUTOMATION_SIDE_EFFECT_FAILED"
+            result["error_message"] = f"{action_kind} failed: {exc}"
+            result["continuity_side_effects"].append(
+                {
+                    "action": action_kind,
+                    "status": "failed",
+                    "error": str(exc),
+                }
+            )
+            break
+
+    return result
+
+
+def _apply_automation_event_metadata(
+    *,
+    signals: dict[str, Any],
+    outputs: dict[str, Any],
+    truth_flags: dict[str, Any],
+    automation: dict[str, Any],
+) -> None:
+    changed_files = list(signals.get("changed_files") or [])
+    for path in automation.get("written_artifacts") or []:
+        text = str(path or "").strip()
+        if text and text not in changed_files:
+            changed_files.append(text)
+    signals["changed_files"] = changed_files
+    signals["automation_triggered"] = bool(automation.get("automation_triggered"))
+    signals["automation_action_kinds"] = list(automation.get("automation_action_kinds") or [])
+    signals["automation_context"] = dict(automation.get("automation_context") or {})
+    outputs["continuity_side_effects"] = list(automation.get("continuity_side_effects") or [])
+    for key in (
+        "capture_batch_id",
+        "capture_artifact_path",
+        "capture_ledger_path",
+        "decision_path",
+        "decisions_ledger_path",
+        "disclosure_path",
+        "disclosures_ledger_path",
+    ):
+        value = automation.get(key)
+        if value and not outputs.get(key):
+            outputs[key] = value
+    truth_flags["uncertainty_present"] = bool(
+        truth_flags.get("uncertainty_present") or automation.get("automation_context", {}).get("uncertainty_present")
+    )
+    if automation.get("disclosure_path"):
+        truth_flags["disclosure_open"] = True
+
+
+def _apply_automation_partial_status(
+    *,
+    event_info: dict[str, Any],
+    automation: dict[str, Any],
+) -> dict[str, Any]:
+    if not automation.get("error_message"):
+        return event_info
+    runtime_status = event_info.get("runtime_status")
+    if not isinstance(runtime_status, dict):
+        return event_info
+    if str(runtime_status.get("operation_status") or "").lower() == "partial":
+        return event_info
+    updated = dict(event_info)
+    updated_runtime_status = dict(runtime_status)
+    updated_runtime_status["operation_status"] = "partial"
+    updated_runtime_status["error_code"] = automation.get("error_code") or "AUTOMATION_SIDE_EFFECT_FAILED"
+    updated_runtime_status["error_message"] = automation.get("error_message")
+    updated_runtime_status["recovery_hint"] = (
+        "Primary work was committed and recorded, but an automatic continuity side effect failed. "
+        "Inspect the event continuity_side_effects metadata and rerun the relevant continuity command if needed."
+    )
+    updated["runtime_status"] = updated_runtime_status
+    return updated
 
 
 def _current_provenance_summary(ctx: dict[str, Any]) -> dict[str, Any]:
@@ -3033,45 +3337,65 @@ def cmd_run_update(args: argparse.Namespace) -> int:
             status=args.status,
             summary=args.summary,
         )
+        automation = _execute_automation_side_effects(
+            ctx=ctx,
+            active_run=active_run,
+            activity_source="direct_cli",
+            activity_kind="run-update",
+            summary=args.summary,
+            changed_files=list(args.file or []),
+            notes=list(args.note or []),
+        )
+        signals = {
+            "run_id": result.get("run_id"),
+            "plan_items_added": _compact_plan_items(result.get("added_items")),
+            "plan_items": _compact_plan_items(result.get("added_items")),
+            "status_updates": [f"{item_id}:{status}" for item_id, status in result.get("status_updates") or []],
+            "commands": list(args.commands or []),
+            "changed_files": list(args.file or []),
+            "notes": list(args.note or []),
+            "discoveries": list(args.note or []) + ([args.summary] if args.summary else []),
+            "run_summary": args.summary,
+            "run_status": args.status,
+            "verification_entries": list(args.verification or []),
+            "related_quest_ids": list(args.related_quest or []),
+            "related_sidequest_ids": list(args.related_sidequest or []),
+            "accepted_context": _accepted_context_snapshot(Path(ctx["data_root"])),
+            **session_mode_signal_fields(active_run),
+        }
+        outputs = {
+            "run_id": result.get("run_id"),
+            "run_path": result.get("run_path"),
+            "ledger_path": result.get("ledger_path"),
+            "discoveries_path": result.get("discoveries_path"),
+        }
+        truth_flags = {
+            "canon_mutated": False,
+            "derived_state_changed": True,
+            "governed": False,
+            "verification_present": bool(args.verification),
+            "uncertainty_present": False,
+        }
+        _apply_automation_event_metadata(
+            signals=signals,
+            outputs=outputs,
+            truth_flags=truth_flags,
+            automation=automation,
+        )
         event_info = _event_pipeline(
             ctx=ctx,
             action_name="run-update",
             summary=args.summary or f"Updated active run {result.get('run_id')}",
             session_id=session_id,
-            signals={
-                "run_id": result.get("run_id"),
-                "plan_items_added": _compact_plan_items(result.get("added_items")),
-                "plan_items": _compact_plan_items(result.get("added_items")),
-                "status_updates": [f"{item_id}:{status}" for item_id, status in result.get("status_updates") or []],
-                "commands": list(args.commands or []),
-                "changed_files": list(args.file or []),
-                "notes": list(args.note or []),
-                "discoveries": list(args.note or []) + ([args.summary] if args.summary else []),
-                "run_summary": args.summary,
-                "run_status": args.status,
-                "verification_entries": list(args.verification or []),
-                "related_quest_ids": list(args.related_quest or []),
-                "related_sidequest_ids": list(args.related_sidequest or []),
-                "accepted_context": _accepted_context_snapshot(Path(ctx["data_root"])),
-                **session_mode_signal_fields(active_run),
-            },
-            truth_flags={
-                "canon_mutated": False,
-                "derived_state_changed": True,
-                "governed": False,
-                "verification_present": bool(args.verification),
-                "uncertainty_present": False,
-            },
-            outputs={
-                "run_id": result.get("run_id"),
-                "run_path": result.get("run_path"),
-                "ledger_path": result.get("ledger_path"),
-                "discoveries_path": result.get("discoveries_path"),
-            },
+            signals=signals,
+            truth_flags=truth_flags,
+            outputs=outputs,
         )
+        event_info = _apply_automation_partial_status(event_info=event_info, automation=automation)
         result.update(event_info)
         result["rehydrate"] = event_info["reducer"]["rehydrate"]
         result["continuity"] = event_info["reducer"]["continuity"]
+        result["automation"] = automation
     except LiveMemoryError as exc:
         print(f"FAIL: {exc}")
         return 2
@@ -3154,42 +3478,64 @@ def cmd_session_tick(args: argparse.Namespace) -> int:
                 related_runs=[str(result.get("run_id") or "")],
                 related_quests=args.related_quest,
             )
+        automation = _execute_automation_side_effects(
+            ctx=ctx,
+            active_run=_load_active_run_with_session_repair(ctx),
+            activity_source="direct_cli",
+            activity_kind="session-tick",
+            summary=args.summary,
+            changed_files=list(files_touched),
+            notes=list(notes),
+            decision_boundary=bool(args.decision_title and args.decision_summary),
+            explicit_decision_logged=bool(decision_result),
+        )
+        signals = {
+            "run_id": result.get("run_id"),
+            "plan_items": _compact_plan_items(items),
+            "commands": list(args.commands or []),
+            "changed_files": list(files_touched),
+            "notes": list(notes),
+            "discoveries": list(notes),
+            "decisions": [args.decision_title] if args.decision_title else [],
+            "run_summary": args.summary,
+            "run_status": args.status,
+            "verification_entries": list(args.verification or []),
+            "decision_titles": [args.decision_title] if args.decision_title else [],
+            "related_quest_ids": list(args.related_quest or []),
+            "related_sidequest_ids": list(args.related_sidequest or []),
+            "accepted_context": _accepted_context_snapshot(Path(ctx["data_root"])),
+            **_current_session_mode_fields(ctx),
+        }
+        outputs = {
+            "run_id": result.get("run_id"),
+            "run_path": result.get("run_path"),
+            "discoveries_path": result.get("discoveries_path"),
+            "decision_path": decision_result.get("decision_path") if decision_result else None,
+            "decisions_ledger_path": decision_result.get("decisions_ledger_path") if decision_result else None,
+        }
+        truth_flags = {
+            "canon_mutated": False,
+            "derived_state_changed": True,
+            "governed": False,
+            "verification_present": bool(args.verification),
+            "uncertainty_present": False,
+        }
+        _apply_automation_event_metadata(
+            signals=signals,
+            outputs=outputs,
+            truth_flags=truth_flags,
+            automation=automation,
+        )
         event_info = _event_pipeline(
             ctx=ctx,
             action_name="session-tick",
             summary=args.summary or f"Session tick for {result.get('run_id')}",
             session_id=session_id,
-            signals={
-                "run_id": result.get("run_id"),
-                "plan_items": _compact_plan_items(items),
-                "commands": list(args.commands or []),
-                "changed_files": list(files_touched),
-                "notes": list(notes),
-                "discoveries": list(notes),
-                "decisions": [args.decision_title] if args.decision_title else [],
-                "run_summary": args.summary,
-                "run_status": args.status,
-                "verification_entries": list(args.verification or []),
-                "decision_titles": [args.decision_title] if args.decision_title else [],
-                "related_quest_ids": list(args.related_quest or []),
-                "related_sidequest_ids": list(args.related_sidequest or []),
-                "accepted_context": _accepted_context_snapshot(Path(ctx["data_root"])),
-                **_current_session_mode_fields(ctx),
-            },
-            truth_flags={
-                "canon_mutated": False,
-                "derived_state_changed": True,
-                "governed": False,
-                "verification_present": bool(args.verification),
-                "uncertainty_present": False,
-            },
-            outputs={
-                "run_id": result.get("run_id"),
-                "run_path": result.get("run_path"),
-                "discoveries_path": result.get("discoveries_path"),
-                "decision_path": decision_result.get("decision_path") if decision_result else None,
-            },
+            signals=signals,
+            truth_flags=truth_flags,
+            outputs=outputs,
         )
+        event_info = _apply_automation_partial_status(event_info=event_info, automation=automation)
         continuity_result = {
             "rehydrate": event_info["reducer"]["rehydrate"],
             "continuity": event_info["reducer"]["continuity"],
@@ -3208,6 +3554,7 @@ def cmd_session_tick(args: argparse.Namespace) -> int:
         "session_overlay_path": overlay_path,
         "event": event_info["event"],
         "reducer": event_info["reducer"],
+        "automation": automation,
     }
     def _emit_session_tick(rendered_payload: dict[str, Any]) -> None:
         run_update_payload = rendered_payload["run_update"]
@@ -3403,39 +3750,63 @@ def cmd_capture_chunk(args: argparse.Namespace) -> int:
     if open_questions_path:
         written_artifacts.append(str(open_questions_path))
     written_artifacts.extend(proposal_paths)
+    automation = _execute_automation_side_effects(
+        ctx=ctx,
+        active_run=active_run,
+        activity_source="direct_cli",
+        activity_kind="capture-chunk",
+        summary=str(args.title or capture_batch.get("title") or "Recorded semantic capture batch."),
+        notes=[
+            str(item.get("summary") or "").strip()
+            for item in capture_batch.get("captures") or []
+            if isinstance(item, dict) and str(item.get("summary") or "").strip()
+        ],
+        uncertainty_present=batch_uncertainty_present(capture_batch),
+        explicit_capture_written=True,
+    )
+    signals = {
+        "capture_batch_id": capture_batch.get("capture_batch_id"),
+        "capture_count": len(capture_ids),
+        "capture_kinds": semantic_capture_kinds(capture_batch),
+        "capture_source_role": source_role.value,
+        "changed_files": written_artifacts,
+        "verification_entries": [],
+        "related_quest_ids": [],
+        "related_sidequest_ids": [],
+        **session_mode_signal_fields(active_run),
+    }
+    outputs = {
+        "capture_batch_id": capture_batch.get("capture_batch_id"),
+        "capture_artifact_path": capture_receipt["artifact_path"],
+        "capture_ledger_path": capture_receipt["ledger_path"],
+        "open_questions_path": open_questions_path,
+        "proposal_paths": proposal_paths,
+        "written_artifacts": written_artifacts,
+    }
+    truth_flags = {
+        "canon_mutated": False,
+        "derived_state_changed": True,
+        "governed": False,
+        "uncertainty_present": batch_uncertainty_present(capture_batch),
+        "disclosure_open": batch_disclosure_needed(capture_batch),
+    }
+    _apply_automation_event_metadata(
+        signals=signals,
+        outputs=outputs,
+        truth_flags=truth_flags,
+        automation=automation,
+    )
 
     event_info = _event_pipeline(
         ctx=ctx,
         action_name="capture-chunk",
         summary=str(args.title or capture_batch.get("title") or "Recorded semantic capture batch."),
         session_id=session_id,
-        signals={
-            "capture_batch_id": capture_batch.get("capture_batch_id"),
-            "capture_count": len(capture_ids),
-            "capture_kinds": semantic_capture_kinds(capture_batch),
-            "capture_source_role": source_role.value,
-            "changed_files": written_artifacts,
-            "verification_entries": [],
-            "related_quest_ids": [],
-            "related_sidequest_ids": [],
-            **session_mode_signal_fields(active_run),
-        },
-        truth_flags={
-            "canon_mutated": False,
-            "derived_state_changed": True,
-            "governed": False,
-            "uncertainty_present": batch_uncertainty_present(capture_batch),
-            "disclosure_open": batch_disclosure_needed(capture_batch),
-        },
-        outputs={
-            "capture_batch_id": capture_batch.get("capture_batch_id"),
-            "capture_artifact_path": capture_receipt["artifact_path"],
-            "capture_ledger_path": capture_receipt["ledger_path"],
-            "open_questions_path": open_questions_path,
-            "proposal_paths": proposal_paths,
-            "written_artifacts": written_artifacts,
-        },
+        signals=signals,
+        truth_flags=truth_flags,
+        outputs=outputs,
     )
+    event_info = _apply_automation_partial_status(event_info=event_info, automation=automation)
 
     result = {
         "subject": ctx,
@@ -3451,6 +3822,7 @@ def cmd_capture_chunk(args: argparse.Namespace) -> int:
         "reducer": event_info["reducer"],
         "rehydrate": event_info["reducer"]["rehydrate"],
         "continuity": event_info["reducer"]["continuity"],
+        "automation": automation,
     }
 
     def _emit_capture_chunk(rendered_payload: dict[str, Any]) -> None:
@@ -3666,6 +4038,21 @@ def cmd_onboarding_respond(args: argparse.Namespace) -> int:
             semantic_capture_batch=result["batch"],
             mutate_proposals=False,
         )
+        automation = _execute_automation_side_effects(
+            ctx=ctx,
+            active_run=active_run,
+            activity_source="onboarding_response",
+            activity_kind="onboarding-respond",
+            summary=f"Captured onboarding clarification batch {result.get('capture_batch_id')}.",
+            notes=[
+                str(item.get("summary") or "").strip()
+                for item in result["batch"].get("captures") or []
+                if isinstance(item, dict) and str(item.get("summary") or "").strip()
+            ],
+            uncertainty_present=batch_uncertainty_present(result["batch"]),
+            explicit_capture_written=True,
+            onboarding_response=True,
+        )
     except (LiveMemoryError, RepoOnboardingError, ProjectModelError, RepoArchaeologyError, SemanticIntakeError) as exc:
         print(f"FAIL: {exc}")
         return 2
@@ -3676,37 +4063,47 @@ def cmd_onboarding_respond(args: argparse.Namespace) -> int:
     ]
     if sidecar.get("open_questions_path"):
         written_artifacts.append(sidecar.get("open_questions_path"))
+    signals = {
+        "run_id": active_run.get("run_id"),
+        "onboarding_id": result.get("onboarding_id"),
+        "question_set_id": session.get("current_question_set_id"),
+        "capture_batch_id": result.get("capture_batch_id"),
+        "linked_question_ids": list(result.get("linked_question_ids") or []),
+        "changed_files": [str(item) for item in written_artifacts if str(item or "").strip()],
+        "verification_entries": [],
+        "related_quest_ids": [],
+        "related_sidequest_ids": [],
+        **session_mode_signal_fields(active_run),
+    }
+    outputs = {
+        "onboarding_id": result.get("onboarding_id"),
+        "capture_batch_id": result.get("capture_batch_id"),
+        "capture_artifact_path": result.get("capture_artifact_path"),
+        "capture_ledger_path": result.get("capture_ledger_path"),
+        "linked_question_ids": list(result.get("linked_question_ids") or []),
+    }
+    truth_flags = {
+        "canon_mutated": False,
+        "derived_state_changed": True,
+        "governed": False,
+        "uncertainty_present": True,
+    }
+    _apply_automation_event_metadata(
+        signals=signals,
+        outputs=outputs,
+        truth_flags=truth_flags,
+        automation=automation,
+    )
     event_info = _event_pipeline(
         ctx=ctx,
         action_name="onboarding-respond",
         summary=f"Captured onboarding clarification batch {result.get('capture_batch_id')}.",
         session_id=session_id,
-        signals={
-            "run_id": active_run.get("run_id"),
-            "onboarding_id": result.get("onboarding_id"),
-            "question_set_id": session.get("current_question_set_id"),
-            "capture_batch_id": result.get("capture_batch_id"),
-            "linked_question_ids": list(result.get("linked_question_ids") or []),
-            "changed_files": [str(item) for item in written_artifacts if str(item or "").strip()],
-            "verification_entries": [],
-            "related_quest_ids": [],
-            "related_sidequest_ids": [],
-            **session_mode_signal_fields(active_run),
-        },
-        truth_flags={
-            "canon_mutated": False,
-            "derived_state_changed": True,
-            "governed": False,
-            "uncertainty_present": True,
-        },
-        outputs={
-            "onboarding_id": result.get("onboarding_id"),
-            "capture_batch_id": result.get("capture_batch_id"),
-            "capture_artifact_path": result.get("capture_artifact_path"),
-            "capture_ledger_path": result.get("capture_ledger_path"),
-            "linked_question_ids": list(result.get("linked_question_ids") or []),
-        },
+        signals=signals,
+        truth_flags=truth_flags,
+        outputs=outputs,
     )
+    event_info = _apply_automation_partial_status(event_info=event_info, automation=automation)
     payload_out = {
         **{key: value for key, value in result.items() if key != "batch"},
         "subject": ctx,
@@ -3715,6 +4112,7 @@ def cmd_onboarding_respond(args: argparse.Namespace) -> int:
         "reducer": event_info["reducer"],
         "rehydrate": event_info["reducer"]["rehydrate"],
         "continuity": event_info["reducer"]["continuity"],
+        "automation": automation,
     }
 
     def _emit_onboarding_respond(rendered_payload: dict[str, Any]) -> None:
