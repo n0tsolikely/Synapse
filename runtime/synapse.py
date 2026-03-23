@@ -28,6 +28,13 @@ from synapse_runtime.governance_model import AmbientSignal, ProposalKind, Propos
 from synapse_runtime.live_journal import log_decision, log_disclosure, record_quest_acceptance
 from synapse_runtime.live_memory_common import LiveMemoryError
 from synapse_runtime.persona import resolve_persona
+from synapse_runtime.git_hooks import GitHooksError, install_managed_hooks, inspect_git_hooks, write_hooks_receipt
+from synapse_runtime.provenance import (
+    GitHooksStatus,
+    ProvenanceStatus,
+    compute_current_provenance_summary,
+    run_provenance_watch_cycle,
+)
 from synapse_runtime.project_model import ProjectModelError
 from synapse_runtime.repo_archaeology import RepoArchaeologyError
 from synapse_runtime.repo_onboarding import (
@@ -71,7 +78,7 @@ from synapse_runtime.semantic_intake import (
     normalize_capture_source_role,
     write_capture_batch,
 )
-from synapse_runtime.sidecar_projection import _sync_sidecar
+from synapse_runtime.sidecar_projection import _sync_sidecar, refresh_provenance_projection
 from synapse_runtime.sidecar_store import ensure_live_scaffold
 from synapse_runtime.subject_bootstrap import initialize_subject_state, repo_subject_defaults
 from synapse_runtime.quest_acceptance import QuestAcceptanceError, accept_quest
@@ -551,7 +558,40 @@ def build_parser() -> argparse.ArgumentParser:
     watch_parser.add_argument("--selected-by", default="Brains", help="Who made the selection (default: Brains)")
     watch_parser.add_argument("--no-home-lock", action="store_true", help="Do not write ~/.synapse/ACTIVE_SUBJECT.json")
     watch_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
+    watch_parser.add_argument("--no-provenance", action="store_true", help="Disable Phase 5 provenance observation during watch")
     watch_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
+    provenance_parser = subparsers.add_parser("provenance-status", help="Inspect current provenance and trust posture")
+    provenance_parser.add_argument("--strict", action="store_true", help="Exit 2 when current provenance status is blocked")
+    provenance_parser.add_argument("--subject", help="Optional subject override")
+    provenance_parser.add_argument("--data-root", help="Override data root path")
+    provenance_parser.add_argument("--engine-root", help="Override engine root path")
+    provenance_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    provenance_parser.add_argument("--selected-by", default="Brains", help="Who made the selection (default: Brains)")
+    provenance_parser.add_argument("--no-home-lock", action="store_true", help="Do not write ~/.synapse/ACTIVE_SUBJECT.json")
+    provenance_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
+    provenance_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
+    install_hooks_parser = subparsers.add_parser("install-hooks", help="Install managed Synapse git hooks into the engine repo")
+    install_hooks_parser.add_argument("--force", action="store_true", help="Back up and replace unmanaged existing hooks")
+    install_hooks_parser.add_argument("--subject", help="Optional subject override")
+    install_hooks_parser.add_argument("--data-root", help="Override data root path")
+    install_hooks_parser.add_argument("--engine-root", help="Override engine root path")
+    install_hooks_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    install_hooks_parser.add_argument("--selected-by", default="Brains", help="Who made the selection (default: Brains)")
+    install_hooks_parser.add_argument("--no-home-lock", action="store_true", help="Do not write ~/.synapse/ACTIVE_SUBJECT.json")
+    install_hooks_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
+    install_hooks_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
+    verify_hooks_parser = subparsers.add_parser("verify-hooks", help="Inspect managed Synapse git hooks in the engine repo")
+    verify_hooks_parser.add_argument("--subject", help="Optional subject override")
+    verify_hooks_parser.add_argument("--data-root", help="Override data root path")
+    verify_hooks_parser.add_argument("--engine-root", help="Override engine root path")
+    verify_hooks_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    verify_hooks_parser.add_argument("--selected-by", default="Brains", help="Who made the selection (default: Brains)")
+    verify_hooks_parser.add_argument("--no-home-lock", action="store_true", help="Do not write ~/.synapse/ACTIVE_SUBJECT.json")
+    verify_hooks_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
+    verify_hooks_parser.add_argument("--json", action="store_true", help="Print JSON output")
 
     return parser
 
@@ -688,10 +728,93 @@ def _clear_session_run_overlay(session_id: str) -> str:
 def _render_and_refresh_continuity(subject: str, data_root: Path, engine_root: Path) -> dict[str, Any]:
     try:
         rehydrate = render_rehydrate(subject=subject, data_root=data_root)
+        refresh_provenance_projection(subject=subject, data_root=data_root, engine_root=engine_root)
         continuity = refresh_rehydration_pack(subject=subject, data_root=data_root, engine_root=engine_root)
         return {"rehydrate": rehydrate, "continuity": continuity}
     except Exception as exc:
         raise LiveMemoryError(str(exc)) from exc
+
+
+def _current_provenance_summary(ctx: dict[str, Any]) -> dict[str, Any]:
+    return compute_current_provenance_summary(
+        subject=ctx["subject"],
+        data_root=Path(ctx["data_root"]),
+        engine_root=Path(ctx["engine_root"]),
+        write_projection=False,
+    )
+
+
+def _verify_hooks_receipt(ctx: dict[str, Any]) -> dict[str, Any]:
+    engine_root = Path(ctx["engine_root"])
+    data_root = Path(ctx["data_root"])
+    synapse_root = Path(__file__).resolve().parents[1]
+    inspection = inspect_git_hooks(engine_root=engine_root, synapse_root=synapse_root)
+    if not inspection.get("engine_is_git_repo"):
+        return {
+            **inspection,
+            "git_hooks_status": inspection.get("hooks_status"),
+            "hooks_receipt_path": None,
+            "projection": None,
+            "summary": None,
+        }
+    now = dt.datetime.now(tz=ZoneInfo("America/Toronto")).isoformat()
+    inspection["last_verified_at"] = now
+    inspection["installed_at"] = None
+    hooks_path = write_hooks_receipt(data_root=data_root, receipt=inspection)
+    summary = compute_current_provenance_summary(
+        subject=ctx["subject"],
+        data_root=data_root,
+        engine_root=engine_root,
+        write_projection=False,
+    )
+    projection = refresh_provenance_projection(
+        subject=ctx["subject"],
+        data_root=data_root,
+        engine_root=engine_root,
+        summary=summary,
+    )
+    return {
+        **inspection,
+        "git_hooks_status": inspection.get("hooks_status"),
+        "hooks_receipt_path": str(hooks_path.resolve()),
+        "projection": projection,
+        "summary": summary,
+    }
+
+
+def _install_hooks_receipt(ctx: dict[str, Any], *, force: bool) -> dict[str, Any]:
+    engine_root = Path(ctx["engine_root"])
+    data_root = Path(ctx["data_root"])
+    synapse_root = Path(__file__).resolve().parents[1]
+    receipt = install_managed_hooks(engine_root=engine_root, synapse_root=synapse_root, force=force)
+    if not receipt.get("engine_is_git_repo"):
+        return {
+            **receipt,
+            "git_hooks_status": receipt.get("hooks_status"),
+            "hooks_receipt_path": None,
+            "projection": None,
+            "summary": None,
+        }
+    hooks_path = write_hooks_receipt(data_root=data_root, receipt=receipt)
+    summary = compute_current_provenance_summary(
+        subject=ctx["subject"],
+        data_root=data_root,
+        engine_root=engine_root,
+        write_projection=False,
+    )
+    projection = refresh_provenance_projection(
+        subject=ctx["subject"],
+        data_root=data_root,
+        engine_root=engine_root,
+        summary=summary,
+    )
+    return {
+        **receipt,
+        "git_hooks_status": receipt.get("hooks_status"),
+        "hooks_receipt_path": str(hooks_path.resolve()),
+        "projection": projection,
+        "summary": summary,
+    }
 
 
 def _safe_load_yaml_dict(path: Path) -> dict[str, Any]:
@@ -3759,6 +3882,11 @@ def cmd_refresh_continuity(args: argparse.Namespace) -> int:
         return 2
 
     try:
+        refresh_provenance_projection(
+            subject=ctx["subject"],
+            data_root=Path(ctx["data_root"]),
+            engine_root=Path(ctx["engine_root"]),
+        )
         result = refresh_rehydration_pack(
             subject=ctx["subject"],
             data_root=Path(ctx["data_root"]),
@@ -4658,41 +4786,24 @@ def cmd_watch(args: argparse.Namespace) -> int:
     iterations = max(1, int(args.iterations))
     payloads: list[dict[str, Any]] = []
     last_files: list[str] = []
+    data_root = Path(ctx["data_root"])
+    engine_root = Path(ctx["engine_root"])
     for idx in range(iterations):
         files = _git_status_changed_files(detect_canonical_working_tree()) if args.capture_git else []
         changed_files = [item for item in files if item not in last_files]
-        tick_args = argparse.Namespace(
-            plan_item=[],
-            items_file=None,
-            commands=[],
-            file=changed_files,
-            note=[f"watch iteration {idx + 1}"],
-            discovery=[],
-            verification=[],
-            related_sidequest=[],
-            related_quest=[],
-            status="active",
-            summary=f"watch tick {idx + 1}",
-            decision_title=None,
-            decision_summary=None,
-            decision_why=None,
-            capture_git=False,
-            title=args.title,
-            goal=args.goal,
-            subject=ctx["subject"],
-            data_root=ctx["data_root"],
-            engine_root=ctx["engine_root"],
-            selected_by=args.selected_by,
-            no_home_lock=args.no_home_lock,
-            session_id=args.session_id,
-            json=False,
-        )
+        result = None
         if changed_files or idx == 0:
             try:
-                _start_or_resume_session_run(ctx, title=args.title or _default_session_title(ctx), goal=args.goal, items=[])
+                _start_or_resume_session_run(
+                    ctx,
+                    title=args.title or _default_session_title(ctx),
+                    goal=args.goal,
+                    items=[],
+                    command_name="session-tick",
+                )
                 result = run_update(
                     subject=ctx["subject"],
-                    data_root=Path(ctx["data_root"]),
+                    data_root=data_root,
                     add_items=[],
                     status_updates=[],
                     commands=[],
@@ -4704,7 +4815,6 @@ def cmd_watch(args: argparse.Namespace) -> int:
                     status="active",
                     summary=f"watch tick {idx + 1}",
                 )
-                payloads.append(result)
                 active_run = _load_active_run_with_session_repair(ctx)
                 _write_session_overlay(
                     ctx,
@@ -4712,10 +4822,77 @@ def cmd_watch(args: argparse.Namespace) -> int:
                     active_run=active_run,
                     session_id=_effective_session_id(ctx, active_run=active_run),
                 )
-                _render_and_refresh_continuity(ctx["subject"], Path(ctx["data_root"]), Path(ctx["engine_root"]))
+                _render_and_refresh_continuity(ctx["subject"], data_root, engine_root)
             except LiveMemoryError as exc:
                 print(f"FAIL: {exc}")
                 return 2
+        cycle_payload: dict[str, Any] = {
+            "iteration": idx + 1,
+            "changed_files": changed_files,
+        }
+        if result is not None:
+            cycle_payload["tick"] = result
+        if not args.no_provenance:
+            try:
+                provenance_cycle = run_provenance_watch_cycle(
+                    subject=ctx["subject"],
+                    data_root=data_root,
+                    engine_root=engine_root,
+                )
+                refresh_provenance_projection(
+                    subject=ctx["subject"],
+                    data_root=data_root,
+                    engine_root=engine_root,
+                    summary=provenance_cycle["summary"],
+                )
+                cycle_payload["provenance"] = provenance_cycle["summary"]
+                cycle_payload["baseline_path"] = provenance_cycle["baseline_path"]
+                cycle_payload["anomaly_ledger_path"] = provenance_cycle.get("anomaly_ledger_path")
+                cycle_payload["new_anomaly_ids"] = list(provenance_cycle.get("new_anomaly_ids") or [])
+                if provenance_cycle.get("provenance_changed"):
+                    event_info = _event_pipeline(
+                        ctx=ctx,
+                        action_name="provenance-watch-cycle",
+                        summary=f"Observed provenance watch cycle for {ctx['subject']}.",
+                        session_id=_effective_session_id(
+                            ctx,
+                            active_run=_load_active_run_with_session_repair(ctx),
+                        ),
+                        signals={
+                            "changed_files": [],
+                            "verification_entries": [],
+                            "related_quest_ids": [],
+                            "related_sidequest_ids": [],
+                            "accepted_context": _accepted_context_snapshot(data_root),
+                            **_current_session_mode_fields(ctx),
+                        },
+                        truth_flags={
+                            "canon_mutated": False,
+                            "derived_state_changed": True,
+                            "governed": False,
+                            "uncertainty_present": False,
+                        },
+                        outputs={
+                            "provenance_status": provenance_cycle["summary"].get("provenance_status"),
+                            "baseline_path": provenance_cycle.get("baseline_path"),
+                            "anomaly_ledger_path": provenance_cycle.get("anomaly_ledger_path"),
+                            "new_anomaly_ids": list(provenance_cycle.get("new_anomaly_ids") or []),
+                            "current_wrapper_proof_status": provenance_cycle["summary"].get("current_wrapper_proof_status"),
+                            "git_hooks_status": provenance_cycle["summary"].get("git_hooks_status"),
+                        },
+                    )
+                    cycle_payload["provenance_event"] = event_info
+                    runtime_status = event_info.get("runtime_status") if isinstance(event_info, dict) else None
+                    if isinstance(runtime_status, dict) and str(runtime_status.get("operation_status") or "").lower() == "partial":
+                        if args.json:
+                            print(json.dumps({"subject": ctx, "ticks": payloads + [cycle_payload], "runtime_status": runtime_status}, indent=2, sort_keys=True))
+                        else:
+                            print("PARTIAL: provenance watch raw state was written, but event/reducer refresh failed.")
+                        return 3
+            except Exception as exc:
+                print(f"FAIL: {exc}")
+                return 2
+        payloads.append(cycle_payload)
         last_files = files
         if idx < iterations - 1:
             time.sleep(max(args.interval, 0.1))
@@ -4727,7 +4904,190 @@ def cmd_watch(args: argparse.Namespace) -> int:
     print("=== WATCH RECEIPT ===")
     print(f"iterations: {iterations}")
     print(f"captured_ticks: {len(payloads)}")
+    if not args.no_provenance and payloads:
+        last_summary = payloads[-1].get("provenance") or {}
+        print(f"provenance_status: {last_summary.get('provenance_status') or 'unknown'}")
     return 0
+
+
+def cmd_provenance_status(args: argparse.Namespace) -> int:
+    ctx = _resolve_or_attach_subject_from_args(args)
+    if not ctx:
+        return 2
+    try:
+        summary = _current_provenance_summary(ctx)
+    except Exception as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    payload = {
+        "subject": ctx,
+        "provenance_status": summary.get("provenance_status"),
+        "blockers": list(summary.get("blockers") or []),
+        "warnings": list(summary.get("warnings") or []),
+        "current_wrapper_proof_status": summary.get("current_wrapper_proof_status"),
+        "current_wrapper_proof_path": summary.get("current_wrapper_proof_path"),
+        "git_hooks_status": summary.get("git_hooks_status"),
+        "git_hooks_template_version": summary.get("git_hooks_template_version"),
+        "last_watch_at": summary.get("last_watch_at"),
+        "recent_anomaly_count": summary.get("recent_anomaly_count"),
+        "baseline_path": summary.get("baseline_path"),
+    }
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print("=== PROVENANCE STATUS ===")
+        print(f"provenance_status: {payload.get('provenance_status')}")
+        print(f"honesty_note: {summary.get('honesty_note')}")
+        print(f"current_wrapper_proof_status: {payload.get('current_wrapper_proof_status')}")
+        print(f"git_hooks_status: {payload.get('git_hooks_status')}")
+        print(f"blockers: {len(payload.get('blockers') or [])}")
+        print(f"warnings: {len(payload.get('warnings') or [])}")
+        print(f"last_watch_at: {payload.get('last_watch_at')}")
+        print(f"baseline_path: {payload.get('baseline_path')}")
+    if args.strict and payload.get("provenance_status") == ProvenanceStatus.BLOCKED.value:
+        return 2
+    return 0
+
+
+def cmd_install_hooks(args: argparse.Namespace) -> int:
+    ctx = _resolve_or_attach_subject_from_args(args)
+    if not ctx:
+        return 2
+    try:
+        payload = _install_hooks_receipt(ctx, force=bool(args.force))
+    except (GitHooksError, LiveMemoryError) as exc:
+        print(f"FAIL: {exc}")
+        return 2
+    if payload.get("git_hooks_status") == GitHooksStatus.NOT_APPLICABLE.value:
+        result = {"subject": ctx, **payload}
+        if args.json:
+            print(json.dumps(result, indent=2, sort_keys=True))
+        else:
+            print("=== HOOK INSTALL RECEIPT ===")
+            print("git_hooks_status: not_applicable")
+        return 0
+
+    event_info = _event_pipeline(
+        ctx=ctx,
+        action_name="install-hooks",
+        summary=f"Installed or verified managed git hooks for {ctx['subject']}.",
+        session_id=_resolved_session_id(args),
+        signals={
+            "changed_files": [payload["hooks_receipt_path"]],
+            "verification_entries": [],
+            "related_quest_ids": [],
+            "related_sidequest_ids": [],
+            "accepted_context": _accepted_context_snapshot(Path(ctx["data_root"])),
+            **_current_session_mode_fields(ctx),
+        },
+        truth_flags={
+            "canon_mutated": False,
+            "derived_state_changed": True,
+            "governed": False,
+            "uncertainty_present": False,
+        },
+        outputs={
+            "git_hooks_status": payload.get("hooks_status"),
+            "hooks_receipt_path": payload.get("hooks_receipt_path"),
+            "template_version": payload.get("template_version"),
+            "pre_commit_status": payload.get("pre_commit_status"),
+            "pre_push_status": payload.get("pre_push_status"),
+            "backups": list(payload.get("backups") or []),
+        },
+    )
+    rendered = {
+        "subject": ctx,
+        "git_hooks_status": payload.get("hooks_status"),
+        "hooks_receipt_path": payload.get("hooks_receipt_path"),
+        "template_version": payload.get("template_version"),
+        "pre_commit_status": payload.get("pre_commit_status"),
+        "pre_push_status": payload.get("pre_push_status"),
+        "backups": list(payload.get("backups") or []),
+        "event": event_info.get("event"),
+        "reducer": event_info.get("reducer"),
+    }
+
+    def _emit_install_hooks(result_payload: dict[str, Any]) -> None:
+        print("=== HOOK INSTALL RECEIPT ===")
+        print(f"git_hooks_status: {result_payload.get('git_hooks_status')}")
+        print(f"hooks_receipt_path: {result_payload.get('hooks_receipt_path')}")
+
+    return _finalize_mutation_result(
+        payload=rendered,
+        event_info=event_info,
+        json_mode=args.json,
+        text_emitter=_emit_install_hooks,
+    )
+
+
+def cmd_verify_hooks(args: argparse.Namespace) -> int:
+    ctx = _resolve_or_attach_subject_from_args(args)
+    if not ctx:
+        return 2
+    try:
+        payload = _verify_hooks_receipt(ctx)
+    except (GitHooksError, LiveMemoryError) as exc:
+        print(f"FAIL: {exc}")
+        return 2
+    if payload.get("git_hooks_status") == GitHooksStatus.NOT_APPLICABLE.value:
+        result = {"subject": ctx, **payload}
+        if args.json:
+            print(json.dumps(result, indent=2, sort_keys=True))
+        else:
+            print("=== HOOK VERIFY RECEIPT ===")
+            print("git_hooks_status: not_applicable")
+        return 0
+
+    event_info = _event_pipeline(
+        ctx=ctx,
+        action_name="verify-hooks",
+        summary=f"Verified managed git hooks for {ctx['subject']}.",
+        session_id=_resolved_session_id(args),
+        signals={
+            "changed_files": [payload["hooks_receipt_path"]],
+            "verification_entries": [],
+            "related_quest_ids": [],
+            "related_sidequest_ids": [],
+            "accepted_context": _accepted_context_snapshot(Path(ctx["data_root"])),
+            **_current_session_mode_fields(ctx),
+        },
+        truth_flags={
+            "canon_mutated": False,
+            "derived_state_changed": True,
+            "governed": False,
+            "uncertainty_present": False,
+        },
+        outputs={
+            "git_hooks_status": payload.get("hooks_status"),
+            "hooks_receipt_path": payload.get("hooks_receipt_path"),
+            "template_version": payload.get("template_version"),
+            "pre_commit_status": payload.get("pre_commit_status"),
+            "pre_push_status": payload.get("pre_push_status"),
+        },
+    )
+    rendered = {
+        "subject": ctx,
+        "git_hooks_status": payload.get("hooks_status"),
+        "hooks_receipt_path": payload.get("hooks_receipt_path"),
+        "template_version": payload.get("template_version"),
+        "pre_commit_status": payload.get("pre_commit_status"),
+        "pre_push_status": payload.get("pre_push_status"),
+        "event": event_info.get("event"),
+        "reducer": event_info.get("reducer"),
+    }
+
+    def _emit_verify_hooks(result_payload: dict[str, Any]) -> None:
+        print("=== HOOK VERIFY RECEIPT ===")
+        print(f"git_hooks_status: {result_payload.get('git_hooks_status')}")
+        print(f"hooks_receipt_path: {result_payload.get('hooks_receipt_path')}")
+
+    return _finalize_mutation_result(
+        payload=rendered,
+        event_info=event_info,
+        json_mode=args.json,
+        text_emitter=_emit_verify_hooks,
+    )
 
 
 def cmd_plan_sidequests(args: argparse.Namespace) -> int:
@@ -4921,6 +5281,12 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_formalize(args)
     if args.command == "watch":
         return cmd_watch(args)
+    if args.command == "provenance-status":
+        return cmd_provenance_status(args)
+    if args.command == "install-hooks":
+        return cmd_install_hooks(args)
+    if args.command == "verify-hooks":
+        return cmd_verify_hooks(args)
     if args.command == "plan-sidequests":
         return cmd_plan_sidequests(args)
 

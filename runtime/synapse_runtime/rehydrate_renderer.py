@@ -12,6 +12,7 @@ from synapse_runtime.quest_candidates import _auto_formalize_ready_quest_candida
 from synapse_runtime.sidecar_projection import (
     _append_recent_change,
     refresh_onboarding_projection,
+    refresh_provenance_projection,
     refresh_semantic_capture_projection,
     refresh_quest_lifecycle_projection,
     refresh_session_posture_projection,
@@ -36,6 +37,7 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
     refresh_onboarding_projection(subject=subject, data_root=data_root)
     refresh_session_posture_projection(subject=subject, data_root=data_root)
     refresh_quest_lifecycle_projection(subject=subject, data_root=data_root)
+    refresh_provenance_projection(subject=subject, data_root=data_root)
 
     state = _load_state(state_path, subject)
     manifold = _load_manifold(manifold_path, subject)
@@ -245,6 +247,37 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
         for entry in state.get("recent_changes", [])[-5:]:
             lines.append(f"- {entry}")
         lines.append("")
+
+    lines.append("## Provenance / Trust")
+    lines.append(f"- Provenance status: {state.get('provenance_status') or 'unknown'}")
+    lines.append(
+        "- Trust note: clear means no current warnings or blockers under Phase 5 checks; "
+        "it does not prove universal mediation or perfect provenance."
+    )
+    lines.append(f"- Wrapper proof status: {state.get('current_wrapper_proof_status') or 'unknown'}")
+    lines.append(f"- Git hooks status: {state.get('git_hooks_status') or 'unknown'}")
+    blockers = list(manifold.get("provenance_blockers") or [])
+    warnings = list(manifold.get("provenance_warnings") or [])
+    if blockers:
+        lines.append("- Current blockers:")
+        for item in blockers:
+            lines.append(f"  - {item.get('kind')}: {item.get('message')}")
+    else:
+        lines.append("- Current blockers: none")
+    if warnings:
+        lines.append("- Current warnings:")
+        for item in warnings:
+            lines.append(f"  - {item.get('kind')}: {item.get('message')}")
+    else:
+        lines.append("- Current warnings: none")
+    recent_anomalies = list(manifold.get("recent_provenance_anomalies") or [])
+    if recent_anomalies:
+        lines.append("- Recent anomalies:")
+        for item in recent_anomalies[:5]:
+            lines.append(f"  - [{item.get('severity')}] {item.get('kind')}: {item.get('message')}")
+    else:
+        lines.append("- Recent anomalies: none")
+    lines.append("")
 
     if recent_decisions:
         lines.append("## Recent decisions")

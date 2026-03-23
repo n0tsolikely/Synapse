@@ -458,7 +458,7 @@ class EventSpineTests(unittest.TestCase):
 
     def test_all_event_pipeline_call_sites_route_through_shared_result_handler(self) -> None:
         source = (REPO_ROOT / "runtime" / "synapse.py").read_text(encoding="utf-8")
-        self.assertEqual(source.count("event_info = _event_pipeline("), 19)
+        self.assertEqual(source.count("event_info = _event_pipeline("), 22)
         inline_event_commands = (
             "cmd_attach_or_init",
             "cmd_live_bootstrap",
@@ -474,6 +474,8 @@ class EventSpineTests(unittest.TestCase):
             "cmd_onboarding_abandon",
             "cmd_run_finalize",
             "cmd_session_mode",
+            "cmd_install_hooks",
+            "cmd_verify_hooks",
             "cmd_log_decision",
             "cmd_log_disclosure",
         )
@@ -488,6 +490,11 @@ class EventSpineTests(unittest.TestCase):
             block = source[start:end if end != -1 else None]
             self.assertIn("_event_pipeline(", block, fn_name)
             self.assertIn("_finalize_mutation_result(", block, fn_name)
+        watch_marker = "def cmd_watch("
+        watch_start = source.index(watch_marker)
+        watch_end = source.find("\ndef ", watch_start + 1)
+        watch_block = source[watch_start:watch_end if watch_end != -1 else None]
+        self.assertIn("_event_pipeline(", watch_block)
         for fn_name, helper_call in helper_event_commands.items():
             marker = f"def {fn_name}("
             start = source.index(marker)

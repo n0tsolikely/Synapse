@@ -30,7 +30,6 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
-import hashlib
 import json
 import re
 import shutil
@@ -45,6 +44,7 @@ if str(RUNTIME_ROOT) not in sys.path:
     sys.path.insert(0, str(RUNTIME_ROOT))
 
 from synapse_runtime.subject_resolver import SubjectResolutionError, resolve_subject
+from synapse_runtime.wrapper_proof import validate_wrapper_proof_file
 
 
 REQUIRED_BUNDLE_FILES = [
@@ -364,53 +364,11 @@ def _proof_receipts_ok(bundle: Path) -> Tuple[bool, str]:
     return True, ""
 
 
-def _current_wrapper_sha256() -> tuple[bool, str]:
-    wrapper = SCRIPT_DIR / "synapse_quest_run.sh"
-    if not wrapper.is_file():
-        return False, f"missing wrapper script for proof validation: {wrapper}"
-    try:
-        digest = hashlib.sha256(wrapper.read_bytes()).hexdigest()
-    except Exception as exc:
-        return False, f"failed to hash wrapper script {wrapper}: {exc}"
-    return True, digest
-
-
 def _wrapper_proof_ok(bundle: Path) -> Tuple[bool, str]:
-    proof = bundle / "06_WRAPPER_PROOF.json"
-    if not proof.is_file():
-        return False, "missing required wrapper proof: 06_WRAPPER_PROOF.json"
-
-    try:
-        payload = json.loads(proof.read_text(encoding="utf-8"))
-    except Exception as exc:
-        return False, f"06_WRAPPER_PROOF.json is not valid JSON: {exc}"
-
-    if not isinstance(payload, dict):
-        return False, "06_WRAPPER_PROOF.json must contain a JSON object"
-
-    wrapper_sha = str(payload.get("wrapper_sha256") or "").strip().lower()
-    if not re.fullmatch(r"[0-9a-f]{64}", wrapper_sha):
-        return False, "06_WRAPPER_PROOF.json wrapper_sha256 must be a valid sha256 hex digest"
-
-    commands_count = payload.get("commands_count")
-    if not isinstance(commands_count, int):
-        return False, "06_WRAPPER_PROOF.json commands_count must be an integer"
-    if commands_count < 1:
-        return False, "06_WRAPPER_PROOF.json commands_count must be >= 1"
-
-    bundle_path = str(payload.get("bundle_path") or "").strip()
-    if not bundle_path:
-        return False, "06_WRAPPER_PROOF.json bundle_path is missing"
-    if Path(bundle_path).expanduser().resolve() != bundle.resolve():
-        return False, "06_WRAPPER_PROOF.json bundle_path does not match actual bundle path"
-
-    ok, wrapper_hash_or_error = _current_wrapper_sha256()
-    if not ok:
-        return False, wrapper_hash_or_error
-    if wrapper_sha != wrapper_hash_or_error:
-        return False, "06_WRAPPER_PROOF.json wrapper_sha256 does not match current synapse_quest_run.sh"
-
-    return True, ""
+    validation = validate_wrapper_proof_file(bundle / "06_WRAPPER_PROOF.json")
+    if validation.get("ok"):
+        return True, ""
+    return False, str(validation.get("error") or "wrapper proof validation failed")
 
 
 def _verify_md_ok(bundle: Path) -> Tuple[bool, str]:

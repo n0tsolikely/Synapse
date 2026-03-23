@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# SYNAPSE_MANAGED_HOOK: YES
+# SYNAPSE_HOOK_NAME: __HOOK_NAME__
+# SYNAPSE_HOOK_TEMPLATE_VERSION: __TEMPLATE_VERSION__
+# SYNAPSE_HOOK_TEMPLATE_HASH: __TEMPLATE_HASH__
+SYNAPSE_ROOT="__SYNAPSE_ROOT__"
+ENGINE_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cd "$ENGINE_ROOT"
+python3 "$SYNAPSE_ROOT/runtime/synapse.py" provenance-status --strict

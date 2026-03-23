@@ -23,6 +23,7 @@ from synapse_runtime.governance_model import (
 )
 from synapse_runtime.ledger_store import _classify_verification_status
 from synapse_runtime.live_memory_common import LiveMemoryError
+from synapse_runtime.provenance import compute_current_provenance_summary, projectable_provenance_summary
 from synapse_runtime.repo_onboarding import onboarding_projection
 from synapse_runtime.quest_candidates import (
     QUEST_PROPOSAL_KINDS,
@@ -266,6 +267,70 @@ def refresh_onboarding_projection(*, subject: str, data_root: Path) -> dict[str,
     }
 
 
+def _apply_provenance_projection(
+    *,
+    state: dict[str, Any],
+    manifold: dict[str, Any],
+    summary: dict[str, Any],
+) -> dict[str, Any]:
+    projection = projectable_provenance_summary(summary)
+    state["provenance_status"] = projection.get("provenance_status")
+    state["provenance_last_observed_at"] = projection.get("provenance_last_observed_at")
+    state["provenance_last_watch_at"] = projection.get("provenance_last_watch_at")
+    state["provenance_blocker_count"] = len(list(projection.get("provenance_blockers") or []))
+    state["provenance_warning_count"] = len(list(projection.get("provenance_warnings") or []))
+    state["current_wrapper_proof_status"] = projection.get("current_wrapper_proof_status")
+    state["git_hooks_status"] = projection.get("git_hooks_status")
+
+    manifold["provenance_status"] = projection.get("provenance_status")
+    manifold["provenance_last_observed_at"] = projection.get("provenance_last_observed_at")
+    manifold["provenance_last_watch_at"] = projection.get("provenance_last_watch_at")
+    manifold["provenance_blockers"] = list(projection.get("provenance_blockers") or [])
+    manifold["provenance_warnings"] = list(projection.get("provenance_warnings") or [])
+    manifold["recent_provenance_anomalies"] = list(projection.get("recent_provenance_anomalies") or [])
+    manifold["current_wrapper_proof_status"] = projection.get("current_wrapper_proof_status")
+    manifold["current_wrapper_proof_path"] = projection.get("current_wrapper_proof_path")
+    manifold["current_wrapper_proof_fingerprint"] = projection.get("current_wrapper_proof_fingerprint")
+    manifold["git_hooks_status"] = projection.get("git_hooks_status")
+    manifold["git_hooks_template_version"] = projection.get("git_hooks_template_version")
+    manifold["git_hooks_last_verified_at"] = projection.get("git_hooks_last_verified_at")
+    manifold["provenance_baseline_path"] = projection.get("provenance_baseline_path")
+    return projection
+
+
+def refresh_provenance_projection(
+    *,
+    subject: str,
+    data_root: Path,
+    engine_root: Path | None = None,
+    summary: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    live = live_root(data_root)
+    state_path = live / "STATE.yaml"
+    manifold_path = live / "MANIFOLD.yaml"
+    state = _load_state(state_path, subject)
+    manifold = _load_manifold(manifold_path, subject)
+    current_summary = summary or compute_current_provenance_summary(
+        subject=subject,
+        data_root=data_root,
+        engine_root=engine_root,
+        write_projection=False,
+    )
+    projection = _apply_provenance_projection(
+        state=state,
+        manifold=manifold,
+        summary=current_summary,
+    )
+    _write_yaml(state_path, state)
+    manifold["last_updated_at"] = _now_iso()
+    _write_yaml(manifold_path, manifold)
+    return {
+        "state_path": str(state_path),
+        "manifold_path": str(manifold_path),
+        **projection,
+    }
+
+
 def _sync_open_questions_thread(*, data_root: Path, details: list[dict[str, Any]]) -> str | None:
     path = canonical_open_questions_path(data_root)
     rendered = render_managed_open_questions(details)
@@ -452,6 +517,12 @@ def _sync_sidecar(
 
     accepted_details = load_accepted_quest_details(subject, data_root)
     current_accepted = select_current_accepted_quest(accepted_details)
+    provenance_summary = compute_current_provenance_summary(
+        subject=subject,
+        data_root=data_root,
+        engine_root=None,
+        write_projection=False,
+    )
 
     proposal_paths: list[str] = []
     build_manual_candidates = list(manifold.get("current_build_manual_candidate_backlog") or [])
@@ -592,6 +663,11 @@ def _sync_sidecar(
         manifold=manifold,
         world_state=world_state,
     )
+    _apply_provenance_projection(
+        state=state,
+        manifold=manifold,
+        summary=provenance_summary,
+    )
     _write_yaml(state_path, state)
     manifold["last_updated_at"] = _now_iso()
     _write_yaml(manifold_path, manifold)
@@ -611,6 +687,7 @@ def _sync_sidecar(
         "published_project_model_path": onboarding_state.get("published_project_model_path"),
         "current_accepted_quest_id": projection["current_accepted"]["quest_id"] if projection["current_accepted"] else None,
         "last_completed_quest_id": projection["latest_completed"]["quest_id"] if projection["latest_completed"] else None,
+        "provenance_status": provenance_summary.get("provenance_status"),
     }
 
 

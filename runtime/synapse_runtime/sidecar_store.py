@@ -88,6 +88,13 @@ def _default_state(subject: str) -> dict[str, Any]:
         "project_model_open_questions_count": 0,
         "project_model_blocking_questions_count": 0,
         "project_summary": None,
+        "provenance_status": None,
+        "provenance_last_observed_at": None,
+        "provenance_last_watch_at": None,
+        "provenance_blocker_count": 0,
+        "provenance_warning_count": 0,
+        "current_wrapper_proof_status": None,
+        "git_hooks_status": None,
         "last_rehydrate_at": None,
         "last_event_id": None,
         "last_event_at": None,
@@ -164,6 +171,19 @@ def _default_manifold(subject: str) -> dict[str, Any]:
         "project_constraint_summary": [],
         "project_history_summary": [],
         "project_open_question_details": [],
+        "provenance_status": None,
+        "provenance_last_observed_at": None,
+        "provenance_last_watch_at": None,
+        "provenance_blockers": [],
+        "provenance_warnings": [],
+        "recent_provenance_anomalies": [],
+        "current_wrapper_proof_status": None,
+        "current_wrapper_proof_path": None,
+        "current_wrapper_proof_fingerprint": None,
+        "git_hooks_status": None,
+        "git_hooks_template_version": None,
+        "git_hooks_last_verified_at": None,
+        "provenance_baseline_path": None,
         "completed_quest_ids": [],
         "completed_quest_details": [],
         "last_completed_quest_id": None,
@@ -237,6 +257,8 @@ def ensure_live_scaffold(subject: str, data_root: Path) -> dict[str, Any]:
     onboarding_drafts_dir = onboarding_dir / "DRAFTS"
     onboarding_questions_dir = onboarding_dir / "QUESTIONS"
     onboarding_published_dir = onboarding_dir / "PUBLISHED"
+    provenance_dir = live / "PROVENANCE"
+    provenance_anomalies_dir = provenance_dir / "ANOMALIES"
     runs_dir = live / "RUNS"
     threads_dir = live / "THREADS"
     proposals_dir = live / "PROPOSALS"
@@ -265,6 +287,8 @@ def ensure_live_scaffold(subject: str, data_root: Path) -> dict[str, Any]:
     onboarding_drafts_dir.mkdir(parents=True, exist_ok=True)
     onboarding_questions_dir.mkdir(parents=True, exist_ok=True)
     onboarding_published_dir.mkdir(parents=True, exist_ok=True)
+    provenance_dir.mkdir(parents=True, exist_ok=True)
+    provenance_anomalies_dir.mkdir(parents=True, exist_ok=True)
     runs_dir.mkdir(parents=True, exist_ok=True)
     threads_dir.mkdir(parents=True, exist_ok=True)
     proposals_dir.mkdir(parents=True, exist_ok=True)
@@ -443,6 +467,15 @@ def _load_manifold(path: Path, subject: str) -> dict[str, Any]:
 
 def canonical_open_questions_path(data_root: Path) -> Path:
     return live_root(data_root) / "THREADS" / "open_questions.md"
+
+
+def authoritative_coordination_paths(data_root: Path) -> list[Path]:
+    live = live_root(data_root)
+    paths = [
+        live / "ACTIVE_RUN.yaml",
+        live / "ONBOARDING" / "CURRENT.yaml",
+    ]
+    return [path.resolve() for path in paths]
 
 
 def _read_text_strict(path: Path) -> str:
