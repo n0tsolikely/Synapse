@@ -1,9 +1,14 @@
 import contextlib
 import io
+import json
+import os
+import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RUNTIME_ROOT = REPO_ROOT / "runtime"
@@ -24,11 +29,24 @@ from synapse_runtime.sidecar_projection import refresh_onboarding_projection
 from synapse_runtime.sidecar_store import ensure_live_scaffold
 from synapse_runtime.subject_bootstrap import initialize_subject_state
 
+SYNAPSE = [sys.executable, str(REPO_ROOT / "runtime" / "synapse.py")]
+
+
+def run_synapse(args: list[str], *, cwd: Path, home: Path, extra_env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+    env = os.environ.copy()
+    env["HOME"] = str(home)
+    env.setdefault("SYNAPSE_ROOT", str(REPO_ROOT))
+    if extra_env:
+        env.update(extra_env)
+    return subprocess.run(SYNAPSE + args, cwd=cwd, env=env, capture_output=True, text=True)
+
 
 class AutomationOrchestrationTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
+        self.home = self.root / "home"
+        self.home.mkdir(parents=True, exist_ok=True)
         self.engine_root = self.root / "engine"
         self.data_root = self.root / "Subject_Data"
         self.engine_root.mkdir(parents=True, exist_ok=True)
@@ -163,6 +181,97 @@ class AutomationOrchestrationTests(unittest.TestCase):
             (self.data_root / ".synapse" / "ONBOARDING" / "CURRENT.yaml"),
             onboarding_current_path(self.data_root),
         )
+
+
+class AutomationCliGateTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.home = self.root / "home"
+        self.home.mkdir(parents=True, exist_ok=True)
+        self.repo = self.root / "demo"
+        self.repo.mkdir(parents=True, exist_ok=True)
+        (self.repo / "README.md").write_text("# demo\n", encoding="utf-8")
+        (self.repo / "src").mkdir(parents=True, exist_ok=True)
+        (self.repo / "src" / "main.py").write_text("print('ok')\n", encoding="utf-8")
+        subprocess.run(["git", "init", "-q"], cwd=self.repo, check=True)
+        self.engage = run_synapse(["engage", "--adopt-current-repo", "--json"], cwd=self.repo, home=self.home)
+        self.assertEqual(self.engage.returncode, 0, self.engage.stdout + self.engage.stderr)
+        self.engage_payload = json.loads(self.engage.stdout)
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def test_engage_adopt_current_repo_auto_starts_onboarding(self) -> None:
+        self.assertTrue(self.engage_payload["onboarding_required"])
+        self.assertFalse(self.engage_payload["continuity_ready"])
+        bootstrap = self.engage_payload["onboarding_bootstrap"]
+        self.assertEqual(bootstrap["onboarding_state"], "needs_draft_submission")
+        current_path = Path(self.engage_payload["data_root"]) / ".synapse" / "ONBOARDING" / "CURRENT.yaml"
+        pointer = yaml.safe_load(current_path.read_text(encoding="utf-8"))
+        self.assertTrue(pointer["adopted_existing_repo"])
+        self.assertEqual(pointer["current_onboarding_id"], bootstrap["onboarding_id"])
+
+    def test_attach_existing_repo_reuses_attach_and_bootstrap_substrate(self) -> None:
+        workspace = self.root / "attach-demo"
+        workspace.mkdir(parents=True, exist_ok=True)
+        (workspace / "README.md").write_text("# attach demo\n", encoding="utf-8")
+        subprocess.run(["git", "init", "-q"], cwd=workspace, check=True)
+        result = run_synapse(["attach-existing-repo", "--json"], cwd=workspace, home=self.home)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertIn("onboarding_bootstrap", payload)
+        self.assertEqual(payload["doctor_exit_code"], 1)
+        self.assertEqual(payload["next_required_action"], "onboarding-update")
+        self.assertTrue(payload["onboarding_required"])
+
+    def test_unconfirmed_adopted_repo_blocks_ready_state_modes_but_not_inspect_reads(self) -> None:
+        blocked_run = run_synapse(["run-start", "--title", "Build", "--json"], cwd=self.repo, home=self.home)
+        self.assertEqual(blocked_run.returncode, 2, blocked_run.stdout + blocked_run.stderr)
+        self.assertIn("has not been confirmed through onboarding", blocked_run.stdout + blocked_run.stderr)
+
+        blocked_session = run_synapse(
+            ["session-start", "--title", "Sync", "--session-mode", "control_sync", "--json"],
+            cwd=self.repo,
+            home=self.home,
+        )
+        self.assertEqual(blocked_session.returncode, 2, blocked_session.stdout + blocked_session.stderr)
+        self.assertIn("project identity/story/vision are not ready", blocked_session.stdout + blocked_session.stderr)
+
+        blocked_transition = run_synapse(
+            [
+                "session-mode",
+                "--set",
+                "execution",
+                "--reason",
+                "skip ahead",
+                "--json",
+            ],
+            cwd=self.repo,
+            home=self.home,
+        )
+        self.assertEqual(blocked_transition.returncode, 2, blocked_transition.stdout + blocked_transition.stderr)
+        self.assertIn("has not been confirmed through onboarding", blocked_transition.stdout + blocked_transition.stderr)
+
+        finalized = run_synapse(
+            ["run-finalize", "--status", "cancelled", "--summary", "close onboarding run", "--json"],
+            cwd=self.repo,
+            home=self.home,
+        )
+        self.assertEqual(finalized.returncode, 0, finalized.stdout + finalized.stderr)
+
+        blocked_tick = run_synapse(
+            ["session-tick", "--session-mode", "control_sync", "--summary", "tick", "--json"],
+            cwd=self.repo,
+            home=self.home,
+        )
+        self.assertEqual(blocked_tick.returncode, 2, blocked_tick.stdout + blocked_tick.stderr)
+        self.assertIn("onboarding-confirm", blocked_tick.stdout + blocked_tick.stderr)
+
+        inspect = run_synapse(["onboarding-status", "--json"], cwd=self.repo, home=self.home)
+        self.assertEqual(inspect.returncode, 0, inspect.stdout + inspect.stderr)
+        inspect_payload = json.loads(inspect.stdout)
+        self.assertEqual(inspect_payload["state"], "needs_draft_submission")
 
 
 if __name__ == "__main__":

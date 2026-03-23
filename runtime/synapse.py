@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime as dt
+import io
 import json
 import os
 import re
@@ -13,12 +15,17 @@ import subprocess
 import sys
 import tempfile
 import time
+import uuid
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
 import yaml
 
+from synapse_runtime.automation_orchestrator import (
+    automation_summary,
+    ready_state_gate_for_mode,
+)
 from synapse_runtime.cwt import detect_canonical_working_tree
 from synapse_runtime.doctor import run_doctor
 from synapse_runtime.event_log import EventLogError, REDUCER_VERSION, append_event, build_event
@@ -40,9 +47,11 @@ from synapse_runtime.repo_archaeology import RepoArchaeologyError
 from synapse_runtime.repo_onboarding import (
     RepoOnboardingError,
     current_onboarding_session,
+    mark_adopted_existing_repo,
     onboard_repo,
     onboarding_abandon,
     onboarding_confirm,
+    register_onboarding_continuity_capture,
     onboarding_respond,
     onboarding_status_payload,
     onboarding_update,
@@ -64,6 +73,7 @@ from synapse_runtime.repo_state import (
 from synapse_runtime.session_modes import (
     SESSION_MODE_POLICY_VERSION,
     SessionMode,
+    default_mode_for_command,
     policy_for_run,
     policy_summary,
     session_mode_signal_fields,
@@ -148,6 +158,18 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Set focus lock from current repo roots (ENGINE_ROOT=<git root>, DATA_ROOT=<git-root-parent>/<repo>_Data)",
     )
+
+    attach_existing_repo_parser = subparsers.add_parser(
+        "attach-existing-repo",
+        help="Adopt the current repo, run onboarding bootstrap, and return continuity readiness truth",
+    )
+    attach_existing_repo_parser.add_argument("--subject", help="Optional subject override")
+    attach_existing_repo_parser.add_argument("--data-root", help="Override data root path")
+    attach_existing_repo_parser.add_argument("--engine-root", help="Override engine root path")
+    attach_existing_repo_parser.add_argument("--selected-by", default="Brains", help="Who made the selection (default: Brains)")
+    attach_existing_repo_parser.add_argument("--json", action="store_true", help="Print JSON receipt")
+    attach_existing_repo_parser.add_argument("--no-home-lock", action="store_true", help="Do not write ~/.synapse/ACTIVE_SUBJECT.json")
+    attach_existing_repo_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
 
     attach_parser = subparsers.add_parser(
         "attach-or-init",
@@ -667,6 +689,20 @@ def _normalize_session_id(value: Any) -> str | None:
     return text or None
 
 
+def _generated_session_id() -> str:
+    return f"syn-{uuid.uuid4().hex[:16]}"
+
+
+def _ensure_generated_session_id(args: argparse.Namespace) -> str:
+    session_id = _resolved_session_id(args)
+    if session_id:
+        args.session_id = session_id
+        return session_id
+    session_id = _generated_session_id()
+    args.session_id = session_id
+    return session_id
+
+
 def _repair_active_run_session_id(
     *,
     data_root: Path,
@@ -733,6 +769,56 @@ def _render_and_refresh_continuity(subject: str, data_root: Path, engine_root: P
         return {"rehydrate": rehydrate, "continuity": continuity}
     except Exception as exc:
         raise LiveMemoryError(str(exc)) from exc
+
+
+def _readiness_payload(data_root: Path) -> dict[str, Any]:
+    summary = automation_summary(data_root)
+    return {
+        "onboarding_required": bool(summary.get("onboarding_required")),
+        "onboarding_requirement_reason": summary.get("onboarding_requirement_reason"),
+        "onboarding_confirmed": bool(summary.get("onboarding_confirmed")),
+        "project_identity_ready": bool(summary.get("project_identity_ready")),
+        "continuity_ready": bool(summary.get("continuity_ready")),
+        "automation_status": summary.get("automation_status"),
+        "automation_pending_gate": summary.get("automation_pending_gate"),
+        "active_onboarding_id": summary.get("active_onboarding_id"),
+        "latest_confirmed_onboarding_id": summary.get("latest_confirmed_onboarding_id"),
+        "published_project_model_path": summary.get("published_project_model_path"),
+        "published_project_story_path": summary.get("published_project_story_path"),
+        "published_vision_path": summary.get("published_vision_path"),
+        "missing_publication_fields": list(summary.get("missing_publication_fields") or []),
+        "automation_last_activity_at": summary.get("automation_last_activity_at"),
+        "automation_last_continuity_update_at": summary.get("automation_last_continuity_update_at"),
+        "automation_recent_actions": list(summary.get("automation_recent_actions") or []),
+    }
+
+
+def _onboarding_gate_message(*, target_mode: str, gate: dict[str, Any]) -> str:
+    missing = ", ".join(gate.get("missing_publication_fields") or []) or (
+        "latest_confirmed_onboarding_id, published_project_model_path, "
+        "published_project_story_path, published_vision_path"
+    )
+    return (
+        f"Cannot enter session mode '{target_mode}' because this repo was adopted as an existing repo and "
+        "has not been confirmed through onboarding yet. "
+        "Current project identity/story/vision are not ready. "
+        f"Missing continuity readiness fields: {missing}. "
+        "Continue with onboarding (onboard-repo, onboarding-update, onboarding-respond, onboarding-confirm) first."
+    )
+
+
+def _assert_ready_state_mode_allowed(ctx: dict[str, Any], target_mode: SessionMode | str | None) -> None:
+    gate = ready_state_gate_for_mode(
+        data_root=Path(ctx["data_root"]),
+        target_mode=target_mode,
+    )
+    if gate.get("blocked"):
+        raise LiveMemoryError(
+            _onboarding_gate_message(
+                target_mode=str(gate.get("target_mode") or target_mode or "unknown"),
+                gate=gate,
+            )
+        )
 
 
 def _current_provenance_summary(ctx: dict[str, Any]) -> dict[str, Any]:
@@ -1535,6 +1621,173 @@ def _initialize_adopted_subject_state(subject: str, data_root: Path, engine_root
     return initialize_subject_state(subject, data_root, engine_root)
 
 
+def _adopt_current_repo_receipt(args: argparse.Namespace) -> dict[str, Any]:
+    home = Path.home().resolve()
+    explicit_session_id = _resolved_session_id(args)
+    repo_defaults = _repo_adoption_defaults(detect_canonical_working_tree())
+    selection = _apply_root_overrides(repo_defaults, args, home)
+    init_receipt = _initialize_adopted_subject_state(
+        selection["subject"],
+        Path(selection["data_root"]),
+        Path(selection["engine_root"]),
+    )
+    selection["selection_method"] = "flag"
+    selection["source_detail"] = "engage_adopt_repo"
+    if explicit_session_id:
+        receipt = _write_subject_lock_from_selection(selection, args)
+    else:
+        repo_lock_args = argparse.Namespace(**vars(args))
+        repo_lock_args.session_id = None
+        receipt = _write_subject_lock_from_selection(selection, repo_lock_args)
+        generated_session_id = _ensure_generated_session_id(args)
+        receipt["session_id"] = generated_session_id
+        receipt["session_lockfile"] = str(session_focus_lock_path(generated_session_id, Path.home().resolve()).resolve())
+    receipt["initialized_created"] = init_receipt["created"]
+    receipt["initialized_existing"] = init_receipt["existing"]
+    mark_adopted_existing_repo(subject=receipt["subject"], data_root=Path(receipt["data_root"]))
+    return receipt
+
+
+def _run_onboarding_bootstrap(
+    *,
+    ctx: dict[str, Any],
+    depth: str = "deep",
+    rescan: bool = False,
+    restart: bool = False,
+    allow_switch_for_run: bool = False,
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    active_run, session_id = _require_onboarding_context(
+        ctx=ctx,
+        action_name="onboard-repo",
+        allow_create_onboard_run=True,
+        allow_replace_onboard_run=allow_switch_for_run,
+    )
+    result = onboard_repo(
+        subject=ctx["subject"],
+        data_root=Path(ctx["data_root"]),
+        engine_root=Path(ctx["engine_root"]),
+        active_run=active_run,
+        depth=depth,
+        rescan=rescan,
+        restart=restart,
+    )
+    readiness = _readiness_payload(Path(ctx["data_root"]))
+    payload = {
+        **result,
+        **readiness,
+        "active_session_mode": active_run.get("session_mode"),
+        "active_run_id": active_run.get("run_id"),
+    }
+    if result.get("resumed_existing") or result.get("already_completed"):
+        return payload, None
+
+    written_artifacts = [
+        str(item)
+        for item in [
+            result.get("session_path"),
+            result.get("pointer_path"),
+            result.get("scan_artifact_path"),
+            result.get("analysis_brief_path"),
+        ]
+        if str(item or "").strip()
+    ]
+    event_info = _event_pipeline(
+        ctx=ctx,
+        action_name="onboard-repo",
+        summary=f"Prepared onboarding scan {result.get('scan_id')} for {ctx['subject']}.",
+        session_id=session_id,
+        signals={
+            "run_id": active_run.get("run_id"),
+            "onboarding_id": result.get("onboarding_id"),
+            "scan_id": result.get("scan_id"),
+            "changed_files": written_artifacts,
+            "verification_entries": [],
+            "related_quest_ids": [],
+            "related_sidequest_ids": [],
+            **session_mode_signal_fields(active_run),
+        },
+        truth_flags={
+            "canon_mutated": False,
+            "derived_state_changed": True,
+            "governed": False,
+            "uncertainty_present": True,
+        },
+        outputs={
+            "onboarding_id": result.get("onboarding_id"),
+            "scan_id": result.get("scan_id"),
+            "scan_artifact_path": result.get("scan_artifact_path"),
+            "analysis_brief_path": result.get("analysis_brief_path"),
+            "session_path": result.get("session_path"),
+            "pointer_path": result.get("pointer_path"),
+        },
+    )
+    payload["event"] = event_info["event"]
+    payload["reducer"] = event_info["reducer"]
+    payload["rehydrate"] = event_info["reducer"]["rehydrate"]
+    payload["continuity"] = event_info["reducer"]["continuity"]
+    return payload, event_info
+
+
+def _next_onboarding_action(state: str | None) -> str | None:
+    value = str(state or "").strip()
+    if value in {"needs_draft_submission", "needs_draft_revision"}:
+        return "onboarding-update"
+    if value == "awaiting_user_clarification":
+        return "onboarding-respond"
+    if value == "awaiting_confirmation":
+        return "onboarding-confirm"
+    if value:
+        return "onboard-repo"
+    return None
+
+
+def cmd_attach_existing_repo(args: argparse.Namespace) -> int:
+    try:
+        receipt = _adopt_current_repo_receipt(args)
+        doctor_stream = io.StringIO()
+        with contextlib.redirect_stdout(doctor_stream):
+            doctor_exit_code = run_doctor(None, receipt)
+        bootstrap_payload, event_info = _run_onboarding_bootstrap(
+            ctx=receipt,
+            depth="deep",
+            rescan=False,
+            restart=False,
+            allow_switch_for_run=True,
+        )
+    except (SubjectResolutionError, LiveMemoryError, RepoOnboardingError, ProjectModelError, RepoArchaeologyError, SemanticIntakeError) as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    payload = {
+        **receipt,
+        **_readiness_payload(Path(receipt["data_root"])),
+        "doctor_exit_code": doctor_exit_code,
+        "doctor_ready": doctor_exit_code == 0,
+        "doctor_report": doctor_stream.getvalue(),
+        "onboarding_bootstrap": bootstrap_payload,
+        "next_required_action": _next_onboarding_action(
+            bootstrap_payload.get("onboarding_state") or bootstrap_payload.get("state")
+        ),
+    }
+    runtime_status = event_info.get("runtime_status") if event_info else None
+    exit_code = 3 if runtime_status and runtime_status.get("operation_status") == "partial" else 0
+    if runtime_status is not None:
+        payload["runtime_status"] = runtime_status
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return exit_code
+    print("=== ATTACH EXISTING REPO ===")
+    _print_subject_receipt(receipt)
+    print(f"doctor_ready: {payload.get('doctor_ready')}")
+    print(f"onboarding_required: {payload.get('onboarding_required')}")
+    print(f"continuity_ready: {payload.get('continuity_ready')}")
+    print(f"onboarding_state: {bootstrap_payload.get('onboarding_state') or bootstrap_payload.get('state') or 'none'}")
+    print(f"next_required_action: {payload.get('next_required_action') or 'none'}")
+    if runtime_status and runtime_status.get("operation_status") == "partial":
+        _print_partial_runtime_status(runtime_status)
+    return exit_code
+
+
 def cmd_focus(args: argparse.Namespace) -> int:
     home = Path.home().resolve()
 
@@ -1659,20 +1912,31 @@ def cmd_engage(args: argparse.Namespace) -> int:
             return 0
 
         if args.adopt_current_repo:
-            repo_defaults = _repo_adoption_defaults(detect_canonical_working_tree())
-            selection = _apply_root_overrides(repo_defaults, args, home)
-            init_receipt = _initialize_adopted_subject_state(
-                selection["subject"],
-                Path(selection["data_root"]),
-                Path(selection["engine_root"]),
-            )
-            selection["selection_method"] = "flag"
-            selection["source_detail"] = "engage_adopt_repo"
-            receipt = _write_subject_lock_from_selection(selection, args)
-            receipt["initialized_created"] = init_receipt["created"]
-            receipt["initialized_existing"] = init_receipt["existing"]
-            _emit_subject_output(receipt, json_mode=args.json, shell_mode=args.shell)
-            return 0
+            receipt = _adopt_current_repo_receipt(args)
+            bootstrap_payload, event_info = _run_onboarding_bootstrap(ctx=receipt)
+            payload = {
+                **receipt,
+                **_readiness_payload(Path(receipt["data_root"])),
+                "onboarding_bootstrap": bootstrap_payload,
+            }
+            runtime_status = event_info.get("runtime_status") if event_info else None
+            exit_code = 3 if runtime_status and runtime_status.get("operation_status") == "partial" else 0
+            if runtime_status is not None:
+                payload["runtime_status"] = runtime_status
+            if args.shell:
+                _subject_receipt_to_shell(receipt)
+                if runtime_status and runtime_status.get("operation_status") == "partial":
+                    _print_partial_runtime_status(runtime_status, stream=sys.stderr)
+                return exit_code
+            if args.json:
+                print(json.dumps(payload, indent=2, sort_keys=True))
+                return exit_code
+            _print_subject_receipt(receipt)
+            print(f"onboarding_required: {payload.get('onboarding_required')}")
+            print(f"continuity_ready: {payload.get('continuity_ready')}")
+            print(f"onboarding_state: {bootstrap_payload.get('onboarding_state') or bootstrap_payload.get('state') or 'none'}")
+            print(f"active_onboarding_id: {bootstrap_payload.get('onboarding_id') or bootstrap_payload.get('active_onboarding_id') or 'none'}")
+            return exit_code
 
         if _stdin_is_interactive():
             selection = _interactive_engage_selection(home, args)
@@ -1680,12 +1944,36 @@ def cmd_engage(args: argparse.Namespace) -> int:
                 print("CANCELLED")
                 return 130
             if selection.get("source_detail") == "interactive_adopt_repo":
+                _ensure_generated_session_id(args)
                 _initialize_adopted_subject_state(
                     selection["subject"],
                     Path(selection["data_root"]),
                     Path(selection["engine_root"]),
                 )
             receipt = _write_subject_lock_from_selection(selection, args)
+            if selection.get("source_detail") == "interactive_adopt_repo":
+                mark_adopted_existing_repo(subject=receipt["subject"], data_root=Path(receipt["data_root"]))
+                bootstrap_payload, event_info = _run_onboarding_bootstrap(ctx=receipt)
+                payload = {
+                    **receipt,
+                    **_readiness_payload(Path(receipt["data_root"])),
+                    "onboarding_bootstrap": bootstrap_payload,
+                }
+                runtime_status = event_info.get("runtime_status") if event_info else None
+                exit_code = 3 if runtime_status and runtime_status.get("operation_status") == "partial" else 0
+                if args.json:
+                    if runtime_status is not None:
+                        payload["runtime_status"] = runtime_status
+                    print(json.dumps(payload, indent=2, sort_keys=True))
+                    return exit_code
+                _print_subject_receipt(receipt)
+                print(f"onboarding_required: {payload.get('onboarding_required')}")
+                print(f"continuity_ready: {payload.get('continuity_ready')}")
+                print(f"onboarding_state: {bootstrap_payload.get('onboarding_state') or bootstrap_payload.get('state') or 'none'}")
+                print(f"active_onboarding_id: {bootstrap_payload.get('onboarding_id') or bootstrap_payload.get('active_onboarding_id') or 'none'}")
+                if runtime_status and runtime_status.get("operation_status") == "partial":
+                    _print_partial_runtime_status(runtime_status)
+                return exit_code
             _emit_subject_output(receipt, json_mode=args.json, shell_mode=args.shell)
             return 0
 
@@ -2302,6 +2590,7 @@ def _set_active_run_session_mode(
             "continuity": None,
             "runtime_status": None,
         }
+    _assert_ready_state_mode_allowed(ctx, target_mode)
     allowed, next_modes = validate_transition(current_mode, target_mode)
     if not allowed:
         raise LiveMemoryError(
@@ -2508,11 +2797,14 @@ def _start_or_resume_session_run(
     if active_run.get("run_id"):
         current_mode = str(active_run.get("session_mode") or "").strip()
         requested_mode = str(requested_session_mode or "").strip()
+        if requested_mode:
+            _assert_ready_state_mode_allowed(ctx, requested_mode)
         if requested_mode and current_mode and requested_mode != current_mode:
             raise LiveMemoryError(
                 f"Active run is already in session mode '{current_mode}'. "
                 "Use `python3 runtime/synapse.py session-mode --set <mode> --reason <text>` to change posture."
             )
+        _assert_ready_state_mode_allowed(ctx, current_mode or None)
         return {
             "run_id": active_run["run_id"],
             "session_id": active_run.get("session_id"),
@@ -2527,6 +2819,13 @@ def _start_or_resume_session_run(
             "session_mode_policy_version": active_run.get("session_mode_policy_version"),
             "resumed": True,
         }
+    readiness = _readiness_payload(Path(ctx["data_root"]))
+    target_mode = requested_session_mode or (
+        SessionMode.ONBOARDING_EXISTING_REPO.value
+        if readiness.get("onboarding_required")
+        else default_mode_for_command(command_name).value
+    )
+    _assert_ready_state_mode_allowed(ctx, target_mode)
     return run_start(
         subject=ctx["subject"],
         data_root=Path(ctx["data_root"]),
@@ -2551,6 +2850,10 @@ def cmd_run_start(args: argparse.Namespace) -> int:
         return 2
 
     try:
+        _assert_ready_state_mode_allowed(
+            ctx,
+            getattr(args, "session_mode", None) or default_mode_for_command("run-start").value,
+        )
         result = run_start(
             subject=ctx["subject"],
             data_root=Path(ctx["data_root"]),
@@ -3176,86 +3479,30 @@ def cmd_onboard_repo(args: argparse.Namespace) -> int:
         return 2
 
     try:
-        active_run, session_id = _require_onboarding_context(
+        payload, event_info = _run_onboarding_bootstrap(
             ctx=ctx,
-            action_name="onboard-repo",
-            allow_create_onboard_run=True,
-            allow_replace_onboard_run=bool(args.allow_switch),
-        )
-        result = onboard_repo(
-            subject=ctx["subject"],
-            data_root=Path(ctx["data_root"]),
-            engine_root=Path(ctx["engine_root"]),
-            active_run=active_run,
             depth=args.depth,
             rescan=bool(args.rescan),
             restart=bool(args.restart),
+            allow_switch_for_run=bool(args.allow_switch),
         )
     except (LiveMemoryError, RepoOnboardingError, ProjectModelError, RepoArchaeologyError, SemanticIntakeError) as exc:
         print(f"FAIL: {exc}")
         return 2
 
-    if result.get("resumed_existing") or result.get("already_completed"):
+    if payload.get("resumed_existing") or payload.get("already_completed"):
         if args.json:
-            print(json.dumps(result, indent=2, sort_keys=True))
+            print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
         print("=== ONBOARDING STATUS ===")
-        print(f"onboarding_id: {result.get('onboarding_id') or 'none'}")
-        print(f"state: {result.get('state') or result.get('onboarding_state') or 'none'}")
-        if result.get("resumed_existing"):
+        print(f"onboarding_id: {payload.get('onboarding_id') or 'none'}")
+        print(f"state: {payload.get('state') or payload.get('onboarding_state') or 'none'}")
+        if payload.get("resumed_existing"):
             print("resumed_existing: true")
-        if result.get("already_completed"):
+        if payload.get("already_completed"):
             print("already_completed: true")
         return 0
-
-    written_artifacts = [
-        str(item)
-        for item in [
-            result.get("session_path"),
-            result.get("pointer_path"),
-            result.get("scan_artifact_path"),
-            result.get("analysis_brief_path"),
-        ]
-        if str(item or "").strip()
-    ]
-    event_info = _event_pipeline(
-        ctx=ctx,
-        action_name="onboard-repo",
-        summary=f"Prepared onboarding scan {result.get('scan_id')} for {ctx['subject']}.",
-        session_id=session_id,
-        signals={
-            "run_id": active_run.get("run_id"),
-            "onboarding_id": result.get("onboarding_id"),
-            "scan_id": result.get("scan_id"),
-            "changed_files": written_artifacts,
-            "verification_entries": [],
-            "related_quest_ids": [],
-            "related_sidequest_ids": [],
-            **session_mode_signal_fields(active_run),
-        },
-        truth_flags={
-            "canon_mutated": False,
-            "derived_state_changed": True,
-            "governed": False,
-            "uncertainty_present": True,
-        },
-        outputs={
-            "onboarding_id": result.get("onboarding_id"),
-            "scan_id": result.get("scan_id"),
-            "scan_artifact_path": result.get("scan_artifact_path"),
-            "analysis_brief_path": result.get("analysis_brief_path"),
-            "session_path": result.get("session_path"),
-            "pointer_path": result.get("pointer_path"),
-        },
-    )
-    payload = {
-        **result,
-        "subject": ctx,
-        "event": event_info["event"],
-        "reducer": event_info["reducer"],
-        "rehydrate": event_info["reducer"]["rehydrate"],
-        "continuity": event_info["reducer"]["continuity"],
-    }
+    payload["subject"] = ctx
 
     def _emit_onboard_repo(rendered_payload: dict[str, Any]) -> None:
         print("=== ONBOARDING STARTED ===")
@@ -3678,6 +3925,14 @@ def cmd_session_mode(args: argparse.Namespace) -> int:
             print(f"active_session_mode: {payload.get('active_session_mode')}")
             print("changed: false")
         return 0
+
+    gate = ready_state_gate_for_mode(data_root=data_root, target_mode=target_mode)
+    if gate.get("blocked"):
+        return _session_mode_change_error(
+            payload,
+            json_mode=args.json,
+            message=_onboarding_gate_message(target_mode=target_mode.value, gate=gate),
+        )
 
     if not str(args.reason or "").strip():
         return _session_mode_change_error(
@@ -5289,6 +5544,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_governance_map(args)
     if args.command == "engage":
         return cmd_engage(args)
+    if args.command == "attach-existing-repo":
+        return cmd_attach_existing_repo(args)
     if args.command == "attach-or-init":
         return cmd_attach_or_init(args)
     if args.command == "focus":

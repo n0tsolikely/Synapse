@@ -110,7 +110,7 @@ class EngageSelectionTests(unittest.TestCase):
         self.assertEqual(Path(payload["data_root"]).resolve(), expected_data)
         self.assertFalse(str(payload["engine_root"]).endswith("_Engine"))
 
-    def test_adopt_current_repo_initializes_subject_state_and_doctor_passes(self):
+    def test_adopt_current_repo_auto_bootstraps_onboarding_and_doctor_fails_until_confirmed(self):
         target_data = (self.repo.parent / f"{self.repo.name}_Data").resolve()
         if target_data.exists():
             self.fail(f"expected missing data root before adopt: {target_data}")
@@ -125,6 +125,11 @@ class EngageSelectionTests(unittest.TestCase):
         self.assertTrue((target_data / "Buffs").is_dir())
         self.assertTrue((target_data / "Latest Rehydration Pack").is_dir())
         self.assertTrue((target_data / ".synapse" / "STATE.yaml").exists())
+        self.assertIsNotNone(payload.get("onboarding_bootstrap"))
+        self.assertTrue(payload.get("onboarding_required"))
+        self.assertFalse(payload.get("continuity_ready"))
+        self.assertEqual(payload["onboarding_bootstrap"].get("onboarding_state"), "needs_draft_submission")
+        self.assertIsNotNone(payload["onboarding_bootstrap"].get("onboarding_id"))
 
         buff_prefix = self.repo.name.upper()
         execution_buff = target_data / "Buffs" / f"{buff_prefix}_EXECUTION_PROTOCOL.txt"
@@ -156,11 +161,9 @@ class EngageSelectionTests(unittest.TestCase):
 
         bootstrap_text = bootstrap[0].read_text(encoding="utf-8")
         for heading in (
-            "ROLE / STANCE:",
             "AUTHORITY ORDER:",
-            "ALLOWED NOW:",
-            "FORBIDDEN NOW:",
-            "READ PRIORITY:",
+            "READ FIRST:",
+            "EXECUTION POSTURE:",
             "FIRST ACTION:",
         ):
             self.assertIn(heading, bootstrap_text)
@@ -185,8 +188,9 @@ class EngageSelectionTests(unittest.TestCase):
             cwd=self.repo,
             home=self.home,
         )
-        self.assertEqual(doctor.returncode, 0, doctor.stdout + doctor.stderr)
-        self.assertIn("Overall Status: PASS", doctor.stdout + doctor.stderr)
+        self.assertNotEqual(doctor.returncode, 0, doctor.stdout + doctor.stderr)
+        self.assertIn("FAIL_ONBOARDING_CONFIRMATION_REQUIRED", doctor.stdout + doctor.stderr)
+        self.assertIn("published_project_model_path: MISSING", doctor.stdout + doctor.stderr)
 
     def test_session_lock_precedence_does_not_stomp_legacy_lock(self):
         session_id = "session-alpha"
