@@ -11,6 +11,7 @@ from synapse_runtime.accepted_execution_view import (
     select_current_accepted_quest,
     select_latest_completed_quest,
 )
+from synapse_runtime.automation_orchestrator import automation_summary
 from synapse_runtime.governance_model import (
     AmbientSignal,
     PromotionRecord,
@@ -245,6 +246,53 @@ def _apply_onboarding_projection(
     return projection
 
 
+def _apply_automation_projection(
+    *,
+    data_root: Path,
+    state: dict[str, Any],
+    manifold: dict[str, Any],
+    event_timestamp: str | None = None,
+    automation_recent_actions: list[str] | None = None,
+    continuity_updated: bool = False,
+) -> dict[str, Any]:
+    summary = automation_summary(data_root)
+    state["onboarding_required"] = bool(summary.get("onboarding_required"))
+    state["onboarding_requirement_reason"] = summary.get("onboarding_requirement_reason")
+    state["project_identity_ready"] = bool(summary.get("project_identity_ready"))
+    state["continuity_ready"] = bool(summary.get("continuity_ready"))
+    state["automation_status"] = summary.get("automation_status")
+    state["automation_pending_gate"] = summary.get("automation_pending_gate")
+    state["automation_last_activity_at"] = event_timestamp or summary.get("automation_last_activity_at")
+    if continuity_updated or automation_recent_actions:
+        state["automation_last_continuity_update_at"] = (
+            event_timestamp or summary.get("automation_last_continuity_update_at")
+        )
+    else:
+        state["automation_last_continuity_update_at"] = summary.get("automation_last_continuity_update_at")
+
+    manifold["onboarding_required"] = bool(summary.get("onboarding_required"))
+    manifold["onboarding_requirement_reason"] = summary.get("onboarding_requirement_reason")
+    manifold["project_identity_ready"] = bool(summary.get("project_identity_ready"))
+    manifold["continuity_ready"] = bool(summary.get("continuity_ready"))
+    manifold["automation_status"] = summary.get("automation_status")
+    manifold["automation_pending_gate"] = summary.get("automation_pending_gate")
+    manifold["automation_last_activity_at"] = event_timestamp or summary.get("automation_last_activity_at")
+    if continuity_updated or automation_recent_actions:
+        manifold["automation_last_continuity_update_at"] = (
+            event_timestamp or summary.get("automation_last_continuity_update_at")
+        )
+    else:
+        manifold["automation_last_continuity_update_at"] = summary.get("automation_last_continuity_update_at")
+    recent_actions = list(manifold.get("automation_recent_actions") or [])
+    for action in automation_recent_actions or []:
+        text = str(action).strip()
+        if not text:
+            continue
+        recent_actions = [text] + [item for item in recent_actions if item != text]
+    manifold["automation_recent_actions"] = recent_actions[:10]
+    return summary
+
+
 def refresh_onboarding_projection(*, subject: str, data_root: Path) -> dict[str, Any]:
     live = live_root(data_root)
     state_path = live / "STATE.yaml"
@@ -253,6 +301,11 @@ def refresh_onboarding_projection(*, subject: str, data_root: Path) -> dict[str,
     manifold = _load_manifold(manifold_path, subject)
     projection = _apply_onboarding_projection(
         subject=subject,
+        data_root=data_root,
+        state=state,
+        manifold=manifold,
+    )
+    _apply_automation_projection(
         data_root=data_root,
         state=state,
         manifold=manifold,
@@ -460,6 +513,9 @@ def _sync_sidecar(
     discoveries_path: Path | None = None,
     disclosures_path: Path | None = None,
     mutate_proposals: bool = True,
+    event_timestamp: str | None = None,
+    automation_recent_actions: list[str] | None = None,
+    continuity_updated: bool = False,
 ) -> dict[str, Any]:
     live = live_root(data_root)
     state_path = live / "STATE.yaml"
@@ -504,6 +560,14 @@ def _sync_sidecar(
         data_root=data_root,
         state=state,
         manifold=manifold,
+    )
+    automation_state = _apply_automation_projection(
+        data_root=data_root,
+        state=state,
+        manifold=manifold,
+        event_timestamp=event_timestamp,
+        automation_recent_actions=automation_recent_actions,
+        continuity_updated=continuity_updated,
     )
 
     semantic_projection = None
@@ -685,6 +749,11 @@ def _sync_sidecar(
         "active_onboarding_id": onboarding_state.get("active_onboarding_id"),
         "onboarding_state": onboarding_state.get("onboarding_state"),
         "published_project_model_path": onboarding_state.get("published_project_model_path"),
+        "onboarding_required": automation_state.get("onboarding_required"),
+        "project_identity_ready": automation_state.get("project_identity_ready"),
+        "continuity_ready": automation_state.get("continuity_ready"),
+        "automation_status": automation_state.get("automation_status"),
+        "automation_pending_gate": automation_state.get("automation_pending_gate"),
         "current_accepted_quest_id": projection["current_accepted"]["quest_id"] if projection["current_accepted"] else None,
         "last_completed_quest_id": projection["latest_completed"]["quest_id"] if projection["latest_completed"] else None,
         "provenance_status": provenance_summary.get("provenance_status"),
@@ -782,6 +851,10 @@ def reduce_sidecar_from_event(*, subject: str, data_root: Path, event: dict[str,
     capture_artifact_path = maybe_path(outputs.get("capture_artifact_path"))
     if capture_artifact_path is not None:
         capture_batch = load_capture_batch(capture_artifact_path)
+    signals = event.get("signals")
+    if not isinstance(signals, dict):
+        signals = {}
+    automation_actions = [str(item).strip() for item in signals.get("automation_action_kinds") or [] if str(item).strip()]
 
     return _sync_sidecar(
         subject=subject,
@@ -793,4 +866,7 @@ def reduce_sidecar_from_event(*, subject: str, data_root: Path, event: dict[str,
         discoveries_path=maybe_path(outputs.get("discoveries_path")),
         disclosures_path=maybe_path(outputs.get("disclosures_ledger_path")),
         mutate_proposals=False,
+        event_timestamp=str(event.get("timestamp") or "").strip() or None,
+        automation_recent_actions=automation_actions,
+        continuity_updated=bool(signals.get("automation_triggered") or automation_actions),
     )

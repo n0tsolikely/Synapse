@@ -111,6 +111,36 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
 
     lines.append("")
 
+    lines.append("## Repository readiness")
+    lines.append(f"- Onboarding required: {'YES' if state.get('onboarding_required') else 'NO'}")
+    if state.get("onboarding_requirement_reason"):
+        lines.append(f"- Onboarding requirement reason: {state.get('onboarding_requirement_reason')}")
+    lines.append(f"- Project identity ready: {'YES' if state.get('project_identity_ready') else 'NO'}")
+    lines.append(f"- Continuity ready: {'YES' if state.get('continuity_ready') else 'NO'}")
+    if state.get("onboarding_required"):
+        if not state.get("published_project_model_path"):
+            lines.append("- WARNING: project model missing")
+        if not state.get("published_project_story_path"):
+            lines.append("- WARNING: project story missing")
+        if not state.get("published_vision_path"):
+            lines.append("- WARNING: vision missing")
+        lines.append("- WARNING: onboarding confirmation required before normal work")
+    lines.append("")
+
+    lines.append("## Automation status")
+    lines.append(f"- Automation status: {state.get('automation_status') or 'unknown'}")
+    lines.append(f"- Last activity at: {state.get('automation_last_activity_at') or 'none'}")
+    lines.append(
+        f"- Last continuity update at: {state.get('automation_last_continuity_update_at') or 'none'}"
+    )
+    lines.append(f"- Pending gate: {state.get('automation_pending_gate') or 'none'}")
+    recent_automation = list(manifold.get("automation_recent_actions") or [])
+    if recent_automation:
+        lines.append(f"- Recent automation actions: {', '.join(recent_automation)}")
+    else:
+        lines.append("- Recent automation actions: none")
+    lines.append("")
+
     lines.append("## Session posture")
     active_session_mode = str(manifold.get("active_session_mode") or "").strip()
     if active_session_mode:
@@ -159,6 +189,17 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
         lines.append("- Active onboarding id: none")
         if state.get("latest_confirmed_onboarding_id"):
             lines.append(f"- Latest confirmed onboarding id: {state.get('latest_confirmed_onboarding_id')}")
+    lines.append("")
+
+    lines.append("## Published project identity")
+    if state.get("published_project_model_path") or state.get("published_project_story_path") or state.get("published_vision_path"):
+        lines.append(f"- Project model path: {state.get('published_project_model_path') or 'missing'}")
+        lines.append(f"- Project story path: {state.get('published_project_story_path') or 'missing'}")
+        lines.append(f"- Vision path: {state.get('published_vision_path') or 'missing'}")
+    else:
+        lines.append("- Project model path: missing")
+        lines.append("- Project story path: missing")
+        lines.append("- Vision path: missing")
     lines.append("")
 
     if pending_proposals:

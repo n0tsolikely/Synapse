@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import os
 from pathlib import Path
 
+from synapse_runtime.automation_orchestrator import automation_policy_for_context
 from synapse_runtime.cwt import detect_canonical_working_tree
 from synapse_runtime.event_log import validate_event_stream
 from synapse_runtime.governance_model import derive_world_state, required_sidecar_paths
@@ -226,6 +227,38 @@ def _check_subject_state(governance_root: Path, subject_receipt: dict) -> list[R
                     add(str(path), False, "FAIL")
                 continue
             add(str(path), True, "EXISTS")
+
+    try:
+        automation_policy = automation_policy_for_context(data_root=data_root)
+    except Exception:
+        automation_policy = None
+    if automation_policy is not None and automation_policy.onboarding_required:
+        missing = set(automation_policy.missing_publication_fields)
+        add(
+            "continuity_readiness_gate",
+            False,
+            f"FAIL_ONBOARDING_CONFIRMATION_REQUIRED:{automation_policy.onboarding_requirement_reason}",
+        )
+        add(
+            "latest_confirmed_onboarding_id",
+            "latest_confirmed_onboarding_id" not in missing,
+            "EXISTS" if "latest_confirmed_onboarding_id" not in missing else "MISSING",
+        )
+        add(
+            "published_project_model_path",
+            "published_project_model_path" not in missing,
+            "EXISTS" if "published_project_model_path" not in missing else "MISSING",
+        )
+        add(
+            "published_project_story_path",
+            "published_project_story_path" not in missing,
+            "EXISTS" if "published_project_story_path" not in missing else "MISSING",
+        )
+        add(
+            "published_vision_path",
+            "published_vision_path" not in missing,
+            "EXISTS" if "published_vision_path" not in missing else "MISSING",
+        )
 
     return checks
 

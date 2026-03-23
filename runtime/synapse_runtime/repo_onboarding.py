@@ -164,6 +164,7 @@ def generate_question_set_id() -> str:
 def default_onboarding_pointer(subject: str) -> dict[str, Any]:
     return {
         "subject": subject,
+        "adopted_existing_repo": False,
         "current_onboarding_id": None,
         "latest_confirmed_onboarding_id": None,
         "updated_at": _now_iso(),
@@ -235,6 +236,7 @@ def load_onboarding_pointer(
     payload = _read_yaml(path)
     if isinstance(payload, dict):
         payload.setdefault("subject", subject)
+        payload.setdefault("adopted_existing_repo", False)
         payload.setdefault("current_onboarding_id", None)
         payload.setdefault("latest_confirmed_onboarding_id", None)
         payload.setdefault("updated_at", _now_iso())
@@ -344,6 +346,18 @@ def current_onboarding_session(
     return None
 
 
+def mark_adopted_existing_repo(*, subject: str, data_root: Path) -> dict[str, Any]:
+    pointer = load_onboarding_pointer(
+        subject=subject,
+        data_root=data_root,
+        rebuild=False,
+        persist=False,
+    )
+    pointer["adopted_existing_repo"] = True
+    save_onboarding_pointer(data_root=data_root, pointer=pointer)
+    return pointer
+
+
 def onboarding_status_payload(
     *,
     subject: str,
@@ -372,6 +386,7 @@ def onboarding_status_payload(
             "onboarding_id": None,
             "state": None,
             "depth": None,
+            "adopted_existing_repo": bool(pointer.get("adopted_existing_repo")),
             "current_scan_id": None,
             "current_draft_id": None,
             "current_question_set_id": None,
@@ -392,6 +407,7 @@ def onboarding_status_payload(
         "onboarding_id": session.get("onboarding_id"),
         "state": session.get("state"),
         "depth": session.get("depth"),
+        "adopted_existing_repo": bool(pointer.get("adopted_existing_repo")),
         "current_scan_id": session.get("current_scan_id"),
         "current_draft_id": session.get("current_draft_id"),
         "current_question_set_id": session.get("current_question_set_id"),
@@ -418,6 +434,7 @@ def onboard_repo(
     restart: bool,
 ) -> dict[str, Any]:
     ensure_onboarding_scaffold(subject, data_root)
+    mark_adopted_existing_repo(subject=subject, data_root=data_root)
     pointer = load_onboarding_pointer(subject=subject, data_root=data_root, rebuild=True)
     current_session = current_onboarding_session(subject=subject, data_root=data_root, require_current=True)
     latest_confirmed = None
@@ -777,11 +794,32 @@ def abandon_onboarding_session(*, data_root: Path, session: dict[str, Any], reas
     return updated
 
 
-def onboarding_projection(*, subject: str, data_root: Path) -> dict[str, Any]:
-    pointer = load_onboarding_pointer(subject=subject, data_root=data_root, rebuild=True)
-    active_session = current_onboarding_session(subject=subject, data_root=data_root, require_current=False)
+def onboarding_projection(
+    *,
+    subject: str,
+    data_root: Path,
+    rebuild: bool = True,
+    persist_pointer: bool = True,
+    ensure_scaffold: bool = True,
+) -> dict[str, Any]:
+    pointer = load_onboarding_pointer(
+        subject=subject,
+        data_root=data_root,
+        rebuild=rebuild,
+        persist=persist_pointer,
+        ensure_scaffold=ensure_scaffold,
+    )
+    active_session = current_onboarding_session(
+        subject=subject,
+        data_root=data_root,
+        require_current=False,
+        rebuild=rebuild,
+        persist_pointer=persist_pointer,
+        ensure_scaffold=ensure_scaffold,
+    )
     if not active_session:
         return {
+            "adopted_existing_repo": bool(pointer.get("adopted_existing_repo")),
             "active_onboarding_id": None,
             "latest_confirmed_onboarding_id": pointer.get("latest_confirmed_onboarding_id"),
             "onboarding_state": None,
@@ -809,6 +847,7 @@ def onboarding_projection(*, subject: str, data_root: Path) -> dict[str, Any]:
     if active_session.get("published_project_model_path"):
         published_model = load_yaml_artifact(Path(str(active_session["published_project_model_path"])), required_field="onboarding_id")
     projection = {
+        "adopted_existing_repo": bool(pointer.get("adopted_existing_repo")),
         "active_onboarding_id": active_session.get("onboarding_id") if active_session.get("state") in ONBOARDING_NONTERMINAL_STATES else None,
         "latest_confirmed_onboarding_id": pointer.get("latest_confirmed_onboarding_id"),
         "onboarding_state": active_session.get("state"),
@@ -864,6 +903,23 @@ def draft_is_stale(*, session: dict[str, Any], draft: dict[str, Any] | None) -> 
     based_on_capture_ids = set(draft.get("based_on_capture_batch_ids") or [])
     outstanding = list(session.get("unincorporated_capture_batch_ids") or [])
     return any(item not in based_on_capture_ids for item in outstanding)
+
+
+def register_onboarding_continuity_capture(
+    *,
+    data_root: Path,
+    session: dict[str, Any],
+    capture_batch_id: str,
+) -> dict[str, Any]:
+    updated = dict(session)
+    outstanding = list(updated.get("unincorporated_capture_batch_ids") or [])
+    if capture_batch_id not in outstanding:
+        outstanding.append(capture_batch_id)
+    updated["unincorporated_capture_batch_ids"] = outstanding
+    if str(updated.get("state") or "") == "awaiting_confirmation":
+        updated["state"] = "needs_draft_revision"
+    save_onboarding_session(data_root=data_root, session=updated)
+    return updated
 
 
 def load_current_scan(*, data_root: Path, session: dict[str, Any], required: bool) -> dict[str, Any] | None:
