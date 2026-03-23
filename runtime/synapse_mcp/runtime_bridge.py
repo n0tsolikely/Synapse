@@ -383,6 +383,13 @@ def build_current_context_bundle(
         "last_session_mode": manifold_payload.get("last_session_mode") or state_payload.get("last_session_mode"),
         "last_session_mode_ended_at": manifold_payload.get("last_session_mode_ended_at") or state_payload.get("last_session_mode_ended_at"),
     }
+    provenance_summary = {
+        "provenance_status": manifold_payload.get("provenance_status") or state_payload.get("provenance_status"),
+        "blocker_count": len(list(manifold_payload.get("provenance_blockers") or [])),
+        "warning_count": len(list(manifold_payload.get("provenance_warnings") or [])),
+        "current_wrapper_proof_status": manifold_payload.get("current_wrapper_proof_status") or state_payload.get("current_wrapper_proof_status"),
+        "git_hooks_status": manifold_payload.get("git_hooks_status") or state_payload.get("git_hooks_status"),
+    }
     bundle = {
         "resolved_subject_context": {
             "subject": ctx["subject"],
@@ -401,6 +408,7 @@ def build_current_context_bundle(
             "session_mode": active_run.get("session_mode"),
         },
         "session_posture": session_posture,
+        "provenance": provenance_summary,
         "accepted_and_completed_quests": accepted_summary,
         "semantic_intake": semantic_summary,
         "onboarding": onboarding_payload,
@@ -437,6 +445,10 @@ def build_session_digest(*, state: ConnectionState, context: ContextInput | dict
         f"- Active run: {bundle['context']['active_run'].get('run_id') or 'none'}",
         f"- Session mode: {bundle['context']['session_posture'].get('active_session_mode') or 'none'}",
         f"- Accepted quest: {accepted_summary.get('current_accepted_quest_id') or 'none'}",
+        f"- Provenance: {bundle['context']['provenance'].get('provenance_status') or 'unknown'}",
+        f"- Trust blockers: {bundle['context']['provenance'].get('blocker_count')}",
+        f"- Trust warnings: {bundle['context']['provenance'].get('warning_count')}",
+        "- Trust note: clear means no current warnings or blockers under Phase 5 checks; it does not prove universal mediation.",
         f"- Open questions: {semantic_summary.get('open_question_count')}",
         f"- Blocking questions: {semantic_summary.get('blocking_question_count')}",
         f"- Onboarding state: {onboarding_payload.get('state') or 'none'}",
@@ -456,6 +468,7 @@ def build_session_digest(*, state: ConnectionState, context: ContextInput | dict
     return ctx, {
         "digest_markdown": digest,
         "current_session_mode": bundle["context"]["session_posture"].get("active_session_mode"),
+        "provenance_summary": bundle["context"]["provenance"],
         "accepted_quest_summary": accepted_summary,
         "open_question_summary": semantic_summary,
         "onboarding_summary": onboarding_payload,
@@ -471,6 +484,8 @@ def resource_catalog(*, state: ConnectionState) -> list[dict[str, Any]]:
         {"uri": "synapse://current/rehydrate.md", "mime_type": "text/markdown"},
         {"uri": "synapse://current/open-questions.md", "mime_type": "text/markdown"},
         {"uri": "synapse://current/onboarding/status.json", "mime_type": "application/json"},
+        {"uri": "synapse://current/provenance-status", "mime_type": "application/json"},
+        {"uri": "synapse://current/provenance-anomalies", "mime_type": "application/json"},
     ]
     try:
         ctx = _resolve_runtime_context(
@@ -540,6 +555,12 @@ def read_resource(*, state: ConnectionState, uri: str) -> tuple[dict[str, Any], 
             ensure_scaffold=False,
         )
         return ctx, json.dumps(payload, indent=2, sort_keys=True) + "\n", "application/json"
+    if uri == "synapse://current/provenance-status":
+        payload = cli_runtime._current_provenance_summary(ctx)
+        return ctx, json.dumps(payload, indent=2, sort_keys=True) + "\n", "application/json"
+    if uri == "synapse://current/provenance-anomalies":
+        payload = cli_runtime._current_provenance_summary(ctx)
+        return ctx, json.dumps(list(payload.get("recent_provenance_anomalies") or []), indent=2, sort_keys=True) + "\n", "application/json"
 
     session = current_onboarding_session(
         subject=ctx["subject"],
@@ -1400,6 +1421,90 @@ def accept_quest_tool(*, state: ConnectionState, context: ContextInput | dict[st
     payload = cli_runtime._accept_quest_mutation(ctx, str(quest_ref), active_run=active_run)
     event_info = {"event": payload.get("event"), "reducer": payload.get("reducer")}
     return ctx, payload, event_info
+
+
+def get_provenance_status_tool(*, state: ConnectionState, context: ContextInput | dict[str, Any] | None, strict: bool) -> tuple[dict[str, Any], dict[str, Any], str]:
+    ctx = _resolve_runtime_context(state=state, context=context, allow_attach_current_repo=False, requires_session=False)
+    summary = cli_runtime._current_provenance_summary(ctx)
+    status = STATUS_OK
+    if strict and summary.get("provenance_status") == cli_runtime.ProvenanceStatus.BLOCKED.value:
+        status = STATUS_BLOCKED
+    return ctx, summary, status
+
+
+def install_git_hooks_tool(*, state: ConnectionState, context: ContextInput | dict[str, Any] | None, force: bool) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any] | None, str]:
+    ctx = _resolve_runtime_context(state=state, context=context, allow_attach_current_repo=False, requires_session=False)
+    payload = cli_runtime._install_hooks_receipt(ctx, force=force)
+    if payload.get("git_hooks_status") == cli_runtime.GitHooksStatus.NOT_APPLICABLE.value:
+        return ctx, payload, None, STATUS_OK
+    event_info = cli_runtime._event_pipeline(
+        ctx=ctx,
+        action_name="install-hooks",
+        summary=f"Installed or verified managed git hooks for {ctx['subject']}.",
+        session_id=ctx.get("session_id"),
+        signals={
+            "changed_files": [payload["hooks_receipt_path"]],
+            "verification_entries": [],
+            "related_quest_ids": [],
+            "related_sidequest_ids": [],
+            "accepted_context": cli_runtime._accepted_context_snapshot(Path(ctx["data_root"])),
+            **cli_runtime._current_session_mode_fields(ctx),
+        },
+        truth_flags={
+            "canon_mutated": False,
+            "derived_state_changed": True,
+            "governed": False,
+            "uncertainty_present": False,
+        },
+        outputs={
+            "git_hooks_status": payload.get("hooks_status"),
+            "hooks_receipt_path": payload.get("hooks_receipt_path"),
+            "template_version": payload.get("template_version"),
+            "pre_commit_status": payload.get("pre_commit_status"),
+            "pre_push_status": payload.get("pre_push_status"),
+            "backups": list(payload.get("backups") or []),
+        },
+    )
+    result = dict(payload)
+    result.update({"event": event_info.get("event"), "reducer": event_info.get("reducer")})
+    return ctx, result, event_info, STATUS_OK
+
+
+def verify_git_hooks_tool(*, state: ConnectionState, context: ContextInput | dict[str, Any] | None) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any] | None, str]:
+    ctx = _resolve_runtime_context(state=state, context=context, allow_attach_current_repo=False, requires_session=False)
+    payload = cli_runtime._verify_hooks_receipt(ctx)
+    if payload.get("git_hooks_status") == cli_runtime.GitHooksStatus.NOT_APPLICABLE.value:
+        return ctx, payload, None, STATUS_OK
+    event_info = cli_runtime._event_pipeline(
+        ctx=ctx,
+        action_name="verify-hooks",
+        summary=f"Verified managed git hooks for {ctx['subject']}.",
+        session_id=ctx.get("session_id"),
+        signals={
+            "changed_files": [payload["hooks_receipt_path"]],
+            "verification_entries": [],
+            "related_quest_ids": [],
+            "related_sidequest_ids": [],
+            "accepted_context": cli_runtime._accepted_context_snapshot(Path(ctx["data_root"])),
+            **cli_runtime._current_session_mode_fields(ctx),
+        },
+        truth_flags={
+            "canon_mutated": False,
+            "derived_state_changed": True,
+            "governed": False,
+            "uncertainty_present": False,
+        },
+        outputs={
+            "git_hooks_status": payload.get("hooks_status"),
+            "hooks_receipt_path": payload.get("hooks_receipt_path"),
+            "template_version": payload.get("template_version"),
+            "pre_commit_status": payload.get("pre_commit_status"),
+            "pre_push_status": payload.get("pre_push_status"),
+        },
+    )
+    result = dict(payload)
+    result.update({"event": event_info.get("event"), "reducer": event_info.get("reducer")})
+    return ctx, result, event_info, STATUS_OK
 
 
 def refresh_continuity_tool(*, state: ConnectionState, context: ContextInput | dict[str, Any] | None, seal_rehydration_pack: bool) -> tuple[dict[str, Any], dict[str, Any]]:

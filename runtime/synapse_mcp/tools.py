@@ -18,6 +18,8 @@ from synapse_mcp.runtime_bridge import (
     confirm_onboarding_tool,
     finalize_run_tool,
     formalize_candidate_tool,
+    get_provenance_status_tool,
+    install_git_hooks_tool,
     list_formalization_candidates_tool,
     map_runtime_exception,
     record_activity,
@@ -28,6 +30,7 @@ from synapse_mcp.runtime_bridge import (
     submit_onboarding_draft,
     submit_onboarding_responses,
     transition_session_mode,
+    verify_git_hooks_tool,
 )
 from synapse_mcp.schemas import ContextInput
 
@@ -110,6 +113,28 @@ def register_tools(mcp: FastMCP, state: ConnectionState) -> None:
     ) -> dict[str, Any]:
         try:
             ctx, data = build_session_digest(state=state, context=context, style=style)
+            return result_mapping.ok(ctx, data=data)
+        except Exception as exc:
+            return _handle_exception(exc)
+
+    @mcp.tool(name="get_provenance_status", structured_output=True)
+    def _get_provenance_status(
+        context: ContextInput | None = None,
+        strict: bool = False,
+    ) -> dict[str, Any]:
+        try:
+            ctx, data, status = get_provenance_status_tool(
+                state=state,
+                context=context,
+                strict=strict,
+            )
+            if status == result_mapping.STATUS_BLOCKED:
+                return result_mapping.blocked(
+                    ctx,
+                    code="PROVENANCE_BLOCKED",
+                    message="Current provenance status is blocked.",
+                    data=data,
+                )
             return result_mapping.ok(ctx, data=data)
         except Exception as exc:
             return _handle_exception(exc)
@@ -248,6 +273,34 @@ def register_tools(mcp: FastMCP, state: ConnectionState) -> None:
                 source_role=source_role,
             )
             return _handle_mutation_result(ctx, payload, event_info)
+        except Exception as exc:
+            return _handle_exception(exc)
+
+    @mcp.tool(name="install_git_hooks", structured_output=True)
+    def _install_git_hooks(
+        context: ContextInput | None = None,
+        force: bool = False,
+    ) -> dict[str, Any]:
+        try:
+            ctx, payload, event_info, status = install_git_hooks_tool(
+                state=state,
+                context=context,
+                force=force,
+            )
+            return _handle_mutation_result(ctx, payload, event_info, status)
+        except Exception as exc:
+            return _handle_exception(exc)
+
+    @mcp.tool(name="verify_git_hooks", structured_output=True)
+    def _verify_git_hooks(
+        context: ContextInput | None = None,
+    ) -> dict[str, Any]:
+        try:
+            ctx, payload, event_info, status = verify_git_hooks_tool(
+                state=state,
+                context=context,
+            )
+            return _handle_mutation_result(ctx, payload, event_info, status)
         except Exception as exc:
             return _handle_exception(exc)
 

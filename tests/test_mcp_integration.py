@@ -36,11 +36,14 @@ FIXED_TOOL_CATALOG = [
     "bootstrap_session",
     "get_current_context",
     "get_session_digest",
+    "get_provenance_status",
     "transition_session_mode",
     "record_activity",
     "record_decision",
     "record_disclosure",
     "capture_chunk",
+    "install_git_hooks",
+    "verify_git_hooks",
     "run_repo_onboarding",
     "submit_onboarding_draft",
     "submit_onboarding_responses",
@@ -60,6 +63,8 @@ FIXED_RESOURCES = {
     "synapse://current/rehydrate.md",
     "synapse://current/open-questions.md",
     "synapse://current/onboarding/status.json",
+    "synapse://current/provenance-status",
+    "synapse://current/provenance-anomalies",
 }
 
 
@@ -459,6 +464,35 @@ class McpIntegrationTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("# Rehydrate", rehydrate_text)
             self.assertEqual(state_before, state_after)
             self.assertIsNone(active_run_after.get("session_id"))
+
+    async def test_provenance_tools_and_resources_expose_runtime_summary(self) -> None:
+        workspace = self._make_workspace("mcp-provenance")
+        async with self._session(workspace) as session:
+            bootstrap = await self._call(session, "bootstrap_session", {"title": "Prov test"})
+            self.assertEqual(bootstrap["status"], "ok")
+
+            hooks = await self._call(session, "install_git_hooks")
+            self.assertEqual(hooks["status"], "ok")
+            self.assertEqual(hooks["data"]["git_hooks_status"], "installed")
+
+            summary = await self._call(session, "get_provenance_status")
+            self.assertEqual(summary["status"], "ok")
+            self.assertIn("provenance_status", summary["data"])
+            self.assertEqual(summary["data"]["git_hooks_status"], "installed")
+
+            context = await self._call(session, "get_current_context")
+            provenance = context["data"]["context"]["provenance"]
+            self.assertIn("provenance_status", provenance)
+            self.assertIn("blocker_count", provenance)
+            self.assertIn("warning_count", provenance)
+
+            digest = await self._call(session, "get_session_digest")
+            self.assertIn("provenance_summary", digest["data"])
+
+            status_text = await self._read_text_resource(session, "synapse://current/provenance-status")
+            anomalies_text = await self._read_text_resource(session, "synapse://current/provenance-anomalies")
+            self.assertIn("\"provenance_status\"", status_text)
+            self.assertTrue(anomalies_text.strip().startswith("["))
 
     async def test_onboarding_read_surfaces_do_not_rebuild_pointer(self) -> None:
         workspace = self._make_workspace("mcp-onboarding-readonly")
