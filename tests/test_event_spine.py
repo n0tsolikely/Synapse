@@ -36,6 +36,8 @@ _SYNAPSE_SPEC.loader.exec_module(synapse_cli)
 def run_synapse(args: list[str], *, cwd: Path, home: Path, extra_env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env["HOME"] = str(home)
+    env.pop("SYNAPSE_SESSION_ID", None)
+    env.pop("SUBJECT", None)
     if extra_env:
         env.update(extra_env)
     return subprocess.run(SYNAPSE + args, cwd=cwd, env=env, capture_output=True, text=True)
@@ -86,15 +88,16 @@ class EventSpineTests(unittest.TestCase):
         return entries
 
     def _engage(self) -> None:
-        write_focus_lock(
-            subject=self.subject,
-            data_root=self.data_root,
-            engine_root=self.engine_root,
-            cwt=REPO_ROOT,
-            home=self.home,
-            selection_method="test",
-            source_detail="test_event_spine",
-        )
+        with mock.patch.dict(os.environ, {"SYNAPSE_SESSION_ID": "", "SUBJECT": ""}, clear=False):
+            write_focus_lock(
+                subject=self.subject,
+                data_root=self.data_root,
+                engine_root=self.engine_root,
+                cwt=REPO_ROOT,
+                home=self.home,
+                selection_method="test",
+                source_detail="test_event_spine",
+            )
 
     def _run_start_namespace(self, *, json_mode: bool) -> argparse.Namespace:
         return argparse.Namespace(

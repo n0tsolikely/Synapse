@@ -20,6 +20,7 @@ from synapse_runtime import provenance as prov
 from synapse_runtime import wrapper_proof
 from synapse_runtime.sidecar_store import authoritative_coordination_paths, ensure_live_scaffold
 from synapse_runtime.subject_bootstrap import initialize_subject_state
+from synapse_runtime.subject_resolver import home_focus_lock_path, repo_focus_lock_path
 
 
 SYNAPSE = [sys.executable, str(REPO_ROOT / "runtime" / "synapse.py")]
@@ -36,6 +37,8 @@ def run_synapse(args: list[str], *, cwd: Path, home: Path) -> subprocess.Complet
     env = os.environ.copy()
     env["HOME"] = str(home)
     env["SYNAPSE_ROOT"] = str(REPO_ROOT)
+    env.pop("SYNAPSE_SESSION_ID", None)
+    env.pop("SUBJECT", None)
     return subprocess.run(SYNAPSE + args, cwd=cwd, env=env, capture_output=True, text=True)
 
 
@@ -62,6 +65,12 @@ class ProvenanceTests(unittest.TestCase):
         ]
 
     def tearDown(self) -> None:
+        repo_lock = repo_focus_lock_path(REPO_ROOT)
+        if repo_lock.exists():
+            repo_lock.unlink()
+        home_lock = home_focus_lock_path(self.home)
+        if home_lock.exists():
+            home_lock.unlink()
         self.tmp.cleanup()
 
     def _git_init(self) -> None:
@@ -373,6 +382,52 @@ class ProvenanceTests(unittest.TestCase):
         actions = [entry.get("action_name") for entry in self._event_entries()]
         self.assertEqual(actions.count("provenance-watch-cycle"), 2)
 
+    def test_watch_detects_coordination_state_change_without_event_progress(self) -> None:
+        self._git_init()
+        hooks = run_synapse(["install-hooks", "--json", *self.subject_args], cwd=REPO_ROOT, home=self.home)
+        self.assertEqual(hooks.returncode, 0, hooks.stdout + hooks.stderr)
+        start = run_synapse(
+            [
+                "session-start",
+                "--title",
+                "Coordination watch",
+                "--session-mode",
+                "execution",
+                "--session-id",
+                "coord-watch",
+                "--json",
+                *self.subject_args,
+            ],
+            cwd=REPO_ROOT,
+            home=self.home,
+        )
+        self.assertEqual(start.returncode, 0, start.stdout + start.stderr)
+        baseline = run_synapse(["watch", "--json", "--iterations", "1", *self.subject_args], cwd=REPO_ROOT, home=self.home)
+        self.assertEqual(baseline.returncode, 0, baseline.stdout + baseline.stderr)
+
+        active_run_path = self.data_root / ".synapse" / "ACTIVE_RUN.yaml"
+        active_run = yaml.safe_load(active_run_path.read_text(encoding="utf-8"))
+        active_run["notes"] = list(active_run.get("notes") or []) + ["manual mutation without event progress"]
+        active_run_path.write_text(yaml.safe_dump(active_run, sort_keys=False), encoding="utf-8")
+
+        watched = run_synapse(["watch", "--json", "--iterations", "1", *self.subject_args], cwd=REPO_ROOT, home=self.home)
+        self.assertEqual(watched.returncode, 0, watched.stdout + watched.stderr)
+        payload = json.loads(watched.stdout)
+        provenance = payload["ticks"][0]["provenance"]
+        self.assertEqual(provenance["provenance_status"], "blocked")
+        self.assertIn(
+            prov.ProvenanceAnomalyKind.COORDINATION_STATE_CHANGED_WITHOUT_EVENT_PROGRESS.value,
+            [item.get("kind") for item in provenance.get("blockers", [])],
+        )
+
+        rehydrate = run_synapse(["render-rehydrate", "--json", *self.subject_args], cwd=REPO_ROOT, home=self.home)
+        self.assertEqual(rehydrate.returncode, 0, rehydrate.stdout + rehydrate.stderr)
+        rehydrate_text = (self.data_root / ".synapse" / "REHYDRATE.md").read_text(encoding="utf-8")
+        self.assertIn(
+            prov.ProvenanceAnomalyKind.COORDINATION_STATE_CHANGED_WITHOUT_EVENT_PROGRESS.value,
+            rehydrate_text,
+        )
+
     def test_watch_no_provenance_preserves_non_provenance_behavior(self) -> None:
         self._git_init()
         result = run_synapse(["watch", "--json", "--no-provenance", "--iterations", "1", *self.subject_args], cwd=REPO_ROOT, home=self.home)
@@ -415,8 +470,11 @@ class ProvenanceTests(unittest.TestCase):
         self.assertIn("does not prove universal mediation", result.stdout)
 
     def test_unresolved_subject_watch_does_not_write_provenance_raw_stores(self) -> None:
-        result = run_synapse(["watch", "--json", "--iterations", "1"], cwd=REPO_ROOT, home=self.home)
-        self.assertNotEqual(result.returncode, 0)
+        result = run_synapse(["watch", "--json", "--iterations", "1"], cwd=self.root, home=self.home)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertIsNone(payload.get("subject"))
+        self.assertEqual(payload["ticks"][0]["provenance"]["provenance_status"], "not_applicable")
         self.assertFalse(any(self.home.glob("*_Data/.synapse/PROVENANCE/WATCH_BASELINE.yaml")))
 
 

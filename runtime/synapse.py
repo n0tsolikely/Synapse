@@ -1175,6 +1175,20 @@ def _resolve_or_attach_subject_from_args(args: argparse.Namespace) -> dict[str, 
     return receipt
 
 
+def _try_resolve_subject_without_attach(args: argparse.Namespace) -> dict[str, Any] | None:
+    try:
+        receipt = resolve_subject(
+            subject_flag=getattr(args, "subject", None),
+            data_root_flag=getattr(args, "data_root", None),
+            engine_root_flag=getattr(args, "engine_root", None),
+            allow_switch=getattr(args, "allow_switch", False),
+            session_id=_resolved_session_id(args),
+        )
+    except SubjectResolutionError:
+        return None
+    return _maybe_persist_subject_cursor(receipt, args, source_detail="attach_or_resume")
+
+
 def _git_status_changed_files(cwt: Path) -> list[str]:
     result = subprocess.run(
         ["git", "status", "--short", "--untracked-files=all"],
@@ -1192,6 +1206,36 @@ def _git_status_changed_files(cwt: Path) -> list[str]:
             continue
         files.append(raw)
     return files
+
+
+def _watch_without_subject(args: argparse.Namespace, *, iterations: int) -> int:
+    payloads: list[dict[str, Any]] = []
+    last_files: list[str] = []
+    for idx in range(iterations):
+        files = _git_status_changed_files(detect_canonical_working_tree()) if args.capture_git else []
+        changed_files = [item for item in files if item not in last_files]
+        payloads.append(
+            {
+                "iteration": idx + 1,
+                "changed_files": changed_files,
+                "provenance": {
+                    "provenance_status": "not_applicable",
+                },
+            }
+        )
+        last_files = files
+        if idx < iterations - 1:
+            time.sleep(max(args.interval, 0.1))
+
+    if args.json:
+        print(json.dumps({"subject": None, "ticks": payloads}, indent=2, sort_keys=True))
+        return 0
+
+    print("=== WATCH RECEIPT ===")
+    print(f"iterations: {iterations}")
+    print(f"captured_ticks: {len(payloads)}")
+    print("provenance_status: not_applicable")
+    return 0
 
 
 def _print_noninteractive_focus_help(command_name: str, candidates: list[dict[str, str]]) -> None:
@@ -4779,119 +4823,143 @@ def cmd_formalize(args: argparse.Namespace) -> int:
 
 
 def cmd_watch(args: argparse.Namespace) -> int:
+    iterations = max(1, int(args.iterations))
+    if not args.no_provenance and _try_resolve_subject_without_attach(args) is None:
+        return _watch_without_subject(args, iterations=iterations)
+
     ctx = _resolve_or_attach_subject_from_args(args)
     if not ctx:
         return 2
 
-    iterations = max(1, int(args.iterations))
     payloads: list[dict[str, Any]] = []
     last_files: list[str] = []
     data_root = Path(ctx["data_root"])
     engine_root = Path(ctx["engine_root"])
+    if args.no_provenance:
+        for idx in range(iterations):
+            files = _git_status_changed_files(detect_canonical_working_tree()) if args.capture_git else []
+            changed_files = [item for item in files if item not in last_files]
+            result = None
+            if changed_files or idx == 0:
+                try:
+                    _start_or_resume_session_run(
+                        ctx,
+                        title=args.title or _default_session_title(ctx),
+                        goal=args.goal,
+                        items=[],
+                        command_name="session-tick",
+                    )
+                    result = run_update(
+                        subject=ctx["subject"],
+                        data_root=data_root,
+                        add_items=[],
+                        status_updates=[],
+                        commands=[],
+                        files_touched=changed_files,
+                        notes=[f"watch tick {idx + 1}"],
+                        verification=[],
+                        related_sidequests=[],
+                        related_quests=[],
+                        status="active",
+                        summary=f"watch tick {idx + 1}",
+                    )
+                    active_run = _load_active_run_with_session_repair(ctx)
+                    _write_session_overlay(
+                        ctx,
+                        result,
+                        active_run=active_run,
+                        session_id=_effective_session_id(ctx, active_run=active_run),
+                    )
+                    _render_and_refresh_continuity(ctx["subject"], data_root, engine_root)
+                except LiveMemoryError as exc:
+                    print(f"FAIL: {exc}")
+                    return 2
+            cycle_payload: dict[str, Any] = {
+                "iteration": idx + 1,
+                "changed_files": changed_files,
+            }
+            if result is not None:
+                cycle_payload["tick"] = result
+            payloads.append(cycle_payload)
+            last_files = files
+            if idx < iterations - 1:
+                time.sleep(max(args.interval, 0.1))
+
+        if args.json:
+            print(json.dumps({"subject": ctx, "ticks": payloads}, indent=2, sort_keys=True))
+            return 0
+
+        print("=== WATCH RECEIPT ===")
+        print(f"iterations: {iterations}")
+        print(f"captured_ticks: {len(payloads)}")
+        return 0
+
     for idx in range(iterations):
         files = _git_status_changed_files(detect_canonical_working_tree()) if args.capture_git else []
         changed_files = [item for item in files if item not in last_files]
-        result = None
-        if changed_files or idx == 0:
-            try:
-                _start_or_resume_session_run(
-                    ctx,
-                    title=args.title or _default_session_title(ctx),
-                    goal=args.goal,
-                    items=[],
-                    command_name="session-tick",
-                )
-                result = run_update(
-                    subject=ctx["subject"],
-                    data_root=data_root,
-                    add_items=[],
-                    status_updates=[],
-                    commands=[],
-                    files_touched=changed_files,
-                    notes=[f"watch tick {idx + 1}"],
-                    verification=[],
-                    related_sidequests=[],
-                    related_quests=[],
-                    status="active",
-                    summary=f"watch tick {idx + 1}",
-                )
-                active_run = _load_active_run_with_session_repair(ctx)
-                _write_session_overlay(
-                    ctx,
-                    result,
-                    active_run=active_run,
-                    session_id=_effective_session_id(ctx, active_run=active_run),
-                )
-                _render_and_refresh_continuity(ctx["subject"], data_root, engine_root)
-            except LiveMemoryError as exc:
-                print(f"FAIL: {exc}")
-                return 2
         cycle_payload: dict[str, Any] = {
             "iteration": idx + 1,
             "changed_files": changed_files,
         }
-        if result is not None:
-            cycle_payload["tick"] = result
-        if not args.no_provenance:
-            try:
-                provenance_cycle = run_provenance_watch_cycle(
-                    subject=ctx["subject"],
-                    data_root=data_root,
-                    engine_root=engine_root,
+        try:
+            provenance_cycle = run_provenance_watch_cycle(
+                subject=ctx["subject"],
+                data_root=data_root,
+                engine_root=engine_root,
+            )
+            refresh_provenance_projection(
+                subject=ctx["subject"],
+                data_root=data_root,
+                engine_root=engine_root,
+                summary=provenance_cycle["summary"],
+            )
+            cycle_payload["provenance"] = provenance_cycle["summary"]
+            cycle_payload["baseline_path"] = provenance_cycle["baseline_path"]
+            cycle_payload["anomaly_ledger_path"] = provenance_cycle.get("anomaly_ledger_path")
+            cycle_payload["new_anomaly_ids"] = list(provenance_cycle.get("new_anomaly_ids") or [])
+            if provenance_cycle.get("provenance_changed"):
+                event_info = _event_pipeline(
+                    ctx=ctx,
+                    action_name="provenance-watch-cycle",
+                    summary=f"Observed provenance watch cycle for {ctx['subject']}.",
+                    session_id=_effective_session_id(
+                        ctx,
+                        active_run=_load_active_run_with_session_repair(ctx),
+                    ),
+                    signals={
+                        "changed_files": [],
+                        "verification_entries": [],
+                        "related_quest_ids": [],
+                        "related_sidequest_ids": [],
+                        "accepted_context": _accepted_context_snapshot(data_root),
+                        **_current_session_mode_fields(ctx),
+                    },
+                    truth_flags={
+                        "canon_mutated": False,
+                        "derived_state_changed": True,
+                        "governed": False,
+                        "uncertainty_present": False,
+                    },
+                    outputs={
+                        "provenance_status": provenance_cycle["summary"].get("provenance_status"),
+                        "baseline_path": provenance_cycle.get("baseline_path"),
+                        "anomaly_ledger_path": provenance_cycle.get("anomaly_ledger_path"),
+                        "new_anomaly_ids": list(provenance_cycle.get("new_anomaly_ids") or []),
+                        "current_wrapper_proof_status": provenance_cycle["summary"].get("current_wrapper_proof_status"),
+                        "git_hooks_status": provenance_cycle["summary"].get("git_hooks_status"),
+                    },
                 )
-                refresh_provenance_projection(
-                    subject=ctx["subject"],
-                    data_root=data_root,
-                    engine_root=engine_root,
-                    summary=provenance_cycle["summary"],
-                )
-                cycle_payload["provenance"] = provenance_cycle["summary"]
-                cycle_payload["baseline_path"] = provenance_cycle["baseline_path"]
-                cycle_payload["anomaly_ledger_path"] = provenance_cycle.get("anomaly_ledger_path")
-                cycle_payload["new_anomaly_ids"] = list(provenance_cycle.get("new_anomaly_ids") or [])
-                if provenance_cycle.get("provenance_changed"):
-                    event_info = _event_pipeline(
-                        ctx=ctx,
-                        action_name="provenance-watch-cycle",
-                        summary=f"Observed provenance watch cycle for {ctx['subject']}.",
-                        session_id=_effective_session_id(
-                            ctx,
-                            active_run=_load_active_run_with_session_repair(ctx),
-                        ),
-                        signals={
-                            "changed_files": [],
-                            "verification_entries": [],
-                            "related_quest_ids": [],
-                            "related_sidequest_ids": [],
-                            "accepted_context": _accepted_context_snapshot(data_root),
-                            **_current_session_mode_fields(ctx),
-                        },
-                        truth_flags={
-                            "canon_mutated": False,
-                            "derived_state_changed": True,
-                            "governed": False,
-                            "uncertainty_present": False,
-                        },
-                        outputs={
-                            "provenance_status": provenance_cycle["summary"].get("provenance_status"),
-                            "baseline_path": provenance_cycle.get("baseline_path"),
-                            "anomaly_ledger_path": provenance_cycle.get("anomaly_ledger_path"),
-                            "new_anomaly_ids": list(provenance_cycle.get("new_anomaly_ids") or []),
-                            "current_wrapper_proof_status": provenance_cycle["summary"].get("current_wrapper_proof_status"),
-                            "git_hooks_status": provenance_cycle["summary"].get("git_hooks_status"),
-                        },
-                    )
-                    cycle_payload["provenance_event"] = event_info
-                    runtime_status = event_info.get("runtime_status") if isinstance(event_info, dict) else None
-                    if isinstance(runtime_status, dict) and str(runtime_status.get("operation_status") or "").lower() == "partial":
-                        if args.json:
-                            print(json.dumps({"subject": ctx, "ticks": payloads + [cycle_payload], "runtime_status": runtime_status}, indent=2, sort_keys=True))
-                        else:
-                            print("PARTIAL: provenance watch raw state was written, but event/reducer refresh failed.")
-                        return 3
-            except Exception as exc:
-                print(f"FAIL: {exc}")
-                return 2
+                cycle_payload["provenance_event"] = event_info
+                runtime_status = event_info.get("runtime_status") if isinstance(event_info, dict) else None
+                if isinstance(runtime_status, dict) and str(runtime_status.get("operation_status") or "").lower() == "partial":
+                    if args.json:
+                        print(json.dumps({"subject": ctx, "ticks": payloads + [cycle_payload], "runtime_status": runtime_status}, indent=2, sort_keys=True))
+                    else:
+                        print("PARTIAL: provenance watch raw state was written, but event/reducer refresh failed.")
+                    return 3
+        except Exception as exc:
+            print(f"FAIL: {exc}")
+            return 2
         payloads.append(cycle_payload)
         last_files = files
         if idx < iterations - 1:

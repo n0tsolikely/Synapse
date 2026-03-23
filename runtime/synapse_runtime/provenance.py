@@ -164,11 +164,24 @@ def _event_progress(data_root: Path) -> dict[str, Any]:
         }
     latest = files[-1]
     text = latest.read_text(encoding="utf-8", errors="replace")
-    count = len([line for line in text.splitlines() if line.strip()])
+    filtered_lines: list[str] = []
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        try:
+            payload = json.loads(line)
+        except Exception:
+            filtered_lines.append(raw_line)
+            continue
+        if isinstance(payload, dict) and str(payload.get("action_name") or "") == "provenance-watch-cycle":
+            continue
+        filtered_lines.append(raw_line)
+    filtered_text = "\n".join(filtered_lines)
     return {
         "latest_event_file_path": str(latest.resolve()),
-        "latest_event_file_fingerprint": _sha256_bytes(text.encode("utf-8")),
-        "latest_event_count": count,
+        "latest_event_file_fingerprint": _sha256_bytes(filtered_text.encode("utf-8")),
+        "latest_event_count": len(filtered_lines),
     }
 
 
@@ -465,10 +478,7 @@ def _unresolved_historical_delta_anomalies(snapshot: dict[str, Any], recent: lis
             ):
                 unresolved.append(anomaly)
         elif kind == ProvenanceAnomalyKind.COORDINATION_STATE_CHANGED_WITHOUT_EVENT_PROGRESS.value:
-            if (
-                snapshot.get("event_progress") == evidence.get("event_progress")
-                and snapshot.get("coordination_fingerprints") == evidence.get("current_coordination_fingerprints")
-            ):
+            if snapshot.get("coordination_fingerprints") == evidence.get("current_coordination_fingerprints"):
                 unresolved.append(anomaly)
     return unresolved
 
