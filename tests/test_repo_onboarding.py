@@ -1366,6 +1366,44 @@ class RepoOnboardingCommandTests(unittest.TestCase):
         self.assertIn("## Onboarding status", text)
         self.assertIn("## Published project model", text)
 
+    def test_onboarding_confirm_bounds_long_proposal_filenames(self) -> None:
+        first = self._start_onboarding()
+        draft = self._confirmation_ready_draft(first["onboarding_id"], first["scan_id"])
+        draft["summary_hypothesis"] = (
+            "OpenClaw in this repo is an upstream-derived multi-channel AI runtime that has been turned into the "
+            "live local product state for Cinder by integrating the Wingman cognition sidecar, workspace identity "
+            "overlays, and local governance/runtime conventions for a brutally long onboarding publication test."
+        )
+        questions = self._question_set(first["onboarding_id"], first["scan_id"], include_question=False)
+        update = run_synapse(
+            [
+                "onboarding-update",
+                "--draft-json",
+                json.dumps(draft),
+                "--questions-json",
+                json.dumps(questions),
+                "--json",
+            ],
+            cwd=self.repo,
+            home=self.home,
+            extra_env=self.extra_env,
+        )
+        self.assertEqual(update.returncode, 0, update.stdout + update.stderr)
+
+        confirm = run_synapse(
+            ["onboarding-confirm", "--yes-i-confirm", "--json"],
+            cwd=self.repo,
+            home=self.home,
+            extra_env=self.extra_env,
+        )
+        self.assertEqual(confirm.returncode, 0, confirm.stdout + confirm.stderr)
+        payload = json.loads(confirm.stdout)
+        self.assertTrue(payload["proposal_paths"])
+        for raw_path in payload["proposal_paths"]:
+            proposal_path = Path(raw_path)
+            self.assertLess(len(proposal_path.name), 255)
+            self.assertTrue(proposal_path.exists())
+
     def test_onboarding_confirm_writes_receipt_then_atomically_replaces_canonical_outputs_before_seeding_proposals(self) -> None:
         first = self._start_onboarding()
         draft = self._confirmation_ready_draft(first["onboarding_id"], first["scan_id"])

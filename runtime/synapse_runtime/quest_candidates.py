@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -28,6 +29,7 @@ QUEST_STATE_RANK = {
     ProposalState.READY.value: 3,
     ProposalState.FORMALIZED.value: 4,
 }
+_MAX_PROPOSAL_FILENAME_STEM_LEN = 180
 
 
 def _proposal_dir(live: Path, kind: ProposalKind) -> Path:
@@ -49,8 +51,18 @@ def _proposal_id(kind: ProposalKind, source_id: str, title: str) -> str:
     return f"{kind.value.upper()}__{source_id}__{_slugify(title)}".upper().replace("-", "_")
 
 
+def _proposal_filename(proposal_id: str) -> str:
+    stem = str(proposal_id or "").strip() or "PROPOSAL"
+    if len(stem) <= _MAX_PROPOSAL_FILENAME_STEM_LEN:
+        return f"{stem}.yaml"
+    digest = hashlib.sha1(stem.encode("utf-8")).hexdigest()[:10].upper()
+    head_budget = max(24, _MAX_PROPOSAL_FILENAME_STEM_LEN - len(digest) - 2)
+    head = stem[:head_budget].rstrip("_")
+    return f"{head}__{digest}.yaml"
+
+
 def _proposal_path(live: Path, kind: ProposalKind, proposal_id: str) -> Path:
-    return _proposal_dir(live, kind) / f"{proposal_id}.yaml"
+    return _proposal_dir(live, kind) / _proposal_filename(proposal_id)
 
 
 def _open_plan_items(active_run: dict[str, Any]) -> list[str]:
@@ -523,7 +535,7 @@ def _write_proposals(
     written: list[str] = []
     for proposal in promotions:
         kind = ProposalKind(str(proposal["kind"]))
-        proposal_path = _proposal_dir(live, kind) / f"{proposal['proposal_id']}.yaml"
+        proposal_path = _proposal_path(live, kind, str(proposal["proposal_id"]))
         payload = {
             "schema_version": 1,
             "proposal_id": proposal["proposal_id"],
