@@ -112,6 +112,12 @@ from synapse_runtime.subject_resolver import (
     session_focus_lock_path,
     write_focus_lock,
 )
+from synapse_runtime.truth_compiler import (
+    TruthCompilerError,
+    TruthCompilerPartialError,
+    compile_current_state,
+    refresh_truth_status,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -532,6 +538,14 @@ def build_parser() -> argparse.ArgumentParser:
     continuity_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
     continuity_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
     continuity_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
+    compile_truth_parser = subparsers.add_parser("compile-current-state", help="Compile deterministic current-state truth from runtime evidence")
+    compile_truth_parser.add_argument("--subject", help="Optional subject override")
+    compile_truth_parser.add_argument("--data-root", help="Override data root path")
+    compile_truth_parser.add_argument("--engine-root", help="Override engine root path")
+    compile_truth_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    compile_truth_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
+    compile_truth_parser.add_argument("--json", action="store_true", help="Print JSON output")
 
     accept_parser = subparsers.add_parser(
         "accept-quest",
@@ -1107,6 +1121,24 @@ def _apply_automation_partial_status(
 ) -> dict[str, Any]:
     if not automation.get("error_message"):
         return event_info
+    return _apply_follow_on_partial_status(
+        event_info=event_info,
+        error_code=automation.get("error_code") or "AUTOMATION_SIDE_EFFECT_FAILED",
+        error_message=str(automation.get("error_message")),
+        recovery_hint=(
+            "Primary work was committed and recorded, but an automatic continuity side effect failed. "
+            "Inspect the event continuity_side_effects metadata and rerun the relevant continuity command if needed."
+        ),
+    )
+
+
+def _apply_follow_on_partial_status(
+    *,
+    event_info: dict[str, Any],
+    error_code: str,
+    error_message: str,
+    recovery_hint: str,
+) -> dict[str, Any]:
     runtime_status = event_info.get("runtime_status")
     if not isinstance(runtime_status, dict):
         return event_info
@@ -1115,14 +1147,148 @@ def _apply_automation_partial_status(
     updated = dict(event_info)
     updated_runtime_status = dict(runtime_status)
     updated_runtime_status["operation_status"] = "partial"
-    updated_runtime_status["error_code"] = automation.get("error_code") or "AUTOMATION_SIDE_EFFECT_FAILED"
-    updated_runtime_status["error_message"] = automation.get("error_message")
-    updated_runtime_status["recovery_hint"] = (
-        "Primary work was committed and recorded, but an automatic continuity side effect failed. "
-        "Inspect the event continuity_side_effects metadata and rerun the relevant continuity command if needed."
-    )
+    updated_runtime_status["error_code"] = error_code
+    updated_runtime_status["error_message"] = error_message
+    updated_runtime_status["recovery_hint"] = recovery_hint
     updated["runtime_status"] = updated_runtime_status
     return updated
+
+
+def _refresh_truth_status_after_mutation(
+    *,
+    ctx: dict[str, Any],
+    event_info: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    try:
+        refreshed = refresh_truth_status(
+            subject=ctx["subject"],
+            data_root=Path(ctx["data_root"]),
+            engine_root=Path(ctx["engine_root"]),
+        )
+    except Exception as exc:
+        return (
+            _apply_follow_on_partial_status(
+                event_info=event_info,
+                error_code="TRUTH_STATUS_REFRESH_FAILED",
+                error_message=str(exc),
+                recovery_hint=(
+                    "Primary mutation committed, but lightweight truth-status refresh failed. "
+                    "Rerun `python3 runtime/synapse.py compile-current-state` or repair the truth compiler path."
+                ),
+            ),
+            None,
+        )
+    return event_info, refreshed
+
+
+def _compile_current_state_event_payload(
+    *,
+    ctx: dict[str, Any],
+    compile_result: dict[str, Any],
+    session_id: str | None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    publication_paths = dict(compile_result.get("publication_paths") or {})
+    changed_files = [
+        compile_result.get("statement_store_path"),
+        compile_result.get("compiler_report_path"),
+        *publication_paths.values(),
+    ]
+    signals = {
+        "compile_cycle_id": compile_result.get("compile_cycle_id"),
+        "changed_files": [str(item) for item in changed_files if str(item or "").strip()],
+        "verification_entries": [],
+        "related_quest_ids": [],
+        "related_sidequest_ids": [],
+    }
+    outputs = {
+        "compile_cycle_id": compile_result.get("compile_cycle_id"),
+        "statement_store_path": compile_result.get("statement_store_path"),
+        "compiler_report_path": compile_result.get("compiler_report_path"),
+        "publication_paths": publication_paths,
+        "statement_count": compile_result.get("statement_count"),
+        "active_statement_count": compile_result.get("active_statement_count"),
+        "superseded_count": compile_result.get("superseded_count"),
+        "contradiction_count": compile_result.get("contradiction_count"),
+        "stale_active_run_detected": compile_result.get("stale_active_run_detected"),
+        "truth_compile_stale": compile_result.get("truth_compile_stale"),
+    }
+    return signals, outputs
+
+
+def _run_truth_compile(
+    *,
+    ctx: dict[str, Any],
+    session_id: str | None,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None, TruthCompilerError | None]:
+    try:
+        result = compile_current_state(
+            subject=ctx["subject"],
+            data_root=Path(ctx["data_root"]),
+            engine_root=Path(ctx["engine_root"]),
+        )
+    except TruthCompilerError as exc:
+        return None, None, exc
+    signals, outputs = _compile_current_state_event_payload(ctx=ctx, compile_result=result, session_id=session_id)
+    event_info = _event_pipeline(
+        ctx=ctx,
+        action_name="compile-current-state",
+        summary=f"Compiled current-state truth for {ctx['subject']}.",
+        session_id=session_id,
+        signals=signals,
+        truth_flags={
+            "canon_mutated": False,
+            "derived_state_changed": True,
+            "governed": False,
+            "uncertainty_present": bool(result.get("contradiction_count")),
+        },
+        outputs=outputs,
+    )
+    result = {
+        **result,
+        "event": event_info["event"],
+        "reducer": event_info["reducer"],
+        "rehydrate": event_info["reducer"]["rehydrate"],
+        "continuity": event_info["reducer"]["continuity"],
+    }
+    return result, event_info, None
+
+
+def _merge_truth_compile_follow_on(
+    *,
+    ctx: dict[str, Any],
+    session_id: str | None,
+    event_info: dict[str, Any],
+    primary_action_label: str,
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    truth_compile = None
+    compile_result, compile_event_info, compile_error = _run_truth_compile(ctx=ctx, session_id=session_id)
+    if compile_error is not None:
+        truth_compile = dict(getattr(compile_error, "payload", {}) or {})
+        return (
+            _apply_follow_on_partial_status(
+                event_info=event_info,
+                error_code="TRUTH_COMPILE_PARTIAL" if isinstance(compile_error, TruthCompilerPartialError) else "TRUTH_COMPILE_FAILED",
+                error_message=str(compile_error),
+                recovery_hint=(
+                    f"{primary_action_label} committed, but automatic truth compilation did not complete cleanly. "
+                    "Rerun `python3 runtime/synapse.py compile-current-state` after repairing the truth compiler path."
+                ),
+            ),
+            truth_compile,
+        )
+    truth_compile = compile_result
+    compile_runtime_status = compile_event_info.get("runtime_status") if isinstance(compile_event_info, dict) else None
+    if isinstance(compile_runtime_status, dict) and str(compile_runtime_status.get("operation_status") or "").lower() == "partial":
+        event_info = _apply_follow_on_partial_status(
+            event_info=event_info,
+            error_code=str(compile_runtime_status.get("error_code") or "TRUTH_COMPILE_EVENT_PARTIAL"),
+            error_message=str(compile_runtime_status.get("error_message") or "Automatic truth compile recorded a partial reducer/event result."),
+            recovery_hint=str(
+                compile_runtime_status.get("recovery_hint")
+                or "Automatic truth compilation committed, but its event/reducer flow is stale. Repair continuity and rerun compile-current-state."
+            ),
+        )
+    return event_info, truth_compile
 
 
 def _current_provenance_summary(ctx: dict[str, Any]) -> dict[str, Any]:
@@ -3618,12 +3784,20 @@ def cmd_run_finalize(args: argparse.Namespace) -> int:
                 "archive_path": result.get("archive_path"),
             },
         )
-        result.update(event_info)
-        result["rehydrate"] = event_info["reducer"]["rehydrate"]
-        result["continuity"] = event_info["reducer"]["continuity"]
     except LiveMemoryError as exc:
         print(f"FAIL: {exc}")
         return 2
+
+    event_info, truth_compile = _merge_truth_compile_follow_on(
+        ctx=ctx,
+        session_id=session_id,
+        event_info=event_info,
+        primary_action_label="Run finalization",
+    )
+    result.update(event_info)
+    result["rehydrate"] = event_info["reducer"]["rehydrate"]
+    result["continuity"] = event_info["reducer"]["continuity"]
+    result["truth_compile"] = truth_compile
 
     overlay_path = None
     if session_id:
@@ -3730,8 +3904,8 @@ def cmd_capture_chunk(args: argparse.Namespace) -> int:
             print(f"capture_artifact_path: {rendered_payload.get('capture_artifact_path')}")
             print(f"capture_ledger_path: {rendered_payload.get('capture_ledger_path')}")
 
-        return _finalize_mutation_result(
-            payload=partial_payload,
+        partial_event_info, truth_status = _refresh_truth_status_after_mutation(
+            ctx=ctx,
             event_info=_partial_after_primary_mutation(
                 error_code="SEMANTIC_PROJECTION_FAILED",
                 error_message=str(exc),
@@ -3740,6 +3914,12 @@ def cmd_capture_chunk(args: argparse.Namespace) -> int:
                     "Repair the projection conflict, then rerun the relevant refresh path or re-capture if needed."
                 ),
             ),
+        )
+        partial_payload["truth_status"] = truth_status
+
+        return _finalize_mutation_result(
+            payload=partial_payload,
+            event_info=partial_event_info,
             json_mode=args.json,
             text_emitter=_emit_capture_partial,
         )
@@ -3807,6 +3987,7 @@ def cmd_capture_chunk(args: argparse.Namespace) -> int:
         outputs=outputs,
     )
     event_info = _apply_automation_partial_status(event_info=event_info, automation=automation)
+    event_info, truth_status = _refresh_truth_status_after_mutation(ctx=ctx, event_info=event_info)
 
     result = {
         "subject": ctx,
@@ -3823,6 +4004,7 @@ def cmd_capture_chunk(args: argparse.Namespace) -> int:
         "rehydrate": event_info["reducer"]["rehydrate"],
         "continuity": event_info["reducer"]["continuity"],
         "automation": automation,
+        "truth_status": truth_status,
     }
 
     def _emit_capture_chunk(rendered_payload: dict[str, Any]) -> None:
@@ -4104,6 +4286,7 @@ def cmd_onboarding_respond(args: argparse.Namespace) -> int:
         outputs=outputs,
     )
     event_info = _apply_automation_partial_status(event_info=event_info, automation=automation)
+    event_info, truth_status = _refresh_truth_status_after_mutation(ctx=ctx, event_info=event_info)
     payload_out = {
         **{key: value for key, value in result.items() if key != "batch"},
         "subject": ctx,
@@ -4113,6 +4296,7 @@ def cmd_onboarding_respond(args: argparse.Namespace) -> int:
         "rehydrate": event_info["reducer"]["rehydrate"],
         "continuity": event_info["reducer"]["continuity"],
         "automation": automation,
+        "truth_status": truth_status,
     }
 
     def _emit_onboarding_respond(rendered_payload: dict[str, Any]) -> None:
@@ -4188,6 +4372,12 @@ def cmd_onboarding_confirm(args: argparse.Namespace) -> int:
             "proposal_paths": list(result.get("proposal_paths") or []),
         },
     )
+    event_info, truth_compile = _merge_truth_compile_follow_on(
+        ctx=ctx,
+        session_id=session_id,
+        event_info=event_info,
+        primary_action_label="Onboarding confirmation",
+    )
     payload = {
         **result,
         "subject": ctx,
@@ -4195,6 +4385,7 @@ def cmd_onboarding_confirm(args: argparse.Namespace) -> int:
         "reducer": event_info["reducer"],
         "rehydrate": event_info["reducer"]["rehydrate"],
         "continuity": event_info["reducer"]["continuity"],
+        "truth_compile": truth_compile,
     }
 
     def _emit_onboarding_confirm(rendered_payload: dict[str, Any]) -> None:
@@ -4457,9 +4648,11 @@ def cmd_log_decision(args: argparse.Namespace) -> int:
                 "decisions_ledger_path": result.get("decisions_ledger_path"),
             },
         )
+        event_info, truth_status = _refresh_truth_status_after_mutation(ctx=ctx, event_info=event_info)
         result.update(event_info)
         result["rehydrate"] = event_info["reducer"]["rehydrate"]
         result["continuity"] = event_info["reducer"]["continuity"]
+        result["truth_status"] = truth_status
     except LiveMemoryError as exc:
         print(f"FAIL: {exc}")
         return 2
@@ -4531,9 +4724,11 @@ def cmd_log_disclosure(args: argparse.Namespace) -> int:
                 "disclosures_ledger_path": result.get("disclosures_ledger_path"),
             },
         )
+        event_info, truth_status = _refresh_truth_status_after_mutation(ctx=ctx, event_info=event_info)
         result.update(event_info)
         result["rehydrate"] = event_info["reducer"]["rehydrate"]
         result["continuity"] = event_info["reducer"]["continuity"]
+        result["truth_status"] = truth_status
     except LiveMemoryError as exc:
         print(f"FAIL: {exc}")
         return 2
@@ -4603,6 +4798,61 @@ def cmd_refresh_continuity(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_compile_current_state(args: argparse.Namespace) -> int:
+    ctx = _resolve_or_attach_subject_from_args(args)
+    if not ctx:
+        return 2
+
+    active_run = _load_active_run_with_session_repair(ctx)
+    session_id = _effective_session_id(ctx, active_run=active_run)
+    compile_result, event_info, compile_error = _run_truth_compile(ctx=ctx, session_id=session_id)
+    if compile_error is not None:
+        payload = {
+            "subject": ctx,
+            **(dict(getattr(compile_error, "payload", {}) or {})),
+        }
+
+        def _emit_compile_partial(rendered_payload: dict[str, Any]) -> None:
+            print("=== CURRENT STATE COMPILE ===")
+            print(f"statement_store_path: {rendered_payload.get('statement_store_path')}")
+            print(f"compiler_report_path: {rendered_payload.get('compiler_report_path')}")
+
+        if isinstance(compile_error, TruthCompilerPartialError):
+            return _finalize_mutation_result(
+                payload=payload,
+                event_info=_partial_after_primary_mutation(
+                    error_code="TRUTH_PUBLICATION_RENDER_FAILED",
+                    error_message=str(compile_error),
+                    recovery_hint=(
+                        "Statement store and compiler report were written, but publication replacement did not complete. "
+                        "Repair the publication renderer and rerun compile-current-state."
+                    ),
+                ),
+                json_mode=args.json,
+                text_emitter=_emit_compile_partial,
+            )
+        print(f"FAIL: {compile_error}")
+        return 2
+
+    payload = {
+        "subject": ctx,
+        **compile_result,
+    }
+
+    def _emit_compile(rendered_payload: dict[str, Any]) -> None:
+        print("=== CURRENT STATE COMPILED ===")
+        print(f"compile_cycle_id: {rendered_payload.get('compile_cycle_id')}")
+        print(f"statement_store_path: {rendered_payload.get('statement_store_path')}")
+        print(f"compiler_report_path: {rendered_payload.get('compiler_report_path')}")
+
+    return _finalize_mutation_result(
+        payload=payload,
+        event_info=event_info,
+        json_mode=args.json,
+        text_emitter=_emit_compile,
+    )
+
+
 def _accept_quest_mutation(
     ctx: dict[str, Any],
     quest_ref: str,
@@ -4662,6 +4912,7 @@ def _accept_quest_mutation(
         "sidecar": sidecar,
         "event": event_info["event"],
         "reducer": event_info["reducer"],
+        "runtime_status": event_info["runtime_status"],
         "rehydrate": event_info["reducer"]["rehydrate"],
         "continuity": event_info["reducer"]["continuity"],
     }
@@ -4681,7 +4932,9 @@ def cmd_accept_quest(args: argparse.Namespace) -> int:
         )
     try:
         payload = _accept_quest_mutation(ctx, args.quest, active_run=active_run)
-        event_info = {"event": payload["event"], "reducer": payload["reducer"]}
+        event_info = {"event": payload["event"], "reducer": payload["reducer"], "runtime_status": payload.get("runtime_status")}
+        event_info, truth_status = _refresh_truth_status_after_mutation(ctx=ctx, event_info=event_info)
+        payload["truth_status"] = truth_status
     except (QuestAcceptanceError, LiveMemoryError) as exc:
         print(f"FAIL: {exc}")
         return 2
@@ -5998,6 +6251,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_render_rehydrate(args)
     if args.command == "refresh-continuity":
         return cmd_refresh_continuity(args)
+    if args.command == "compile-current-state":
+        return cmd_compile_current_state(args)
     if args.command == "accept-quest":
         return cmd_accept_quest(args)
     if args.command == "formalize":

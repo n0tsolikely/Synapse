@@ -7,11 +7,13 @@ import os
 from pathlib import Path
 
 from synapse_runtime.automation_orchestrator import automation_policy_for_context
+from synapse_runtime.current_state_publication import PUBLICATION_FILENAMES, read_publication_metadata
 from synapse_runtime.cwt import detect_canonical_working_tree
 from synapse_runtime.event_log import validate_event_stream
 from synapse_runtime.governance_model import derive_world_state, required_sidecar_paths
 from synapse_runtime.governance_pack import required_file_checks, resolve_governance_root, resolve_synapse_root
 from synapse_runtime.schema_validation import load_json, load_yaml, validate_state_schema
+from synapse_runtime.truth_compiler import canonical_truth_publication_paths, load_compiler_report
 
 
 @dataclass(frozen=True)
@@ -283,6 +285,137 @@ def _subject_mode(subject_receipt: dict) -> str:
     return "ambient_attached_subject"
 
 
+def _check_truth_compile(subject_receipt: dict) -> list[ReadOrderCheck]:
+    checks: list[ReadOrderCheck] = []
+    data_root = Path(str(subject_receipt.get("data_root") or "")).expanduser().resolve()
+    live_root = data_root / ".synapse"
+    state_path = live_root / "STATE.yaml"
+    if not state_path.exists():
+        return checks
+    try:
+        state = load_yaml(state_path)
+    except Exception:
+        state = {}
+    if not isinstance(state, dict):
+        state = {}
+
+    cycle_id = str(state.get("last_truth_compile_cycle_id") or "").strip()
+    if not cycle_id:
+        checks.append(
+            ReadOrderCheck(
+                path=str(live_root / "TRUTH"),
+                kind="TRUTH",
+                status="WARN_NO_TRUTH_COMPILE",
+                ok=True,
+            )
+        )
+        return checks
+
+    report = load_compiler_report(data_root)
+    if not isinstance(report, dict):
+        checks.append(
+            ReadOrderCheck(
+                path=str(live_root / "TRUTH" / "COMPILER_REPORT.yaml"),
+                kind="TRUTH",
+                status="FAIL_TRUTH_REPORT_MISSING",
+                ok=False,
+            )
+        )
+        return checks
+
+    report_cycle_id = str(report.get("compile_cycle_id") or "").strip()
+    if report_cycle_id != cycle_id:
+        checks.append(
+            ReadOrderCheck(
+                path=str(live_root / "TRUTH" / "COMPILER_REPORT.yaml"),
+                kind="TRUTH",
+                status="FAIL_PUBLICATION_REPORT_CYCLE_MISMATCH",
+                ok=False,
+            )
+        )
+        return checks
+
+    if int(report.get("material_contradiction_count") or 0) > 0:
+        checks.append(
+            ReadOrderCheck(
+                path=str(live_root / "TRUTH" / "COMPILER_REPORT.yaml"),
+                kind="TRUTH",
+                status=f"FAIL_MATERIAL_TRUTH_CONTRADICTION:{report.get('material_contradiction_count')}",
+                ok=False,
+            )
+        )
+
+    stale_active_run_detected = bool(
+        state.get("truth_stale_active_run_detected") or report.get("stale_active_run_detected")
+    )
+    if stale_active_run_detected:
+        checks.append(
+            ReadOrderCheck(
+                path=str(live_root / "ACTIVE_RUN.yaml"),
+                kind="TRUTH",
+                status="FAIL_STALE_ACTIVE_RUN_DETECTED",
+                ok=False,
+            )
+        )
+
+    publication_paths = dict(report.get("truth_publication_paths") or canonical_truth_publication_paths(data_root))
+    for filename in PUBLICATION_FILENAMES.values():
+        publication_path = Path(str(publication_paths.get(filename) or (live_root / "TRUTH" / "PUBLICATIONS" / filename)))
+        if not publication_path.exists():
+            checks.append(
+                ReadOrderCheck(
+                    path=str(publication_path),
+                    kind="TRUTH",
+                    status="FAIL_PUBLICATION_PACK_MISSING",
+                    ok=False,
+                )
+            )
+            continue
+        try:
+            metadata = read_publication_metadata(publication_path)
+        except Exception:
+            checks.append(
+                ReadOrderCheck(
+                    path=str(publication_path),
+                    kind="TRUTH",
+                    status="FAIL_PUBLICATION_REPORT_CYCLE_MISMATCH",
+                    ok=False,
+                )
+            )
+            continue
+        if str(metadata.get("compile_cycle_id") or "").strip() != cycle_id:
+            checks.append(
+                ReadOrderCheck(
+                    path=str(publication_path),
+                    kind="TRUTH",
+                    status="FAIL_PUBLICATION_REPORT_CYCLE_MISMATCH",
+                    ok=False,
+                )
+            )
+
+    if bool(state.get("truth_compile_stale")):
+        checks.append(
+            ReadOrderCheck(
+                path=str(live_root / "TRUTH"),
+                kind="TRUTH",
+                status="WARN_TRUTH_COMPILE_STALE",
+                ok=True,
+            )
+        )
+
+    warning_count = int(report.get("external_source_warning_count") or 0)
+    if warning_count > 0:
+        checks.append(
+            ReadOrderCheck(
+                path=str(live_root / "TRUTH" / "COMPILER_REPORT.yaml"),
+                kind="TRUTH",
+                status=f"WARN_EXTERNAL_SOURCE_PARSE_WARNINGS:{warning_count}",
+                ok=True,
+            )
+        )
+    return checks
+
+
 def run_doctor(governance_root_arg: str | None, subject_receipt: dict | None = None) -> int:
     cwt = detect_canonical_working_tree()
     try:
@@ -320,6 +453,7 @@ def run_doctor(governance_root_arg: str | None, subject_receipt: dict | None = N
     file_items_ok = all(item.ok for item in read_order_checks if item.kind == "FILE")
     if subject_receipt is not None:
         subject_checks = _check_subject_state(governance_root, subject_receipt)
+        subject_checks.extend(_check_truth_compile(subject_receipt))
     subject_items_ok = all(item.ok for item in subject_checks)
     overall_pass = governance_root_exists and schema_valid and file_items_ok and subject_items_ok
 
