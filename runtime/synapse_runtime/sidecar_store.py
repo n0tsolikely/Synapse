@@ -81,6 +81,7 @@ def _default_state(subject: str) -> dict[str, Any]:
         "onboarding_state": None,
         "active_onboarding_id": None,
         "latest_confirmed_onboarding_id": None,
+        "current_workplan_id": None,
         "onboarding_required": False,
         "onboarding_requirement_reason": None,
         "onboarding_confirmed": False,
@@ -93,6 +94,8 @@ def _default_state(subject: str) -> dict[str, Any]:
         "published_project_model_path": None,
         "published_project_story_path": None,
         "published_vision_path": None,
+        "published_codex_current_path": None,
+        "published_codex_future_path": None,
         "project_model_confirmed_at": None,
         "project_model_open_questions_count": 0,
         "project_model_blocking_questions_count": 0,
@@ -175,6 +178,8 @@ def _default_manifold(subject: str) -> dict[str, Any]:
         "active_onboarding_id": None,
         "latest_confirmed_onboarding_id": None,
         "onboarding_state": None,
+        "current_workplan_id": None,
+        "workplan_step_statuses": {},
         "onboarding_required": False,
         "onboarding_requirement_reason": None,
         "onboarding_confirmed": False,
@@ -190,9 +195,12 @@ def _default_manifold(subject: str) -> dict[str, Any]:
         "draft_is_stale": False,
         "current_question_set_id": None,
         "unincorporated_capture_batch_ids": [],
+        "unincorporated_clarification_batch_ids": [],
         "published_project_model_path": None,
         "published_project_story_path": None,
         "published_vision_path": None,
+        "published_codex_current_path": None,
+        "published_codex_future_path": None,
         "project_model_confirmed_at": None,
         "project_purpose_summary": None,
         "project_capability_summary": [],
@@ -296,6 +304,7 @@ def ensure_live_scaffold(subject: str, data_root: Path) -> dict[str, Any]:
     onboarding_briefs_dir = onboarding_dir / "BRIEFS"
     onboarding_drafts_dir = onboarding_dir / "DRAFTS"
     onboarding_questions_dir = onboarding_dir / "QUESTIONS"
+    onboarding_workplans_dir = onboarding_dir / "WORKPLANS"
     onboarding_published_dir = onboarding_dir / "PUBLISHED"
     truth_dir = live / "TRUTH"
     truth_publications_dir = truth_dir / "PUBLICATIONS"
@@ -328,6 +337,7 @@ def ensure_live_scaffold(subject: str, data_root: Path) -> dict[str, Any]:
     onboarding_briefs_dir.mkdir(parents=True, exist_ok=True)
     onboarding_drafts_dir.mkdir(parents=True, exist_ok=True)
     onboarding_questions_dir.mkdir(parents=True, exist_ok=True)
+    onboarding_workplans_dir.mkdir(parents=True, exist_ok=True)
     onboarding_published_dir.mkdir(parents=True, exist_ok=True)
     truth_dir.mkdir(parents=True, exist_ok=True)
     truth_publications_dir.mkdir(parents=True, exist_ok=True)

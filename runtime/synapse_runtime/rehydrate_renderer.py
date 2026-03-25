@@ -180,12 +180,19 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
     if onboarding_state:
         lines.append(f"- Active onboarding id: {state.get('active_onboarding_id')}")
         lines.append(f"- State: {onboarding_state}")
+        lines.append(f"- Workplan id: {state.get('current_workplan_id') or 'missing'}")
         lines.append(f"- Draft stale: {'YES' if manifold.get('draft_is_stale') else 'NO'}")
         if manifold.get("unincorporated_capture_batch_ids"):
             lines.append(
                 "- Unincorporated clarification batches: "
                 + ", ".join(str(item) for item in manifold.get("unincorporated_capture_batch_ids") or [])
             )
+        blocking_steps = [
+            step_id
+            for step_id, status in dict(manifold.get("workplan_step_statuses") or {}).items()
+            if str(status or "").strip() not in {"complete", "completed"}
+        ]
+        lines.append(f"- Blocking workplan steps: {', '.join(blocking_steps) if blocking_steps else 'none'}")
     else:
         lines.append("- Active onboarding id: none")
         if state.get("latest_confirmed_onboarding_id"):
@@ -193,14 +200,24 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
     lines.append("")
 
     lines.append("## Published project identity")
-    if state.get("published_project_model_path") or state.get("published_project_story_path") or state.get("published_vision_path"):
+    if (
+        state.get("published_project_model_path")
+        or state.get("published_project_story_path")
+        or state.get("published_vision_path")
+        or state.get("published_codex_current_path")
+        or state.get("published_codex_future_path")
+    ):
         lines.append(f"- Project model path: {state.get('published_project_model_path') or 'missing'}")
         lines.append(f"- Project story path: {state.get('published_project_story_path') or 'missing'}")
         lines.append(f"- Vision path: {state.get('published_vision_path') or 'missing'}")
+        lines.append(f"- Current codex path: {state.get('published_codex_current_path') or 'missing'}")
+        lines.append(f"- Future codex path: {state.get('published_codex_future_path') or 'missing'}")
     else:
         lines.append("- Project model path: missing")
         lines.append("- Project story path: missing")
         lines.append("- Vision path: missing")
+        lines.append("- Current codex path: missing")
+        lines.append("- Future codex path: missing")
     lines.append("")
 
     if pending_proposals:

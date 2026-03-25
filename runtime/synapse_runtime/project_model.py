@@ -34,6 +34,14 @@ DRAFT_ITEM_LIST_FIELDS = (
     "contradictions",
     "open_unknowns",
 )
+PART2_DRAFT_ITEM_LIST_FIELDS = (
+    "implemented_truths",
+    "partial_truths",
+    "intended_capabilities",
+    "future_ideas_needing_expansion",
+    "superseded_directions",
+)
+ALL_DRAFT_ITEM_LIST_FIELDS = DRAFT_ITEM_LIST_FIELDS + PART2_DRAFT_ITEM_LIST_FIELDS
 REQUIRED_NONEMPTY_TOP_LEVEL_FIELDS = (
     "summary_hypothesis",
     "purpose_hypothesis",
@@ -72,11 +80,14 @@ def validate_draft_revision(
         "purpose_hypothesis",
         "vision_hypothesis",
         "maturity_hypothesis",
-        *DRAFT_ITEM_LIST_FIELDS,
+        *ALL_DRAFT_ITEM_LIST_FIELDS,
         "next_question_ids",
     ):
         if field not in normalized:
-            raise ProjectModelError(f"Draft project model missing required field: {field}")
+            if field in PART2_DRAFT_ITEM_LIST_FIELDS:
+                normalized[field] = []
+            else:
+                raise ProjectModelError(f"Draft project model missing required field: {field}")
 
     for field in REQUIRED_NONEMPTY_TOP_LEVEL_FIELDS:
         value = str(normalized.get(field) or "").strip()
@@ -109,8 +120,10 @@ def validate_draft_revision(
     if not normalized.get("capability_hypotheses") and not normalized.get("component_hypotheses"):
         raise ProjectModelError("Draft must contain at least one capability_hypothesis or component_hypothesis.")
 
-    for field in DRAFT_ITEM_LIST_FIELDS:
+    for field in ALL_DRAFT_ITEM_LIST_FIELDS:
         items = normalized.get(field)
+        if items is None:
+            items = []
         if not isinstance(items, list):
             raise ProjectModelError(f"Draft field '{field}' must be a list.")
         normalized[field] = [
@@ -215,36 +228,79 @@ def evaluate_confirmation_readiness(
     unincorporated_capture_batch_ids: list[str],
     draft: dict[str, Any] | None,
     question_set: dict[str, Any] | None,
-) -> tuple[bool, list[str]]:
-    errors: list[str] = []
+    required_artifact_paths: dict[str, str | None] | None = None,
+    workplan: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    blocking_reasons: list[str] = []
+    warning_reasons: list[str] = []
+    missing_artifacts: list[str] = []
+    open_question_ids: list[str] = []
     if onboarding_state != "awaiting_confirmation":
-        errors.append("Onboarding state must be awaiting_confirmation.")
+        blocking_reasons.append("Onboarding state must be awaiting_confirmation.")
     if draft is None:
-        errors.append("Current draft revision is missing.")
+        blocking_reasons.append("Current draft revision is missing.")
     if question_set is None:
-        errors.append("Current question set is missing.")
+        blocking_reasons.append("Current question set is missing.")
+    if required_artifact_paths:
+        missing_artifacts = sorted(
+            name
+            for name, path_text in required_artifact_paths.items()
+            if not str(path_text or "").strip() or not Path(str(path_text)).expanduser().exists()
+        )
+        if missing_artifacts:
+            blocking_reasons.append("Required draft artifact family is incomplete.")
+    if workplan:
+        incomplete_steps = [
+            str(item.get("step_id") or item.get("step") or "")
+            for item in list(workplan.get("steps") or [])
+            if bool(item.get("blocking", True)) and str(item.get("status") or "").strip() not in {"complete", "completed"}
+        ]
+        if incomplete_steps:
+            blocking_reasons.append("Blocking onboarding workplan steps remain incomplete.")
     if draft is None or question_set is None:
-        return False, errors
+        return {
+            "ready": False,
+            "blocking_reasons": blocking_reasons,
+            "warning_reasons": warning_reasons,
+            "missing_artifacts": missing_artifacts,
+            "open_question_ids": open_question_ids,
+            "unincorporated_clarification_batch_ids": list(unincorporated_capture_batch_ids),
+        }
     if current_scan_id and current_scan_id not in list(draft.get("based_on_scan_ids") or []):
-        errors.append("Current draft does not incorporate current_scan_id.")
+        blocking_reasons.append("Current draft does not incorporate current_scan_id.")
     if unincorporated_capture_batch_ids:
-        errors.append("Current draft does not incorporate all clarification capture batches.")
+        blocking_reasons.append("Current draft does not incorporate all clarification capture batches.")
+    open_questions = [
+        question
+        for question in question_set.get("questions") or []
+        if str(question.get("status") or "") == "open"
+    ]
+    open_question_ids = [str(item.get("question_id") or "") for item in open_questions if str(item.get("question_id") or "").strip()]
     if _blocking_open_question_count(question_set) != 0:
-        errors.append("Blocking onboarding questions remain open.")
+        blocking_reasons.append("Blocking onboarding questions remain open.")
     for field in REQUIRED_NONEMPTY_TOP_LEVEL_FIELDS:
         if not str(draft.get(field) or "").strip():
-            errors.append(f"Draft field '{field}' must be non-empty.")
+            blocking_reasons.append(f"Draft field '{field}' must be non-empty.")
     if not draft.get("capability_hypotheses") and not draft.get("component_hypotheses"):
-        errors.append("Draft must include at least one capability or component hypothesis.")
+        blocking_reasons.append("Draft must include at least one capability or component hypothesis.")
     for item in flatten_draft_items(draft).values():
         if item.get("confidence") == "high" and item.get("claim_basis") != "user_only" and not item.get("evidence_refs"):
-            errors.append(f"High-confidence claim {item.get('id')} is missing evidence refs.")
+            blocking_reasons.append(f"High-confidence claim {item.get('id')} is missing evidence refs.")
             break
     for question in question_set.get("questions") or []:
         if str(question.get("status") or "") == "answered" and not list(question.get("answer_capture_batch_ids") or []):
-            errors.append(f"Answered question {question.get('question_id')} is missing answer_capture_batch_ids.")
+            blocking_reasons.append(f"Answered question {question.get('question_id')} is missing answer_capture_batch_ids.")
             break
-    return not errors, errors
+        if str(question.get("status") or "") == "deferred":
+            warning_reasons.append(f"Question {question.get('question_id')} is deferred.")
+    return {
+        "ready": not blocking_reasons and not missing_artifacts,
+        "blocking_reasons": blocking_reasons,
+        "warning_reasons": warning_reasons,
+        "missing_artifacts": missing_artifacts,
+        "open_question_ids": open_question_ids,
+        "unincorporated_clarification_batch_ids": list(unincorporated_capture_batch_ids),
+    }
 
 
 def render_analysis_brief(*, session: dict[str, Any], scan_artifact_path: str, active_session_mode: str) -> str:
@@ -289,6 +345,26 @@ def build_published_project_model(
     question_set: dict[str, Any],
 ) -> dict[str, Any]:
     items = flatten_draft_items(draft)
+    implemented_truths = _draft_section_items(draft, "implemented_truths", fallback_statuses={"implemented"})
+    partial_truths = _draft_section_items(draft, "partial_truths", fallback_statuses={"partial"})
+    intended_truths = _draft_section_items(
+        draft,
+        "intended_capabilities",
+        fallback_statuses={"intended"},
+        fallback_fields=("capability_hypotheses", "component_hypotheses"),
+    )
+    future_expansion = _draft_section_items(
+        draft,
+        "future_ideas_needing_expansion",
+        fallback_statuses={"uncertain"},
+        fallback_fields=("capability_hypotheses", "component_hypotheses", "open_unknowns"),
+    )
+    superseded_truths = _draft_section_items(
+        draft,
+        "superseded_directions",
+        fallback_statuses={"stale", "superseded", "deprecated"},
+        fallback_fields=("history_and_supersession_hypotheses", "capability_hypotheses", "component_hypotheses"),
+    )
     capabilities = [item for item in draft.get("capability_hypotheses") or [] if item.get("status") not in {"superseded", "deprecated"}]
     components = [item for item in draft.get("component_hypotheses") or [] if item.get("status") not in {"superseded", "deprecated"}]
     project_model = {
@@ -303,6 +379,11 @@ def build_published_project_model(
         "current_vision": str(draft.get("vision_hypothesis") or "").strip(),
         "users_or_stakeholders": list(draft.get("user_or_stakeholder_hypotheses") or []),
         "maturity_status": str(draft.get("maturity_hypothesis") or "").strip(),
+        "implemented_truths": implemented_truths,
+        "partial_truths": partial_truths,
+        "intended_capabilities": intended_truths,
+        "future_ideas_needing_expansion": future_expansion,
+        "superseded_directions": superseded_truths,
         "confirmed_capabilities": [item for item in capabilities if item.get("status") == "implemented"],
         "partial_or_intended_capabilities": [item for item in capabilities if item.get("status") in {"partial", "intended", "uncertain"}],
         "stale_or_superseded_directions": [
@@ -337,16 +418,72 @@ def build_published_project_model(
     return project_model
 
 
+def build_draft_publication_view(
+    *,
+    draft: dict[str, Any],
+    question_set: dict[str, Any] | None,
+) -> dict[str, Any]:
+    return {
+        "project_identity": str(draft.get("summary_hypothesis") or "").strip(),
+        "purpose": str(draft.get("purpose_hypothesis") or "").strip(),
+        "current_vision": str(draft.get("vision_hypothesis") or "").strip(),
+        "implemented_truths": _draft_section_items(draft, "implemented_truths", fallback_statuses={"implemented"}),
+        "partial_truths": _draft_section_items(draft, "partial_truths", fallback_statuses={"partial"}),
+        "intended_capabilities": _draft_section_items(
+            draft,
+            "intended_capabilities",
+            fallback_statuses={"intended"},
+            fallback_fields=("capability_hypotheses", "component_hypotheses"),
+        ),
+        "future_ideas_needing_expansion": _draft_section_items(
+            draft,
+            "future_ideas_needing_expansion",
+            fallback_statuses={"uncertain"},
+            fallback_fields=("capability_hypotheses", "component_hypotheses", "open_unknowns"),
+        ),
+        "superseded_directions": _draft_section_items(
+            draft,
+            "superseded_directions",
+            fallback_statuses={"stale", "superseded", "deprecated"},
+            fallback_fields=("history_and_supersession_hypotheses", "capability_hypotheses", "component_hypotheses"),
+        ),
+        "constraints": list(draft.get("constraint_hypotheses") or []),
+        "non_goals": list(draft.get("non_goal_hypotheses") or []),
+        "unresolved_nonblocking_questions": [
+            question
+            for question in (question_set or {}).get("questions") or []
+            if question.get("status") == "open" and question.get("priority") != "blocking"
+        ],
+    }
+
+
+def render_draft_story(draft: dict[str, Any], question_set: dict[str, Any] | None = None) -> str:
+    return render_project_story(build_draft_publication_view(draft=draft, question_set=question_set)).replace(
+        "# Project Story",
+        "# Project Story Draft",
+        1,
+    )
+
+
+def render_draft_vision(draft: dict[str, Any], question_set: dict[str, Any] | None = None) -> str:
+    return render_published_vision(build_draft_publication_view(draft=draft, question_set=question_set)).replace(
+        "# Vision (Published)",
+        "# Vision Draft",
+        1,
+    )
+
+
 def render_project_story(model: dict[str, Any]) -> str:
-    confirmed = [f"- {item.get('summary')}" for item in model.get("confirmed_capabilities") or []] or [
+    confirmed = [f"- {item.get('summary')}" for item in model.get("implemented_truths") or model.get("confirmed_capabilities") or []] or [
         "- No confirmed capabilities recorded."
     ]
-    partial = [f"- {item.get('summary')}" for item in model.get("partial_or_intended_capabilities") or []] or [
+    partial = [f"- {item.get('summary')}" for item in model.get("partial_truths") or model.get("partial_or_intended_capabilities") or []] or [
         "- None recorded."
     ]
-    historical = [f"- {item.get('summary')}" for item in model.get("stale_or_superseded_directions") or []] or [
+    historical = [f"- {item.get('summary')}" for item in model.get("superseded_directions") or model.get("stale_or_superseded_directions") or []] or [
         "- None recorded."
     ]
+    future = [f"- {item.get('summary')}" for item in model.get("intended_capabilities") or []]
     constraints = [f"- Constraint: {item.get('summary')}" for item in model.get("constraints") or []]
     non_goals = [f"- Non-goal: {item.get('summary')}" for item in model.get("non_goals") or []]
     unresolved = [f"- {item.get('prompt')}" for item in model.get("unresolved_nonblocking_questions") or []] or [
@@ -367,6 +504,9 @@ def render_project_story(model: dict[str, Any]) -> str:
         "## What is partial or still being built",
         *partial,
         "",
+        "## What is intended but not built yet",
+        *(future or ["- None recorded."]),
+        "",
         "## What changed direction historically",
         *historical,
         "",
@@ -382,14 +522,16 @@ def render_project_story(model: dict[str, Any]) -> str:
 
 
 def render_published_vision(model: dict[str, Any]) -> str:
-    confirmed = [f"- {item.get('summary')}" for item in model.get("confirmed_capabilities") or []] or [
+    confirmed = [f"- {item.get('summary')}" for item in model.get("implemented_truths") or model.get("confirmed_capabilities") or []] or [
         "- No confirmed capabilities recorded."
     ]
-    partial = [f"- {item.get('summary')}" for item in model.get("partial_or_intended_capabilities") or []] or [
+    partial = [f"- {item.get('summary')}" for item in model.get("partial_truths") or []] or [
         "- None recorded."
     ]
+    intended = [f"- {item.get('summary')}" for item in model.get("intended_capabilities") or []] or ["- None recorded."]
+    future = [f"- {item.get('summary')}" for item in model.get("future_ideas_needing_expansion") or []] or ["- None recorded."]
     constraints = [f"- {item.get('summary')}" for item in model.get("constraints") or []] or ["- None recorded."]
-    historical = [f"- {item.get('summary')}" for item in model.get("stale_or_superseded_directions") or []] or [
+    historical = [f"- {item.get('summary')}" for item in model.get("superseded_directions") or model.get("stale_or_superseded_directions") or []] or [
         "- None recorded."
     ]
     lines = [
@@ -410,6 +552,12 @@ def render_published_vision(model: dict[str, Any]) -> str:
         "## What does not exist yet",
         *partial,
         "",
+        "## What is intended next",
+        *intended,
+        "",
+        "## What still needs expansion",
+        *future,
+        "",
         "## Non-negotiables",
         *constraints,
         "",
@@ -420,13 +568,69 @@ def render_published_vision(model: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def render_draft_codex_current(model: dict[str, Any]) -> str:
+    model = build_draft_publication_view(draft=model, question_set=None)
+    stable_current = [f"- {item.get('summary')}" for item in model.get("implemented_truths") or model.get("confirmed_capabilities") or []]
+    partial_current = [f"- {item.get('summary')}" for item in model.get("partial_truths") or []]
+    constraints = [f"- {item.get('summary')}" for item in model.get("constraints") or []]
+    lines = [
+        "# Current Codex Draft",
+        "",
+        "## Project identity",
+        f"- {model.get('project_identity') or model.get('summary_hypothesis') or ''}",
+        "",
+        "## Stable current truths",
+        *(stable_current or ["- None recorded."]),
+        "",
+        "## Partial / in-progress truths",
+        *(partial_current or ["- None recorded."]),
+        "",
+        "## Current constraints",
+        *(constraints or ["- None recorded."]),
+        "",
+    ]
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def render_draft_codex_future(model: dict[str, Any]) -> str:
+    model = build_draft_publication_view(draft=model, question_set=None)
+    intended = [f"- {item.get('summary')}" for item in model.get("intended_capabilities") or []]
+    expansion = [f"- {item.get('summary')}" for item in model.get("future_ideas_needing_expansion") or []]
+    superseded = [
+        f"- {item.get('summary')}"
+        for item in model.get("superseded_directions") or model.get("stale_or_superseded_directions") or []
+    ]
+    lines = [
+        "# Future Codex Draft",
+        "",
+        "## Intended capabilities",
+        *(intended or ["- None recorded."]),
+        "",
+        "## Ideas needing expansion",
+        *(expansion or ["- None recorded."]),
+        "",
+        "## Superseded directions",
+        *(superseded or ["- None recorded."]),
+        "",
+    ]
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def render_published_codex_current(model: dict[str, Any]) -> str:
+    return render_draft_codex_current(model).replace("# Current Codex Draft", "# Current Codex", 1)
+
+
+def render_published_codex_future(model: dict[str, Any]) -> str:
+    return render_draft_codex_future(model).replace("# Future Codex Draft", "# Future Codex", 1)
+
+
 def project_model_projection(model: dict[str, Any], question_set: dict[str, Any] | None) -> dict[str, Any]:
     return {
         "project_summary": str(model.get("project_identity") or "").strip() or None,
         "project_purpose_summary": str(model.get("purpose") or "").strip() or None,
-        "project_capability_summary": [item.get("summary") for item in model.get("confirmed_capabilities") or []][:8],
+        "project_capability_summary": [item.get("summary") for item in model.get("implemented_truths") or model.get("confirmed_capabilities") or []][:8],
         "project_constraint_summary": [item.get("summary") for item in model.get("constraints") or []][:8],
-        "project_history_summary": [item.get("summary") for item in model.get("stale_or_superseded_directions") or []][:8],
+        "project_history_summary": [item.get("summary") for item in model.get("superseded_directions") or model.get("stale_or_superseded_directions") or []][:8],
         "project_open_question_details": [
             {
                 "question_id": item.get("question_id"),
@@ -460,11 +664,36 @@ def flatten_draft_items(draft: dict[str, Any] | None) -> dict[str, dict[str, Any
     if not isinstance(draft, dict):
         return {}
     items: dict[str, dict[str, Any]] = {}
-    for field in DRAFT_ITEM_LIST_FIELDS:
+    for field in ALL_DRAFT_ITEM_LIST_FIELDS:
         for item in draft.get(field) or []:
             if isinstance(item, dict) and str(item.get("id") or "").strip():
                 items[str(item["id"])] = item
     return items
+
+
+def _draft_section_items(
+    draft: dict[str, Any],
+    field_name: str,
+    *,
+    fallback_statuses: set[str],
+    fallback_fields: tuple[str, ...] = DRAFT_ITEM_LIST_FIELDS,
+) -> list[dict[str, Any]]:
+    explicit = [item for item in draft.get(field_name) or [] if isinstance(item, dict)]
+    if explicit:
+        return explicit
+    derived: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for field in fallback_fields:
+        for item in draft.get(field) or []:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("status") or "") not in fallback_statuses:
+                continue
+            item_id = str(item.get("id") or "")
+            if item_id and item_id not in seen:
+                derived.append(item)
+                seen.add(item_id)
+    return derived
 
 
 def _normalize_draft_item(

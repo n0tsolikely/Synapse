@@ -228,6 +228,47 @@ def run_repo_archaeology(
     unfinishedness_inventory = _unfinishedness_inventory(engine, text_samples)
     existing_continuity_inventory = _existing_continuity_inventory(engine)
     git_history_summary = _git_history_summary(engine, depth_value, limits, omissions)
+    subsystem_map = _subsystem_map(engine, tree_inventory, entrypoint_inventory, test_inventory)
+    capability_hypotheses = _capability_hypotheses(entrypoint_inventory, manifest_inventory, docs_inventory, test_inventory)
+    history_signals = _history_signals(git_history_summary, docs_inventory, existing_continuity_inventory)
+    contradiction_signals = _contradiction_signals(text_samples, docs_inventory, manifest_inventory)
+    story_artifacts = _story_artifacts(docs_inventory, existing_continuity_inventory)
+    workspace_receipts = _workspace_receipts(tree_inventory, existing_continuity_inventory, docs_inventory)
+    spec_and_plan_artifacts = _spec_and_plan_artifacts(docs_inventory)
+    unfinished_subsystems = _unfinished_subsystems(unfinishedness_inventory)
+    repo_scale_summary = _repo_scale_summary(
+        candidates=candidates,
+        text_candidates=text_candidates,
+        docs_inventory=docs_inventory,
+        manifest_inventory=manifest_inventory,
+        entrypoint_inventory=entrypoint_inventory,
+        test_inventory=test_inventory,
+        unfinishedness_inventory=unfinishedness_inventory,
+    )
+    vision_signal_candidates = _vision_signal_candidates(docs_inventory, text_samples, capability_hypotheses)
+
+    section_map = {
+        "tree_inventory": tree_inventory,
+        "docs_inventory": docs_inventory,
+        "manifest_inventory": manifest_inventory,
+        "entrypoint_inventory": entrypoint_inventory,
+        "test_inventory": test_inventory,
+        "unfinishedness_inventory": unfinishedness_inventory,
+        "existing_continuity_inventory": existing_continuity_inventory,
+        "subsystem_map": subsystem_map,
+        "capability_hypotheses": capability_hypotheses,
+        "history_signals": history_signals,
+        "contradiction_signals": contradiction_signals,
+        "story_artifacts": story_artifacts,
+        "workspace_receipts": workspace_receipts,
+        "spec_and_plan_artifacts": spec_and_plan_artifacts,
+        "unfinished_subsystems": unfinished_subsystems,
+        "vision_signal_candidates": vision_signal_candidates,
+    }
+    for section_name, items in section_map.items():
+        _attach_evidence_refs(scan_id=scan_id, section=section_name, items=items)
+    if isinstance(git_history_summary, dict):
+        _attach_nested_evidence_refs(scan_id=scan_id, prefix="git_history_summary", payload=git_history_summary)
 
     scan = {
         "onboarding_id": onboarding_id,
@@ -247,6 +288,16 @@ def run_repo_archaeology(
         "unfinishedness_inventory": unfinishedness_inventory,
         "existing_continuity_inventory": existing_continuity_inventory,
         "git_history_summary": git_history_summary,
+        "subsystem_map": subsystem_map,
+        "capability_hypotheses": capability_hypotheses,
+        "history_signals": history_signals,
+        "contradiction_signals": contradiction_signals,
+        "story_artifacts": story_artifacts,
+        "workspace_receipts": workspace_receipts,
+        "spec_and_plan_artifacts": spec_and_plan_artifacts,
+        "unfinished_subsystems": unfinished_subsystems,
+        "repo_scale_summary": repo_scale_summary,
+        "vision_signal_candidates": vision_signal_candidates,
     }
     artifact_path = write_scan_artifact(data_root=data_root, scan=scan)
     return {"scan": scan, "artifact_path": artifact_path}
@@ -518,3 +569,309 @@ def _headline_from_text(text: str) -> str | None:
         if cleaned:
             return cleaned[:200]
     return None
+
+
+def _attach_evidence_refs(*, scan_id: str, section: str, items: list[dict[str, Any]]) -> None:
+    for item in items:
+        item_id = str(item.get("item_id") or "").strip()
+        if item_id:
+            item["evidence_ref"] = evidence_ref(scan_id=scan_id, section=section, item_id=item_id)
+
+
+def _attach_nested_evidence_refs(*, scan_id: str, prefix: str, payload: dict[str, Any]) -> None:
+    for key, value in payload.items():
+        if isinstance(value, list):
+            _attach_evidence_refs(scan_id=scan_id, section=f"{prefix}.{key}", items=[item for item in value if isinstance(item, dict)])
+
+
+def _subsystem_map(
+    root: Path,
+    tree_inventory: list[dict[str, Any]],
+    entrypoint_inventory: list[dict[str, Any]],
+    test_inventory: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    buckets: dict[str, dict[str, Any]] = {}
+    for item in tree_inventory:
+        path = str(item.get("path") or "").strip()
+        if not path or "/" not in path:
+            continue
+        subsystem = path.split("/", 1)[0]
+        if subsystem in _IGNORE_DIR_NAMES:
+            continue
+        bucket = buckets.setdefault(
+            subsystem,
+            {
+                "item_id": stable_scan_item_id(section="subsystem_map", normalized_path=subsystem),
+                "path": subsystem,
+                "entrypoint_paths": [],
+                "test_paths": [],
+                "sample_paths": [],
+            },
+        )
+        if len(bucket["sample_paths"]) < 5:
+            bucket["sample_paths"].append(path)
+    for item in entrypoint_inventory:
+        path = str(item.get("path") or "").strip()
+        subsystem = path.split("/", 1)[0] if "/" in path else "."
+        bucket = buckets.setdefault(
+            subsystem,
+            {
+                "item_id": stable_scan_item_id(section="subsystem_map", normalized_path=subsystem),
+                "path": subsystem,
+                "entrypoint_paths": [],
+                "test_paths": [],
+                "sample_paths": [],
+            },
+        )
+        bucket["entrypoint_paths"].append(path)
+    for item in test_inventory:
+        path = str(item.get("path") or "").strip()
+        subsystem = path.split("/", 1)[0] if "/" in path else "."
+        bucket = buckets.setdefault(
+            subsystem,
+            {
+                "item_id": stable_scan_item_id(section="subsystem_map", normalized_path=subsystem),
+                "path": subsystem,
+                "entrypoint_paths": [],
+                "test_paths": [],
+                "sample_paths": [],
+            },
+        )
+        bucket["test_paths"].append(path)
+    return [
+        {
+            **value,
+            "entrypoint_count": len(value["entrypoint_paths"]),
+            "test_count": len(value["test_paths"]),
+        }
+        for _, value in sorted(buckets.items())
+    ]
+
+
+def _capability_hypotheses(
+    entrypoint_inventory: list[dict[str, Any]],
+    manifest_inventory: list[dict[str, Any]],
+    docs_inventory: list[dict[str, Any]],
+    test_inventory: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    results: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for source, items in (
+        ("entrypoint", entrypoint_inventory),
+        ("manifest", manifest_inventory),
+        ("docs", docs_inventory),
+        ("tests", test_inventory),
+    ):
+        for item in items[:30]:
+            path = str(item.get("path") or "").strip()
+            headline = str(item.get("headline") or "").strip()
+            if not path or path in seen:
+                continue
+            seen.add(path)
+            summary = headline or f"Capability signal from {path}"
+            results.append(
+                {
+                    "item_id": stable_scan_item_id(section="capability_hypotheses", normalized_path=path, key=source),
+                    "path": path,
+                    "summary": summary,
+                    "source_kind": source,
+                }
+            )
+    return results
+
+
+def _history_signals(
+    git_history_summary: dict[str, Any] | None,
+    docs_inventory: list[dict[str, Any]],
+    existing_continuity_inventory: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    results: list[dict[str, Any]] = []
+    if isinstance(git_history_summary, dict):
+        for item in list(git_history_summary.get("recent_commits") or [])[:20]:
+            raw = str(item.get("raw") or "").strip()
+            if not raw:
+                continue
+            results.append(
+                {
+                    "item_id": stable_scan_item_id(section="history_signals", key=raw),
+                    "summary": raw,
+                    "source_kind": "git_commit",
+                }
+            )
+    for item in docs_inventory + existing_continuity_inventory:
+        path = str(item.get("path") or "").strip()
+        if not path:
+            continue
+        lower = path.lower()
+        if not any(token in lower for token in ("history", "phase", "rehydrate", "changelog", "continuity", "codex")):
+            continue
+        results.append(
+            {
+                "item_id": stable_scan_item_id(section="history_signals", normalized_path=path),
+                "path": path,
+                "summary": str(item.get("headline") or path),
+                "source_kind": "artifact",
+            }
+        )
+    return results
+
+
+def _contradiction_signals(
+    text_samples: dict[str, str],
+    docs_inventory: list[dict[str, Any]],
+    manifest_inventory: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    results: list[dict[str, Any]] = []
+    markers = ("contradict", "deprecated", "superseded", "legacy", "mismatch")
+    interesting_paths = {str(item.get("path") or "") for item in docs_inventory + manifest_inventory}
+    for path in sorted(interesting_paths):
+        text = text_samples.get(path, "")
+        if not text:
+            continue
+        for marker in markers:
+            if marker not in text.lower():
+                continue
+            line = next((line.strip() for line in text.splitlines() if marker in line.lower()), marker)
+            results.append(
+                {
+                    "item_id": stable_scan_item_id(section="contradiction_signals", normalized_path=path, key=marker),
+                    "path": path,
+                    "summary": line[:240],
+                    "signal_kind": marker,
+                }
+            )
+            break
+    return results
+
+
+def _story_artifacts(docs_inventory: list[dict[str, Any]], existing_continuity_inventory: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    results: list[dict[str, Any]] = []
+    for item in docs_inventory + existing_continuity_inventory:
+        path = str(item.get("path") or "").strip()
+        if not path:
+            continue
+        lower = path.lower()
+        if not any(token in lower for token in ("readme", "vision", "story", "codex", "manual", "executor", "rehydrate")):
+            continue
+        results.append(
+            {
+                "item_id": stable_scan_item_id(section="story_artifacts", normalized_path=path),
+                "path": path,
+                "summary": str(item.get("headline") or path),
+            }
+        )
+    return results
+
+
+def _workspace_receipts(
+    tree_inventory: list[dict[str, Any]],
+    existing_continuity_inventory: list[dict[str, Any]],
+    docs_inventory: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    results: list[dict[str, Any]] = []
+    for item in tree_inventory + existing_continuity_inventory + docs_inventory:
+        path = str(item.get("path") or "").strip()
+        if not path:
+            continue
+        lower = path.lower()
+        if not any(token in lower for token in ("receipt", "rehydrate", "run", "decision", "disclosure", "snapshot")):
+            continue
+        results.append(
+            {
+                "item_id": stable_scan_item_id(section="workspace_receipts", normalized_path=path),
+                "path": path,
+                "summary": str(item.get("headline") or path),
+            }
+        )
+    return results
+
+
+def _spec_and_plan_artifacts(docs_inventory: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    results: list[dict[str, Any]] = []
+    for item in docs_inventory:
+        path = str(item.get("path") or "").strip()
+        if not path:
+            continue
+        lower = path.lower()
+        if not any(token in lower for token in ("spec", "plan", "roadmap", "phase", "todo", "backlog")):
+            continue
+        results.append(
+            {
+                "item_id": stable_scan_item_id(section="spec_and_plan_artifacts", normalized_path=path),
+                "path": path,
+                "summary": str(item.get("headline") or path),
+            }
+        )
+    return results
+
+
+def _unfinished_subsystems(unfinishedness_inventory: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    buckets: dict[str, list[str]] = {}
+    for item in unfinishedness_inventory:
+        path = str(item.get("path") or "").strip()
+        subsystem = path.split("/", 1)[0] if "/" in path else path or "."
+        buckets.setdefault(subsystem, []).append(str(item.get("summary") or "").strip())
+    return [
+        {
+            "item_id": stable_scan_item_id(section="unfinished_subsystems", normalized_path=subsystem),
+            "path": subsystem,
+            "marker_count": len(items),
+            "examples": items[:5],
+        }
+        for subsystem, items in sorted(buckets.items())
+    ]
+
+
+def _repo_scale_summary(
+    *,
+    candidates: list[Path],
+    text_candidates: list[Path],
+    docs_inventory: list[dict[str, Any]],
+    manifest_inventory: list[dict[str, Any]],
+    entrypoint_inventory: list[dict[str, Any]],
+    test_inventory: list[dict[str, Any]],
+    unfinishedness_inventory: list[dict[str, Any]],
+) -> dict[str, Any]:
+    return {
+        "total_file_count": len(candidates),
+        "text_candidate_count": len(text_candidates),
+        "docs_count": len(docs_inventory),
+        "manifest_count": len(manifest_inventory),
+        "entrypoint_count": len(entrypoint_inventory),
+        "test_count": len(test_inventory),
+        "unfinished_marker_count": len(unfinishedness_inventory),
+    }
+
+
+def _vision_signal_candidates(
+    docs_inventory: list[dict[str, Any]],
+    text_samples: dict[str, str],
+    capability_hypotheses: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    results: list[dict[str, Any]] = []
+    for item in docs_inventory:
+        path = str(item.get("path") or "").strip()
+        if not path:
+            continue
+        text = text_samples.get(path, "")
+        lower_text = text.lower()
+        if not any(token in lower_text for token in ("vision", "future", "goal", "roadmap", "north star", "direction")):
+            continue
+        results.append(
+            {
+                "item_id": stable_scan_item_id(section="vision_signal_candidates", normalized_path=path),
+                "path": path,
+                "summary": str(item.get("headline") or path),
+            }
+        )
+    for item in capability_hypotheses[:10]:
+        if str(item.get("source_kind") or "") == "docs":
+            continue
+        results.append(
+            {
+                "item_id": stable_scan_item_id(section="vision_signal_candidates", normalized_path=str(item.get("path") or ""), key="capability"),
+                "path": str(item.get("path") or ""),
+                "summary": str(item.get("summary") or ""),
+            }
+        )
+    return results
