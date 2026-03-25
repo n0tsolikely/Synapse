@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import datetime as dt
 import re
-import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -14,6 +13,7 @@ import yaml
 from synapse_runtime.accepted_execution_view import load_accepted_quest_details, load_completed_quest_details
 from synapse_runtime.live_memory_common import _slugify
 from synapse_runtime.repo_onboarding import canonical_project_model_path, canonical_project_story_path, canonical_vision_path
+from synapse_runtime.repo_state import _run_git
 from synapse_runtime.semantic_intake import load_capture_batches
 from synapse_runtime.sidecar_store import live_root
 from synapse_runtime.truth_statements import StatementKind, TruthLayer, normalize_confidence, normalize_summary_text, normalize_topic_key
@@ -353,6 +353,19 @@ def active_run_evidence(*, subject: str, data_root: Path) -> tuple[list[Evidence
     return records, [], payload
 
 
+def derived_state_context(*, data_root: Path) -> dict[str, Any]:
+    live = live_root(data_root)
+    state = _canonical_yaml(live / "STATE.yaml", source_type="active_run")
+    manifold = _canonical_yaml(live / "MANIFOLD.yaml", source_type="active_run")
+    rehydrate_path = live / "REHYDRATE.md"
+    rehydrate_text = _safe_markdown(rehydrate_path, source_type="active_run", canonical=True) if rehydrate_path.exists() else ""
+    return {
+        "state": state,
+        "manifold": manifold,
+        "rehydrate_text": rehydrate_text,
+    }
+
+
 def quest_and_audit_evidence(*, subject: str, data_root: Path) -> tuple[list[EvidenceRecord], list[EvidenceWarning], dict[str, Any]]:
     records: list[EvidenceRecord] = []
     warnings: list[EvidenceWarning] = []
@@ -409,9 +422,9 @@ def repo_state_evidence(*, engine_root: Path) -> tuple[list[EvidenceRecord], lis
     warnings: list[EvidenceWarning] = []
     records: list[EvidenceRecord] = []
     try:
-        branch = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=engine_root, capture_output=True, text=True, check=False)
-        status = subprocess.run(["git", "status", "--porcelain"], cwd=engine_root, capture_output=True, text=True, check=False)
-        head = subprocess.run(["git", "log", "-1", "--format=%H|%cI"], cwd=engine_root, capture_output=True, text=True, check=False)
+        branch = _run_git(engine_root, ["rev-parse", "--abbrev-ref", "HEAD"])
+        status = _run_git(engine_root, ["status", "--porcelain"])
+        head = _run_git(engine_root, ["log", "-1", "--format=%H|%cI"])
     except Exception as exc:
         warnings.append(EvidenceWarning(source_type="repo_state", path=str(engine_root), message=str(exc)))
         return records, warnings, {}
@@ -464,6 +477,7 @@ def collect_evidence(*, subject: str, data_root: Path, engine_root: Path) -> dic
     repo_records, repo_warnings, repo_payload = repo_state_evidence(engine_root=engine_root)
     evidence_records.extend(repo_records)
     warnings.extend(repo_warnings)
+    derived_state = derived_state_context(data_root=data_root)
 
     freshness_signals = [
         {
@@ -482,4 +496,5 @@ def collect_evidence(*, subject: str, data_root: Path, engine_root: Path) -> dic
         "active_run": active_run_payload,
         "quest_state": quest_payload,
         "repo_state": repo_payload,
+        "derived_state": derived_state,
     }

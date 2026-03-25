@@ -97,6 +97,15 @@ def _default_state(subject: str) -> dict[str, Any]:
         "project_model_open_questions_count": 0,
         "project_model_blocking_questions_count": 0,
         "project_summary": None,
+        "last_truth_compile_at": None,
+        "last_truth_compile_cycle_id": None,
+        "truth_statement_count": 0,
+        "truth_active_statement_count": 0,
+        "truth_contradiction_count": 0,
+        "truth_superseded_count": 0,
+        "truth_compile_stale": False,
+        "truth_stale_reasons": [],
+        "truth_stale_active_run_detected": False,
         "provenance_status": None,
         "provenance_last_observed_at": None,
         "provenance_last_watch_at": None,
@@ -190,6 +199,17 @@ def _default_manifold(subject: str) -> dict[str, Any]:
         "project_constraint_summary": [],
         "project_history_summary": [],
         "project_open_question_details": [],
+        "last_truth_compile_at": None,
+        "last_truth_compile_cycle_id": None,
+        "truth_statement_count": 0,
+        "truth_active_statement_count": 0,
+        "truth_contradiction_count": 0,
+        "truth_superseded_count": 0,
+        "truth_compile_stale": False,
+        "truth_stale_reasons": [],
+        "stale_active_run_detected": False,
+        "current_work_summary": {},
+        "truth_publication_paths": {},
         "provenance_status": None,
         "provenance_last_observed_at": None,
         "provenance_last_watch_at": None,
@@ -277,6 +297,8 @@ def ensure_live_scaffold(subject: str, data_root: Path) -> dict[str, Any]:
     onboarding_drafts_dir = onboarding_dir / "DRAFTS"
     onboarding_questions_dir = onboarding_dir / "QUESTIONS"
     onboarding_published_dir = onboarding_dir / "PUBLISHED"
+    truth_dir = live / "TRUTH"
+    truth_publications_dir = truth_dir / "PUBLICATIONS"
     provenance_dir = live / "PROVENANCE"
     provenance_anomalies_dir = provenance_dir / "ANOMALIES"
     runs_dir = live / "RUNS"
@@ -307,6 +329,8 @@ def ensure_live_scaffold(subject: str, data_root: Path) -> dict[str, Any]:
     onboarding_drafts_dir.mkdir(parents=True, exist_ok=True)
     onboarding_questions_dir.mkdir(parents=True, exist_ok=True)
     onboarding_published_dir.mkdir(parents=True, exist_ok=True)
+    truth_dir.mkdir(parents=True, exist_ok=True)
+    truth_publications_dir.mkdir(parents=True, exist_ok=True)
     provenance_dir.mkdir(parents=True, exist_ok=True)
     provenance_anomalies_dir.mkdir(parents=True, exist_ok=True)
     runs_dir.mkdir(parents=True, exist_ok=True)

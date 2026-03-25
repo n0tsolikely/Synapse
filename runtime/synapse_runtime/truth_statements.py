@@ -50,6 +50,10 @@ PROVENANCE_SOURCE_TYPES = {
 }
 
 
+def _enum_value(value: Any) -> Any:
+    return value.value if isinstance(value, Enum) else value
+
+
 def normalize_summary_text(value: Any) -> str:
     text = re.sub(r"\s+", " ", str(value or "").strip())
     if not text:
@@ -78,7 +82,7 @@ def normalize_confidence(value: Any, *, default: str = "medium") -> str:
 
 
 def statement_id_for(statement_kind: StatementKind | str, topic_key: str, summary: str) -> str:
-    kind = StatementKind(str(statement_kind)).value
+    kind = StatementKind(str(_enum_value(statement_kind))).value
     topic = normalize_topic_key(topic_key)
     normalized_summary = normalize_summary_text(summary).lower()
     digest = hashlib.sha256(f"{kind}|{topic}|{normalized_summary}".encode("utf-8")).hexdigest()[:8]
@@ -172,10 +176,10 @@ def build_statement_record(
 ) -> dict[str, Any]:
     return normalize_statement_record(
         {
-            "statement_kind": StatementKind(str(statement_kind)).value,
+            "statement_kind": StatementKind(str(_enum_value(statement_kind))).value,
             "summary": summary,
             "detail": detail,
-            "truth_layer": TruthLayer(str(truth_layer)).value,
+            "truth_layer": TruthLayer(str(_enum_value(truth_layer))).value,
             "confidence": confidence,
             "operator_confirmed": operator_confirmed,
             "needs_expansion": needs_expansion,

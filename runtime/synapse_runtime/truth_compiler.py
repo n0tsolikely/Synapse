@@ -27,6 +27,14 @@ class TruthCompilerError(RuntimeError):
     """Raised when the truth compiler cannot complete."""
 
 
+class TruthCompilerPartialError(TruthCompilerError):
+    """Raised when compiled truth artifacts are partially written."""
+
+    def __init__(self, message: str, *, payload: dict[str, Any]):
+        super().__init__(message)
+        self.payload = payload
+
+
 _CAPABILITY_PRECEDENCE = {
     "audit_bundle": 1,
     "receipt": 2,
@@ -37,6 +45,13 @@ _CAPABILITY_PRECEDENCE = {
     "repo_state": 8,
     "active_run": 9,
     "disclosure": 7,
+}
+_LAYER_RANK = {
+    TruthLayer.IMPLEMENTED.value: 4,
+    TruthLayer.PARTIAL.value: 3,
+    TruthLayer.INTENDED.value: 2,
+    TruthLayer.SPECULATIVE.value: 1,
+    TruthLayer.SUPERSEDED.value: 0,
 }
 _IDENTITY_PRECEDENCE = {
     "onboarding_publication": 1,
@@ -113,13 +128,21 @@ def _confidence_rank(value: str) -> int:
     return {"low": 1, "medium": 2, "high": 3}.get(str(value or ""), 0)
 
 
+def _time_rank(value: str) -> float:
+    try:
+        return dt.datetime.fromisoformat(str(value)).timestamp()
+    except Exception:
+        return 0.0
+
+
 def _pick_primary_evidence(statement_kind: str, records: list[EvidenceRecord]) -> EvidenceRecord:
     return sorted(
         records,
         key=lambda record: (
             _precedence_rank(statement_kind, record.source_type),
             -_confidence_rank(record.confidence_hint),
-            record.effective_time,
+            -int(bool(record.operator_confirmed)),
+            -_time_rank(record.effective_time),
             record.evidence_id,
         ),
     )[0]
@@ -195,9 +218,15 @@ def _cluster_evidence(records: list[EvidenceRecord]) -> dict[tuple[str, str, str
     return clusters
 
 
-def _build_statements(*, data_root: Path, records: list[EvidenceRecord], compiled_at: str) -> list[dict[str, Any]]:
+def _build_statements(
+    *,
+    data_root: Path,
+    records: list[EvidenceRecord],
+    compiled_at: str,
+) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
     previous = _load_previous_statements(data_root)
     statements: list[dict[str, Any]] = []
+    statement_meta: dict[str, dict[str, Any]] = {}
     for (statement_kind, topic_key, normalized_summary), cluster in sorted(_cluster_evidence(records).items()):
         primary = _pick_primary_evidence(statement_kind, cluster)
         statement_id = statement_id_for(statement_kind, topic_key, primary.summary)
@@ -223,15 +252,83 @@ def _build_statements(*, data_root: Path, records: list[EvidenceRecord], compile
             active=truth_layer != TruthLayer.SUPERSEDED,
         )
         statements.append(statement)
+        statement_meta[statement_id] = {
+            "precedence_rank": _precedence_rank(statement_kind, primary.source_type),
+            "truth_layer": truth_layer.value,
+            "layer_rank": _LAYER_RANK[truth_layer.value],
+            "primary_effective_time": primary.effective_time,
+            "time_rank": _time_rank(primary.effective_time),
+            "operator_confirmed": bool(primary.operator_confirmed),
+            "primary_source_type": primary.source_type,
+            "supersession_hints": {
+                str(item.supersession_hint).strip().lower()
+                for item in cluster
+                if str(item.supersession_hint or "").strip()
+            },
+            "summary": primary.summary,
+        }
     # Preserve earlier superseded history so recompiles do not erase it.
     known = {item["statement_id"] for item in statements}
     for prior in previous.values():
         if prior.get("statement_id") not in known and str(prior.get("truth_layer") or "") == TruthLayer.SUPERSEDED.value:
             statements.append(dict(prior))
-    return statements
+            statement_meta[str(prior.get("statement_id"))] = {
+                "precedence_rank": 999,
+                "truth_layer": TruthLayer.SUPERSEDED.value,
+                "layer_rank": _LAYER_RANK[TruthLayer.SUPERSEDED.value],
+                "primary_effective_time": str(prior.get("last_evidence_at") or prior.get("last_reconciled_at") or ""),
+                "time_rank": _time_rank(str(prior.get("last_evidence_at") or prior.get("last_reconciled_at") or "")),
+                "operator_confirmed": bool(prior.get("operator_confirmed")),
+                "primary_source_type": "history",
+                "supersession_hints": set(),
+                "summary": str(prior.get("summary") or ""),
+            }
+    return statements, statement_meta
 
 
-def _apply_supersession_and_contradictions(statements: list[dict[str, Any]]) -> dict[str, Any]:
+def _should_supersede(
+    winner: dict[str, Any],
+    candidate: dict[str, Any],
+    *,
+    statement_meta: dict[str, dict[str, Any]],
+) -> bool:
+    winner_meta = statement_meta.get(str(winner.get("statement_id"))) or {}
+    candidate_meta = statement_meta.get(str(candidate.get("statement_id"))) or {}
+    winner_summary = str(winner.get("summary") or "").strip().lower()
+    candidate_summary = str(candidate.get("summary") or "").strip().lower()
+    winner_rank = int(winner_meta.get("precedence_rank", 999))
+    candidate_rank = int(candidate_meta.get("precedence_rank", 999))
+    winner_layer_rank = int(winner_meta.get("layer_rank", 0))
+    candidate_layer_rank = int(candidate_meta.get("layer_rank", 0))
+    winner_time = float(winner_meta.get("time_rank", 0.0))
+    candidate_time = float(candidate_meta.get("time_rank", 0.0))
+    supersession_hints = set(winner_meta.get("supersession_hints") or [])
+    if candidate_summary and candidate_summary in supersession_hints:
+        return True
+    if str(candidate.get("statement_id") or "").strip().lower() in supersession_hints:
+        return True
+    if winner_rank < candidate_rank:
+        if winner_layer_rank >= candidate_layer_rank and winner_time >= candidate_time:
+            return True
+        if winner_layer_rank > candidate_layer_rank:
+            return True
+    if winner_rank == candidate_rank:
+        if winner_layer_rank > candidate_layer_rank and winner_time >= candidate_time:
+            return True
+        if (
+            winner_layer_rank >= _LAYER_RANK[TruthLayer.PARTIAL.value]
+            and candidate_layer_rank <= _LAYER_RANK[TruthLayer.INTENDED.value]
+            and winner_time >= candidate_time
+        ):
+            return True
+    return False
+
+
+def _apply_supersession_and_contradictions(
+    statements: list[dict[str, Any]],
+    *,
+    statement_meta: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
     by_topic: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for statement in statements:
         by_topic.setdefault((str(statement.get("statement_kind")), str(statement.get("topic_key"))), []).append(statement)
@@ -239,7 +336,26 @@ def _apply_supersession_and_contradictions(statements: list[dict[str, Any]]) -> 
     material_count = 0
     for group in by_topic.values():
         active = [item for item in group if item.get("active")]
+        ordered_active = sorted(
+            active,
+            key=lambda item: (
+                int((statement_meta.get(str(item.get("statement_id"))) or {}).get("precedence_rank", 999)),
+                -int((statement_meta.get(str(item.get("statement_id"))) or {}).get("layer_rank", 0)),
+                -float((statement_meta.get(str(item.get("statement_id"))) or {}).get("time_rank", 0.0)),
+                str(item.get("statement_id") or ""),
+            ),
+        )
+        if ordered_active:
+            winner = ordered_active[0]
+            for candidate in ordered_active[1:]:
+                if _should_supersede(winner, candidate, statement_meta=statement_meta):
+                    candidate["active"] = False
+                    candidate["truth_layer"] = TruthLayer.SUPERSEDED.value
+                    candidate["superseded_by"] = [winner["statement_id"]]
+                    if candidate["statement_id"] not in winner["supersedes"]:
+                        winner["supersedes"].append(candidate["statement_id"])
         superseded = [item for item in group if str(item.get("truth_layer")) == TruthLayer.SUPERSEDED.value]
+        active = [item for item in group if item.get("active")]
         if superseded and active:
             replacement_id = active[0]["statement_id"]
             for item in superseded:
@@ -290,8 +406,16 @@ def _current_work_summary(*, active_run: dict[str, Any] | None, quest_state: dic
             blocked = record.summary
             break
     current_focus = None
+    next_hint = None
     if active_run and active_run.get("run_id"):
         current_focus = str(active_run.get("result_summary") or active_run.get("goal") or active_run.get("title") or "").strip() or None
+        open_items = [
+            item
+            for item in (active_run.get("plan") or {}).get("items") or []
+            if isinstance(item, dict) and str(item.get("status") or "").strip().upper() not in {"DONE", "COMPLETE", "COMPLETED", "CANCELLED", "BLOCKED"}
+        ]
+        if open_items:
+            next_hint = str(open_items[0].get("text") or open_items[0].get("id") or "").strip() or None
     if not current_focus:
         focus_statements = [item for item in statements if item.get("active") and item.get("statement_kind") == StatementKind.CURRENT_FOCUS.value]
         if focus_statements:
@@ -300,12 +424,15 @@ def _current_work_summary(*, active_run: dict[str, Any] | None, quest_state: dic
     if accepted:
         first = accepted[0]
         accepted_work = str(first.get("title") or first.get("quest_id") or "").strip() or None
+        if not next_hint:
+            next_hint = accepted_work
     return {
         "current_focus": current_focus,
         "active_run_id": active_run.get("run_id") if active_run else None,
         "accepted_governed_work": accepted_work,
         "recently_completed": recent_completion_titles,
         "blocked_state": blocked,
+        "next_hint": next_hint,
         "stale_active_run_detected": stale_active_run_detected,
     }
 
@@ -345,6 +472,7 @@ def _statement_store_payload(*, compile_cycle_id: str, compiled_at: str, stateme
 
 def _report_payload(
     *,
+    data_root: Path,
     compile_cycle_id: str,
     compiled_at: str,
     statements: list[dict[str, Any]],
@@ -375,7 +503,7 @@ def _report_payload(
         "source_warnings": warnings,
         "external_source_warning_count": len(warnings),
         "current_work_summary": current_work_summary,
-        "truth_publication_paths": publication_paths or canonical_truth_publication_paths(Path(".")),
+        "truth_publication_paths": publication_paths or canonical_truth_publication_paths(data_root),
     }
 
 
@@ -497,8 +625,8 @@ def compile_current_state(*, subject: str, data_root: Path, engine_root: Path) -
     compiled_at = _now_iso()
     inputs = collect_evidence(subject=subject, data_root=data_root, engine_root=engine_root)
     records = list(inputs["evidence_records"])
-    statements = _build_statements(data_root=data_root, records=records, compiled_at=compiled_at)
-    contradiction_state = _apply_supersession_and_contradictions(statements)
+    statements, statement_meta = _build_statements(data_root=data_root, records=records, compiled_at=compiled_at)
+    contradiction_state = _apply_supersession_and_contradictions(statements, statement_meta=statement_meta)
     statements = contradiction_state["statements"]
     completion_records = [
         record
@@ -518,6 +646,7 @@ def compile_current_state(*, subject: str, data_root: Path, engine_root: Path) -
     store_payload = _statement_store_payload(compile_cycle_id=compile_cycle_id, compiled_at=compiled_at, statements=statements)
 
     report_payload = _report_payload(
+        data_root=data_root,
         compile_cycle_id=compile_cycle_id,
         compiled_at=compiled_at,
         statements=statements,
@@ -545,7 +674,22 @@ def compile_current_state(*, subject: str, data_root: Path, engine_root: Path) -
         partial_report = dict(report_payload)
         partial_report["truth_publication_paths"] = canonical_truth_publication_paths(data_root)
         _write_yaml(report_path, partial_report)
-        raise TruthCompilerError(f"Publication rendering failed after statement/report write: {exc}") from exc
+        raise TruthCompilerPartialError(
+            f"Publication rendering failed after statement/report write: {exc}",
+            payload={
+                "compile_cycle_id": compile_cycle_id,
+                "statement_store_path": str(store_path.resolve()),
+                "compiler_report_path": str(report_path.resolve()),
+                "publication_paths": canonical_truth_publication_paths(data_root),
+                "statement_count": partial_report["statement_count"],
+                "active_statement_count": partial_report["active_statement_count"],
+                "superseded_count": partial_report["superseded_count"],
+                "contradiction_count": partial_report["contradiction_count"],
+                "stale_active_run_detected": stale_active_run_detected,
+                "truth_compile_stale": False,
+                "external_source_warning_count": partial_report["external_source_warning_count"],
+            },
+        ) from exc
 
     final_report = dict(report_payload)
     final_report["truth_publication_paths"] = publication_paths
