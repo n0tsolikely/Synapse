@@ -1439,6 +1439,12 @@ def confirm_onboarding_tool(*, state: ConnectionState, context: ContextInput | d
             "proposal_paths": list(result.get("proposal_paths") or []),
         },
     )
+    event_info, truth_compile = cli_runtime._merge_truth_compile_follow_on(
+        ctx=ctx,
+        session_id=session_id,
+        event_info=event_info,
+        primary_action_label="Onboarding confirmation",
+    )
     payload = {
         "published_project_model_resource_uri": "synapse://current/project-model.json",
         "published_project_story_resource_uri": "synapse://current/project-story.md",
@@ -1447,6 +1453,7 @@ def confirm_onboarding_tool(*, state: ConnectionState, context: ContextInput | d
             "proposal_paths": list(result.get("proposal_paths") or []),
             "proposal_count": len(list(result.get("proposal_paths") or [])),
         },
+        "truth_compile": truth_compile,
         "event": event_info.get("event"),
         "reducer": event_info.get("reducer"),
     }
@@ -1677,10 +1684,17 @@ def finalize_run_tool(*, state: ConnectionState, context: ContextInput | dict[st
             "archive_path": result.get("archive_path"),
         },
     )
+    event_info, truth_compile = cli_runtime._merge_truth_compile_follow_on(
+        ctx=ctx,
+        session_id=session_id,
+        event_info=event_info,
+        primary_action_label="Run finalization",
+    )
     _, bundle = build_current_context_bundle(state=state, context=context, include_rehydrate=False, include_project_story=False)
     payload = {
         "run_id": result.get("run_id"),
         "archive_path": result.get("archive_path"),
+        "truth_compile": truth_compile,
         "current_context": bundle["context"],
         "event": event_info.get("event"),
         "reducer": event_info.get("reducer"),

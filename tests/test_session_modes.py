@@ -659,7 +659,11 @@ class SessionModeLifecycleTests(unittest.TestCase):
         state = self._read_state()
         manifold = self._read_manifold()
         rehydrate = self._read_rehydrate()
-        finalize_event = self._event_entries()[-1]
+        persisted_events = self._event_entries()
+        finalize_event = next(
+            event for event in reversed(persisted_events) if event.get("action_name") == "run-finalize"
+        )
+        compile_event = persisted_events[-1]
 
         self.assertIsNone(state["active_session_mode"])
         self.assertEqual(state["last_session_mode"], SessionMode.SCOPE_PLANNING.value)
@@ -681,6 +685,7 @@ class SessionModeLifecycleTests(unittest.TestCase):
         self.assertEqual(finalize_event["signals"]["session_mode"], SessionMode.SCOPE_PLANNING.value)
         self.assertEqual(finalize_event["signals"]["session_mode_source"], "explicit_transition")
         self.assertEqual(finalize_event["signals"]["session_mode_policy_version"], SESSION_MODE_POLICY_VERSION)
+        self.assertEqual(compile_event["action_name"], "compile-current-state")
 
     def test_closeout_filters_disallowed_quest_like_and_guild_order_outputs(self) -> None:
         result = run_synapse(

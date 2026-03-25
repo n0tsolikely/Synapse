@@ -572,6 +572,11 @@ class McpIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 {"outcome_summary": "Wrapped the run", "status": "completed"},
             )
             self.assertEqual(finalized["status"], "ok")
+            truth_compile = finalized["data"]["truth_compile"]
+            self.assertTrue(truth_compile["compile_cycle_id"])
+            truth_root = Path(finalized["subject_context"]["data_root"]) / ".synapse" / "TRUTH"
+            self.assertTrue((truth_root / "COMPILER_REPORT.yaml").exists())
+            self.assertTrue((truth_root / "PUBLICATIONS" / "ACTIVE_WORK.md").exists())
             current = finalized["data"]["current_context"]
             self.assertIsNone(current["active_run"]["run_id"])
             self.assertEqual(current["session_posture"]["last_session_mode"], "scope_planning")
@@ -764,6 +769,11 @@ class McpIntegrationTests(unittest.IsolatedAsyncioTestCase):
             confirmed = await self._call(session, "confirm_onboarding", {"confirm": True})
             self.assertEqual(confirmed["status"], "ok")
             self.assertEqual(confirmed["data"]["published_project_model_resource_uri"], "synapse://current/project-model.json")
+            truth_compile = confirmed["data"]["truth_compile"]
+            self.assertTrue(truth_compile["compile_cycle_id"])
+            truth_root = Path(confirmed["subject_context"]["data_root"]) / ".synapse" / "TRUTH"
+            self.assertTrue((truth_root / "COMPILER_REPORT.yaml").exists())
+            self.assertTrue((truth_root / "PUBLICATIONS" / "CURRENT_STATE.md").exists())
 
             resources = await session.list_resources()
             uris = {str(item.uri) for item in resources.resources}

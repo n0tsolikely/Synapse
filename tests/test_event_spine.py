@@ -346,7 +346,11 @@ class EventSpineTests(unittest.TestCase):
 
         payload = json.loads(finalize.stdout)
         event_payload = payload["event"]["payload"]
-        persisted_event = self._event_entries()[-1]
+        persisted_events = self._event_entries()
+        run_finalize_event = next(
+            event for event in reversed(persisted_events) if event.get("action_name") == "run-finalize"
+        )
+        compile_event = persisted_events[-1]
 
         self.assertEqual(payload["session_mode"], "execution")
         self.assertEqual(payload["session_mode_source"], "command_default")
@@ -355,10 +359,11 @@ class EventSpineTests(unittest.TestCase):
         self.assertEqual(event_payload["signals"]["session_mode"], "execution")
         self.assertEqual(event_payload["signals"]["session_mode_source"], "command_default")
         self.assertEqual(event_payload["signals"]["session_mode_policy_version"], 1)
-        self.assertEqual(persisted_event["action_name"], "run-finalize")
-        self.assertEqual(persisted_event["signals"]["session_mode"], "execution")
-        self.assertEqual(persisted_event["signals"]["session_mode_source"], "command_default")
-        self.assertEqual(persisted_event["signals"]["session_mode_policy_version"], 1)
+        self.assertEqual(run_finalize_event["action_name"], "run-finalize")
+        self.assertEqual(run_finalize_event["signals"]["session_mode"], "execution")
+        self.assertEqual(run_finalize_event["signals"]["session_mode_source"], "command_default")
+        self.assertEqual(run_finalize_event["signals"]["session_mode_policy_version"], 1)
+        self.assertEqual(compile_event["action_name"], "compile-current-state")
 
     def test_doctor_accepts_live_subject_without_event_spine_until_upgraded(self) -> None:
         ensure_live_scaffold(self.subject, self.data_root)
@@ -513,7 +518,7 @@ class EventSpineTests(unittest.TestCase):
 
     def test_all_event_pipeline_call_sites_route_through_shared_result_handler(self) -> None:
         source = (REPO_ROOT / "runtime" / "synapse.py").read_text(encoding="utf-8")
-        self.assertEqual(source.count("event_info = _event_pipeline("), 22)
+        self.assertEqual(source.count("event_info = _event_pipeline("), 23)
         inline_event_commands = (
             "cmd_attach_or_init",
             "cmd_live_bootstrap",
@@ -537,6 +542,7 @@ class EventSpineTests(unittest.TestCase):
             "cmd_onboard_repo": "_run_onboarding_bootstrap(",
             "cmd_accept_quest": "_accept_quest_mutation(",
             "cmd_formalize": "_formalize_candidate_mutation(",
+            "cmd_compile_current_state": "_run_truth_compile(",
         }
         for fn_name in inline_event_commands:
             marker = f"def {fn_name}("
@@ -557,7 +563,12 @@ class EventSpineTests(unittest.TestCase):
             block = source[start:end if end != -1 else None]
             self.assertIn(helper_call, block, fn_name)
             self.assertIn("_finalize_mutation_result(", block, fn_name)
-        for helper_name in ("_run_onboarding_bootstrap", "_accept_quest_mutation", "_formalize_candidate_mutation"):
+        for helper_name in (
+            "_run_onboarding_bootstrap",
+            "_accept_quest_mutation",
+            "_formalize_candidate_mutation",
+            "_run_truth_compile",
+        ):
             marker = f"def {helper_name}("
             start = source.index(marker)
             end = source.find("\ndef ", start + 1)
