@@ -21,11 +21,14 @@ from synapse_runtime.reducer import ReducerError, reduce_after_event
 from synapse_runtime.repo_archaeology import ScanDepth, evidence_ref, run_repo_archaeology, stable_scan_item_id
 from synapse_runtime.repo_onboarding import (
     RepoOnboardingError,
+    canonical_codex_current_path,
+    canonical_codex_future_path,
     current_onboarding_session,
     default_onboarding_session,
     default_onboarding_pointer,
     onboarding_confirm,
     onboarding_projection,
+    onboarding_workplan_path,
     onboarding_session_path,
     reconstruct_onboarding_pointer,
     save_onboarding_pointer,
@@ -377,6 +380,29 @@ class RepoOnboardingSchemaTests(unittest.TestCase):
             stable_scan_item_id(section="docs_inventory", normalized_path="docs/README.md"),
             stable_scan_item_id(section="docs_inventory", normalized_path="docs/README.md"),
         )
+        for section in (
+            "subsystem_map",
+            "capability_hypotheses",
+            "history_signals",
+            "contradiction_signals",
+            "story_artifacts",
+            "workspace_receipts",
+            "spec_and_plan_artifacts",
+            "unfinished_subsystems",
+            "repo_scale_summary",
+            "vision_signal_candidates",
+        ):
+            self.assertIn(section, deep_first["scan"])
+        subsystem = deep_first["scan"]["subsystem_map"][0]
+        self.assertIn("evidence_ref", subsystem)
+        self.assertEqual(
+            subsystem["evidence_ref"],
+            evidence_ref(scan_id="SCAN-DEEP-1", section="subsystem_map", item_id=subsystem["item_id"]),
+        )
+        self.assertGreaterEqual(
+            len(deep_first["scan"]["capability_hypotheses"]),
+            len(deep_first["scan"]["entrypoint_inventory"]),
+        )
 
     def test_projection_uses_confirmed_pointer_when_no_current_session_exists(self) -> None:
         session = default_onboarding_session(
@@ -431,6 +457,10 @@ class RepoOnboardingCommandTests(unittest.TestCase):
 
     def _session_payload(self, onboarding_id: str) -> dict[str, Any]:
         path = self._onboarding_dir() / "SESSIONS" / f"ONBOARDING__{onboarding_id}.yaml"
+        return yaml.safe_load(path.read_text(encoding="utf-8"))
+
+    def _workplan_payload(self, onboarding_id: str) -> dict[str, Any]:
+        path = self._onboarding_dir() / "WORKPLANS" / f"ONBOARDING_WORKPLAN__{onboarding_id}.yaml"
         return yaml.safe_load(path.read_text(encoding="utf-8"))
 
     def _start_onboarding(self, *, extra_args: list[str] | None = None) -> dict[str, Any]:
@@ -565,8 +595,14 @@ class RepoOnboardingCommandTests(unittest.TestCase):
         first = self._start_onboarding()
         self.assertTrue(Path(first["scan_artifact_path"]).exists())
         self.assertTrue(Path(first["analysis_brief_path"]).exists())
+        self.assertTrue(Path(first["workplan_path"]).exists())
         pointer = self._current_pointer()
         self.assertEqual(pointer["current_onboarding_id"], first["onboarding_id"])
+        session = self._session_payload(first["onboarding_id"])
+        workplan = self._workplan_payload(first["onboarding_id"])
+        self.assertEqual(session["current_workplan_id"], first["onboarding_id"])
+        self.assertEqual(session["workplan_step_statuses"]["archaeology_complete"], "complete")
+        self.assertEqual(workplan["workplan_id"], first["onboarding_id"])
         proposal_dir = self._data_root() / ".synapse" / "PROPOSALS"
         self.assertFalse(list(proposal_dir.glob("**/*.yaml")))
 
@@ -878,6 +914,16 @@ class RepoOnboardingCommandTests(unittest.TestCase):
         revised_payload = json.loads(revised.stdout)
         self.assertEqual(revised_payload["onboarding_state"], "awaiting_confirmation")
         self.assertEqual(revised_payload["revision_delta_id"], "REVISION-2")
+        self.assertTrue(Path(revised_payload["draft_story_path"]).exists())
+        self.assertTrue(Path(revised_payload["draft_vision_path"]).exists())
+        self.assertTrue(Path(revised_payload["draft_codex_current_path"]).exists())
+        self.assertTrue(Path(revised_payload["draft_codex_future_path"]).exists())
+        workplan = self._workplan_payload(first["onboarding_id"])
+        step_statuses = {item["step_id"]: item["status"] for item in workplan["steps"]}
+        self.assertEqual(step_statuses["draft_story_written"], "complete")
+        self.assertEqual(step_statuses["draft_current_codex_written"], "complete")
+        self.assertEqual(step_statuses["clarification_incorporated"], "complete")
+        self.assertEqual(step_statuses["confirmation_readiness_passed"], "complete")
         session = self._session_payload(first["onboarding_id"])
         self.assertEqual(session["unincorporated_capture_batch_ids"], [])
 
@@ -922,6 +968,10 @@ class RepoOnboardingCommandTests(unittest.TestCase):
         session = self._session_payload(first["onboarding_id"])
         self.assertEqual(session["unincorporated_capture_batch_ids"], [response_payload["capture_batch_id"]])
         self.assertEqual(session["clarification_capture_batch_ids"], [response_payload["capture_batch_id"]])
+        workplan = self._workplan_payload(first["onboarding_id"])
+        step_statuses = {item["step_id"]: item["status"] for item in workplan["steps"]}
+        self.assertEqual(step_statuses["clarification_incorporated"], "blocked")
+        self.assertEqual(step_statuses["confirmation_readiness_passed"], "blocked")
 
         revised_draft = {
             **draft,
@@ -1342,8 +1392,12 @@ class RepoOnboardingCommandTests(unittest.TestCase):
         self.assertTrue(Path(payload["published_project_model_path"]).exists())
         self.assertTrue(Path(payload["published_project_story_path"]).exists())
         self.assertTrue(Path(payload["published_vision_path"]).exists())
+        self.assertTrue(Path(payload["published_codex_current_path"]).exists())
+        self.assertTrue(Path(payload["published_codex_future_path"]).exists())
         self.assertTrue(Path(payload["publication_receipt_path"]).exists())
         self.assertTrue(payload["proposal_paths"])
+        self.assertEqual(payload["compile_status"], "ok")
+        self.assertTrue(Path(payload["compiled_current_state_path"]).exists())
 
         pointer = self._current_pointer()
         self.assertIsNone(pointer["current_onboarding_id"])
@@ -1354,6 +1408,12 @@ class RepoOnboardingCommandTests(unittest.TestCase):
         manifold = yaml.safe_load((live / "MANIFOLD.yaml").read_text(encoding="utf-8"))
         self.assertEqual(state["latest_confirmed_onboarding_id"], first["onboarding_id"])
         self.assertEqual(manifold["latest_confirmed_onboarding_id"], first["onboarding_id"])
+        self.assertEqual(state["published_codex_current_path"], payload["published_codex_current_path"])
+        self.assertEqual(state["published_codex_future_path"], payload["published_codex_future_path"])
+        receipt = yaml.safe_load(Path(payload["publication_receipt_path"]).read_text(encoding="utf-8"))
+        self.assertEqual(receipt["compile_status"], "ok")
+        self.assertTrue(receipt["published_codex_current_path"])
+        self.assertTrue(receipt["published_codex_future_path"])
 
         rehydrate = run_synapse(
             ["render-rehydrate", "--json"],
@@ -1365,6 +1425,58 @@ class RepoOnboardingCommandTests(unittest.TestCase):
         text = (live / "REHYDRATE.md").read_text(encoding="utf-8")
         self.assertIn("## Onboarding status", text)
         self.assertIn("## Published project model", text)
+        self.assertIn("Current codex path:", text)
+        self.assertIn("Future codex path:", text)
+
+    def test_onboarding_confirm_partial_when_post_publication_compile_fails(self) -> None:
+        first = self._start_onboarding()
+        draft = self._confirmation_ready_draft(first["onboarding_id"], first["scan_id"])
+        questions = self._question_set(first["onboarding_id"], first["scan_id"], include_question=False)
+        update = run_synapse(
+            [
+                "onboarding-update",
+                "--draft-json",
+                json.dumps(draft),
+                "--questions-json",
+                json.dumps(questions),
+                "--json",
+            ],
+            cwd=self.repo,
+            home=self.home,
+            extra_env=self.extra_env,
+        )
+        self.assertEqual(update.returncode, 0, update.stdout + update.stderr)
+
+        from synapse_runtime.truth_compiler import TruthCompilerPartialError
+
+        def explode_compile(*_: Any, **__: Any):
+            raise TruthCompilerPartialError(
+                "compile boom",
+                payload={
+                    "publication_paths": {
+                        "current_state": str((self._data_root() / ".synapse" / "TRUTH" / "PUBLICATIONS" / "CURRENT_STATE.md").resolve())
+                    }
+                },
+            )
+
+        session = self._session_payload(first["onboarding_id"])
+        active_run = yaml.safe_load((self._data_root() / ".synapse" / "ACTIVE_RUN.yaml").read_text(encoding="utf-8"))
+        with mock.patch(
+            "synapse_runtime.truth_compiler.compile_current_state",
+            side_effect=explode_compile,
+        ):
+            payload = onboarding_confirm(
+                subject="PROJECT-ONBOARD",
+                data_root=self._data_root(),
+                session=session,
+                active_run=active_run,
+            )
+        self.assertEqual(payload["compile_status"], "partial")
+        self.assertTrue(Path(payload["published_project_model_path"]).exists())
+        receipt = yaml.safe_load(Path(payload["publication_receipt_path"]).read_text(encoding="utf-8"))
+        self.assertEqual(receipt["compile_status"], "partial")
+        self.assertTrue(receipt["published_codex_current_path"])
+        self.assertTrue(receipt["published_codex_future_path"])
 
     def test_onboarding_confirm_bounds_long_proposal_filenames(self) -> None:
         first = self._start_onboarding()
@@ -1456,10 +1568,16 @@ class RepoOnboardingCommandTests(unittest.TestCase):
         self.assertEqual(events[0], "receipt")
         replace_events = [item for item in events if item.startswith("replace:")]
         self.assertEqual(
-            replace_events,
-            ["replace:PROJECT_MODEL.yaml", "replace:PROJECT_STORY.md", "replace:VISION.md"],
+            replace_events[:5],
+            [
+                "replace:PROJECT_MODEL.yaml",
+                "replace:PROJECT_STORY.md",
+                "replace:VISION.md",
+                "replace:CODEX_CURRENT.md",
+                "replace:CODEX_FUTURE.md",
+            ],
         )
-        self.assertGreater(events.index("seed"), events.index("replace:VISION.md"))
+        self.assertGreater(events.index("seed"), events.index("replace:CODEX_FUTURE.md"))
 
     def test_restart_after_confirmation_preserves_prior_archived_publication_and_current_canonical_until_replacement(self) -> None:
         self.test_onboarding_confirm_publishes_archived_and_canonical_artifacts_and_projects_state()

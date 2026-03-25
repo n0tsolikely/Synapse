@@ -376,14 +376,14 @@ class TruthCompilerFixture(unittest.TestCase):
         session["question_set_ids"] = ["QUESTION_SET-READY"]
         session["current_question_set_id"] = "QUESTION_SET-READY"
         session["unincorporated_capture_batch_ids"] = []
-        readiness_ok, readiness_errors = evaluate_confirmation_readiness(
+        readiness = evaluate_confirmation_readiness(
             onboarding_state=session["state"],
             current_scan_id=session["current_scan_id"],
             unincorporated_capture_batch_ids=session["unincorporated_capture_batch_ids"],
             draft=draft,
             question_set=questions,
         )
-        self.assertTrue(readiness_ok, readiness_errors)
+        self.assertTrue(readiness["ready"], readiness["blocking_reasons"])
         return draft, questions, session
 
 
