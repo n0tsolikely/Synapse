@@ -4339,6 +4339,8 @@ def cmd_onboarding_confirm(args: argparse.Namespace) -> int:
         result.get("published_project_model_path"),
         result.get("published_project_story_path"),
         result.get("published_vision_path"),
+        result.get("published_codex_current_path"),
+        result.get("published_codex_future_path"),
         result.get("publication_receipt_path"),
         *list(result.get("proposal_paths") or []),
     ]
@@ -4369,15 +4371,23 @@ def cmd_onboarding_confirm(args: argparse.Namespace) -> int:
             "published_project_model_path": result.get("published_project_model_path"),
             "published_project_story_path": result.get("published_project_story_path"),
             "published_vision_path": result.get("published_vision_path"),
+            "published_codex_current_path": result.get("published_codex_current_path"),
+            "published_codex_future_path": result.get("published_codex_future_path"),
+            "compile_status": result.get("compile_status"),
+            "compiled_current_state_path": result.get("compiled_current_state_path"),
             "proposal_paths": list(result.get("proposal_paths") or []),
         },
     )
-    event_info, truth_compile = _merge_truth_compile_follow_on(
-        ctx=ctx,
-        session_id=session_id,
-        event_info=event_info,
-        primary_action_label="Onboarding confirmation",
-    )
+    if str(result.get("compile_status") or "").lower() != "ok":
+        event_info = _apply_follow_on_partial_status(
+            event_info=event_info,
+            error_code="POST_PUBLICATION_TRUTH_COMPILE_FAILED",
+            error_message=str(result.get("compile_error_message") or "Canonical onboarding publications were written, but post-publication truth compile did not complete successfully."),
+            recovery_hint=(
+                "Onboarding publications are already written. Repair the truth-compile path and rerun `python3 runtime/synapse.py compile-current-state`."
+            ),
+        )
+    truth_compile = result.get("truth_compile")
     payload = {
         **result,
         "subject": ctx,
@@ -4394,6 +4404,8 @@ def cmd_onboarding_confirm(args: argparse.Namespace) -> int:
         print(f"published_project_model_path: {rendered_payload.get('published_project_model_path')}")
         print(f"published_project_story_path: {rendered_payload.get('published_project_story_path')}")
         print(f"published_vision_path: {rendered_payload.get('published_vision_path')}")
+        print(f"published_codex_current_path: {rendered_payload.get('published_codex_current_path')}")
+        print(f"published_codex_future_path: {rendered_payload.get('published_codex_future_path')}")
 
     return _finalize_mutation_result(
         payload=payload,

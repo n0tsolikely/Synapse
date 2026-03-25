@@ -95,7 +95,10 @@ def truth_publications_dir(data_root: Path) -> Path:
 
 def canonical_truth_publication_paths(data_root: Path) -> dict[str, str]:
     base = truth_publications_dir(data_root)
-    return {filename: str((base / filename).resolve()) for filename in PUBLICATION_FILENAMES.values()}
+    return {
+        alias: str((base / filename).resolve())
+        for alias, filename in PUBLICATION_FILENAMES.items()
+    }
 
 
 def _claim_family(statement_kind: str) -> str:

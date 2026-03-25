@@ -28,6 +28,8 @@ from synapse_runtime.repo_onboarding import (
     archived_project_model_path,
     archived_project_story_path,
     archived_vision_path,
+    canonical_codex_current_path,
+    canonical_codex_future_path,
     canonical_project_model_path,
     canonical_project_story_path,
     canonical_vision_path,
@@ -523,6 +525,10 @@ def resource_catalog(*, state: ConnectionState) -> list[dict[str, Any]]:
         resources.append({"uri": "synapse://current/project-story.md", "mime_type": "text/markdown"})
     if canonical_vision_path(data_root).exists():
         resources.append({"uri": "synapse://current/vision.md", "mime_type": "text/markdown"})
+    if canonical_codex_current_path(data_root).exists():
+        resources.append({"uri": "synapse://current/codex-current.md", "mime_type": "text/markdown"})
+    if canonical_codex_future_path(data_root).exists():
+        resources.append({"uri": "synapse://current/codex-future.md", "mime_type": "text/markdown"})
     return resources
 
 
@@ -589,6 +595,10 @@ def read_resource(*, state: ConnectionState, uri: str) -> tuple[dict[str, Any], 
         return ctx, _text_or_empty(canonical_project_story_path(data_root)), "text/markdown"
     if uri == "synapse://current/vision.md" and canonical_vision_path(data_root).exists():
         return ctx, _text_or_empty(canonical_vision_path(data_root)), "text/markdown"
+    if uri == "synapse://current/codex-current.md" and canonical_codex_current_path(data_root).exists():
+        return ctx, _text_or_empty(canonical_codex_current_path(data_root)), "text/markdown"
+    if uri == "synapse://current/codex-future.md" and canonical_codex_future_path(data_root).exists():
+        return ctx, _text_or_empty(canonical_codex_future_path(data_root)), "text/markdown"
     raise BridgeFailure(code="CONTEXT_RESOLUTION_FAILED", message=f"Unknown or unavailable resource: {uri}")
 
 
@@ -1406,6 +1416,8 @@ def confirm_onboarding_tool(*, state: ConnectionState, context: ContextInput | d
         result.get("published_project_model_path"),
         result.get("published_project_story_path"),
         result.get("published_vision_path"),
+        result.get("published_codex_current_path"),
+        result.get("published_codex_future_path"),
         result.get("publication_receipt_path"),
         *list(result.get("proposal_paths") or []),
     ]
@@ -1436,19 +1448,32 @@ def confirm_onboarding_tool(*, state: ConnectionState, context: ContextInput | d
             "published_project_model_path": result.get("published_project_model_path"),
             "published_project_story_path": result.get("published_project_story_path"),
             "published_vision_path": result.get("published_vision_path"),
+            "published_codex_current_path": result.get("published_codex_current_path"),
+            "published_codex_future_path": result.get("published_codex_future_path"),
+            "compile_status": result.get("compile_status"),
+            "compiled_current_state_path": result.get("compiled_current_state_path"),
             "proposal_paths": list(result.get("proposal_paths") or []),
         },
     )
-    event_info, truth_compile = cli_runtime._merge_truth_compile_follow_on(
-        ctx=ctx,
-        session_id=session_id,
-        event_info=event_info,
-        primary_action_label="Onboarding confirmation",
-    )
+    if str(result.get("compile_status") or "").lower() != "ok":
+        event_info = cli_runtime._apply_follow_on_partial_status(
+            event_info=event_info,
+            error_code="POST_PUBLICATION_TRUTH_COMPILE_FAILED",
+            error_message=str(
+                result.get("compile_error_message")
+                or "Canonical onboarding publications were written, but post-publication truth compile did not complete successfully."
+            ),
+            recovery_hint=(
+                "Onboarding publications are already written. Repair the truth-compile path and rerun compile_current_state."
+            ),
+        )
+    truth_compile = result.get("truth_compile")
     payload = {
         "published_project_model_resource_uri": "synapse://current/project-model.json",
         "published_project_story_resource_uri": "synapse://current/project-story.md",
         "published_vision_resource_uri": "synapse://current/vision.md",
+        "published_codex_current_resource_uri": "synapse://current/codex-current.md",
+        "published_codex_future_resource_uri": "synapse://current/codex-future.md",
         "seeded_proposal_summary": {
             "proposal_paths": list(result.get("proposal_paths") or []),
             "proposal_count": len(list(result.get("proposal_paths") or [])),

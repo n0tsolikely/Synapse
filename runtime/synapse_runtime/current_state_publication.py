@@ -189,5 +189,9 @@ def write_publication_set_atomic(*, publications_dir: Path, rendered: dict[str, 
         if staging_dir.exists():
             shutil.rmtree(staging_dir, ignore_errors=True)
         raise CurrentStatePublicationError(str(exc)) from exc
-    paths = {filename: str((publications_dir / filename).resolve()) for filename in rendered}
+    alias_by_filename = {filename: alias for alias, filename in PUBLICATION_FILENAMES.items()}
+    paths = {
+        alias_by_filename.get(filename, filename): str((publications_dir / filename).resolve())
+        for filename in rendered
+    }
     return paths

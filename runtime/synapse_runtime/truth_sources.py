@@ -12,7 +12,13 @@ import yaml
 
 from synapse_runtime.accepted_execution_view import load_accepted_quest_details, load_completed_quest_details
 from synapse_runtime.live_memory_common import _slugify
-from synapse_runtime.repo_onboarding import canonical_project_model_path, canonical_project_story_path, canonical_vision_path
+from synapse_runtime.repo_onboarding import (
+    canonical_codex_current_path,
+    canonical_codex_future_path,
+    canonical_project_model_path,
+    canonical_project_story_path,
+    canonical_vision_path,
+)
 from synapse_runtime.repo_state import _run_git
 from synapse_runtime.semantic_intake import load_capture_batches
 from synapse_runtime.sidecar_store import live_root
@@ -284,6 +290,8 @@ def onboarding_publication_evidence(*, data_root: Path) -> tuple[list[EvidenceRe
     model_path = canonical_project_model_path(data_root)
     story_path = canonical_project_story_path(data_root)
     vision_path = canonical_vision_path(data_root)
+    codex_current_path = canonical_codex_current_path(data_root)
+    codex_future_path = canonical_codex_future_path(data_root)
     if not model_path.exists():
         return records, []
     model = _canonical_yaml(model_path, source_type="onboarding_publication")
@@ -292,24 +300,137 @@ def onboarding_publication_evidence(*, data_root: Path) -> tuple[list[EvidenceRe
     confirmed_at = _parse_time(model.get("confirmed_at"), fallback=_file_time(model_path))
     project_identity = str(model.get("project_identity") or "").strip() or data_root.name[:-5]
     purpose = str(model.get("purpose") or "").strip()
-    vision_text = str(model.get("vision") or "").strip() or (_safe_markdown(vision_path, source_type="onboarding_publication", canonical=True).strip() if vision_path.exists() else "")
+    vision_text = str(model.get("current_vision") or model.get("vision") or "").strip() or (
+        _safe_markdown(vision_path, source_type="onboarding_publication", canonical=True).strip() if vision_path.exists() else ""
+    )
+    codex_current_text = _safe_markdown(codex_current_path, source_type="onboarding_publication", canonical=True).strip() if codex_current_path.exists() else ""
+    codex_future_text = _safe_markdown(codex_future_path, source_type="onboarding_publication", canonical=True).strip() if codex_future_path.exists() else ""
     if purpose:
-        records.append(_make_evidence(source_type="onboarding_publication", source_id=f"{project_identity}-purpose", statement_kind_hint=StatementKind.PROJECT_PURPOSE, summary=purpose, detail=vision_text, confidence_hint="high", operator_confirmed=True, effective_time=confirmed_at, topic_key_hint=f"{project_identity}-purpose", truth_layer_hint=TruthLayer.IMPLEMENTED, path_ref=str(model_path.resolve()), metadata={"published_story_path": str(story_path.resolve()) if story_path.exists() else None}))
-    records.append(_make_evidence(source_type="onboarding_publication", source_id=f"{project_identity}-identity", statement_kind_hint=StatementKind.IDENTITY_CLAIM, summary=project_identity, detail=purpose, confidence_hint="high", operator_confirmed=True, effective_time=confirmed_at, topic_key_hint="project-identity", truth_layer_hint=TruthLayer.IMPLEMENTED, path_ref=str(model_path.resolve())))
-    for item in model.get("confirmed_capabilities") or []:
+        records.append(
+            _make_evidence(
+                source_type="onboarding_publication",
+                source_id=f"{project_identity}-purpose",
+                statement_kind_hint=StatementKind.PROJECT_PURPOSE,
+                summary=purpose,
+                detail=vision_text or codex_future_text,
+                confidence_hint="high",
+                operator_confirmed=True,
+                effective_time=confirmed_at,
+                topic_key_hint=f"{project_identity}-purpose",
+                truth_layer_hint=TruthLayer.IMPLEMENTED,
+                path_ref=str(model_path.resolve()),
+                metadata={
+                    "published_story_path": str(story_path.resolve()) if story_path.exists() else None,
+                    "published_codex_future_path": str(codex_future_path.resolve()) if codex_future_path.exists() else None,
+                },
+            )
+        )
+    records.append(
+        _make_evidence(
+            source_type="onboarding_publication",
+            source_id=f"{project_identity}-identity",
+            statement_kind_hint=StatementKind.IDENTITY_CLAIM,
+            summary=project_identity,
+            detail=purpose or codex_current_text,
+            confidence_hint="high",
+            operator_confirmed=True,
+            effective_time=confirmed_at,
+            topic_key_hint="project-identity",
+            truth_layer_hint=TruthLayer.IMPLEMENTED,
+            path_ref=str(model_path.resolve()),
+        )
+    )
+    for item in model.get("implemented_truths") or model.get("confirmed_capabilities") or []:
         if isinstance(item, dict) and str(item.get("summary") or "").strip():
-            records.append(_make_evidence(source_type="onboarding_publication", source_id=str(item.get("id") or item.get("summary")), statement_kind_hint=StatementKind.CAPABILITY, summary=str(item.get("summary")), detail=str(item.get("detail") or "").strip(), confidence_hint="high", operator_confirmed=True, effective_time=confirmed_at, topic_key_hint=str(item.get("id") or item.get("summary")), truth_layer_hint=TruthLayer.IMPLEMENTED, path_ref=str(model_path.resolve())))
-    for item in model.get("partial_or_intended_capabilities") or []:
+            records.append(
+                _make_evidence(
+                    source_type="onboarding_publication",
+                    source_id=str(item.get("id") or item.get("summary")),
+                    statement_kind_hint=StatementKind.CAPABILITY,
+                    summary=str(item.get("summary")),
+                    detail=str(item.get("detail") or codex_current_text).strip(),
+                    confidence_hint="high",
+                    operator_confirmed=True,
+                    effective_time=confirmed_at,
+                    topic_key_hint=str(item.get("id") or item.get("summary")),
+                    truth_layer_hint=TruthLayer.IMPLEMENTED,
+                    path_ref=str(model_path.resolve()),
+                )
+            )
+    for item in list(model.get("partial_truths") or []) + list(model.get("intended_capabilities") or []) + list(
+        model.get("partial_or_intended_capabilities") or []
+    ):
         if isinstance(item, dict) and str(item.get("summary") or "").strip():
             status = str(item.get("status") or "").strip().lower()
             layer = TruthLayer.PARTIAL if status == "partial" else TruthLayer.INTENDED if status == "intended" else TruthLayer.SPECULATIVE
-            records.append(_make_evidence(source_type="onboarding_publication", source_id=str(item.get("id") or item.get("summary")), statement_kind_hint=StatementKind.CAPABILITY, summary=str(item.get("summary")), detail=str(item.get("detail") or "").strip(), confidence_hint="high", operator_confirmed=True, effective_time=confirmed_at, topic_key_hint=str(item.get("id") or item.get("summary")), truth_layer_hint=layer, path_ref=str(model_path.resolve()), needs_expansion_hint=layer != TruthLayer.PARTIAL))
+            records.append(
+                _make_evidence(
+                    source_type="onboarding_publication",
+                    source_id=str(item.get("id") or item.get("summary")),
+                    statement_kind_hint=StatementKind.CAPABILITY,
+                    summary=str(item.get("summary")),
+                    detail=str(item.get("detail") or codex_future_text or codex_current_text).strip(),
+                    confidence_hint="high",
+                    operator_confirmed=True,
+                    effective_time=confirmed_at,
+                    topic_key_hint=str(item.get("id") or item.get("summary")),
+                    truth_layer_hint=layer,
+                    path_ref=str(model_path.resolve()),
+                    needs_expansion_hint=layer != TruthLayer.PARTIAL or bool(item.get("needs_expansion")),
+                )
+            )
+    for item in model.get("future_ideas_needing_expansion") or []:
+        if isinstance(item, dict) and str(item.get("summary") or "").strip():
+            records.append(
+                _make_evidence(
+                    source_type="onboarding_publication",
+                    source_id=str(item.get("id") or item.get("summary")),
+                    statement_kind_hint=StatementKind.CAPABILITY,
+                    summary=str(item.get("summary")),
+                    detail=str(item.get("detail") or codex_future_text).strip(),
+                    confidence_hint="medium",
+                    operator_confirmed=True,
+                    effective_time=confirmed_at,
+                    topic_key_hint=str(item.get("id") or item.get("summary")),
+                    truth_layer_hint=TruthLayer.SPECULATIVE,
+                    path_ref=str(model_path.resolve()),
+                    needs_expansion_hint=True,
+                )
+            )
     for item in model.get("constraints") or []:
         if isinstance(item, dict) and str(item.get("summary") or "").strip():
-            records.append(_make_evidence(source_type="onboarding_publication", source_id=str(item.get("id") or item.get("summary")), statement_kind_hint=StatementKind.CONSTRAINT, summary=str(item.get("summary")), detail=str(item.get("detail") or "").strip(), confidence_hint="high", operator_confirmed=True, effective_time=confirmed_at, topic_key_hint=str(item.get("id") or item.get("summary")), truth_layer_hint=TruthLayer.IMPLEMENTED, path_ref=str(model_path.resolve())))
-    for item in model.get("stale_or_superseded_directions") or []:
+            records.append(
+                _make_evidence(
+                    source_type="onboarding_publication",
+                    source_id=str(item.get("id") or item.get("summary")),
+                    statement_kind_hint=StatementKind.CONSTRAINT,
+                    summary=str(item.get("summary")),
+                    detail=str(item.get("detail") or "").strip(),
+                    confidence_hint="high",
+                    operator_confirmed=True,
+                    effective_time=confirmed_at,
+                    topic_key_hint=str(item.get("id") or item.get("summary")),
+                    truth_layer_hint=TruthLayer.IMPLEMENTED,
+                    path_ref=str(model_path.resolve()),
+                )
+            )
+    for item in model.get("superseded_directions") or model.get("stale_or_superseded_directions") or []:
         if isinstance(item, dict) and str(item.get("summary") or "").strip():
-            records.append(_make_evidence(source_type="onboarding_publication", source_id=str(item.get("id") or item.get("summary")), statement_kind_hint=StatementKind.HISTORY_TURN, summary=str(item.get("summary")), detail=str(item.get("detail") or "").strip(), confidence_hint="high", operator_confirmed=True, effective_time=confirmed_at, topic_key_hint=str(item.get("id") or item.get("summary")), truth_layer_hint=TruthLayer.SUPERSEDED, path_ref=str(model_path.resolve())))
+            records.append(
+                _make_evidence(
+                    source_type="onboarding_publication",
+                    source_id=str(item.get("id") or item.get("summary")),
+                    statement_kind_hint=StatementKind.HISTORY_TURN,
+                    summary=str(item.get("summary")),
+                    detail=str(item.get("detail") or "").strip(),
+                    confidence_hint="high",
+                    operator_confirmed=True,
+                    effective_time=confirmed_at,
+                    topic_key_hint=str(item.get("id") or item.get("summary")),
+                    truth_layer_hint=TruthLayer.SUPERSEDED,
+                    path_ref=str(model_path.resolve()),
+                )
+            )
     return records, []
 
 
