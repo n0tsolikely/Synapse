@@ -33,7 +33,7 @@ from synapse_runtime.automation_orchestrator import (
 from synapse_runtime.cwt import detect_canonical_working_tree
 from synapse_runtime.doctor import run_doctor
 from synapse_runtime.event_log import EventLogError, REDUCER_VERSION, append_event, build_event, load_event_records
-from synapse_runtime.governance_pack import resolve_governance_asset, resolve_governance_root
+from synapse_runtime.governance_pack import resolve_governance_asset, resolve_governance_root, resolve_synapse_root
 from synapse_runtime.governance_inventory import build_governance_inventory, write_governance_inventory
 from synapse_runtime.governance_model import AmbientSignal, ProposalKind, ProposalState
 from synapse_runtime.live_journal import log_decision, log_disclosure, record_quest_acceptance
@@ -95,6 +95,7 @@ from synapse_runtime.semantic_intake import (
 from synapse_runtime.sidecar_projection import _sync_sidecar, refresh_provenance_projection
 from synapse_runtime.sidecar_store import ensure_live_scaffold
 from synapse_runtime.subject_bootstrap import initialize_subject_state, repo_subject_defaults
+from synapse_runtime.subject_bridge import ensure_subject_repo_bridge
 from synapse_runtime.quest_acceptance import QuestAcceptanceError, accept_quest
 from synapse_runtime.quest_board import (
     draft_quest_from_proposal,
@@ -2114,8 +2115,50 @@ def _adopt_current_repo_receipt(args: argparse.Namespace) -> dict[str, Any]:
         receipt["session_lockfile"] = str(session_focus_lock_path(generated_session_id, Path.home().resolve()).resolve())
     receipt["initialized_created"] = init_receipt["created"]
     receipt["initialized_existing"] = init_receipt["existing"]
+    receipt["subject_repo_bridge"] = ensure_subject_repo_bridge(
+        subject=receipt["subject"],
+        repo_root=Path(selection["engine_root"]),
+        data_root=Path(selection["data_root"]),
+        synapse_root=resolve_synapse_root(),
+    )
     mark_adopted_existing_repo(subject=receipt["subject"], data_root=Path(receipt["data_root"]))
     return receipt
+
+
+def _emit_adopted_repo_engage(args: argparse.Namespace) -> int:
+    receipt = _adopt_current_repo_receipt(args)
+    bootstrap_payload, event_info = _run_onboarding_bootstrap(ctx=receipt)
+    payload = {
+        **receipt,
+        **_readiness_payload(Path(receipt["data_root"])),
+        "onboarding_bootstrap": bootstrap_payload,
+    }
+    runtime_status = event_info.get("runtime_status") if event_info else None
+    exit_code = 3 if runtime_status and runtime_status.get("operation_status") == "partial" else 0
+    if runtime_status is not None:
+        payload["runtime_status"] = runtime_status
+    if args.shell:
+        _subject_receipt_to_shell(receipt)
+        if runtime_status and runtime_status.get("operation_status") == "partial":
+            _print_partial_runtime_status(runtime_status, stream=sys.stderr)
+        return exit_code
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return exit_code
+    _print_subject_receipt(receipt)
+    print(f"onboarding_required: {payload.get('onboarding_required')}")
+    print(f"continuity_ready: {payload.get('continuity_ready')}")
+    print(f"onboarding_state: {bootstrap_payload.get('onboarding_state') or bootstrap_payload.get('state') or 'none'}")
+    print(f"active_onboarding_id: {bootstrap_payload.get('onboarding_id') or bootstrap_payload.get('active_onboarding_id') or 'none'}")
+    bridge = receipt.get("subject_repo_bridge") or {}
+    if bridge:
+        print(f"subject_repo_bridge: {bridge.get('bridge_status')} [{bridge.get('bridge_path')}]")
+    return exit_code
+
+
+def _current_repo_is_clear_subject() -> bool:
+    cwt = detect_canonical_working_tree()
+    return (cwt / ".git").exists()
 
 
 def _run_onboarding_bootstrap(
@@ -2382,31 +2425,7 @@ def cmd_engage(args: argparse.Namespace) -> int:
             return 0
 
         if args.adopt_current_repo:
-            receipt = _adopt_current_repo_receipt(args)
-            bootstrap_payload, event_info = _run_onboarding_bootstrap(ctx=receipt)
-            payload = {
-                **receipt,
-                **_readiness_payload(Path(receipt["data_root"])),
-                "onboarding_bootstrap": bootstrap_payload,
-            }
-            runtime_status = event_info.get("runtime_status") if event_info else None
-            exit_code = 3 if runtime_status and runtime_status.get("operation_status") == "partial" else 0
-            if runtime_status is not None:
-                payload["runtime_status"] = runtime_status
-            if args.shell:
-                _subject_receipt_to_shell(receipt)
-                if runtime_status and runtime_status.get("operation_status") == "partial":
-                    _print_partial_runtime_status(runtime_status, stream=sys.stderr)
-                return exit_code
-            if args.json:
-                print(json.dumps(payload, indent=2, sort_keys=True))
-                return exit_code
-            _print_subject_receipt(receipt)
-            print(f"onboarding_required: {payload.get('onboarding_required')}")
-            print(f"continuity_ready: {payload.get('continuity_ready')}")
-            print(f"onboarding_state: {bootstrap_payload.get('onboarding_state') or bootstrap_payload.get('state') or 'none'}")
-            print(f"active_onboarding_id: {bootstrap_payload.get('onboarding_id') or bootstrap_payload.get('active_onboarding_id') or 'none'}")
-            return exit_code
+            return _emit_adopted_repo_engage(args)
 
         if _stdin_is_interactive():
             selection = _interactive_engage_selection(home, args)
@@ -2447,11 +2466,14 @@ def cmd_engage(args: argparse.Namespace) -> int:
             _emit_subject_output(receipt, json_mode=args.json, shell_mode=args.shell)
             return 0
 
+        if _current_repo_is_clear_subject():
+            return _emit_adopted_repo_engage(args)
+
         active_lock = load_active_focus_lock(session_id=args.session_id)
         if active_lock:
-            active_subject = str(active_lock.get("subject") or "(unknown)")
-            _print_noninteractive_engage_active_help(active_subject)
-            return 2
+            receipt = resolve_subject(allow_switch=False, session_id=args.session_id)
+            _emit_subject_output(receipt, json_mode=args.json, shell_mode=args.shell)
+            return 0
 
         candidates = detect_subject_candidates(home)
         if len(candidates) == 1:
