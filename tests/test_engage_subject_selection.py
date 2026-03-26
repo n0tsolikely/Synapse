@@ -85,6 +85,7 @@ class EngageSelectionTests(unittest.TestCase):
         self.assertIn("Synapse Subject Bridge", text)
         self.assertIn("/home/notsolikely/Synapse/EXECUTOR.md", text)
         self.assertIn("Do not treat the absence of a local `EXECUTOR.md`", text)
+        self.assertIn("ask the user which repo Synapse should engage against", text)
 
         exclude_path = self.repo / ".git" / "info" / "exclude"
         self.assertTrue(exclude_path.exists())
