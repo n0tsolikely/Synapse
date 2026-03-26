@@ -9,15 +9,15 @@ from synapse_runtime.governance_pack import resolve_synapse_root
 
 BRIDGE_START = "<!-- SYNAPSE SUBJECT BRIDGE: START -->"
 BRIDGE_END = "<!-- SYNAPSE SUBJECT BRIDGE: END -->"
-EXCLUDE_ENTRY = "/AGENTS.md"
+SHIM_FILENAMES = ("AGENTS.md", "CLAUDE.md")
 
 
-def _managed_bridge_block(*, subject: str, data_root: Path, synapse_root: Path) -> str:
+def _managed_bridge_block(*, subject: str, data_root: Path, synapse_root: Path, shim_filename: str) -> str:
     executor_path = (synapse_root / "EXECUTOR.md").resolve()
     runtime_path = (synapse_root / "runtime" / "synapse.py").resolve()
     lines = [
         BRIDGE_START,
-        "# Synapse Subject Bridge",
+        f"# Synapse Subject Bridge ({shim_filename})",
         "",
         "This repository is governed through an external Synapse engine.",
         "",
@@ -90,13 +90,19 @@ def ensure_subject_repo_bridge(
     subject: str,
     repo_root: Path,
     data_root: Path,
+    shim_filename: str = "AGENTS.md",
     synapse_root: Path | None = None,
 ) -> dict[str, str]:
     synapse_root = (synapse_root or resolve_synapse_root()).resolve()
     repo_root = repo_root.resolve()
     data_root = data_root.resolve()
-    bridge_path = repo_root / "AGENTS.md"
-    block = _managed_bridge_block(subject=subject, data_root=data_root, synapse_root=synapse_root)
+    bridge_path = repo_root / shim_filename
+    block = _managed_bridge_block(
+        subject=subject,
+        data_root=data_root,
+        synapse_root=synapse_root,
+        shim_filename=shim_filename,
+    )
     existing = bridge_path.read_text(encoding="utf-8") if bridge_path.exists() else ""
     merged, bridge_status = _merge_bridge(existing, block)
 
@@ -105,8 +111,9 @@ def ensure_subject_repo_bridge(
     else:
         bridge_path.write_text(merged, encoding="utf-8")
 
-    exclude_status = ensure_subject_bridge_git_exclude(repo_root)
+    exclude_status = ensure_subject_bridge_git_exclude(repo_root, shim_filename=shim_filename)
     return {
+        "shim_filename": shim_filename,
         "bridge_path": str(bridge_path.resolve()),
         "bridge_status": bridge_status,
         "exclude_status": exclude_status,
@@ -114,7 +121,26 @@ def ensure_subject_repo_bridge(
     }
 
 
-def ensure_subject_bridge_git_exclude(repo_root: Path) -> str:
+def ensure_subject_repo_bridges(
+    *,
+    subject: str,
+    repo_root: Path,
+    data_root: Path,
+    synapse_root: Path | None = None,
+) -> dict[str, dict[str, str]]:
+    bridges: dict[str, dict[str, str]] = {}
+    for shim_filename in SHIM_FILENAMES:
+        bridges[shim_filename] = ensure_subject_repo_bridge(
+            subject=subject,
+            repo_root=repo_root,
+            data_root=data_root,
+            shim_filename=shim_filename,
+            synapse_root=synapse_root,
+        )
+    return bridges
+
+
+def ensure_subject_bridge_git_exclude(repo_root: Path, *, shim_filename: str) -> str:
     git_dir = _resolve_git_dir(repo_root.resolve())
     if git_dir is None:
         return "no_git_dir"
@@ -122,10 +148,11 @@ def ensure_subject_bridge_git_exclude(repo_root: Path) -> str:
     exclude_path = git_dir / "info" / "exclude"
     exclude_path.parent.mkdir(parents=True, exist_ok=True)
     existing = exclude_path.read_text(encoding="utf-8") if exclude_path.exists() else ""
-    if EXCLUDE_ENTRY in {line.strip() for line in existing.splitlines()}:
+    exclude_entry = f"/{shim_filename}"
+    if exclude_entry in {line.strip() for line in existing.splitlines()}:
         return "noop"
     with exclude_path.open("a", encoding="utf-8") as handle:
         if existing and not existing.endswith("\n"):
             handle.write("\n")
-        handle.write(f"{EXCLUDE_ENTRY}\n")
+        handle.write(f"{exclude_entry}\n")
     return "updated"

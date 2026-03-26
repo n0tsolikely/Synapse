@@ -95,7 +95,7 @@ from synapse_runtime.semantic_intake import (
 from synapse_runtime.sidecar_projection import _sync_sidecar, refresh_provenance_projection
 from synapse_runtime.sidecar_store import ensure_live_scaffold
 from synapse_runtime.subject_bootstrap import initialize_subject_state, repo_subject_defaults
-from synapse_runtime.subject_bridge import ensure_subject_repo_bridge
+from synapse_runtime.subject_bridge import ensure_subject_repo_bridges
 from synapse_runtime.quest_acceptance import QuestAcceptanceError, accept_quest
 from synapse_runtime.quest_board import (
     draft_quest_from_proposal,
@@ -2115,12 +2115,14 @@ def _adopt_current_repo_receipt(args: argparse.Namespace) -> dict[str, Any]:
         receipt["session_lockfile"] = str(session_focus_lock_path(generated_session_id, Path.home().resolve()).resolve())
     receipt["initialized_created"] = init_receipt["created"]
     receipt["initialized_existing"] = init_receipt["existing"]
-    receipt["subject_repo_bridge"] = ensure_subject_repo_bridge(
+    bridges = ensure_subject_repo_bridges(
         subject=receipt["subject"],
         repo_root=Path(selection["engine_root"]),
         data_root=Path(selection["data_root"]),
         synapse_root=resolve_synapse_root(),
     )
+    receipt["subject_repo_bridges"] = bridges
+    receipt["subject_repo_bridge"] = bridges["AGENTS.md"]
     mark_adopted_existing_repo(subject=receipt["subject"], data_root=Path(receipt["data_root"]))
     return receipt
 

@@ -87,9 +87,22 @@ class EngageSelectionTests(unittest.TestCase):
         self.assertIn("Do not treat the absence of a local `EXECUTOR.md`", text)
         self.assertIn("ask the user which repo Synapse should engage against", text)
 
+        bridges = payload.get("subject_repo_bridges")
+        self.assertIsInstance(bridges, dict)
+        claude_bridge = bridges.get("CLAUDE.md")
+        self.assertIsInstance(claude_bridge, dict)
+        claude_path = self.repo / "CLAUDE.md"
+        self.assertEqual(Path(claude_bridge["bridge_path"]).resolve(), claude_path.resolve())
+        self.assertTrue(claude_path.exists())
+        claude_text = claude_path.read_text(encoding="utf-8")
+        self.assertIn("Synapse Subject Bridge (CLAUDE.md)", claude_text)
+        self.assertIn("/home/notsolikely/Synapse/EXECUTOR.md", claude_text)
+
         exclude_path = self.repo / ".git" / "info" / "exclude"
         self.assertTrue(exclude_path.exists())
-        self.assertIn("/AGENTS.md", exclude_path.read_text(encoding="utf-8"))
+        exclude_text = exclude_path.read_text(encoding="utf-8")
+        self.assertIn("/AGENTS.md", exclude_text)
+        self.assertIn("/CLAUDE.md", exclude_text)
 
     def test_noninteractive_engage_continue_active_explicit(self):
         result = run_synapse(["engage", "--continue-active", "--json"], cwd=self.repo, home=self.home)
@@ -141,6 +154,9 @@ class EngageSelectionTests(unittest.TestCase):
         text = (self.repo / "AGENTS.md").read_text(encoding="utf-8")
         self.assertEqual(text.count("SYNAPSE SUBJECT BRIDGE: START"), 1)
         self.assertEqual(text.count("SYNAPSE SUBJECT BRIDGE: END"), 1)
+        claude_text = (self.repo / "CLAUDE.md").read_text(encoding="utf-8")
+        self.assertEqual(claude_text.count("SYNAPSE SUBJECT BRIDGE: START"), 1)
+        self.assertEqual(claude_text.count("SYNAPSE SUBJECT BRIDGE: END"), 1)
 
     def test_resolve_subject_flag_defaults_to_repo_roots(self):
         # Remove active lock so `--subject` path uses resolver defaults.
