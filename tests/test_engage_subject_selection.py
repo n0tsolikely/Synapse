@@ -68,12 +68,27 @@ class EngageSelectionTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def test_noninteractive_engage_requires_explicit_choice_when_active_lock_exists(self):
-        result = run_synapse(["engage", "--shell"], cwd=self.repo, home=self.home)
-        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
-        out = result.stdout + result.stderr
-        self.assertIn("--continue-active", out)
-        self.assertIn("--adopt-current-repo", out)
+    def test_noninteractive_engage_defaults_to_current_repo_and_writes_bridge(self):
+        result = run_synapse(["engage", "--json"], cwd=self.repo, home=self.home)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["subject"], self.repo.name)
+        self.assertEqual(Path(payload["engine_root"]).resolve(), self.repo.resolve())
+        self.assertEqual(Path(payload["data_root"]).resolve(), (self.repo.parent / f"{self.repo.name}_Data").resolve())
+
+        bridge = payload.get("subject_repo_bridge")
+        self.assertIsInstance(bridge, dict)
+        bridge_path = self.repo / "AGENTS.md"
+        self.assertEqual(Path(bridge["bridge_path"]).resolve(), bridge_path.resolve())
+        self.assertTrue(bridge_path.exists())
+        text = bridge_path.read_text(encoding="utf-8")
+        self.assertIn("Synapse Subject Bridge", text)
+        self.assertIn("/home/notsolikely/Synapse/EXECUTOR.md", text)
+        self.assertIn("Do not treat the absence of a local `EXECUTOR.md`", text)
+
+        exclude_path = self.repo / ".git" / "info" / "exclude"
+        self.assertTrue(exclude_path.exists())
+        self.assertIn("/AGENTS.md", exclude_path.read_text(encoding="utf-8"))
 
     def test_noninteractive_engage_continue_active_explicit(self):
         result = run_synapse(["engage", "--continue-active", "--json"], cwd=self.repo, home=self.home)
@@ -96,6 +111,35 @@ class EngageSelectionTests(unittest.TestCase):
         self.assertEqual(Path(payload["engine_root"]).resolve(), expected_engine)
         self.assertEqual(Path(payload["data_root"]).resolve(), expected_data)
         self.assertFalse(str(payload["engine_root"]).endswith("_Engine"))
+
+    def test_adopt_current_repo_prepends_bridge_without_clobbering_existing_agents_file(self):
+        agents_path = self.repo / "AGENTS.md"
+        agents_path.write_text("Local repo instructions.\n", encoding="utf-8")
+
+        result = run_synapse(["engage", "--adopt-current-repo", "--json"], cwd=self.repo, home=self.home)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+
+        bridge = payload.get("subject_repo_bridge")
+        self.assertEqual(bridge["bridge_status"], "prepended")
+        text = agents_path.read_text(encoding="utf-8")
+        self.assertIn("Synapse Subject Bridge", text)
+        self.assertIn("Local repo instructions.", text)
+        self.assertLess(text.index("Synapse Subject Bridge"), text.index("Local repo instructions."))
+
+    def test_repeated_engage_reapplies_bridge_without_duplicate_blocks(self):
+        first = run_synapse(["engage", "--json"], cwd=self.repo, home=self.home)
+        self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
+
+        second = run_synapse(["engage", "--json"], cwd=self.repo, home=self.home)
+        self.assertEqual(second.returncode, 0, second.stdout + second.stderr)
+        payload = json.loads(second.stdout)
+
+        bridge = payload.get("subject_repo_bridge")
+        self.assertEqual(bridge["bridge_status"], "noop")
+        text = (self.repo / "AGENTS.md").read_text(encoding="utf-8")
+        self.assertEqual(text.count("SYNAPSE SUBJECT BRIDGE: START"), 1)
+        self.assertEqual(text.count("SYNAPSE SUBJECT BRIDGE: END"), 1)
 
     def test_resolve_subject_flag_defaults_to_repo_roots(self):
         # Remove active lock so `--subject` path uses resolver defaults.
