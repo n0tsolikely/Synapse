@@ -40,49 +40,108 @@ def load_quest_template(cwt: Path | None = None) -> str:
     return template_path.read_text(encoding="utf-8")
 
 
-def _replace_line(lines: list[str], prefix: str, value: str) -> None:
-    for idx, line in enumerate(lines):
-        if line.startswith(prefix):
-            lines[idx] = f"{prefix} {value}".rstrip()
-            return
+def _template_metadata(template: str) -> dict[str, str]:
+    metadata: dict[str, str] = {
+        "version": "v1.5",
+        "last_updated": "",
+        "status": "Generated quest artifact",
+    }
+    for line in template.splitlines():
+        if line.startswith("Version:"):
+            metadata["version"] = line.split(":", 1)[1].strip() or metadata["version"]
+        elif line.startswith("Last Updated:"):
+            metadata["last_updated"] = line.split(":", 1)[1].strip()
+        elif line.startswith("Status:"):
+            metadata["status"] = line.split(":", 1)[1].strip() or metadata["status"]
+    return metadata
 
 
-def _insert_after_contains(lines: list[str], needle: str, content: str) -> None:
-    for idx, line in enumerate(lines):
-        if needle in line:
-            lines.insert(idx + 1, content)
-            return
+def _render_labeled_block(label: str, value: str) -> list[str]:
+    raw = str(value or "").rstrip()
+    if not raw:
+        return [f"{label}:", ""]
+    if "\n" not in raw:
+        return [f"{label}: {raw}", ""]
+    lines = [f"{label}:"]
+    lines.extend(raw.splitlines())
+    lines.append("")
+    return lines
+
+
+def _render_static_section(title: str) -> list[str]:
+    return [
+        "=" * 80,
+        title,
+        "=" * 80,
+    ]
+
+
+def _render_quest_document(template: str, values: dict[str, str]) -> str:
+    metadata = _template_metadata(template)
+    lines: list[str] = [
+        "QUEST — SYNAPSE OS",
+        f"Version: {metadata['version']}",
+    ]
+    if metadata["last_updated"]:
+        lines.append(f"Template Last Updated: {metadata['last_updated']}")
+    lines.append("Status: Generated Quest Artifact")
+    lines.append("")
+
+    lines.extend(_render_static_section("IDENTITY (REQUIRED)"))
+    lines.extend(_render_labeled_block("Quest ID", values["quest_id"]))
+    lines.extend(_render_labeled_block("Title", values["title"]))
+    lines.extend(_render_labeled_block("Subject", values["subject"]))
+    lines.extend(_render_labeled_block("Origin", values["origin"]))
+    lines.extend(_render_labeled_block("Priority", values["priority"]))
+    lines.extend(_render_labeled_block("Links", values["links"]))
+
+    lines.extend(_render_static_section("CODEX ANCHORS + CONSTRAINT SUMMARY (DRAFT)"))
+    lines.extend(_render_labeled_block("Codex Anchors (DRAFT)", values["codex_anchors"]))
+    lines.extend(_render_labeled_block("Codex Constraint Summary (DRAFT)", values["codex_constraints"]))
+
+    lines.extend(_render_static_section("QUEST CREATION VISION ALIGNMENT (REQUIRED)"))
+    lines.extend(_render_labeled_block("Change Class", values["change_class"]))
+    lines.extend(_render_labeled_block("Vision Delta", values["vision_delta"]))
+    lines.extend(_render_labeled_block("System Context Statement", values["system_context"]))
+    lines.extend(_render_labeled_block("Anti-Duplication Plan", values["anti_dup"]))
+    lines.extend(_render_labeled_block("Placement Intent", values["placement_intent"]))
+
+    lines.extend(_render_static_section("ATOMICITY CHECK (REQUIRED)"))
+    lines.extend(_render_labeled_block("Atomicity Statement", values["atomicity"]))
+
+    lines.extend(_render_static_section("RISK + CONSENT GATE (CONDITIONAL)"))
+    lines.extend(_render_labeled_block("Risk", values["risk"]))
+    lines.extend(_render_labeled_block("R2 Confirmation Artifact (REQUIRED if Risk = R2)", values.get("r2_confirmation_artifact", "")))
+
+    lines.extend(_render_static_section("DESCRIPTION (REQUIRED)"))
+    lines.extend(_render_labeled_block("Description", values["description"]))
+
+    lines.extend(_render_static_section("SCOPE / OBJECTIVE (REQUIRED)"))
+    lines.extend(_render_labeled_block("Scope / Objective", values["objective"]))
+
+    lines.extend(_render_static_section("OUT OF SCOPE (REQUIRED)"))
+    lines.extend(_render_labeled_block("Out of Scope", values["out_of_scope"]))
+
+    lines.extend(_render_static_section("DEPENDENCIES (REQUIRED: LIST OR EXPLICIT NONE)"))
+    lines.extend(_render_labeled_block("Dependencies", values["dependencies"]))
+
+    lines.extend(_render_static_section("DOORS + TESTING LEVEL (CONDITIONAL: CODE/SOFTWARE)"))
+    lines.extend(_render_labeled_block("Door Impact", values["door_impact"]))
+    lines.extend(_render_labeled_block("Testing Level (TL)", values["testing_level"]))
+
+    lines.extend(_render_static_section("VERIFICATION PLAN (REQUIRED BEFORE EXECUTION)"))
+    lines.extend(_render_labeled_block("Verification Plan", values["verification_plan"]))
+
+    lines.extend(_render_static_section("TALENT POINTS (REQUIRED: YES/NO)"))
+    lines.extend(_render_labeled_block("Talent Point Awarded", values["talent_awarded"]))
+
+    lines.extend(_render_static_section("EXECUTION AUDIT BUNDLE (REQUIRED ONCE ACCEPTED)"))
+    lines.extend(_render_labeled_block("Audit Bundle Folder Path (required once ACCEPTED)", values.get("audit_bundle_path", "")))
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def fill_quest_template(template: str, values: dict[str, str]) -> str:
-    lines = template.splitlines()
-
-    _replace_line(lines, "Quest ID:", values["quest_id"])
-    _replace_line(lines, "Title:", values["title"])
-    _replace_line(lines, "Subject:", values["subject"])
-    _replace_line(lines, "Origin:", values["origin"])
-    _replace_line(lines, "Priority:", values["priority"])
-    _replace_line(lines, "Links:", values["links"])
-    _replace_line(lines, "Codex Anchors (DRAFT):", values["codex_anchors"])
-    _replace_line(lines, "Codex Constraint Summary (DRAFT):", values["codex_constraints"])
-    _replace_line(lines, "Change Class:", values["change_class"])
-    _replace_line(lines, "Vision Delta:", values["vision_delta"])
-    _replace_line(lines, "System Context Statement:", values["system_context"])
-    _replace_line(lines, "Anti-Duplication Plan:", values["anti_dup"])
-    _replace_line(lines, "Placement Intent:", values["placement_intent"])
-    _replace_line(lines, "Atomicity Statement:", values["atomicity"])
-    _replace_line(lines, "Risk:", values["risk"])
-    _replace_line(lines, "Door Impact:", values["door_impact"])
-    _replace_line(lines, "Testing Level (TL):", values["testing_level"])
-    _replace_line(lines, "Talent Point Awarded:", values["talent_awarded"])
-
-    _insert_after_contains(lines, "Brief, concrete description", f"Description: {values['description']}")
-    _insert_after_contains(lines, "Avoid vague outcomes", f"Scope / Objective: {values['objective']}")
-    _insert_after_contains(lines, "Explicitly list what this Quest does NOT include", f"Out of Scope: {values['out_of_scope']}")
-    _insert_after_contains(lines, "If there are none, write: None", f"Dependencies: {values['dependencies']}")
-    _insert_after_contains(lines, "OR write: DEFERRED TO 01_PREQUEST.md", f"Verification Plan: {values['verification_plan']}")
-
-    return "\n".join(lines).rstrip() + "\n"
+    return _render_quest_document(template, values)
 
 
 def next_quest_number(data_root: Path, prefix: str) -> int:
@@ -196,6 +255,7 @@ def draft_quest_from_proposal(*, subject: str, data_root: Path, proposal: dict[s
         "out_of_scope": str(proposal.get("out_of_scope") or "Any work beyond the ambiently clustered candidate scope."),
         "dependencies": str(proposal.get("dependencies") or "None"),
         "verification_plan": str(proposal.get("verification_plan") or DEFAULT_VERIFICATION_PLAN),
+        "audit_bundle_path": str(proposal.get("audit_bundle_path") or ""),
     }
     quest_path.write_text(fill_quest_template(template, values), encoding="utf-8")
     return {
