@@ -1419,7 +1419,9 @@ def onboarding_projection(
         "published_vision_path": active_session.get("published_vision_path"),
         "published_codex_current_path": active_session.get("published_codex_current_path"),
         "published_codex_future_path": active_session.get("published_codex_future_path"),
-        "project_model_confirmed_at": active_session.get("confirmed_at"),
+        "project_model_confirmed_at": (
+            published_model.get("confirmed_at") if isinstance(published_model, dict) and published_model.get("confirmed_at") else active_session.get("confirmed_at")
+        ),
         "draft_is_stale": draft_is_stale(session=active_session, draft=draft),
     }
     if published_model is not None:

@@ -27,8 +27,8 @@ from synapse_runtime.repo_onboarding import (
     save_onboarding_pointer,
     save_onboarding_session,
 )
-from synapse_runtime.sidecar_projection import refresh_onboarding_projection
-from synapse_runtime.sidecar_store import ensure_live_scaffold
+from synapse_runtime.sidecar_projection import refresh_onboarding_projection, refresh_session_posture_projection
+from synapse_runtime.sidecar_store import _default_active_run, ensure_live_scaffold
 from synapse_runtime.subject_bootstrap import initialize_subject_state
 
 SYNAPSE = [sys.executable, str(REPO_ROOT / "runtime" / "synapse.py")]
@@ -190,6 +190,69 @@ class AutomationOrchestrationTests(unittest.TestCase):
             (self.data_root / ".synapse" / "ONBOARDING" / "CURRENT.yaml"),
             onboarding_current_path(self.data_root),
         )
+
+    def test_onboarding_projection_prefers_published_model_confirmed_at(self) -> None:
+        self._write_confirmed_onboarding()
+        onboarding_session = current_onboarding_session(
+            subject="Subject",
+            data_root=self.data_root,
+            require_current=False,
+        )
+        onboarding_session["confirmed_at"] = "2026-03-23T09:55:00-04:00"
+        save_onboarding_session(data_root=self.data_root, session=onboarding_session)
+
+        refresh_onboarding_projection(subject="Subject", data_root=self.data_root)
+
+        state = yaml.safe_load((self.data_root / ".synapse" / "STATE.yaml").read_text(encoding="utf-8"))
+        manifold = yaml.safe_load((self.data_root / ".synapse" / "MANIFOLD.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(state["project_model_confirmed_at"].isoformat(), "2026-03-23T10:00:00-04:00")
+        self.assertEqual(manifold["project_model_confirmed_at"].isoformat(), "2026-03-23T10:00:00-04:00")
+
+    def test_session_posture_projection_prefers_latest_finalized_run_over_stale_state(self) -> None:
+        live = self.data_root / ".synapse"
+        runs_dir = live / "RUNS"
+        runs_dir.mkdir(parents=True, exist_ok=True)
+
+        state_path = live / "STATE.yaml"
+        manifold_path = live / "MANIFOLD.yaml"
+        run_path = live / "ACTIVE_RUN.yaml"
+
+        state = yaml.safe_load(state_path.read_text(encoding="utf-8"))
+        manifold = yaml.safe_load(manifold_path.read_text(encoding="utf-8"))
+        state["last_session_mode"] = "control_sync"
+        state["last_session_mode_ended_at"] = "2026-03-25T23:45:24.317157-04:00"
+        manifold["last_session_mode"] = "control_sync"
+        manifold["last_session_mode_ended_at"] = "2026-03-25T23:45:24.317157-04:00"
+        state_path.write_text(yaml.safe_dump(state, sort_keys=False), encoding="utf-8")
+        manifold_path.write_text(yaml.safe_dump(manifold, sort_keys=False), encoding="utf-8")
+
+        idle_run = _default_active_run("Subject")
+        run_path.write_text(yaml.safe_dump(idle_run, sort_keys=False), encoding="utf-8")
+
+        archived_run = {
+            "schema_version": 1,
+            "active": False,
+            "run_id": "RUN-20260328-140810",
+            "subject": "Subject",
+            "status": "completed",
+            "last_session_mode": "control_sync",
+            "last_session_mode_ended_at": "2026-03-28T14:15:16.455317-04:00",
+            "updated_at": "2026-03-28T14:15:16.455317-04:00",
+            "finalized_at": "2026-03-28T14:15:16.455317-04:00",
+        }
+        (runs_dir / "RUN-20260328-140810__sync.yaml").write_text(
+            yaml.safe_dump(archived_run, sort_keys=False),
+            encoding="utf-8",
+        )
+
+        projection = refresh_session_posture_projection(subject="Subject", data_root=self.data_root)
+        refreshed_state = yaml.safe_load(state_path.read_text(encoding="utf-8"))
+        refreshed_manifold = yaml.safe_load(manifold_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(projection["last_session_mode"], "control_sync")
+        self.assertEqual(projection["last_session_mode_ended_at"], "2026-03-28T14:15:16.455317-04:00")
+        self.assertEqual(refreshed_state["last_session_mode_ended_at"], "2026-03-28T14:15:16.455317-04:00")
+        self.assertEqual(refreshed_manifold["last_session_mode_ended_at"], "2026-03-28T14:15:16.455317-04:00")
 
 
 class AutomationCliGateTests(unittest.TestCase):

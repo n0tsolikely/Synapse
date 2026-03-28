@@ -52,6 +52,7 @@ from synapse_runtime.session_modes import SessionMode, active_session_mode, poli
 from synapse_runtime.sidecar_store import (
     _load_active_run,
     _load_manifold,
+    _read_yaml,
     _load_state,
     _now_iso,
     _write_yaml,
@@ -59,6 +60,30 @@ from synapse_runtime.sidecar_store import (
     ensure_live_scaffold,
     live_root,
 )
+
+
+def _latest_finalized_run(*, subject: str, data_root: Path) -> dict[str, Any]:
+    runs_dir = live_root(data_root) / "RUNS"
+    if not runs_dir.exists():
+        return {}
+
+    latest_payload: dict[str, Any] | None = None
+    latest_stamp = ""
+    for path in runs_dir.glob("RUN-*.yaml"):
+        payload = _read_yaml(path)
+        if not isinstance(payload, dict):
+            continue
+        if str(payload.get("subject") or "").strip() != subject:
+            continue
+        if payload.get("active"):
+            continue
+        stamp = str(payload.get("finalized_at") or payload.get("updated_at") or payload.get("started_at") or "").strip()
+        if not stamp:
+            continue
+        if latest_payload is None or stamp > latest_stamp:
+            latest_payload = payload
+            latest_stamp = stamp
+    return latest_payload or {}
 
 
 def _append_recent_change(state: dict[str, Any], note: str) -> None:
@@ -126,6 +151,7 @@ def _apply_quest_lifecycle_projection(
 def _apply_session_posture_projection(
     *,
     active_run: dict[str, Any],
+    latest_finalized_run: dict[str, Any],
     state: dict[str, Any],
     manifold: dict[str, Any],
 ) -> dict[str, Any]:
@@ -143,9 +169,18 @@ def _apply_session_posture_projection(
     )
     manifold["active_session_mode_policy"] = active_summary
 
-    last_mode_text = str(active_run.get("last_session_mode") or state.get("last_session_mode") or "").strip()
+    last_mode_text = str(
+        active_run.get("last_session_mode")
+        or latest_finalized_run.get("last_session_mode")
+        or state.get("last_session_mode")
+        or ""
+    ).strip()
     last_mode = SessionMode(last_mode_text) if last_mode_text else None
-    last_mode_ended_at = active_run.get("last_session_mode_ended_at") or state.get("last_session_mode_ended_at")
+    last_mode_ended_at = (
+        active_run.get("last_session_mode_ended_at")
+        or latest_finalized_run.get("last_session_mode_ended_at")
+        or state.get("last_session_mode_ended_at")
+    )
 
     state["last_session_mode"] = last_mode.value if last_mode else None
     state["last_session_mode_ended_at"] = last_mode_ended_at
@@ -168,8 +203,10 @@ def refresh_session_posture_projection(*, subject: str, data_root: Path) -> dict
     state = _load_state(state_path, subject)
     manifold = _load_manifold(manifold_path, subject)
     active_run = _load_active_run(run_path, subject)
+    latest_run = _latest_finalized_run(subject=subject, data_root=data_root)
     projection = _apply_session_posture_projection(
         active_run=active_run,
+        latest_finalized_run=latest_run,
         state=state,
         manifold=manifold,
     )
@@ -562,6 +599,7 @@ def _sync_sidecar(
 
     _apply_session_posture_projection(
         active_run=active_run,
+        latest_finalized_run=_latest_finalized_run(subject=subject, data_root=data_root),
         state=state,
         manifold=manifold,
     )
