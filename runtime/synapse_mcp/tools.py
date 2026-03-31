@@ -15,6 +15,7 @@ from synapse_mcp.runtime_bridge import (
     build_current_context_bundle,
     build_session_digest,
     capture_chunk,
+    complete_quest_tool,
     confirm_onboarding_tool,
     finalize_run_tool,
     formalize_candidate_tool,
@@ -22,6 +23,7 @@ from synapse_mcp.runtime_bridge import (
     install_git_hooks_tool,
     list_formalization_candidates_tool,
     map_runtime_exception,
+    plan_quests_tool,
     record_activity,
     record_decision,
     record_disclosure,
@@ -439,6 +441,106 @@ def register_tools(mcp: FastMCP, state: ConnectionState) -> None:
                 context=context,
                 quest_id=quest_id,
                 quest_path=quest_path,
+            )
+            return _handle_mutation_result(ctx, payload, event_info)
+        except Exception as exc:
+            return _handle_exception(exc)
+
+    @mcp.tool(name="complete_quest", structured_output=True)
+    def _complete_quest(
+        context: ContextInput | None = None,
+        quest_id: str | None = None,
+        quest_path: str | None = None,
+        milestone_statuses: list[str] | None = None,
+        checks: list[str] | None = None,
+        commands_run: list[str] | None = None,
+        changed_files: list[str] | None = None,
+        receipt_refs: list[str] | None = None,
+        skipped_items: list[str] | None = None,
+        unresolved_gaps: list[str] | None = None,
+        known_bugs: list[str] | None = None,
+        blockers: list[str] | None = None,
+        disclosures: list[str] | None = None,
+        notes: list[str] | None = None,
+    ) -> dict[str, Any]:
+        try:
+            ctx, payload, event_info = complete_quest_tool(
+                state=state,
+                context=context,
+                quest_id=quest_id,
+                quest_path=quest_path,
+                milestone_statuses=list(milestone_statuses or []),
+                checks=list(checks or []),
+                commands_run=list(commands_run or []),
+                changed_files=list(changed_files or []),
+                receipt_refs=list(receipt_refs or []),
+                skipped_items=list(skipped_items or []),
+                unresolved_gaps=list(unresolved_gaps or []),
+                known_bugs=list(known_bugs or []),
+                blockers=list(blockers or []),
+                disclosures=list(disclosures or []),
+                notes=list(notes or []),
+            )
+            return _handle_mutation_result(ctx, payload, event_info)
+        except Exception as exc:
+            return _handle_exception(exc)
+
+    @mcp.tool(name="plan_quests", structured_output=True)
+    def _plan_quests(
+        items: list[str],
+        context: ContextInput | None = None,
+        title: str | None = None,
+        goal: str | None = None,
+        coherent_outcome: str | None = None,
+        closure_statement: str | None = None,
+        split_triggers: list[str] | None = None,
+        separate_outcomes: list[str] | None = None,
+        dependencies: list[str] | None = None,
+        out_of_scope: str | None = None,
+        verification_plan: str | None = None,
+        guild_orders_ref: str | None = None,
+        dungeon_ref: str | None = None,
+        dungeon_coverage: str = "N/A",
+        plan_id: str | None = None,
+        priority: Literal["P0", "P1", "P2"] = "P1",
+        risk: str = "R0",
+        change_class: Literal["TRIVIAL", "FEATURE", "STRUCTURAL"] = "FEATURE",
+        vision_delta: Literal["ALIGNED", "VARIATION", "SHIFT"] = "ALIGNED",
+        door_impact: str = "NONE",
+        testing_level: str = "TL2",
+        origin: str | None = None,
+        anchors: list[str] | None = None,
+        constraints: list[str] | None = None,
+        dry_run: bool = False,
+    ) -> dict[str, Any]:
+        try:
+            ctx, payload, event_info = plan_quests_tool(
+                state=state,
+                context=context,
+                items=list(items or []),
+                title=title,
+                goal=goal,
+                coherent_outcome=coherent_outcome,
+                closure_statement=closure_statement,
+                split_triggers=list(split_triggers or []),
+                separate_outcomes=list(separate_outcomes or []),
+                dependencies=list(dependencies or []),
+                out_of_scope=out_of_scope,
+                verification_plan=verification_plan,
+                guild_orders_ref=guild_orders_ref,
+                dungeon_ref=dungeon_ref,
+                dungeon_coverage=dungeon_coverage,
+                plan_id=plan_id,
+                priority=priority,
+                risk=risk,
+                change_class=change_class,
+                vision_delta=vision_delta,
+                door_impact=door_impact,
+                testing_level=testing_level,
+                origin=origin,
+                anchors=list(anchors or []),
+                constraints=list(constraints or []),
+                dry_run=dry_run,
             )
             return _handle_mutation_result(ctx, payload, event_info)
         except Exception as exc:

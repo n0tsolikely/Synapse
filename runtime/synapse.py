@@ -96,14 +96,17 @@ from synapse_runtime.sidecar_projection import _sync_sidecar, refresh_provenance
 from synapse_runtime.sidecar_store import ensure_live_scaffold
 from synapse_runtime.subject_bootstrap import initialize_subject_state, repo_subject_defaults
 from synapse_runtime.subject_bridge import ensure_subject_repo_bridges
-from synapse_runtime.quest_acceptance import QuestAcceptanceError, accept_quest
+from synapse_runtime.quest_acceptance import QuestAcceptanceError, accept_quest, parse_quest_document
+from synapse_runtime.quest_completion import QuestCompletionError, complete_quest
 from synapse_runtime.quest_board import (
     draft_quest_from_proposal,
     fill_quest_template as _fill_quest_template_impl,
     load_quest_template as _load_quest_template_impl,
     next_quest_number as _next_quest_number_impl,
     today_toronto as _today_toronto_impl,
+    write_quest_document,
 )
+from synapse_runtime.quest_plans import persist_execution_plan
 from synapse_runtime.subject_resolver import (
     SubjectResolutionError,
     detect_subject_candidates,
@@ -239,11 +242,29 @@ def build_parser() -> argparse.ArgumentParser:
     scaffold_parser.add_argument("--force", action="store_true", help="Overwrite existing template files")
 
     plan_parser = subparsers.add_parser(
-        "plan-sidequests",
-        help="Draft SIDE-QUEST files from a short plan (BOARD state only)",
+        "plan-quests",
+        help="Persist an execution-ready plan and draft outcome-based quest files on BOARD",
     )
     plan_parser.add_argument("--item", action="append", default=[], help="Plan item (repeatable)")
     plan_parser.add_argument("--items-file", help="Text file with one plan item per line")
+    plan_parser.add_argument("--title", help="Optional plan title override")
+    plan_parser.add_argument("--goal", help="Optional scope / objective override")
+    plan_parser.add_argument("--coherent-outcome", help="Override the bounded coherent outcome statement")
+    plan_parser.add_argument("--closure-statement", help="Override the quest closure statement")
+    plan_parser.add_argument("--split-trigger", action="append", default=[], help="Split trigger (repeatable)")
+    plan_parser.add_argument("--separate-outcome", action="append", default=[], help="Explicit independently closable outcome (repeatable)")
+    plan_parser.add_argument("--dependency", action="append", default=[], help="Dependency (repeatable)")
+    plan_parser.add_argument("--out-of-scope", help="Explicit out-of-scope statement")
+    plan_parser.add_argument("--verification-plan", help="Concrete verification plan text")
+    plan_parser.add_argument("--guild-orders-ref", help="Optional parent guild-orders reference")
+    plan_parser.add_argument("--dungeon-ref", help="Optional parent dungeon reference")
+    plan_parser.add_argument(
+        "--dungeon-coverage",
+        choices=["FULL_DUNGEON", "PARTIAL_DUNGEON", "N/A"],
+        default="N/A",
+        help="Dungeon coverage for the drafted quest(s)",
+    )
+    plan_parser.add_argument("--plan-id", help="Append a revision to an existing persisted plan id")
     plan_parser.add_argument("--subject", help="Optional subject override")
     plan_parser.add_argument("--data-root", help="Override data root path")
     plan_parser.add_argument("--engine-root", help="Override engine root path")
@@ -271,14 +292,23 @@ def build_parser() -> argparse.ArgumentParser:
     plan_parser.add_argument("--door-impact", default="NONE", help="Door Impact (default: NONE)")
     plan_parser.add_argument(
         "--testing-level",
-        default="DEFERRED TO 01_PREQUEST.md",
-        help="Testing Level value or 'DEFERRED TO 01_PREQUEST.md'",
+        default="TL2",
+        help="Testing Level value (default: TL2)",
     )
     plan_parser.add_argument("--origin", help="Override Origin field")
     plan_parser.add_argument("--anchor", action="append", default=[], help="Codex anchor (repeatable)")
     plan_parser.add_argument("--constraint", action="append", default=[], help="Codex constraint (repeatable)")
     plan_parser.add_argument("--dry-run", action="store_true", help="Show planned quests without writing files")
     plan_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
+    plan_sidequests_parser = subparsers.add_parser(
+        "plan-sidequests",
+        help="Compatibility alias for plan-quests",
+    )
+    for action in plan_parser._actions[1:]:
+        if not action.option_strings:
+            continue
+        plan_sidequests_parser._add_action(action)
 
     live_parser = subparsers.add_parser("live-bootstrap", help="Scaffold live subject-memory sidecar")
     live_parser.add_argument("--subject", help="Optional subject override")
@@ -561,6 +591,29 @@ def build_parser() -> argparse.ArgumentParser:
     accept_parser.add_argument("--no-home-lock", action="store_true", help="Do not write ~/.synapse/ACTIVE_SUBJECT.json")
     accept_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
     accept_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
+    complete_parser = subparsers.add_parser(
+        "complete-quest",
+        help="Record a completion audit attempt and only complete the quest on a clean PASS",
+    )
+    complete_parser.add_argument("quest", help="Quest ID or path to an ACCEPTED/COMPLETED quest file")
+    complete_parser.add_argument("--milestone-status", action="append", default=[], help="Milestone status entry KEY:STATUS[:DETAIL]")
+    complete_parser.add_argument("--check", action="append", default=[], help="Check result entry KEY:PASS|FAIL|BLOCKED[:DETAIL]")
+    complete_parser.add_argument("--command-run", dest="command_runs", action="append", default=[], help="Command actually run (repeatable)")
+    complete_parser.add_argument("--changed-file", action="append", default=[], help="Changed file or artifact path (repeatable)")
+    complete_parser.add_argument("--receipt-ref", action="append", default=[], help="Receipt reference path or note (repeatable)")
+    complete_parser.add_argument("--skipped-item", action="append", default=[], help="Skipped in-scope item (repeatable)")
+    complete_parser.add_argument("--unresolved-gap", action="append", default=[], help="Unresolved gap in quest scope (repeatable)")
+    complete_parser.add_argument("--known-bug", action="append", default=[], help="Known bug/regression still in quest scope (repeatable)")
+    complete_parser.add_argument("--blocker", action="append", default=[], help="Blocker preventing clean closure (repeatable)")
+    complete_parser.add_argument("--disclosure", action="append", default=[], help="Disclosure event note (repeatable)")
+    complete_parser.add_argument("--note", action="append", default=[], help="Freeform completion audit note (repeatable)")
+    complete_parser.add_argument("--subject", help="Optional subject override")
+    complete_parser.add_argument("--data-root", help="Override data root path")
+    complete_parser.add_argument("--engine-root", help="Override engine root path")
+    complete_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    complete_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
+    complete_parser.add_argument("--json", action="store_true", help="Print JSON output")
 
     formalize_parser = subparsers.add_parser("formalize", help="Formalize ambient proposals into canonical artifacts")
     formalize_parser.add_argument("--proposal-id", help="Proposal id to formalize")
@@ -4954,6 +5007,201 @@ def _accept_quest_mutation(
     }
 
 
+def _complete_quest_mutation(
+    ctx: dict[str, Any],
+    quest_ref: str,
+    *,
+    milestone_entries: list[str],
+    check_entries: list[str],
+    commands_run: list[str],
+    changed_files: list[str],
+    receipt_refs: list[str],
+    skipped_items: list[str],
+    unresolved_gaps: list[str],
+    known_bugs: list[str],
+    blockers: list[str],
+    disclosures: list[str],
+    notes: list[str],
+    active_run: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    data_root = Path(ctx["data_root"])
+    active_run = active_run or _active_session_policy(ctx)[0]
+    session_id = _effective_session_id(ctx, active_run=active_run)
+    completion = complete_quest(
+        subject=ctx["subject"],
+        data_root=data_root,
+        quest_ref=quest_ref,
+        milestone_entries=milestone_entries,
+        check_entries=check_entries,
+        commands_run=commands_run,
+        changed_files=changed_files,
+        receipt_refs=receipt_refs,
+        skipped_items=skipped_items,
+        unresolved_gaps=unresolved_gaps,
+        known_bugs=known_bugs,
+        blockers=blockers,
+        disclosures=disclosures,
+        notes=notes,
+    )
+    event_info = _event_pipeline(
+        ctx=ctx,
+        action_name="complete-quest",
+        summary=(
+            f"Completed quest {completion.get('quest_id')} with a clean PASS completion audit."
+            if completion.get("final_state_decision") == "COMPLETED"
+            else f"Quest {completion.get('quest_id')} remains active after a {completion.get('overall_verdict')} completion audit."
+        ),
+        session_id=session_id,
+        signals={
+            "related_quest_ids": [completion.get("quest_id")],
+            "related_sidequest_ids": [],
+            "changed_files": [
+                completion.get("active_path"),
+                completion.get("audit_bundle_path"),
+                completion.get("latest_completion_audit_path"),
+                *changed_files,
+            ],
+            "verification_entries": [*check_entries, *receipt_refs],
+            "accepted_context": _accepted_context_snapshot(data_root),
+            **session_mode_signal_fields(active_run),
+        },
+        truth_flags={
+            "canon_mutated": True,
+            "derived_state_changed": True,
+            "governed": True,
+            "governed_execution_changed": True,
+            "uncertainty_present": bool(unresolved_gaps or blockers or known_bugs or skipped_items),
+        },
+        outputs={
+            "quest_id": completion.get("quest_id"),
+            "active_path": completion.get("active_path"),
+            "audit_bundle_path": completion.get("audit_bundle_path"),
+            "latest_completion_audit_path": completion.get("latest_completion_audit_path"),
+            "final_state_decision": completion.get("final_state_decision"),
+            "overall_verdict": completion.get("overall_verdict"),
+            "written_artifacts": [
+                completion.get("active_path"),
+                completion.get("latest_completion_audit_path"),
+                completion.get("audit_bundle_path"),
+            ],
+        },
+    )
+    return {
+        "subject": ctx,
+        "completion": completion,
+        "event": event_info["event"],
+        "reducer": event_info["reducer"],
+        "runtime_status": event_info["runtime_status"],
+        "rehydrate": event_info["reducer"]["rehydrate"],
+        "continuity": event_info["reducer"]["continuity"],
+    }
+
+
+def _plan_quests_mutation(
+    ctx: dict[str, Any],
+    *,
+    items: list[str],
+    title: str | None,
+    goal: str | None,
+    coherent_outcome: str | None,
+    closure_statement: str | None,
+    split_triggers: list[str],
+    separate_outcomes: list[str],
+    dependencies: list[str],
+    out_of_scope: str | None,
+    verification_plan: str | None,
+    guild_orders_ref: str | None,
+    dungeon_ref: str | None,
+    dungeon_coverage: str,
+    plan_id: str | None,
+    priority: str,
+    risk: str,
+    change_class: str,
+    vision_delta: str,
+    door_impact: str,
+    testing_level: str,
+    origin: str | None,
+    anchors: list[str],
+    constraints: list[str],
+    deprecated_alias: bool,
+    active_run: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    active_run = active_run or _active_session_policy(ctx)[0]
+    session_id = _effective_session_id(ctx, active_run=active_run)
+    payload = _plan_quests_payload(
+        ctx,
+        items=items,
+        title=title,
+        goal=goal,
+        coherent_outcome=coherent_outcome,
+        closure_statement=closure_statement,
+        split_triggers=split_triggers,
+        separate_outcomes=separate_outcomes,
+        dependencies=dependencies,
+        out_of_scope=out_of_scope,
+        verification_plan=verification_plan,
+        guild_orders_ref=guild_orders_ref,
+        dungeon_ref=dungeon_ref,
+        dungeon_coverage=dungeon_coverage,
+        plan_id=plan_id,
+        priority=priority,
+        risk=risk,
+        change_class=change_class,
+        vision_delta=vision_delta,
+        door_impact=door_impact,
+        testing_level=testing_level,
+        origin=origin,
+        anchors=anchors,
+        constraints=constraints,
+        deprecated_alias=deprecated_alias,
+        dry_run=False,
+    )
+    quest_ids = [str(entry.get("quest_id") or "").strip() for entry in payload.get("quests") or [] if str(entry.get("quest_id") or "").strip()]
+    changed_files = [
+        payload.get("plan_artifact_path"),
+        *[entry.get("path") for entry in payload.get("quests") or []],
+    ]
+    event_info = _event_pipeline(
+        ctx=ctx,
+        action_name="plan-quests",
+        summary=f"Persisted plan {payload.get('plan_id')} and drafted {len(quest_ids)} quest(s) on BOARD.",
+        session_id=session_id,
+        signals={
+            "plan_items": list(items),
+            "related_quest_ids": quest_ids,
+            "related_sidequest_ids": [],
+            "changed_files": changed_files,
+            "verification_entries": [],
+            "accepted_context": _accepted_context_snapshot(Path(ctx["data_root"])),
+            **session_mode_signal_fields(active_run),
+        },
+        truth_flags={
+            "canon_mutated": True,
+            "derived_state_changed": True,
+            "governed": False,
+            "governed_execution_changed": False,
+            "uncertainty_present": False,
+        },
+        outputs={
+            "plan_id": payload.get("plan_id"),
+            "plan_artifact_path": payload.get("plan_artifact_path"),
+            "quest_id": quest_ids[0] if len(quest_ids) == 1 else None,
+            "written_artifacts": [item for item in changed_files if item],
+        },
+    )
+    payload.update(
+        {
+            "subject_context": ctx,
+            "event": event_info["event"],
+            "reducer": event_info["reducer"],
+            "runtime_status": event_info["runtime_status"],
+            "rehydrate": event_info["reducer"]["rehydrate"],
+            "continuity": event_info["reducer"]["continuity"],
+        }
+    )
+    return payload
+
+
 def cmd_accept_quest(args: argparse.Namespace) -> int:
     ctx = _resolve_or_attach_subject_from_args(args)
     if not ctx:
@@ -4988,6 +5236,59 @@ def cmd_accept_quest(args: argparse.Namespace) -> int:
         event_info=event_info,
         json_mode=args.json,
         text_emitter=_emit_accept_quest,
+    )
+
+
+def cmd_complete_quest(args: argparse.Namespace) -> int:
+    ctx = _resolve_or_attach_subject_from_args(args)
+    if not ctx:
+        return 2
+
+    active_run, session_policy = _active_session_policy(ctx)
+    if session_policy is not None and "complete-quest" in session_policy.blocked_mutation_commands:
+        return _fail_blocked_by_session_posture(
+            action_name="complete-quest",
+            active_run=active_run,
+            json_mode=args.json,
+        )
+    try:
+        payload = _complete_quest_mutation(
+            ctx,
+            args.quest,
+            milestone_entries=args.milestone_status,
+            check_entries=args.check,
+            commands_run=args.command_runs,
+            changed_files=args.changed_file,
+            receipt_refs=args.receipt_ref,
+            skipped_items=args.skipped_item,
+            unresolved_gaps=args.unresolved_gap,
+            known_bugs=args.known_bug,
+            blockers=args.blocker,
+            disclosures=args.disclosure,
+            notes=args.note,
+            active_run=active_run,
+        )
+        event_info = {"event": payload["event"], "reducer": payload["reducer"], "runtime_status": payload.get("runtime_status")}
+        event_info, truth_status = _refresh_truth_status_after_mutation(ctx=ctx, event_info=event_info)
+        payload["truth_status"] = truth_status
+    except (QuestCompletionError, LiveMemoryError) as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    def _emit_complete_quest(rendered_payload: dict[str, Any]) -> None:
+        completion_payload = rendered_payload["completion"]
+        print("=== QUEST COMPLETION AUDIT ===")
+        print(f"quest_id: {completion_payload.get('quest_id')}")
+        print(f"overall_verdict: {completion_payload.get('overall_verdict')}")
+        print(f"final_state_decision: {completion_payload.get('final_state_decision')}")
+        print(f"active_path: {completion_payload.get('active_path')}")
+        print(f"latest_completion_audit_path: {completion_payload.get('latest_completion_audit_path')}")
+
+    return _finalize_mutation_result(
+        payload=payload,
+        event_info=event_info,
+        json_mode=args.json,
+        text_emitter=_emit_complete_quest,
     )
 
 
@@ -6100,17 +6401,251 @@ def cmd_verify_hooks(args: argparse.Namespace) -> int:
     )
 
 
-def cmd_plan_sidequests(args: argparse.Namespace) -> int:
+def _default_verification_plan() -> str:
+    return (
+        "Run the scope-appropriate commands/checks for this quest, record the exact commands and receipts in the "
+        "completion audit, and do not close the quest without a clean PASS."
+    )
+
+
+def _milestones_text_for_quest(items: list[str]) -> str:
+    if not items:
+        return "- MILESTONE-001 :: Close the bounded coherent outcome and record a clean completion audit PASS."
+    return "\n".join(f"- MILESTONE-{index:03d} :: {item}" for index, item in enumerate(items, start=1))
+
+
+def _state_history_text_for_quest(created_at: str) -> str:
+    return f"- {created_at} :: BOARD"
+
+
+def _normalize_outcome_specs(items: list[str], explicit_outcomes: list[str], default_title: str) -> list[tuple[str, list[str]]]:
+    outcomes = [value.strip() for value in explicit_outcomes if value.strip()]
+    if not outcomes:
+        return [(default_title, items or [default_title])]
+
+    grouped: dict[str, list[str]] = {outcome: [] for outcome in outcomes}
+    for item in items:
+        if "::" in item:
+            head, tail = item.split("::", 1)
+            outcome_key = head.strip()
+            for outcome in outcomes:
+                if _slugify(outcome_key) == _slugify(outcome) or outcome_key.lower() == outcome.lower():
+                    if tail.strip():
+                        grouped[outcome].append(tail.strip())
+                    break
+        else:
+            continue
+    results: list[tuple[str, list[str]]] = []
+    for outcome in outcomes:
+        results.append((outcome, grouped[outcome] or [outcome]))
+    return results
+
+
+def _plan_revision_preview(data_root: Path, title: str, plan_id: str | None) -> tuple[str, str]:
+    effective_plan_id = str(plan_id or f"PLAN-{dt.datetime.now(tz=ZoneInfo('America/Toronto')).strftime('%Y%m%dT%H%M%S%f%z')}").strip()
+    plans_dir = data_root / ".synapse" / "PLANS"
+    revision_number = len(list(plans_dir.glob(f"PLAN__{effective_plan_id}__REVISION-*.yaml"))) + 1
+    slug = _slugify(title)[:64] or "plan"
+    filename = f"PLAN__{effective_plan_id}__REVISION-{revision_number:03d}__{slug}.yaml"
+    return effective_plan_id, str((plans_dir / filename).resolve())
+
+
+def _plan_quests_payload(
+    ctx: dict[str, Any],
+    *,
+    items: list[str],
+    title: str | None,
+    goal: str | None,
+    coherent_outcome: str | None,
+    closure_statement: str | None,
+    split_triggers: list[str],
+    separate_outcomes: list[str],
+    dependencies: list[str],
+    out_of_scope: str | None,
+    verification_plan: str | None,
+    guild_orders_ref: str | None,
+    dungeon_ref: str | None,
+    dungeon_coverage: str,
+    plan_id: str | None,
+    priority: str,
+    risk: str,
+    change_class: str,
+    vision_delta: str,
+    door_impact: str,
+    testing_level: str,
+    origin: str | None,
+    anchors: list[str],
+    constraints: list[str],
+    deprecated_alias: bool,
+    dry_run: bool,
+) -> dict[str, Any]:
+    state = load_state()
+    if state.get("mode") == "INCUBATION":
+        raise LiveMemoryError(
+            "mode=INCUBATION. Quest drafting is not allowed during Incubation. "
+            "Switch to PLAN or EXECUTE with `python3 runtime/synapse.py mode --set PLAN` if appropriate."
+        )
+
+    data_root = Path(ctx["data_root"])
+    board_dir = data_root / "Quest Board"
+    board_dir.mkdir(parents=True, exist_ok=True)
+    active_run = _load_active_run_with_session_repair(ctx)
+
+    prefix = "QUEST"
+    next_id = _next_quest_number(data_root, prefix)
+    today = _today_toronto()
+
+    codex_anchors = ", ".join(anchors) if anchors else "BLOCKED - CODEX_ANCHORS_MISSING"
+    codex_constraints = "; ".join(constraints) if constraints else "TBD - derive from anchors"
+    plan_title = (title or items[0]).strip()
+    plan_goal = (goal or items[0]).strip()
+    outcome_specs = _normalize_outcome_specs(items, separate_outcomes, plan_title)
+    plan_id_preview, plan_path_preview = _plan_revision_preview(data_root, plan_title, plan_id)
+    origin_value = origin or f"Plan decomposition (auto) - {today}"
+    quest_specs: list[dict[str, str]] = []
+
+    for offset, (outcome_title, outcome_items) in enumerate(outcome_specs):
+        qnum = next_id + offset
+        qid = f"{prefix}_{qnum:03d}"
+        slug = _slugify(outcome_title)
+        filename = f"{qid}__{slug}__{today}.txt"
+        path = board_dir / filename
+        if path.exists():
+            raise LiveMemoryError(f"quest file already exists: {path}")
+        quest_specs.append(
+            {
+                "quest_id": qid,
+                "title": outcome_title,
+                "path": str(path.resolve()),
+                "milestones": outcome_items,
+            }
+        )
+
+    if dry_run:
+        return {
+            "subject": ctx["subject"],
+            "data_root": str(data_root),
+            "plan_id": plan_id_preview,
+            "plan_artifact_path": plan_path_preview,
+            "quests": [
+                {
+                    **entry,
+                    "state": "BOARD",
+                    "risk": risk,
+                    "change_class": change_class,
+                    "vision_delta": vision_delta,
+                }
+                for entry in quest_specs
+            ],
+            "deprecated_alias": deprecated_alias,
+            "dry_run": True,
+        }
+
+    plan_payload = persist_execution_plan(
+        subject=ctx["subject"],
+        data_root=data_root,
+        title=plan_title,
+        summary=plan_goal,
+        origin=origin_value,
+        objective=plan_goal,
+        coherent_outcome=(
+            coherent_outcome
+            or plan_goal
+            or ("Multiple independently closable outcomes under one persisted plan." if len(quest_specs) > 1 else plan_title)
+        ),
+        closure_statement=(
+            closure_statement
+            or "Close only when the quest outcome is honestly satisfied and the completion audit returns PASS."
+        ),
+        out_of_scope=out_of_scope or "Anything outside the persisted bounded outcome(s) described by this plan revision.",
+        dependencies=dependencies or ["None"],
+        risk=risk,
+        verification_plan=verification_plan or _default_verification_plan(),
+        milestones=items or [plan_title],
+        split_triggers=split_triggers or ["Split if the plan reveals multiple independently closable outcomes."],
+        guild_orders_ref=guild_orders_ref,
+        dungeon_ref=dungeon_ref,
+        dungeon_coverage=dungeon_coverage,
+        links=[],
+        quest_refs=[entry["path"] for entry in quest_specs],
+        related_run_ids=[str(active_run.get("run_id") or "").strip()] if isinstance(active_run, dict) and str(active_run.get("run_id") or "").strip() else [],
+        source="plan-quests",
+        plan_id=plan_id,
+    )
+
+    created_at = dt.datetime.now(tz=ZoneInfo("America/Toronto")).isoformat()
+    results: list[dict[str, str]] = []
+    for entry in quest_specs:
+        outcome_title = entry["title"]
+        milestone_items = entry["milestones"]
+        values = {
+            "quest_id": entry["quest_id"],
+            "title": outcome_title,
+            "subject": ctx["subject"],
+            "origin": origin_value,
+            "priority": priority,
+            "links": f"- {plan_payload['path']}",
+            "quest_state": "BOARD",
+            "created_at": created_at,
+            "codex_anchors": codex_anchors,
+            "codex_constraints": codex_constraints,
+            "change_class": change_class,
+            "vision_delta": vision_delta,
+            "system_context": "Plan-created bounded outcome within the current subject runtime; acceptance and completion stay on the governed quest path.",
+            "anti_dup": f"Run rg -n \"{_slugify(outcome_title).replace('-', '|')}\" repo {ctx['subject']}_Data if present.",
+            "placement_intent": "Intended layer: review before acceptance; Intended target path(s): derive from scoped work.",
+            "guild_orders_ref": guild_orders_ref or "N/A",
+            "dungeon_ref": dungeon_ref or "N/A",
+            "dungeon_coverage": dungeon_coverage,
+            "coherent_outcome": coherent_outcome or outcome_title,
+            "closure_statement": closure_statement or f"Close only when {outcome_title.lower()} is honestly satisfied and the completion audit returns PASS.",
+            "split_triggers": "\n".join(split_triggers or ["- Split if the work reveals more than one independently closable outcome."]),
+            "risk": risk,
+            "door_impact": door_impact,
+            "testing_level": testing_level,
+            "description": f"Plan outcome: {outcome_title}",
+            "objective": goal or outcome_title,
+            "milestones": _milestones_text_for_quest(milestone_items),
+            "out_of_scope": out_of_scope or "Anything outside this bounded outcome and its listed milestones.",
+            "dependencies": "\n".join(dependencies or ["None"]),
+            "verification_plan": verification_plan or _default_verification_plan(),
+            "plan_artifact_refs": f"- {plan_payload['path']}",
+            "audit_state": "not_started",
+            "audit_bundle_path": "",
+            "state_history": _state_history_text_for_quest(created_at),
+        }
+        write_quest_document(quest_path=Path(entry["path"]), values=values)
+        results.append(
+            {
+                "quest_id": entry["quest_id"],
+                "title": outcome_title,
+                "path": entry["path"],
+                "state": "BOARD",
+                "risk": risk,
+                "change_class": change_class,
+                "vision_delta": vision_delta,
+                "plan_artifact_path": plan_payload["path"],
+                "plan_id": plan_payload["plan_id"],
+                "plan_revision_id": plan_payload["revision_id"],
+            }
+        )
+    return {
+        "subject": ctx["subject"],
+        "data_root": str(data_root),
+        "plan_id": plan_payload["plan_id"],
+        "plan_artifact_path": plan_payload["path"],
+        "plan_revision_id": plan_payload["revision_id"],
+        "quests": results,
+        "deprecated_alias": deprecated_alias,
+        "dry_run": False,
+    }
+
+
+def cmd_plan_quests(args: argparse.Namespace) -> int:
     try:
         ctx = _resolve_or_attach_subject_from_args(args)
     except Exception as exc:
         print(f"FAIL: {exc}")
-        return 2
-
-    state = load_state()
-    if state.get("mode") == "INCUBATION":
-        print("BLOCKED: mode=INCUBATION. Quest drafting is not allowed during Incubation.")
-        print("Switch to PLAN or EXECUTE with `python3 runtime/synapse.py mode --set PLAN` if appropriate.")
         return 2
 
     try:
@@ -6123,94 +6658,74 @@ def cmd_plan_sidequests(args: argparse.Namespace) -> int:
         print("FAIL: no plan items provided. Use --item or --items-file.")
         return 2
 
-    cwt = detect_canonical_working_tree()
     try:
-        template = _load_quest_template(cwt)
-    except Exception as exc:
+        common_kwargs = dict(
+            items=items,
+            title=getattr(args, "title", None),
+            goal=getattr(args, "goal", None),
+            coherent_outcome=getattr(args, "coherent_outcome", None),
+            closure_statement=getattr(args, "closure_statement", None),
+            split_triggers=[item.strip() for item in getattr(args, "split_trigger", []) if item.strip()],
+            separate_outcomes=[item.strip() for item in getattr(args, "separate_outcome", []) if item.strip()],
+            dependencies=[item.strip() for item in getattr(args, "dependency", []) if item.strip()],
+            out_of_scope=getattr(args, "out_of_scope", None),
+            verification_plan=getattr(args, "verification_plan", None),
+            guild_orders_ref=getattr(args, "guild_orders_ref", None),
+            dungeon_ref=getattr(args, "dungeon_ref", None),
+            dungeon_coverage=getattr(args, "dungeon_coverage", "N/A"),
+            plan_id=getattr(args, "plan_id", None),
+            priority=args.priority,
+            risk=args.risk,
+            change_class=args.change_class,
+            vision_delta=args.vision_delta,
+            door_impact=args.door_impact,
+            testing_level=args.testing_level,
+            origin=args.origin,
+            anchors=[a.strip() for a in args.anchor if a.strip()],
+            constraints=[c.strip() for c in args.constraint if c.strip()],
+            deprecated_alias=args.command == "plan-sidequests",
+        )
+        if args.dry_run:
+            payload = _plan_quests_payload(ctx, dry_run=True, **common_kwargs)
+            event_info = None
+        else:
+            active_run = _active_session_policy(ctx)[0]
+            payload = _plan_quests_mutation(ctx, active_run=active_run, **common_kwargs)
+            event_info = {
+                "event": payload.get("event"),
+                "reducer": payload.get("reducer"),
+                "runtime_status": payload.get("runtime_status"),
+            }
+    except LiveMemoryError as exc:
         print(f"FAIL: {exc}")
         return 2
 
-    data_root = Path(ctx["data_root"])
-    board_dir = data_root / "Quest Board"
-    board_dir.mkdir(parents=True, exist_ok=True)
+    def _emit_plan_receipt(rendered_payload: dict[str, Any]) -> None:
+        print("=== QUEST PLAN RECEIPT ===")
+        print(f"subject: {rendered_payload['subject']}")
+        print(f"plan_id: {rendered_payload['plan_id']}")
+        print(f"plan_artifact_path: {rendered_payload['plan_artifact_path']}")
+        if not rendered_payload.get("dry_run"):
+            print(f"data_root: {rendered_payload['data_root']}")
+        print(f"created: {len(rendered_payload['quests'])}")
+        if rendered_payload.get("deprecated_alias"):
+            print("note: `plan-sidequests` is deprecated; use `plan-quests`.")
+        for entry in rendered_payload["quests"]:
+            print(f"- {entry['quest_id']}: {entry['path']}")
+        if not rendered_payload.get("dry_run"):
+            print("note: quests were drafted on BOARD only; acceptance and completion still require governed Control Sync + validation.")
 
-    prefix = args.quest_prefix
-    next_id = _next_quest_number(data_root, prefix)
-    today = _today_toronto()
+    return _finalize_mutation_result(
+        payload=payload,
+        event_info=event_info,
+        json_mode=args.json,
+        text_emitter=_emit_plan_receipt,
+        shell_mode=False,
+    )
 
-    anchors = [a.strip() for a in args.anchor if a.strip()]
-    constraints = [c.strip() for c in args.constraint if c.strip()]
-    codex_anchors = ", ".join(anchors) if anchors else "BLOCKED - CODEX_ANCHORS_MISSING"
-    codex_constraints = "; ".join(constraints) if constraints else "TBD - derive from anchors"
 
-    origin = args.origin or f"Plan decomposition (auto) - {today}"
-    results: list[dict[str, str]] = []
-
-    for offset, item in enumerate(items):
-        qnum = next_id + offset
-        qid = f"{prefix}_{qnum:03d}"
-        slug = _slugify(item)
-        filename = f"{qid}__{slug}__{today}.txt"
-        path = board_dir / filename
-        if path.exists():
-            print(f"FAIL: quest file already exists: {path}")
-            return 2
-
-        values = {
-            "quest_id": qid,
-            "title": item,
-            "subject": ctx["subject"],
-            "origin": origin,
-            "priority": args.priority,
-            "links": "None",
-            "codex_anchors": codex_anchors,
-            "codex_constraints": codex_constraints,
-            "change_class": args.change_class,
-            "vision_delta": args.vision_delta,
-            "system_context": "TBD - requires review before acceptance.",
-            "anti_dup": f"Run rg -n \"{slug}\" in repo and Subject_Data.",
-            "placement_intent": "Intended layer: unknown; Intended target path(s): unknown.",
-            "atomicity": "Atomic: yes - single independently verifiable outcome.",
-            "risk": args.risk,
-            "door_impact": args.door_impact,
-            "testing_level": args.testing_level,
-            "talent_awarded": "NO",
-            "description": f"Plan item: {item}",
-            "objective": f"Success when: {item}",
-            "out_of_scope": "Anything beyond the single plan item described above.",
-            "dependencies": "None",
-            "verification_plan": "DEFERRED TO 01_PREQUEST.md",
-        }
-
-        quest_text = _fill_quest_template(template, values)
-        if not args.dry_run:
-            path.write_text(quest_text, encoding="utf-8")
-
-        results.append(
-            {
-                "quest_id": qid,
-                "title": item,
-                "path": str(path),
-                "state": "BOARD",
-                "risk": args.risk,
-                "change_class": args.change_class,
-                "vision_delta": args.vision_delta,
-            }
-        )
-
-    if args.json:
-        print(json.dumps({"subject": ctx["subject"], "data_root": str(data_root), "quests": results}, indent=2))
-        return 0
-
-    print("=== SIDE-QUEST PLAN RECEIPT ===")
-    print(f"subject: {ctx['subject']}")
-    print(f"data_root: {data_root}")
-    print(f"quest_prefix: {prefix}")
-    print(f"created: {len(results)}")
-    for entry in results:
-        print(f"- {entry['quest_id']}: {entry['path']}")
-    print("note: quests were drafted on BOARD only; acceptance/execution requires Control Sync + validation.")
-    return 0
+def cmd_plan_sidequests(args: argparse.Namespace) -> int:
+    return cmd_plan_quests(args)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -6291,6 +6806,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_compile_current_state(args)
     if args.command == "accept-quest":
         return cmd_accept_quest(args)
+    if args.command == "complete-quest":
+        return cmd_complete_quest(args)
     if args.command == "formalize":
         return cmd_formalize(args)
     if args.command == "watch":
@@ -6301,6 +6818,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_install_hooks(args)
     if args.command == "verify-hooks":
         return cmd_verify_hooks(args)
+    if args.command == "plan-quests":
+        return cmd_plan_quests(args)
     if args.command == "plan-sidequests":
         return cmd_plan_sidequests(args)
 

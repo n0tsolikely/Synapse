@@ -1570,6 +1570,148 @@ def accept_quest_tool(*, state: ConnectionState, context: ContextInput | dict[st
     return ctx, payload, event_info
 
 
+def complete_quest_tool(
+    *,
+    state: ConnectionState,
+    context: ContextInput | dict[str, Any] | None,
+    quest_id: str | None,
+    quest_path: str | None,
+    milestone_statuses: list[str],
+    checks: list[str],
+    commands_run: list[str],
+    changed_files: list[str],
+    receipt_refs: list[str],
+    skipped_items: list[str],
+    unresolved_gaps: list[str],
+    known_bugs: list[str],
+    blockers: list[str],
+    disclosures: list[str],
+    notes: list[str],
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    ctx = _resolve_runtime_context(state=state, context=context, allow_attach_current_repo=False, requires_session=False)
+    active_run, session_policy = cli_runtime._active_session_policy(ctx)
+    if session_policy is not None and "complete-quest" in session_policy.blocked_mutation_commands:
+        raise BridgeFailure(
+            code="QUEST_COMPLETION_BLOCKED",
+            status=STATUS_BLOCKED,
+            message=f"Session posture '{active_run.get('session_mode')}' blocks complete_quest.",
+            recovery_hint="Transition session posture first.",
+            data={"active_run_id": active_run.get("run_id"), "active_session_mode": active_run.get("session_mode")},
+        )
+    quest_ref = quest_path or quest_id
+    payload = cli_runtime._complete_quest_mutation(
+        ctx,
+        str(quest_ref),
+        milestone_entries=list(milestone_statuses or []),
+        check_entries=list(checks or []),
+        commands_run=list(commands_run or []),
+        changed_files=list(changed_files or []),
+        receipt_refs=list(receipt_refs or []),
+        skipped_items=list(skipped_items or []),
+        unresolved_gaps=list(unresolved_gaps or []),
+        known_bugs=list(known_bugs or []),
+        blockers=list(blockers or []),
+        disclosures=list(disclosures or []),
+        notes=list(notes or []),
+        active_run=active_run,
+    )
+    event_info = {"event": payload.get("event"), "reducer": payload.get("reducer")}
+    return ctx, payload, event_info
+
+
+def plan_quests_tool(
+    *,
+    state: ConnectionState,
+    context: ContextInput | dict[str, Any] | None,
+    items: list[str],
+    title: str | None,
+    goal: str | None,
+    coherent_outcome: str | None,
+    closure_statement: str | None,
+    split_triggers: list[str],
+    separate_outcomes: list[str],
+    dependencies: list[str],
+    out_of_scope: str | None,
+    verification_plan: str | None,
+    guild_orders_ref: str | None,
+    dungeon_ref: str | None,
+    dungeon_coverage: str,
+    plan_id: str | None,
+    priority: str,
+    risk: str,
+    change_class: str,
+    vision_delta: str,
+    door_impact: str,
+    testing_level: str,
+    origin: str | None,
+    anchors: list[str],
+    constraints: list[str],
+    dry_run: bool,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any] | None]:
+    ctx = _resolve_runtime_context(state=state, context=context, allow_attach_current_repo=False, requires_session=False)
+    if dry_run:
+        payload = cli_runtime._plan_quests_payload(
+            ctx,
+            items=list(items or []),
+            title=title,
+            goal=goal,
+            coherent_outcome=coherent_outcome,
+            closure_statement=closure_statement,
+            split_triggers=list(split_triggers or []),
+            separate_outcomes=list(separate_outcomes or []),
+            dependencies=list(dependencies or []),
+            out_of_scope=out_of_scope,
+            verification_plan=verification_plan,
+            guild_orders_ref=guild_orders_ref,
+            dungeon_ref=dungeon_ref,
+            dungeon_coverage=dungeon_coverage,
+            plan_id=plan_id,
+            priority=priority,
+            risk=risk,
+            change_class=change_class,
+            vision_delta=vision_delta,
+            door_impact=door_impact,
+            testing_level=testing_level,
+            origin=origin,
+            anchors=list(anchors or []),
+            constraints=list(constraints or []),
+            deprecated_alias=False,
+            dry_run=True,
+        )
+        return ctx, payload, None
+    active_run = cli_runtime._active_session_policy(ctx)[0]
+    payload = cli_runtime._plan_quests_mutation(
+        ctx,
+        items=list(items or []),
+        title=title,
+        goal=goal,
+        coherent_outcome=coherent_outcome,
+        closure_statement=closure_statement,
+        split_triggers=list(split_triggers or []),
+        separate_outcomes=list(separate_outcomes or []),
+        dependencies=list(dependencies or []),
+        out_of_scope=out_of_scope,
+        verification_plan=verification_plan,
+        guild_orders_ref=guild_orders_ref,
+        dungeon_ref=dungeon_ref,
+        dungeon_coverage=dungeon_coverage,
+        plan_id=plan_id,
+        priority=priority,
+        risk=risk,
+        change_class=change_class,
+        vision_delta=vision_delta,
+        door_impact=door_impact,
+        testing_level=testing_level,
+        origin=origin,
+        anchors=list(anchors or []),
+        constraints=list(constraints or []),
+        deprecated_alias=False,
+        active_run=active_run,
+    )
+    event_info = {"event": payload.get("event"), "reducer": payload.get("reducer")}
+    return ctx, payload, event_info
+
+
 def get_provenance_status_tool(*, state: ConnectionState, context: ContextInput | dict[str, Any] | None, strict: bool) -> tuple[dict[str, Any], dict[str, Any], str]:
     ctx = _resolve_runtime_context(state=state, context=context, allow_attach_current_repo=False, requires_session=False)
     summary = cli_runtime._current_provenance_summary(ctx)

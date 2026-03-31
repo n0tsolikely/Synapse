@@ -49,8 +49,8 @@ Quest Completed: YES/NO
 Talent Point Awarded: YES/NO
 Talent Spent On: (TALENT ID — Name) | NONE
 Evidence Paths:
-- (e.g., <Quest>/03_VERIFY.md)
-- (e.g., <Quest>/04_OUTCOME.md)
+- (e.g., <Quest>/01_COMPLETION_AUDIT.md)
+- (e.g., <Quest>/00_SUMMARY.md)
 Notes:
 
 ------------------------------------------------------------
@@ -63,6 +63,6 @@ Quest Completed: YES
 Talent Point Awarded: YES
 Talent Spent On: T-003 — Deterministic Diffs
 Evidence Paths:
-- <Subject>_Data/Quest Board/Completed/Q-012__/Audit/03_VERIFY.md
-- <Subject>_Data/Quest Board/Completed/Q-012__/Audit/04_OUTCOME.md
+- <Subject>_Data/Quest Board/Completed/Q-012__/Audit/01_COMPLETION_AUDIT.md
+- <Subject>_Data/Quest Board/Completed/Q-012__/Audit/00_SUMMARY.md
 Notes: Awarded for successful verified implementation + receipts.

@@ -1,513 +1,101 @@
-SYNAPSE OS — EXECUTION AUDITS (CANON)
-Version: v1.6
-Last Updated: 2026-02-14
-Status: Governance Law (changes require Governance Control Sync)
-
-Audience:
-- Any AI session executing Quests under Synapse
-- Any human operator (Brains) reviewing or resuming execution
-- Any collaborator requiring provable execution truth
+SYNAPSE GUILD — EXECUTION AUDITS
+Version: v2.0
+Last Updated: 2026-03-31
 
 ================================================================================
-0) PURPOSE
+1) PURPOSE
 ================================================================================
-Execution Audits exist to preserve provable execution truth.
-
-They ensure work can be:
-- understood,
-- verified,
-- resumed,
-- challenged,
-- or continued
-
-without relying on memory, assumption, or narrative confidence.
-
-Execution Audits are receipts that bridge:
-intention → action → evidence → truth.
-
-They prevent:
-- false completion,
-- silent failure,
-- repeated work,
-- unverifiable claims,
-- and “we already did this” ambiguity.
-- Drift
-
-They also prevent a specific failure mode:
-- hallucinated execution (claiming commands/tests were run without actually running them)
+Execution audits are the proof layer for governed quests.
+They exist to prevent fake completion claims and to make closure auditable.
 
 ================================================================================
-1) SCOPE (WHEN THIS LAW APPLIES)
+2) CANONICAL BUNDLE SHAPE (NEW WRITES)
 ================================================================================
-This law applies whenever:
-- A Quest is accepted for execution.
-- Files/code/config/system state may be modified.
-- Verification is attempted.
-- A Quest status changes (Completed / Incomplete / Abandoned).
+Audit bundles live at:
+- <Subject>_Data/Audits/Execution/QUEST_###__YYYY-MM-DD__<slug>/
 
-This law governs execution-phase auditing only.
-It does NOT govern:
-- Control Sync Snapshots,
-- End-of-Day Snapshots,
-- Discoveries / Incubation notes,
-- Codex content itself.
-
-================================================================================
-2) REQUIRED AUDIT PHASES (NON-OPTIONAL)
-================================================================================
-For every Quest that enters execution, the following phases MUST exist.
-
-No phase may be skipped, assumed, or “rolled into” another phase.
-
-2.1 PRE-QUEST ALIGNMENT AUDIT (MANDATORY)
-Trigger:
-- Immediately after a Quest is accepted and BEFORE execution begins.
-
-Purpose:
-- Prove execution is aligned with Codex intent, current repo reality (anti-duplication), World State, and Locks.
-
-Must include:
-- Quest ID + title
-- Link(s) to Dungeon/Raid/Guild Order (if applicable)
-
-- Change Class (MANDATORY; must match Quest file)
-  - TRIVIAL / FEATURE / STRUCTURAL
-
-- Vision Delta (MANDATORY; must match Quest file)
-  - ALIGNED / VARIATION / SHIFT
-
-- Orientation Receipt (MANDATORY; “where am I / what am I building on”)
-  - Confirm canonical roots (provable paths):
-    - GOVERNANCE_ROOT
-    - DATA_ROOT
-    - ENGINE_ROOT
-  - Confirm working tree root (where commands will be run)
-  - System context statement (1–3 sentences)
-    - Must explicitly acknowledge platform/module boundary (no greenfield assumptions)
-
-- Repo Orientation Receipt (MANDATORY for FEATURE/STRUCTURAL; TRIVIAL = lightweight)
-  - Evidence of discovery searches for existing implementations relevant to this Quest
-  - Candidates found + decision: reuse / extend / new
-  - Placement decision: layer + target paths
-  - If ambiguous: BLOCKED + Disclosure Gate before any file modifications
-
-- Codex Anchors (MANDATORY; explicit references)
-  - These anchors exist to prevent drift and enforce that execution is constrained by the Subject Codex.
-  - Provide 2–7 anchors MAX.
-  - Each anchor must be a stable section identifier OR stable file/path anchor.
-  
-  Valid examples:
-  - Section IDs: 6.5, 9.2, 10.5, 11.2, 11.3
-  - File anchors: <Subject>_Data/Codex/Sections/10.5__Adapter_Invocation.md
-  
-  Rules:
-  - “Read the whole Codex” is INVALID.
-  - Anchors must be directly relevant to the Quest scope.
-  - If you cannot find relevant anchors, DO NOT GUESS. Trigger Disclosure Gate (see Failure Behavior below).
-  
-  Codex Constraint Summary (MANDATORY; derived from anchors)
-  - 3–7 bullet points stating binding constraints for THIS quest.
-  - Each bullet must be traceable to at least one Codex Anchor above.
-  
-  Example constraint bullets:
-  - Router must remain thin orchestrator; no domain logic added to router.
-  - WHAT vs HOW separation: no vendor logic in Engine.
-  - Truth posture: no VERIFIED claims without receipts/evidence.
-  - No god files; new responsibility → new module.
-- Locks / constraints acknowledged (explicit references)
-- Definition of success (what must be true)
-- Verification plan (how success will be proven)
-- Risks / edge cases / uncertainty
-- Confirmation that World State permits execution
-  (Codex Freeze marker exists: `<Subject>_Data/Codex/CODEX_FREEZE.md`)
-
-Failure Behavior (Pre-Quest Vision Alignment Gate) — NON-NEGOTIABLE
-
-- If Change Class or Vision Delta is missing/invalid OR conflicts with the Quest file:
-  - Execution status MUST be BLOCKED.
-  - Disclosure Gate MUST trigger.
-  - NO FILE MODIFICATIONS ARE LEGAL until resolved.
-
-- If Vision Delta = SHIFT:
-  - Execution status MUST be BLOCKED.
-  - Disclosure Gate MUST trigger.
-  - Escalate to Control Sync (Codex/Vision update required).
-  - NO FILE MODIFICATIONS ARE LEGAL.
-
-- If Vision Delta = VARIATION:
-  Allowed only if ALL are true:
-  - Codex Anchors justify the underlying intent class (e.g., Door/UI interaction channel).
-  - Authority evidence exists (explicit Guild Order reference OR Control Sync approval).
-  - A Codification Side-Quest is created/queued (to update Codex/registries so this becomes first-class).
-  If any are missing:
-  - Execution status MUST be BLOCKED.
-  - Disclosure Gate MUST trigger.
-  - NO FILE MODIFICATIONS ARE LEGAL until resolved.
-
-- If Orientation Receipt cannot be proven in the current execution surface:
-  - Execution status MUST be BLOCKED.
-  - Disclosure Gate MUST trigger.
-
-- If Repo Orientation Receipt is required (FEATURE/STRUCTURAL) and is missing or ambiguous:
-  - Execution status MUST be BLOCKED.
-  - Disclosure Gate MUST trigger.
-  - NO FILE MODIFICATIONS ARE LEGAL until placement/anti-duplication is resolved.
-
-- If Codex Anchors are missing OR cannot be found/justified:
-  - Execution status MUST be BLOCKED.
-  - Disclosure Gate MUST trigger.
-  - Create/queue SIDE-QUEST: CODEX_ANCHOR_FIX (or escalate to Control Sync if new Codex law is required).
-  - NO FILE MODIFICATIONS ARE LEGAL until anchors are resolved.
-
-Optional (runtime-ready enhancement; recommended when feasible)
-- Record a small receipt file in the audit bundle:
-  - 01_CODEX_ANCHOR_RECEIPT.json
-  containing:
-  - codex_path
-  - codex_version (if available)
-  - anchors list
-  - (optional) per-anchor text hash if extraction is feasible
-
-Hard prohibition:
-- No file modifications before Pre-Quest Vision Alignment is PASS for all required receipts.
-
-2.2 EXECUTION AUDIT (MANDATORY)
-Trigger:
-- During execution, as work is performed.
-
-Purpose:
-- Record what actually happened (not intent).
-
-Must include:
-- Files touched (paths)
-- Nature of changes (diffs or explicit description)
-- Deviations from plan (if any) + why
-
-- If any work is done in the Engine or Data (including code changes, tests, or partial work), 
-a new canon ZIP must always be generated, regardless of the outcome (PASS, FAIL, or INCOMPLETE).
-
-* The ZIP should contain:
-
-  * All modified files in the "Engine"
-  * All modified files in "Data" (including any partial outputs, logs, or artifacts)
-  * The "full audit bundle" (including execution status, test receipts, and failure notes)
-
-Even if tests fail or only partial work is done", the "ZIP must be generated" as a snapshot of progress, ensuring "nothing is lost".
-
-If a ZIP cannot be produced in the same response, the Quest status must remain "IN-PROGRESS" or be marked "BLOCKED" (export not produced), 
-and the "failed execution" must be logged explicitly.
-
-Failure to produce a ZIP (even if some work was done) constitutes a "governance violation" and must prevent the Quest from 
-being marked “complete” or “verified” until the artifact is exported cleanly.
-
-Commands/tools invoked (anti-fabrication format):
-- For every command/tool you claim you ran, you MUST record:
-  - EXACT command line (copy/paste safe)
-  - Working directory / context (where it was run)
-  - Raw output as receipts (inline if small OR as a separate receipt file path)
-
-Executed vs Proposed Law:
-- If a command/tool was NOT actually run, it MUST be labeled PROPOSED (not EXECUTED).
-- You MUST NOT present proposed commands as executed work.
-
-Hard prohibition (Truth Gate):
-- You MUST NOT invent terminal output, logs, tracebacks, or “PASS” text.
-
-2.3 VERIFICATION AUDIT (MANDATORY)
-Trigger:
-- After execution attempt and BEFORE changing Quest status.
-
-Purpose:
-- Truth-gate the claim that execution succeeded or failed.
-
-Must include:
-- Verification steps performed (what checks were actually done)
-- Results of each step (PASS/FAIL/BLOCKED per step)
-- Determination: overall PASS / FAIL / BLOCKED
-- If FAIL: exact failure mode + where + why it blocks completion
-- If PASS: what evidence proves it
-- If BLOCKED: what could not be executed + why + operator-run command(s) + ledger update (if created)
-
-Rules:
-- “Looks correct” is not verification.
-- No verification defaults to failure.
-
-2.3.1 VERIFICATION REALITY LAW (NO SIMULATED RUNS)
-Definition:
-- Verification is valid only if the checks were actually performed.
-- Reasoning about expected outcomes is NOT verification.
-
-Rules:
-- If you claim a command/test ran, you MUST provide:
-  - the exact command
-  - the exact raw output (inline or receipt file)
-- If the current environment cannot execute verification:
-  - you MUST label verification as BLOCKED
-  - you MUST trigger Disclosure Gate
-  - you MUST run the maximum feasible substitute checks (see VERIFICATION LADDER) and record receipts
-  - you MUST provide operator-run command(s) to verify later
-  - you MUST update the Blocked Verification Ledger (lazy-created; see VERIFICATION LADDER)
-  - you MUST NOT claim a PASS outcome
-
-Failure output law:
-- If verification fails, you MUST preserve failure evidence:
-  - full traceback / failing assertion output (or receipt file path)
-  - names of failing tests/checks (if applicable)
-
-2.3.2 DOMAIN-SPECIFIC VERIFICATION (CODE vs NON-CODE)
-Verification MUST be appropriate to the Subject type.
-
-A) CODE / SOFTWARE SUBJECTS
-- Follow the Verification Ladder: `Processes/SYNAPSE_GUILD__VERIFICATION_LADDER.txt`
-- Prefer the project's real test runner when it exists (pytest, etc.).
-- Per-quest verification MUST match the chosen TL and run the smallest correct set of executed checks relevant to the change.
-- If there is an existing full test suite and it is feasible to run:
-  - you MUST run it at least once per session during “System Verification” (DAILIES) and store receipts
-  - per-quest verification may use a targeted subset (as defined in the Verification Plan)
-
-B) NON-CODE / WRITING / DESIGN SUBJECTS
-Verification is a deterministic checklist against Codex invariants.
-- You MUST cite the Codex sections used as invariants.
-- Each invariant MUST be marked PASS/FAIL with concrete evidence:
-  - quote(s) of the changed text
-  - cross-reference(s) to where it is stored
-- A vague statement like “tone is consistent” is invalid.
-  You must specify the invariant and how it was checked.
-
-2.3.3 PATCH DISCIPLINE AND DRIFT DETECTION
-
-During Quest execution, Hands MAY apply minor corrective patches without spawning a new Quest ONLY IF all of the following are true:
-
-- The change is small and local (e.g. typo, import fix, single-line logic correction).
-- The change is directly required to complete the current Quest.
-- The change does NOT alter architecture, scope, or Codex invariants.
-- The change does NOT introduce new modules, folders, schemas, or abstractions.
-- All required verification checks are re-executed and PASS after the patch.
-
-Such patches MUST be recorded in the Quest Evidence.
-
-If ANY of the following occur, a DRIFT EVENT is detected and Hands MUST immediately halt execution and open an EMERGENCY CONTROL SYNC:
-
-- The fix requires refactoring or non-local changes.
-- Multiple fixes cascade from an initial fix (“fixing fixes”).
-- The Quest specification is discovered to be incorrect or incomplete.
-- New prerequisite work is required outside the Quest’s scope.
-- Continuing execution would violate Codex laws or architectural invariants.
-
-During the Emergency Control Sync, Hands MUST explain the drift and propose Side Quests or plan corrections BEFORE any further execution.
-
-No execution may continue beyond a Drift Event without auditable authorization.
-
-2.4 POST-QUEST OUTCOME NOTE (MANDATORY)
-Trigger:
-- When the Quest leaves execution state.
-
-Purpose:
-- Make the outcome resumable without guesswork.
-
-Must include:
-- Final status: COMPLETED / INCOMPLETE / ABANDONED
-- State transition performed (Accepted → Completed/Incomplete/Abandoned), including paths moved
-- Audit bundle path (canonical location)
-- If INCOMPLETE: blocker + what was attempted + why continuation failed
-- If ABANDONED: justification + follow-up required (yes/no)
-- Recommended next actions
-
-- Talent Decision (capability ledger sync):
-  - Must match the Quest file: `Talent Point Awarded: (YES/NO)`
-  - If YES:
-    - record the Talent ID + Name
-    - record evidence paths to the updated Talent Tree + Talent Log
-    - if Talent updates cannot be written/proven in the current surface: Outcome MUST be BLOCKED (do not mark Completed)
-  (See: Talent Tree/SYNAPSE_GUILD__TALENT_TREE.txt + Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt)
-
-=========================================
-2.5 QUEST CLOSURE REQUIREMENT (MANDATORY)
-=========================================
-
-A Quest MUST NOT be declared COMPLETE, VERIFIED, or DONE unless the same response also produces a durable canonical artifact.
-
-For chat / ephemeral execution surfaces, this artifact is a new canon ZIP (plus updated audits and quest state).
-
-If a ZIP cannot be produced in the same response, the Quest status MUST remain IN-PROGRESS or be marked BLOCKED (export not produced).
-
-Test results (PASS or BLOCKED) do NOT waive the export requirement.
-
-Claiming completion without producing the artifact is a governance violation.
-
-================================================================================
-3) STORAGE LAW (WHERE EXECUTION AUDITS LIVE)
-================================================================================
-Execution Audits live in the Subject Data folder (never in Engine, never in Governance):
-
-<Subject>_Data/Audits/Execution/
-
-Canonical structure: one audit bundle folder per Quest.
-
-Example:
-<Subject>_Data/Audits/Execution/
-  QUEST_014__2026-02-02_<short_slug>/
-    00_SUMMARY.md
-    01_PREQUEST.md
-    02_EXECUTION.md
-    03_VERIFY.md
-    04_OUTCOME.md
-    10_DIFF.patch                  (optional)
-    11_COMMAND_OUTPUT__*.txt       (optional)
-    12_TEST_OUTPUT__*.txt          (optional)
-    20_ARTIFACT_LOCATIONS.txt      (optional)
-
-Minimum required bundle contents:
-- 00_SUMMARY.md   (MANDATORY, human-readable; the audit must not be an unreadable wall of receipts)
-- 01_PREQUEST.md  (MANDATORY)
-- 02_EXECUTION.md (MANDATORY)
-- 03_VERIFY.md    (MANDATORY)
-- 04_OUTCOME.md   (MANDATORY)
-
-Notes:
-- Additional receipts are optional but recommended when useful (diffs, logs, outputs).
-- If an output is too large for a single audit file, write it as a separate receipt file and reference it.
-
-Legacy compatibility:
-- Older Subjects may use date-folder trees like: <Subject>_Data/Audits/Execution/YYYY/YYYY-MM/
-- This is allowed as legacy, but the audit bundle structure above is canonical going forward.
-
-================================================================================
-3.1) MULTI-DAY QUESTS & RETRIES (SAME BUNDLE, APPEND-ONLY LAW)
-================================================================================
-If a Quest spans multiple Dailies (or requires retries):
-- The Quest remains in <Subject>_Data/Quest Board/Accepted/ until it is truly verified and complete.
-- The audit bundle folder path is canonical. DO NOT create a second bundle for the same Quest.
-- Instead, append a new time-stamped attempt block inside the SAME audit phase files.
-
-Append format (deterministic):
-- Add a heading like:
-  ## YYYY-MM-DD — Attempt N
-- Under it, record:
-  - what changed since the last attempt
-  - what was re-verified
-  - the new result (PASS/FAIL)
-
-Outcome Note rule:
-- It may start as INCOMPLETE.
-- When the Quest is later completed, append a final “Completion Proof” block:
-  - reference the PASS verification attempt
-  - reference the artifact(s) produced
-
-Hard prohibition:
-- A Quest may not move to Completed unless the latest executable verification outcome is either:
-  - PASS, OR
-  - BLOCKED with Disclosure Gate triggered, operator-run command(s) recorded, and Blocked Verification Ledger updated.
-
-================================================================================
-4) RELATIONSHIP TO SNAPSHOTS
-================================================================================
-Execution Audits are granular proof.
-Snapshots are continuity summaries.
-
-- Control Sync Snapshot = decisions/intent
-- End-of-Day Snapshot = outcomes/blockers
-
-Snapshots MUST reference Execution Audits when claiming execution.
-Snapshots do not replace audits.
-
-================================================================================
-5) RELATIONSHIP TO TRUTH + DISCLOSURE
-================================================================================
-Truth Gate enforces: “No claim without proof.”
-Execution Audits are the primary proof artifacts.
-
-If required audits are missing:
-- Quest state may not advance
-- Completion is forbidden
-- Disclosure Gate must notify Brains
-- Execution pauses until compliance is restored
-
-================================================================================
-END
-================================================================================
-================================================================================
-AUDIT TRUTH PROHIBITION (HARD)
-================================================================================
-Rules:
-- It is forbidden to fabricate receipts or outcomes.
-- Any statement like “tests passed”, “build succeeded”, “13 passed”, etc. is prohibited unless the raw stdout/stderr is included verbatim in the audit bundle OR referenced as a file produced by the command run (with sha256).
-- Automation scripts may ONLY copy/attach real captured output files into the audit bundle. They may not generate “00_SUMMARY/01_PREQUEST/…” containing completion claims that are not provable.
-
-================================================================================
-AUTOMATION SAFE MODE (ALLOWED)
-================================================================================
-Rules:
-- Allowed automation = copy/attach receipts that already exist (e.g., /tmp/pytest_wave.txt, /tmp/npm_build_wave.txt) into the audit bundle as 06_TESTS.txt (verbatim).
-- Hard fail if required receipt files are missing.
-- Never hardcode dates. Use the existing audit bundle directory name. If bundle missing, STOP and require operator to create it intentionally.
-
-================================================================================
-OVERWRITE PROTECTION (HARD)
-================================================================================
-Rules:
-- Any automation that writes into an audit bundle must refuse if target files already exist (no stomping).
-- Required phase files must never be overwritten automatically.
-
-================================================================================
-REQUIRED MINIMUM AUDIT FILE SET (MANDATORY)
-================================================================================
-Required files:
+Required new-write files:
 - 00_SUMMARY.md
-- 01_PREQUEST.md
-- 02_EXECUTION.md
-- 03_VERIFY.md
-- 04_OUTCOME.md
+- 01_COMPLETION_AUDIT.md
 - 06_CHANGED_FILES.txt
 - 06_TESTS.txt
-Optional files:
-- 06_GIT_STATUS_BEFORE.txt
-- 06_GIT_DIFF_NAME_ONLY.txt
-- 06_GIT_DIFF_STAT.txt
-Rules:
-- Do NOT claim optional files unless they are present.
-- 03_VERIFY.md must reference exact commands executed and contain raw outputs OR point to 06_TESTS.txt that contains raw outputs.
+- 06_WRAPPER_PROOF.json
+- 00_ACCEPTANCE_RECEIPT.txt
+- 00_GOVERNANCE_PREFLIGHT.md
+- DISCLOSURE_GATE.md
+- 90_ORIGINAL_QUEST__as_found.txt
+
+Optional:
+- 05_DISCLOSURE.md
+- 01_COMPLETION_AUDIT__ATTEMPT-###.md
+- extra raw output receipts when useful
+
+Legacy compatibility:
+- old 01_PREQUEST / 02_EXECUTION / 03_VERIFY / 04_OUTCOME bundles remain readable
+- do not use them for new writes
 
 ================================================================================
-6) QUEST RUNNER WRAPPER (MANDATORY) — RECEIPTS DURING EXECUTION (HARD)
+3) COMPLETION AUDIT CONTENT
 ================================================================================
-The audit bundle is NOT something you fill out after the fact.
-It must be populated WHILE executing the quest.
+01_COMPLETION_AUDIT.md must capture:
+- quest id / title
+- plan revision refs
+- milestone status
+- commands actually run
+- files / artifacts touched
+- receipt refs
+- PASS / FAIL / BLOCKED per check
+- skipped items
+- unresolved gaps
+- known bugs / regressions in scope
+- blockers
+- disclosures
+- next actions
+- Overall Verdict
+- Final State Decision
 
-Hard law:
-- All terminal execution commands for a quest MUST be run through the Synapse quest runner wrapper.
-- Running commands "naked" (outside the wrapper) is forbidden because it breaks receipts.
+================================================================================
+4) HARD COMPLETION GATE
+================================================================================
+A quest must not complete if any of these are true:
+- in-scope milestones remain incomplete
+- verification failed or is blocked without lawful disclosure handling
+- required receipts are missing
+- known regressions remain in scope
+- unresolved gaps remain
+- the completion audit is missing or invalid
+- the final state decision is ACTIVE
 
-Canonical wrapper:
+If later evidence proves a completed quest is incomplete, reopen it and append a new completion-audit attempt.
+
+================================================================================
+5) APPEND-ONLY HISTORY
+================================================================================
+- Keep the latest attempt at 01_COMPLETION_AUDIT.md.
+- Archive prior latest attempts as 01_COMPLETION_AUDIT__ATTEMPT-###.md.
+- Never destroy prior attempts.
+
+================================================================================
+6) WRAPPER LAW
+================================================================================
+Governed quest execution commands must run through:
 - $SYNAPSE_ROOT/runtime/tools/synapse_quest_run.sh
-  (If the Subject is not <SUBJECT>/<SUBJECT>, you may override DATA_ROOT/ENGINE_ROOT env vars.)
 
-Wrapper must guarantee:
-- Creates the audit bundle as needed using the quest filename date (no "today" bundle drift).
-- Writes command receipts DURING execution into 06_TESTS.txt with lines starting with:
-  - CMD: <command>
-  - RC: <exit_code>
-- Writes changed-file receipts at finalize into 06_CHANGED_FILES.txt.
-- Never overwrites existing audit phase files.
-
-Minimum enforcement hook:
-- Governance validation MUST fail if:
-  - 06_TESTS.txt is placeholder OR contains no CMD: receipts
-  - 06_CHANGED_FILES.txt is placeholder
-  - 03_VERIFY.md is placeholder-only OR lacks explicit OVERALL outcome
-  - 04_OUTCOME.md is placeholder-only
+The wrapper must capture command receipts during execution and route final closure through:
+- python3 $SYNAPSE_ROOT/runtime/synapse.py complete-quest
 
 ================================================================================
-6.1) AUDIT AUTO-AUTHORITY (STANDING ORDER) — DO NOT ASK (HARD)
+7) TRUTH PROHIBITION
 ================================================================================
-Agents have standing authority to:
-- create/initialize audit bundles
-- append receipts
-- run governance validation
+- No audit may claim a command/test/check ran unless a real receipt exists.
+- No automation may fabricate completion claims.
+- 00_SUMMARY.md and 01_COMPLETION_AUDIT.md may summarize only what receipts prove.
 
-Agents MUST NOT ask the operator for permission to write audits.
-Agents MUST stop and notify the operator ONLY when they are truly blocked:
-- missing dependency / missing env var
-- cannot proceed truthfully (would require fabrication)
-- consent/disclosure gate required
-- canonical root paths are uncertain
+================================================================================
+8) SNAPSHOTS VS AUDITS
+================================================================================
+Snapshots summarize continuity and decisions.
+Audits are proof.
+Snapshots may reference audits; they do not replace them.
+
+END OF DOCUMENT

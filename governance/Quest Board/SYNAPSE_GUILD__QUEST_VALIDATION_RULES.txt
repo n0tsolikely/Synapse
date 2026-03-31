@@ -1,463 +1,103 @@
-SYNAPSE OS — QUEST VALIDATION RULES (CANON)
-Version: v1.5
-Last Updated: 2026-02-14
-Status: Governance Law (changes require Governance Control Sync)
-
-Maintainer: Brains (Peter) with Hands (Ash)
-Audience:
-- Any AI session creating, accepting, or completing Quests
-- Any human operator (Brains) who requires deterministic execution state
+SYNAPSE GUILD — QUEST VALIDATION RULES
+Version: v2.0
+Last Updated: 2026-03-31
 
 ================================================================================
-0) PURPOSE
+1) CORE LAW
 ================================================================================
-Quest Validation exists to prevent ambiguous or non-executable work from entering
-(or leaving) execution state.
-
-If a Quest is invalid:
-- execution becomes unreliable,
-- completion becomes subjective,
-- and Truth Gate becomes unenforceable.
-
-This document defines:
-- what a Quest MUST contain to be considered valid,
-- when validation MUST occur,
-- and what happens when validation FAILS.
-
-Key guarantee:
-- If a Quest passes validation, it is unambiguous enough to be executed,
-  audited, verified, and resumed by any compliant operator.
+- A Quest is a bounded coherent outcome.
+- Milestones / work items may be atomic; Quests are not required to be atomic.
+- A Quest must be independently closable with one honest completion decision.
+- If a plan contains multiple independently closable outcomes, it must split into multiple linked quests.
 
 ================================================================================
-1) CORE LAW (VALIDATION GATES STATE TRANSITIONS)
+2) REQUIRED QUEST FIELDS BEFORE ACCEPTANCE
 ================================================================================
-1.1 Validation is mandatory for state transitions
-A Quest file MUST NOT change state unless it passes validation.
-
-State transitions include:
-- moving a quest from BOARD → ACCEPTED
-- moving a quest from ACCEPTED → COMPLETED
-- moving a quest from ACCEPTED → ABANDONED
-
-1.2 Failure behavior (deterministic)
-If validation FAILS:
-- Truth Gate blocks advancement
-- Disclosure Gate MUST notify Brains
-- the Quest file MUST be corrected before proceeding
-
-(See: Processes/SYNAPSE_GUILD__TRUTH_GATE.txt)
-
-1.3 Ambiguity resolution
-If any required element is ambiguous, missing, or cannot be verified:
-- validation FAILS
-- the system defaults to NOT EXECUTED / NOT ADVANCED
+Every quest moving from BOARD to ACCEPTED must have:
+- Quest ID / Title / Subject / Origin / Priority
+- Codex Anchors (DRAFT)
+- Codex Constraint Summary (DRAFT)
+- Change Class / Vision Delta / System Context Statement
+- Anti-Duplication Plan / Placement Intent
+- Coherent Outcome
+- Closure Statement
+- Split Triggers
+- Scope / Objective
+- Stretch Plan / Milestones
+- Out of Scope
+- Dependencies (or explicit None)
+- Door Impact + Testing Level when the quest touches code/software
+- Concrete Verification Plan
+- Plan Artifact Refs
+- Audit Bundle Folder Path
+- Talent Point Awarded (YES / NO)
 
 ================================================================================
-2) QUEST STATE IS BY LOCATION (CANON)
+3) VERIFICATION PLAN LAW
 ================================================================================
-Quest status is defined by WHERE the Quest file lives, not by metadata.
-
-Canonical locations:
-- BOARD:     <Subject>_Data/Quest Board/
-- ACCEPTED:  <Subject>_Data/Quest Board/Accepted/
-- COMPLETED: <Subject>_Data/Quest Board/Completed/
-- ABANDONED: <Subject>_Data/Quest Board/Abandoned/
-
-If a Quest file contains a “Quest Board folder state” section, it MUST match its
-actual location.
-If it conflicts:
-- location wins
-- the file must be corrected
+- Verification must be concrete before acceptance.
+- “Deferred to 01_PREQUEST.md”, “deferred indefinitely”, or vague placeholders are invalid.
+- The plan must state expected checks and what PASS / FAIL / BLOCKED mean.
 
 ================================================================================
-3) QUEST INVARIANTS (MINIMUM REQUIREMENTS)
+4) RISK / CONSENT LAW
 ================================================================================
-All Quest files MUST satisfy the minimum invariants below.
-
-If a Quest is derived from Guild Orders, it SHOULD include links to the relevant
-Guild Orders / Raid / Dungeon, but links are not a hard validity requirement.
-
-3.1 Identity (required)
-- Quest ID (required)
-- Title (required)
-- Subject (required)
-- Origin (required)
-
-3.2 Priority (required)
-- Priority: P0 / P1 / P2
-
-3.3 Atomicity (required; inherited law)
-A Quest MUST be atomic.
-
-Definition (see: Quest Board/SYNAPSE_GUILD__QUESTS.txt):
-- A Quest is a single, clearly scoped, independently completable commitment.
-
-Validation rule:
-- If the work cannot be finished and verified independently, it is NOT a Quest.
-  It is a Dungeon (or larger) and MUST be decomposed.
-
-3.4 Description + Objective (required)
-- Description (required)
-- Scope / Objective (success conditions) (required)
-
-Hard requirement:
-- “Success conditions” MUST be stated as what will be true when done.
-- Vague outcomes like “improve”, “optimize”, “make better” are invalid unless
-  paired with concrete criteria.
-
-3.5 Dependencies (required if applicable)
-- If there are dependencies, they MUST be listed.
-- If there are none, the section MUST explicitly state: None.
-
-3.6 Risk + Consent (conditional)
 - Risk defaults to R0 if omitted.
-- If Risk = R2:
-  - the Quest MUST include an R2 Confirmation Artifact path
-  - the confirmation file MUST exist and contain "CONFIRM: YES"
-
-(See: Processes/SYNAPSE_GUILD__CONSENT_GATE.txt)
-
-3.7 Verification Notes (recommended)
-Verification Notes SHOULD exist.
-
-Clarification:
-- A Quest MUST NOT be executed without a Verification Plan.
-- The Verification Plan is enforced in Execution Audits (01_PREQUEST.md), and
-  may also be summarized in the Quest file.
-
-(See: Processes/SYNAPSE_GUILD__EXECUTION_AUDITS.txt)
-
-3.8 Audit Bundle pointer (required once ACCEPTED)
-A Quest MUST NOT be executed unless it has a canonical audit bundle path recorded
-in the Quest file.
-
-3.9 Doors + Testing Level (required for code/software Quests)
-If the Quest changes code/software artifacts (see Testing Protocol / Verification Ladder):
-- Door Impact MUST be stated (even if NONE).
-- Testing Level (TL) MUST be stated (TL1–TL4) OR explicitly deferred to 01_PREQUEST.md.
-
-Notes:
-- “Deferred to 01_PREQUEST.md” is allowed ONLY if the Quest is not yet ready to
-  select TL at BOARD time. TL must be selected before execution begins.
-- A Quest MUST NOT claim TL4 coverage if wiring/doors do not exist yet.
-
-(See: Processes/SYNAPSE_GUILD__VERIFICATION_LADDER.txt)
+- If Risk = R2, the confirmation artifact path must be present and the file must contain CONFIRM: YES.
 
 ================================================================================
-
-3.10 Talent Point Awarded (required; no assumption)
-A Quest MUST explicitly state whether it awards a Talent Point.
-
-Required field:
-- Talent Point Awarded: (YES / NO)
-
-If YES:
-- The Quest MUST state the capability unlocked/expanded (so it can be logged).
-- Completion is not legal unless the Talent Tree + Talent Log are updated (Section 8).
-
-(See: Talent Tree/SYNAPSE_GUILD__TALENT_TREE.txt)
+5) WORLD-STATE / CODEx FREEZE GATE
+================================================================================
+- If Fog of War is active, acceptance is illegal.
+- Codex Freeze marker must exist before governed execution begins.
 
 ================================================================================
-3.11 Codex Anchors (DRAFT; required at BOARD state)
+6) COMPLETION LAW
 ================================================================================
+A quest may move from ACCEPTED to COMPLETED only if:
+- the audit bundle exists
+- the latest 01_COMPLETION_AUDIT.md exists and parses
+- milestone status is fully satisfied for in-scope work
+- required verification ran and receipts exist
+- no failed / blocked checks remain unresolved
+- no skipped in-scope work, unresolved gaps, or known regressions remain unaccounted for
+- Overall Verdict = PASS
+- Final State Decision = COMPLETED
 
-Purpose:
-- Prevent Quest-level drift from Codex intent.
-- Ensure every Quest is traceably rooted in the Subject Codex.
-
-Required field in every Quest file (BOARD state):
-
-- Codex Anchors (DRAFT):
-
-Rules:
-
-- Must contain 2–7 references MAX.
-- References must be:
-  - Stable Codex section identifiers (e.g., 6.5, 9.2, 10.5), OR
-  - Stable Codex file/path anchors.
-
-- “Read the whole Codex” is INVALID.
-- Anchors must be directly relevant to the Quest scope.
-
-If Codex Anchors cannot be found:
-
-- The Quest MUST declare:
-  Codex Anchors (DRAFT): BLOCKED — CODEX_ANCHORS_MISSING
-
-- Validation does NOT fail at BOARD time,
-  but the Quest may NOT move to ACCEPTED until resolved.
-
-Resolution paths:
-
-A) Create SIDE-QUEST: CODEX_ANCHOR_FIX
-   - Identify existing Codex anchors OR
-   - Add missing Codex section via Control Sync
-
-B) Escalate to Control Sync
-   - If the requested work introduces new law or architecture
-
-No execution is legal without finalized anchors (see Execution Audits).
+If any of those are false:
+- the quest remains ACCEPTED (or reopens back to ACCEPTED)
+- a new completion audit attempt is required after remediation
 
 ================================================================================
-3.12 Quest Creation Vision Alignment (required at BOARD state)
+7) LEGACY COMPATIBILITY
 ================================================================================
-
-Purpose:
-- Force situational awareness at Quest creation time.
-- Ensure Quests are born grounded in a pre-determined system (Codex) that already exists.
-- Prevent structural duplication and greenfield assumptions as Quest count grows (Quest 80 / Quest 200).
-
-Required fields in every Quest file (BOARD state):
-
-- Change Class: (TRIVIAL / FEATURE / STRUCTURAL)
-- Vision Delta: (ALIGNED / VARIATION / SHIFT)
-- System Context Statement:
-- Anti-Duplication Plan:
-- Placement Intent:
-
-Definitions:
-
-A) Change Class
-- TRIVIAL: contained refactor/docs; does not change system shape.
-- FEATURE: new behavior inside an existing component/boundary.
-- STRUCTURAL: changes system shape (new Door, runtime, adapter, module boundary, registry, entrypoint).
-- If unsure -> STRUCTURAL.
-
-B) Vision Delta
-- ALIGNED: explicitly inside Codex intent/boundaries.
-- VARIATION: new instance/channel that fits an existing Codex intent class
-  (example: add a Discord Door when Codex already defines “Doors / UI channels”).
-- SHIFT: changes what the system is (primary purpose / product identity).
-
-Rules:
-
-- Missing Change Class or Vision Delta -> Quest is INVALID (may remain on BOARD but MUST NOT move to ACCEPTED).
-- Vision Delta = SHIFT -> the Quest MUST remain on BOARD as:
-  Vision Delta: SHIFT (BLOCKED — VISION_SHIFT)
-  Resolution requires Control Sync + Codex update before acceptance.
-
-- Vision Delta = VARIATION is allowed ONLY if Codex Anchors exist for the underlying intent class
-  AND the Quest declares a Codification Side-Quest.
-
-Required when Vision Delta = VARIATION:
-- Variation Mapping: <Codex intent class being extended>
-- Codification Side-Quest: <SIDE-QUEST_###> (must exist on Quest Board)
-
-Notes:
-- VARIATION is not blocked just because the exact noun is absent from Codex.
-  It is blocked only if it cannot be traced to an existing Codex intent class or violates boundaries.
-
-BOARD-state allowance (but not acceptance):
-- If Anti-Duplication Plan or Placement Intent are not yet known, they MAY be declared as:
-  BLOCKED — REPO_ORIENTATION_REQUIRED
-  However, any Quest with this BLOCKED declaration MUST NOT move to ACCEPTED until resolved.
-
+- Historical 01_PREQUEST / 02_EXECUTION / 03_VERIFY / 04_OUTCOME bundles remain readable.
+- Do not rewrite historical bundles unless the quest is actively re-completed.
+- New writes must use 00_SUMMARY.md + 01_COMPLETION_AUDIT.md + append-only completion-audit history.
 
 ================================================================================
-4) QUEST ID FORMAT (CANON)
-================================================================================
-Quest IDs MUST be stable identifiers.
-
-Canonical patterns:
-- QUEST_###        (example: QUEST_015)
-- SIDE-QUEST_###   (example: SIDE-QUEST_003)
-
-Rules:
-- The numeric portion SHOULD be zero-padded to 3 digits for sorting.
-- Do not reuse Quest IDs.
-
-================================================================================
-5) WORLD STATE GATE (EXECUTION LEGALITY)
-================================================================================
-Accepting a Quest is an execution commitment.
-
-Default legality:
-- If Codex Freeze marker does NOT exist, World State is Fog of War.
-- Under Fog of War, Quests MUST NOT be ACCEPTED for execution.
-
-Codex Freeze marker (required for execution readiness):
-- <Subject>_Data/Codex/CODEX_FREEZE.md
-
-If the marker file does not exist:
-- validation FAILS for BOARD → ACCEPTED transitions
-
-(See: The Guild/Terminology/Locks/LOCK__FOG_OF_WAR.md
-      The Guild/Terminology/Locks/LOCK__CODEX_FREEZE_FOG_LIFTED.md)
-
-================================================================================
-6) AUDIT BUNDLE REQUIREMENT (ACCEPTED STATE)
-================================================================================
-When a Quest becomes ACCEPTED, it MUST be anchored to a canonical audit bundle.
-
-Audit bundle root:
-- <Subject>_Data/Audits/Execution/<AuditBundleFolder>/
-
-Canonical folder name patterns:
-- QUEST_###__YYYY-MM-DD__<short_slug>/
-- SIDE-QUEST_###__YYYY-MM-DD__<short_slug>/
-
-Rules:
-- One audit bundle per quest.
-- Multi-day/retry work appends into the same bundle (no second bundle).
-
-The Quest file MUST include:
-- Audit Bundle Folder Path:
-  <Subject>_Data/Audits/Execution/QUEST_###__YYYY-MM-DD__<short_slug>/
-
-================================================================================
-7) ACCEPTANCE CHECKLIST (BOARD → ACCEPTED)
-================================================================================
-Before moving a Quest into Accepted/:
-
-[ ] Quest invariants satisfied (Section 3)
-[ ] Codex Anchors (DRAFT) present (Section 3.11)
-[ ] If Anchors = BLOCKED — CODEX_ANCHORS_MISSING:
-    - Quest MUST NOT move to ACCEPTED
-
-[ ] Quest Creation Vision Alignment present (Section 3.12):
-    - Change Class set (TRIVIAL/FEATURE/STRUCTURAL)
-    - Vision Delta set (ALIGNED/VARIATION/SHIFT)
-    - System Context Statement present
-
-[ ] If Vision Delta = SHIFT:
-    - Quest MUST NOT move to ACCEPTED (BLOCKED — VISION_SHIFT; Control Sync required)
-
-[ ] If Vision Delta = VARIATION:
-    - Variation Mapping present (Codex intent class)
-    - Codification Side-Quest declared and exists on Quest Board
-
-[ ] For FEATURE/STRUCTURAL Quests:
-    - Anti-Duplication Plan is NOT BLOCKED — REPO_ORIENTATION_REQUIRED
-    - Placement Intent is NOT BLOCKED — REPO_ORIENTATION_REQUIRED
-
-
-[ ] Quest ID format valid (Section 4)
-[ ] Quest is atomic (Section 3.3)
-[ ] Dependencies captured (or explicitly None)
-[ ] Talent Point Awarded field set (YES/NO) (no assumption)
-[ ] Verification Notes exist OR are explicitly deferred to Pre-Quest Audit
-    (Execution may not begin until 01_PREQUEST.md contains the Verification Plan)
-[ ] For code/software Quests: Door Impact + TL recorded OR explicitly deferred
-[ ] Audit bundle folder created and recorded in the Quest file
-[ ] If Risk = R2, confirmation artifact exists (Consent Gate)
-[ ] World State permits execution (Codex Freeze marker exists)
-
-If any box cannot be checked:
-- STOP
-- Disclosure Gate MUST notify Brains
-- Fix the Quest file or defer acceptance
-
-================================================================================
-8) COMPLETION CHECKLIST (ACCEPTED → COMPLETED)
-================================================================================
-A Quest may only be moved to Completed/ if:
-
-[ ] The audit bundle exists
-[ ] The audit bundle contains the mandatory phase files:
-    - 00_SUMMARY.md
-    - 01_PREQUEST.md
-    - 02_EXECUTION.md
-    - 03_VERIFY.md
-    - 04_OUTCOME.md
-[ ] 03_VERIFY.md contains an explicit outcome: PASS / FAIL / BLOCKED
-[ ] If PASS: receipts exist (no simulated runs)
-[ ] If BLOCKED:
-    - the reason is explicit (what prevented execution)
-    - the maximum feasible substitute checks ran (with receipts)
-    - operator-run verification commands are provided
-    - the Blocked Verification Ledger was created/updated (and its path is stated)
-    - Disclosure Gate notified Brains
-[ ] FAIL is never eligible for completion (fix or abandon)
-[ ] Outcome note recorded (what is now true)
-[ ] Quest declares Talent Point Awarded: YES/NO
-[ ] If Talent Point Awarded = YES:
-    - <Subject>_Data/Talent Tree/TALENT_TREE.txt updated (real or PROPOSED)
-    - <Subject>_Data/Talent Tree/TALENT_LOG.txt updated (real or PROPOSED)
-    - 04_OUTCOME.md records the Talent ID + evidence paths
-    - If the current execution surface cannot write/verify these files: Quest completion validation FAILS (remain ACCEPTED/BLOCKED)
-
-If not:
-- Quest remains ACCEPTED (or is ABANDONED by Control Sync)
-- Blockers/failures MUST be recorded in audits + EOD snapshot
-
-================================================================================
-9) ABANDONMENT RULE
-================================================================================
-Abandoning a Quest is a Control Sync decision.
-
-If a Quest is abandoned:
-- the reason MUST be recorded (Control Sync snapshot + audit outcome)
-- the Quest file MUST be moved into Abandoned/
-- replacement Quest(s) SHOULD be created if the intent remains
-
-END OF DOCUMENT
-================================================================================
-AUDIT TRUTH PROHIBITION (HARD)
-================================================================================
-Rules:
-- It is forbidden to fabricate receipts or outcomes.
-- Any statement like “tests passed”, “build succeeded”, “13 passed”, etc. is prohibited unless the raw stdout/stderr is included verbatim in the audit bundle OR referenced as a file produced by the command run (with sha256).
-- Automation scripts may ONLY copy/attach real captured output files into the audit bundle. They may not generate “00_SUMMARY/01_PREQUEST/…” containing completion claims that are not provable.
-
-================================================================================
-AUTOMATION SAFE MODE (ALLOWED)
-================================================================================
-Rules:
-- Allowed automation = copy/attach receipts that already exist (e.g., /tmp/pytest_wave.txt, /tmp/npm_build_wave.txt) into the audit bundle as 06_TESTS.txt (verbatim).
-- Hard fail if required receipt files are missing.
-- Never hardcode dates. Use the existing audit bundle directory name. If bundle missing, STOP and require operator to create it intentionally.
-
-================================================================================
-OVERWRITE PROTECTION (HARD)
-================================================================================
-Rules:
-- Any automation that writes into an audit bundle must refuse if target files already exist (no stomping).
-- Required phase files must never be overwritten automatically.
-
-================================================================================
-REQUIRED MINIMUM AUDIT FILE SET (MANDATORY)
+8) BUNDLE MINIMUMS FOR NEW WRITES
 ================================================================================
 Required files:
 - 00_SUMMARY.md
-- 01_PREQUEST.md
-- 02_EXECUTION.md
-- 03_VERIFY.md
-- 04_OUTCOME.md
+- 01_COMPLETION_AUDIT.md
 - 06_CHANGED_FILES.txt
 - 06_TESTS.txt
-Optional files:
-- 06_GIT_STATUS_BEFORE.txt
-- 06_GIT_DIFF_NAME_ONLY.txt
-- 06_GIT_DIFF_STAT.txt
-Rules:
-- Do NOT claim optional files unless they are present.
-- 03_VERIFY.md must reference exact commands executed and contain raw outputs OR point to 06_TESTS.txt that contains raw outputs.
+- 06_WRAPPER_PROOF.json
+- 00_ACCEPTANCE_RECEIPT.txt
+- 00_GOVERNANCE_PREFLIGHT.md
+- DISCLOSURE_GATE.md
+- 90_ORIGINAL_QUEST__as_found.txt
+
+Optional:
+- 05_DISCLOSURE.md
+- 01_COMPLETION_AUDIT__ATTEMPT-###.md
 
 ================================================================================
-WRAPPER ENFORCEMENT — QUEST RECEIPTS MUST BE CAPTURED DURING EXECUTION (HARD)
+9) WRAPPER / RECEIPT LAW
 ================================================================================
-To prevent audit fabrication-by-accident, the system requires a deterministic wrapper.
+- Governed quest commands must run through synapse_quest_run.sh.
+- Completion must flow through complete-quest.
+- No proofless “done” claim is legal.
 
-Hard law:
-- Every quest that executes terminal commands MUST run them via the Synapse quest runner wrapper:
-  $SYNAPSE_ROOT/runtime/tools/synapse_quest_run.sh
-
-Validation requirements (enforced by synapse_governance_guard.py):
-- 06_TESTS.txt MUST:
-  - exist
-  - be non-placeholder
-  - contain at least one line beginning with 'CMD:' (command receipt)
-- 06_CHANGED_FILES.txt MUST:
-  - exist
-  - be non-placeholder
-- 03_VERIFY.md MUST:
-  - not be placeholder-only
-  - contain an explicit outcome line: OVERALL: PASS/FAIL/BLOCKED
-  - reference 06_TESTS.txt
-- 04_OUTCOME.md MUST:
-  - not be placeholder-only
-  - state what is now true and reference relevant artifacts/paths
-
-Standing authority:
-- The agent is allowed to create and populate these receipts without asking.
-- The agent must stop only if blocked.
+END OF DOCUMENT

@@ -17,7 +17,7 @@ Design posture:
 - Deterministic.
 - File/format enforcement.
 - Refuses placeholders.
-- Refuses "empty" 03_VERIFY/04_OUTCOME.
+- Validates the current completion-audit model while still reading legacy 4-phase bundles.
 - Enforces Talent Tree updates when a Quest awards a Talent Point.
 
 Notes:
@@ -44,15 +44,12 @@ if str(RUNTIME_ROOT) not in sys.path:
     sys.path.insert(0, str(RUNTIME_ROOT))
 
 from synapse_runtime.subject_resolver import SubjectResolutionError, resolve_subject
+from synapse_runtime.quest_completion import COMPLETION_AUDIT_FILENAME, parse_completion_audit
 from synapse_runtime.wrapper_proof import validate_wrapper_proof_file
 
 
-REQUIRED_BUNDLE_FILES = [
+COMMON_BUNDLE_FILES = [
     "00_SUMMARY.md",
-    "01_PREQUEST.md",
-    "02_EXECUTION.md",
-    "03_VERIFY.md",
-    "04_OUTCOME.md",
     "06_TESTS.txt",
     "06_CHANGED_FILES.txt",
     "06_WRAPPER_PROOF.json",
@@ -60,6 +57,12 @@ REQUIRED_BUNDLE_FILES = [
     "90_ORIGINAL_QUEST__as_found.txt",
     "00_GOVERNANCE_PREFLIGHT.md",
     "DISCLOSURE_GATE.md",
+]
+LEGACY_AUDIT_FILES = [
+    "01_PREQUEST.md",
+    "02_EXECUTION.md",
+    "03_VERIFY.md",
+    "04_OUTCOME.md",
 ]
 
 # 03_VERIFY must contain an explicit, machine-checkable outcome line.
@@ -70,6 +73,17 @@ _VERIFY_OUTCOME_RX = re.compile(
 _QUEST_TALENT_AWARDED_RX = re.compile(r"(?im)^Talent Point Awarded:\s*(YES|NO)\b")
 _OUTCOME_TALENT_AWARDED_RX = re.compile(r"(?im)^Talent Point Awarded:\s*(YES|NO)\b")
 _OUTCOME_TALENT_ID_RX = re.compile(r"(?im)^(?:Talent Spent On|Talent ID):\s*(?:\()?((?:T-\d{3}))\b")
+
+
+def _bundle_uses_legacy_audit(bundle: Path) -> bool:
+    return any((bundle / name).exists() for name in LEGACY_AUDIT_FILES)
+
+
+def _required_bundle_files(bundle: Path) -> list[str]:
+    required = list(COMMON_BUNDLE_FILES)
+    if _bundle_uses_legacy_audit(bundle):
+        required.extend(LEGACY_AUDIT_FILES)
+    return required
 
 
 def _extract_quest_num(name_or_id: str) -> int | None:
@@ -364,6 +378,36 @@ def _proof_receipts_ok(bundle: Path) -> Tuple[bool, str]:
     return True, ""
 
 
+def _summary_md_ok(bundle: Path) -> Tuple[bool, str]:
+    summary_path = bundle / "00_SUMMARY.md"
+    txt = _read_text(summary_path)
+    if _is_placeholder_md(txt):
+        return False, "00_SUMMARY.md is placeholder-only; it must describe the accepted quest and current audit state"
+    nonempty = [ln.strip() for ln in txt.splitlines() if ln.strip()]
+    if len(nonempty) < 4:
+        return False, "00_SUMMARY.md is too thin to serve as the governed quest summary"
+    return True, ""
+
+
+def _completion_audit_ok(bundle: Path) -> Tuple[bool, str]:
+    path = bundle / COMPLETION_AUDIT_FILENAME
+    if not path.exists():
+        return True, ""
+    txt = _read_text(path)
+    if _is_placeholder_md(txt):
+        return False, f"{COMPLETION_AUDIT_FILENAME} is placeholder-only; it must contain a real completion audit attempt"
+    attempt = parse_completion_audit(path)
+    if attempt is None:
+        return False, f"{COMPLETION_AUDIT_FILENAME} could not be parsed"
+    if attempt.overall_verdict not in {"PASS", "FAIL", "BLOCKED"}:
+        return False, f"{COMPLETION_AUDIT_FILENAME} must record Overall Verdict as PASS / FAIL / BLOCKED"
+    if attempt.final_state_decision not in {"COMPLETED", "ACTIVE"}:
+        return False, f"{COMPLETION_AUDIT_FILENAME} must record Final State Decision as COMPLETED / ACTIVE"
+    if "06_TESTS.txt" not in txt:
+        return False, f"{COMPLETION_AUDIT_FILENAME} must reference 06_TESTS.txt (raw receipts)"
+    return True, ""
+
+
 def _wrapper_proof_ok(bundle: Path) -> Tuple[bool, str]:
     validation = validate_wrapper_proof_file(bundle / "06_WRAPPER_PROOF.json")
     if validation.get("ok"):
@@ -460,7 +504,7 @@ def cmd_init_bundle(args: argparse.Namespace) -> int:
         ),
     )
 
-    for fname in REQUIRED_BUNDLE_FILES:
+    for fname in _required_bundle_files(bundle):
         if fname in {"06_TESTS.txt", "06_CHANGED_FILES.txt"}:
             _write_if_missing(
                 bundle / fname,
@@ -498,6 +542,18 @@ def cmd_init_bundle(args: argparse.Namespace) -> int:
                     f"- {bundle / '04_OUTCOME.md'}\n"
                     f"- {data_root / 'Talent Tree' / 'TALENT_TREE.txt'}\n"
                     f"- {data_root / 'Talent Tree' / 'TALENT_LOG.txt'}\n"
+                ),
+            )
+        elif fname == "00_SUMMARY.md":
+            _write_if_missing(
+                bundle / fname,
+                (
+                    "# 00_SUMMARY.md\n\n"
+                    f"- Quest ID: {quest_id}\n"
+                    f"- Accepted Quest Path: {quest_file}\n"
+                    f"- Audit Bundle: {bundle}\n"
+                    "- Audit State: pending_completion_audit\n"
+                    f"- Latest Completion Audit: {bundle / COMPLETION_AUDIT_FILENAME}\n"
                 ),
             )
         else:
@@ -542,7 +598,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
                 f"out-of-order execution: expected active quest {expected}, got {quest_id}",
             )
 
-    for fname in REQUIRED_BUNDLE_FILES:
+    for fname in _required_bundle_files(bundle):
         _check((bundle / fname).is_file(), failures, f"missing required audit file: {fname}")
 
     ok, why = _proof_receipts_ok(bundle)
@@ -551,11 +607,18 @@ def cmd_validate(args: argparse.Namespace) -> int:
     ok, why = _wrapper_proof_ok(bundle)
     _check(ok, failures, why)
 
-    ok, why = _verify_md_ok(bundle)
+    ok, why = _summary_md_ok(bundle)
     _check(ok, failures, why)
 
-    ok, why = _outcome_md_ok(bundle)
-    _check(ok, failures, why)
+    if _bundle_uses_legacy_audit(bundle):
+        ok, why = _verify_md_ok(bundle)
+        _check(ok, failures, why)
+
+        ok, why = _outcome_md_ok(bundle)
+        _check(ok, failures, why)
+    else:
+        ok, why = _completion_audit_ok(bundle)
+        _check(ok, failures, why)
 
     if quest_file is None:
         failures.append(f"unable to locate quest file for {quest_id} (needed for Talent Point Awarded field)")

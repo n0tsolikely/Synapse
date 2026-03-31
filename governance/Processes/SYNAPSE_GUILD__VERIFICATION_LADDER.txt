@@ -113,10 +113,10 @@ Hands MUST select verification commands using this authority order:
 4) Conventional defaults (appendix; last resort)
 
 Hands MUST record chosen commands in:
-- 01_PREQUEST.md (Verification Plan)
+- the Quest file Verification Plan and/or 00_SUMMARY.md during governed execution
 
 Hands MUST record execution receipts in:
-- 03_VERIFY.md
+- 01_COMPLETION_AUDIT.md
 
 ================================================================================
 5) REQUIRED MINIMUMS (DEFAULTS)

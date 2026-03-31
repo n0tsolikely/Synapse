@@ -65,7 +65,7 @@ _POLICY_REGISTRY: dict[SessionMode, SessionModePolicy] = {
         auto_formalize_ready_quests=False,
         manual_formalize_allowed=False,
         quest_acceptance_allowed=False,
-        blocked_mutation_commands=("formalize", "accept-quest"),
+        blocked_mutation_commands=("formalize", "accept-quest", "complete-quest"),
         allowed_next_modes=(
             SessionMode.BRAINSTORM_SPEC,
             SessionMode.CONTROL_SYNC,
@@ -80,7 +80,7 @@ _POLICY_REGISTRY: dict[SessionMode, SessionModePolicy] = {
         auto_formalize_ready_quests=False,
         manual_formalize_allowed=False,
         quest_acceptance_allowed=False,
-        blocked_mutation_commands=("formalize", "accept-quest"),
+        blocked_mutation_commands=("formalize", "accept-quest", "complete-quest"),
         allowed_next_modes=(
             SessionMode.CONTROL_SYNC,
             SessionMode.SCOPE_PLANNING,
@@ -94,7 +94,7 @@ _POLICY_REGISTRY: dict[SessionMode, SessionModePolicy] = {
         auto_formalize_ready_quests=False,
         manual_formalize_allowed=True,
         quest_acceptance_allowed=False,
-        blocked_mutation_commands=("accept-quest",),
+        blocked_mutation_commands=("accept-quest", "complete-quest"),
         allowed_next_modes=(
             SessionMode.BRAINSTORM_SPEC,
             SessionMode.SCOPE_PLANNING,

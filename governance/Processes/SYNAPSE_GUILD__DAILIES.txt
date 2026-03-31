@@ -186,20 +186,13 @@ Hard rule:
 For each accepted quest in scope, the system MUST perform the Quest Mini-Loop.
 
 A) Pre-Quest Vision Alignment Audit (MANDATORY)
-- Create the audit BEFORE changing any files.
-- Store it inside the quest's audit bundle:
-  - `01_PREQUEST.md`
-- Confirm (by receipts, not vibes):
-  - quest goal + success criteria
-  - Change Class + Vision Delta (must match the Quest file)
-  - Orientation Receipt (where we are + what we are building on):
-    - canonical roots confirmed (governance / data / engine)
-    - boundary statement (platform vs module; no parallel systems)
-  - Codex Anchors + Constraint Summary (+ Vision Delta verdict)
-  - Repo Orientation Receipt (anti-duplication + placement decision)
-    - REQUIRED for FEATURE / STRUCTURAL
-    - LIGHTWEIGHT permitted for TRIVIAL
-  - World State permits governed execution (Fog Lifted)
+- Before changing files, confirm the quest is ACCEPTED with:
+  - concrete verification plan
+  - persisted plan refs
+  - codex anchors / constraints
+  - world state permits governed execution
+- Record the active closure/audit posture in:
+  - `00_SUMMARY.md`
 
 Reference law:
 - `Processes/SYNAPSE_GUILD__EXECUTION_AUDITS.txt`
@@ -209,13 +202,11 @@ B) Execute Changes
 - Record files touched and commands run.
 
 C) Execution Audit (MANDATORY)
-- Record what actually happened inside the audit bundle:
-  - `02_EXECUTION.md`
-- Include:
-  - file paths
-  - diffs or explicit change detail (or link to patch file)
-  - commands and outputs
-  - deviations
+- Record what actually happened in governed receipts while executing:
+  - `06_CHANGED_FILES.txt`
+  - `06_TESTS.txt`
+  - `00_SUMMARY.md`
+- Do not defer proof writing to a later fictional phase.
 
 --------------------------------------------------------------------------------
 3.5 STEP 5 — VERIFY + OUTCOME (QUEST MINI-LOOP)
@@ -226,8 +217,8 @@ For each quest, after implementation:
 A) Verification Audit (MANDATORY)
 - Perform appropriate verification (tests, lint, smoke run, compilation, etc.).
 - Record the steps and results in:
-  - `03_VERIFY.md`
-- If outputs are large, store as separate receipt files and reference them.
+  - `01_COMPLETION_AUDIT.md`
+- If outputs are large, store as separate receipt files and reference them from the completion audit.
 
 Truth Gate reminder:
 - Hands MUST NOT claim tests/commands ran unless evidence exists.
@@ -236,12 +227,12 @@ Truth Gate reminder:
 
 B) Post-Quest Outcome Note (MANDATORY)
 - Record final status in:
-  - `04_OUTCOME.md`
+  - `01_COMPLETION_AUDIT.md`
 - If incomplete: exact blocker + next action.
 - Update `00_SUMMARY.md` with a human-readable summary.
 
 C) State Transition (FILESYSTEM STATE MACHINE)
-- If completed (latest verification attempt is PASS):
+- If completed (latest completion audit is PASS and Final State Decision = COMPLETED):
   - move quest file to `<Subject>_Data/Quest Board/Completed/`
 - If abandoned:
   - move quest file to `<Subject>_Data/Quest Board/Abandoned/`
@@ -346,8 +337,8 @@ D) Continuity refresh
 
 - No governed execution without Codex Freeze proof.
 - No quest acceptance without Quest Validation + audit bundle pointer.
-- No file changes in governed quest execution without Pre-Quest Vision Alignment Audit (`01_PREQUEST.md`).
-- No quest completion claims without Verification Audit + explicit PASS.
+- No file changes in governed quest execution without an accepted quest, concrete verification plan, and governed audit bundle.
+- No quest completion claims without a clean PASS completion audit.
 - No binding scope changes without a formal Control Sync + Snapshot.
 - If Truth Gate blocks, Disclosure Gate triggers immediately.
 - The ambient sidecar may keep observing continuously; Dailies are the governed operator loop layered above it.

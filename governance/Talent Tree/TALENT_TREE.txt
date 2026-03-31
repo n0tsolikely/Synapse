@@ -38,7 +38,7 @@ Implications / Constraints:
 (What future work MUST respect now? What becomes illegal, redundant, or assumed true?)
 
 Evidence / Receipts:
-(Exact file paths proving the capability: e.g., quest audit 03_VERIFY.md, test logs, system verification output.
+(Exact file paths proving the capability: e.g., quest audit 01_COMPLETION_AUDIT.md, test logs, system verification output.
 If you cannot point to evidence, this Talent is not ready to be written.)
 
 Notes:

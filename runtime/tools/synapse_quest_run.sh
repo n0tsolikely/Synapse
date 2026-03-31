@@ -287,7 +287,7 @@ mark_blocked() {
   local bundle="$1"
   local reason="$2"
   local cmd="$3"
-  local out="$bundle/04_OUTCOME.md"
+  local out="$bundle/00_SUMMARY.md"
   {
     echo ""
     echo "## BLOCKED"
@@ -427,16 +427,16 @@ _write_wave_blocks() {
       echo "- Quest ID + Title: $qid — $title"
       echo "  - Status at end of day: COMPLETED"
       echo "  - Preconditions referenced: quest in Accepted + validated bundle gate before move"
-      echo "  - Actions performed: see $bundle/02_EXECUTION.md"
+      echo "  - Actions performed: see $bundle/06_TESTS.txt"
       echo "  - Artifacts changed: $bundle/06_CHANGED_FILES.txt"
-      echo "  - Verification performed: $bundle/03_VERIFY.md + $bundle/06_TESTS.txt"
-      echo "  - Outcome: $bundle/04_OUTCOME.md"
+      echo "  - Completion audit: $bundle/01_COMPLETION_AUDIT.md"
+      echo "  - Summary: $bundle/00_SUMMARY.md"
     } >> "$work_file"
 
     {
       echo "- $qid — $title"
       echo "  - Proof: $bundle"
-      echo "  - Outcome: $bundle/04_OUTCOME.md"
+      echo "  - Completion audit: $bundle/01_COMPLETION_AUDIT.md"
     } >> "$completed_file"
 
     {
@@ -447,7 +447,7 @@ _write_wave_blocks() {
       else
         echo "  - Command receipts: MISSING (expected $bundle/06_TESTS.txt)"
       fi
-      echo "  - Verify receipt: $bundle/03_VERIFY.md"
+      echo "  - Completion receipt: $bundle/01_COMPLETION_AUDIT.md"
     } >> "$verification_file"
   done < "$WAVE_FILE"
 
@@ -568,20 +568,20 @@ cmd_cmd() {
 
   # R2 Consent Gate heuristic preflight (network/destructive ops)
   if ! maybe_require_r2 "$cmd_str"; then
-    echo "BLOCKED: R2 confirmation required (or invalid) for command: $cmd_str" | tee -a "$b/04_OUTCOME.md"
+    echo "BLOCKED: R2 confirmation required (or invalid) for command: $cmd_str" | tee -a "$b/00_SUMMARY.md"
     mark_blocked "$b" "R2_CONFIRMATION_REQUIRED" "$cmd_str"
     exit 3
   fi
 
   # Dependency preflight (fails fast with actionable message)
   if ! maybe_check_deps "$cmd_str"; then
-    echo "BLOCKED: dependency preflight failed. Activate your environment or install dependencies." | tee -a "$b/04_OUTCOME.md"
+    echo "BLOCKED: dependency preflight failed. Activate your environment or install dependencies." | tee -a "$b/00_SUMMARY.md"
     mark_blocked "$b" "DEPENDENCY_PREFLIGHT_FAILED" "$cmd_str"
     exit 3
   fi
 
   if ! run_cmd "$tests" "$cmd_str"; then
-    echo "BLOCKED: command failed (see RC above): $cmd_str" | tee -a "$b/04_OUTCOME.md" "$tests"
+    echo "BLOCKED: command failed (see RC above): $cmd_str" | tee -a "$b/00_SUMMARY.md" "$tests"
     mark_blocked "$b" "COMMAND_FAILED" "$cmd_str"
     exit 3
   fi
@@ -620,7 +620,7 @@ cmd_finalize() {
     echo "OK: finalize complete (validation PASS recorded)." | tee -a "$tests"
     echo "ALLOW_COMPLETE: $qid"
   else
-    echo "BLOCKED: governance validate failed (see output above)." | tee -a "$b/04_OUTCOME.md" "$tests"
+    echo "BLOCKED: governance validate failed (see output above)." | tee -a "$b/00_SUMMARY.md" "$tests"
     exit 4
   fi
 }
@@ -651,15 +651,84 @@ cmd_complete() {
   bundle="$(bundle_path "$qid" "$date" "$slug")"
   pre_remaining="$(accepted_count)"
 
-  mv -n "$qfile" "$completed_dir/"
-  append_wave_receipt "$qid" "$base" "$bundle"
-  echo "MOVED_TO_COMPLETED: $base"
+  local tests changed
+  tests="$bundle/06_TESTS.txt"
+  changed="$bundle/06_CHANGED_FILES.txt"
+
+  local -a complete_args
+  complete_args=(
+    complete-quest "$qid"
+    --subject "$SUBJECT"
+    --data-root "$DATA_ROOT"
+    --engine-root "$ENGINE_ROOT"
+    --json
+  )
+
+  local milestone_entry
+  while IFS= read -r milestone_entry; do
+    [[ -n "$milestone_entry" ]] || continue
+    complete_args+=(--milestone-status "$milestone_entry")
+  done < <(
+    python3 - "$SYNAPSE_ROOT" "$SUBJECT" "$DATA_ROOT" "$qfile" <<'PY'
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(sys.argv[1]) / "runtime"))
+from synapse_runtime.quest_acceptance import parse_quest_document
+from synapse_runtime.quest_completion import _parse_defined_milestones
+
+subject = sys.argv[2]
+data_root = Path(sys.argv[3])
+quest_path = Path(sys.argv[4])
+doc = parse_quest_document(subject=subject, data_root=data_root, path=quest_path)
+for item in _parse_defined_milestones(doc.milestones_raw, doc.objective):
+    detail = item["text"].replace(":", " - ")
+    print(f"{item['id']}:DONE:{detail}")
+PY
+  )
+
+  complete_args+=(--check "GOVERNANCE_GUARD:PASS:Validated governed quest bundle")
+  complete_args+=(--check "WRAPPER_PROOF:PASS:Wrapper receipts and proof file recorded")
+  complete_args+=(--receipt-ref "$tests" --receipt-ref "$changed" --receipt-ref "$bundle/06_WRAPPER_PROOF.json")
+
+  if [ -f "$tests" ]; then
+    while IFS= read -r line; do
+      [[ -n "$line" ]] || continue
+      complete_args+=(--command-run "$line")
+    done < <(grep -E '^CMD:[[:space:]]' "$tests" | sed -E 's/^CMD:[[:space:]]*//')
+  fi
+
+  if [ -f "$changed" ]; then
+    while IFS= read -r line; do
+      [[ -n "$line" && "$line" != "NONE" ]] || continue
+      complete_args+=(--changed-file "$line")
+    done < "$changed"
+  fi
+
+  local complete_json
+  if ! complete_json="$(python3 "$SYNAPSE_ROOT/runtime/synapse.py" "${complete_args[@]}")"; then
+    echo "BLOCKED: quest completion mutation failed." >&2
+    echo "$complete_json" >&2
+    exit 4
+  fi
+  echo "$complete_json"
+
+  local final_state active_path
+  final_state="$(printf '%s' "$complete_json" | python3 -c 'import json,sys; payload=json.load(sys.stdin); print(payload["completion"]["final_state_decision"])')"
+  active_path="$(printf '%s' "$complete_json" | python3 -c 'import json,sys; payload=json.load(sys.stdin); print(payload["completion"]["active_path"])')"
+
+  if [ "$final_state" != "COMPLETED" ]; then
+    echo "BLOCKED: quest remains active after completion audit ($final_state)." >&2
+    exit 4
+  fi
+
+  append_wave_receipt "$qid" "$(basename "$active_path")" "$bundle"
+  echo "MOVED_TO_COMPLETED: $(basename "$active_path")"
 
   # Hard enforcement: when final Accepted quest is completed, EOD snapshot must be written.
   if [ "$pre_remaining" = "1" ]; then
     if ! auto_eod_if_wave_finished; then
-      mv -n "$completed_dir/$base" "$DATA_ROOT/Quest Board/Accepted/"
-      echo "BLOCKED: reverted quest move because required EOD snapshot could not be written."
+      echo "BLOCKED: required EOD snapshot could not be written after completion." >&2
       exit 5
     fi
   fi

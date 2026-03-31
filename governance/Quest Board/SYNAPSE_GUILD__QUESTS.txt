@@ -1,460 +1,77 @@
-SYNAPSE GUILD — QUESTS (CANON)
-Version: v1.3
-Last Updated: 2026-03-13
-Status: Governance Law (changes require Governance Control Sync)
-
-Maintainer: Brains (Peter) with Hands (Ash)
-Audience:
-- New Synapse Guild members (human)
-- Any AI session participating in planning or execution
-- External collaborators adopting the Synapse Guild Operating System
+SYNAPSE GUILD — QUESTS
+Version: v2.0
+Last Updated: 2026-03-31
 
 ================================================================================
-0) PURPOSE OF THIS DOCUMENT
+1) WHAT A QUEST IS
 ================================================================================
+A Quest is a bounded coherent outcome that can be accepted, executed, audited, and closed honestly.
 
-This document defines what QUESTS are, why they exist, and how they are used inside
-the Synapse Guild Operating System.
+A Quest is not:
+- the smallest atomic task
+- a disposable to-do item
+- a temporary plan scratchpad
 
-After reading this document, the phrase “Create a Quest” MUST be sufficient
-instruction for any compliant operator (human or AI).
+Atomic work belongs inside milestones and work items.
 
-This requires deterministic handoff:
-- A Quest MUST be executable by an operator who did not write it.
-- If a Quest relies on implicit context, it is invalid and MUST NOT be ACCEPTED.
+================================================================================
+2) QUEST STATE MACHINE
+================================================================================
+- BOARD
+- ACCEPTED
+- COMPLETED
+- ABANDONED
 
-────────────────────────────────────────────────────────
-QUEST vs SIDE-QUEST (NAMING + ORIGIN)
-────────────────────────────────────────────────────────
-Definitions:
-- QUEST_### : A canonical quest artifact representing a bounded unit of work. It may be derived
-  from ACTIVE Guild Orders OR lawfully formalized from deterministic ambient runtime signals.
-- SIDE-QUEST_### : A canonical quest artifact representing ad-hoc, discovered, or out-of-scope work
-  surfaced during work sessions, runtime capture, or formal planning.
+State is determined by filesystem location, not prose claims.
+
+================================================================================
+3) QUESTS AND PLANS
+================================================================================
+Execution-ready plans must be persisted under .synapse/PLANS/.
+A plan revision may map to one quest or multiple linked quests depending on closure surfaces.
 
 Rules:
-- QUEST and SIDE-QUEST follow the same lifecycle and evidence rules:
-  BOARD → ACCEPTED → COMPLETED / ABANDONED, with audits required for completion.
-- SIDE-QUEST MUST be clearly labeled in BOTH:
-  - filename prefix: "SIDE-QUEST_"
-  - quest ID inside the quest document: "SIDE-QUEST_###"
-- SIDE-QUEST MUST NOT be treated as fulfilling Guild Orders unless explicitly promoted.
-
-Promotion (SIDE-QUEST → Guild Orders scope):
-- Promotion is a binding decision.
-- Promotion MUST be recorded during a Control Sync and captured in the Control Sync Snapshot.
-- If the Guild Orders document is amended to include the work, the SIDE-QUEST may remain a SIDE-QUEST;
-  "promotion" refers to scope attribution, not renaming.
-
-Authority note (BUFFS):
-- Subject Buffs may specify subject-specific execution surfaces, tooling, and receipt conventions.
-- Subject Buffs MUST NOT override Governance law.
-- If a Buff conflicts with this document, this document wins.
-
-Quests are the atomic execution unit of the Synapse Guild.
-They are where intent becomes real work.
-
-This is governance law.
+- one coherent outcome may have many milestones and still be one quest
+- multiple independently closable outcomes must split into multiple quests
+- quests must link back to their plan revision(s)
 
 ================================================================================
-1) CORE DEFINITION (CANON)
+4) ACCEPTANCE VS COMPLETION
 ================================================================================
+Acceptance means:
+- the quest is lawfully ready for governed execution
+- the audit bundle exists
+- verification plan is concrete
 
-1.1 Quest — definition
-A Quest is a single, clearly scoped, executable commitment that can be completed,
-verified, and recorded independently.
-
-A Quest answers one question:
-
-> “What is the next concrete thing we are committing to do?”
-
-One-sentence definition:
-A Quest is an atomic unit of committed work with explicit scope and completion criteria.
-
-1.2 Atomicity test (deterministic)
-A Quest is atomic if and only if ALL are true:
-- It has exactly one primary objective.
-- Its completion criteria can be verified independently.
-- Its verification does not require completing a second independent objective.
-
-If a proposed "Quest" requires multiple independently verifiable outcomes,
-then it is NOT a Quest.
-It MUST be decomposed (usually into multiple Quests under one Dungeon).
+Completion means:
+- the latest completion audit is a clean PASS
+- the final state decision is COMPLETED
+- downstream continuity truth may now treat the quest as completed
 
 ================================================================================
-2) WHAT PROBLEM QUESTS SOLVE
+5) AUDIT MODEL
 ================================================================================
+New-write quest bundles use:
+- 00_SUMMARY.md
+- 01_COMPLETION_AUDIT.md
+- append-only numbered completion-audit history when later attempts supersede earlier ones
+- 06_CHANGED_FILES.txt
+- 06_TESTS.txt
+- 06_WRAPPER_PROOF.json
 
-Quests exist because:
-
-- Large objectives must be broken into finishable pieces.
-- “We should do X” is not actionable without commitment.
-- Execution without clear boundaries leads to sprawl and half-finished work.
-- Progress must be auditable, not implied.
-
-Without Quests:
-- work remains vague
-- tasks overlap
-- completion is subjective
-- talent progression becomes meaningless
-
-Quests convert intent into accountability.
+Historical 4-phase bundles remain readable as legacy history.
 
 ================================================================================
-3) WHAT QUESTS ARE — AND ARE NOT
+6) TALENT LAW
 ================================================================================
-
-3.1 What Quests ARE
-Quests are:
-- atomic commitments
-- execution-scoped
-- independently completable
-- auditable after the fact
-
-3.2 What Quests are NOT
-Quests are NOT:
-- ideas
-- brainstorming notes
-- vague to-do items
-- multi-week mega-projects
-- Guild Orders
-- Dungeons
-- Execution Packs
-
-If something cannot be finished and verified on its own, it is not a Quest yet.
-
-Important distinction:
-- Ambient runtime candidates are not yet Quests.
-- BOARD files are canonical quest artifacts.
-- ACCEPTED files are governed execution commitments.
+A quest may award a Talent Point only when it expands real project capability.
+Non-capability work may still be valid quest work; it simply records Talent Point Awarded: NO.
 
 ================================================================================
-4) SOURCES OF QUESTS (WHERE THEY COME FROM)
+7) SNAPSHOTS AND QUESTS
 ================================================================================
+Snapshots summarize continuity.
+They do not replace quest audits.
+If a snapshot claims quest completion, it must point to the quest’s real completion audit.
 
-Quests may originate from multiple places.
-
-4.1 From Guild Orders (most common)
-- Guild Orders define Dungeons.
-- Each Dungeon MUST be decomposed into one or more Quests.
-- Completing all relevant Quests satisfies the Dungeon.
-
-4.2 From Maintenance or Technical Debt
-- Refactors
-- Cleanup work
-- Structural fixes
-These may exist outside active Guild Orders.
-
-4.3 From Bugs or Incidents
-- A defect discovered during execution
-- A correctness violation
-- A broken invariant
-
-4.4 From Governance or Meta-System Work
-- Updating documentation
-- Renaming or reorganizing artifacts
-- Improving the operating system itself
-
-4.5 From ambient runtime detection (upstream quest shaping)
-Synapse may lawfully detect recurring, bounded work from recorded runtime truth such as:
-- active run titles and plan items
-- commands
-- changed files
-- verification entries
-- decision / discovery / disclosure surfaces
-- current accepted quest or active Guild Orders context
-
-Rules:
-- Ambient candidate state lives under the sidecar proposal surface.
-- Ambient candidates are upstream structure, not yet canonical quest commitment.
-- When the recorded evidence is sufficient to state a truthful, bounded Quest,
-  Synapse MAY draft a canonical BOARD quest file.
-- That drafting act does NOT accept the Quest.
-
-Not all Quests are born from Guild Orders.
-That is intentional.
-
-================================================================================
-5) QUEST STATES (CANON)
-================================================================================
-
-Quests move through explicit states represented by their location on the Quest Board.
-
-State law:
-- Quest state is defined by WHERE the Quest file lives.
-- Metadata inside the file does not override location.
-
-Canonical locations (see: Quest Board/SYNAPSE_GUILD__QUEST_BOARD.txt):
-- BOARD:
-  <Subject>_Data/Quest Board/
-- ACCEPTED:
-  <Subject>_Data/Quest Board/Accepted/
-- COMPLETED:
-  <Subject>_Data/Quest Board/Completed/
-- ABANDONED:
-  <Subject>_Data/Quest Board/Abandoned/
-
-Rules:
-- A Quest becomes committed governed work only when it is ACCEPTED.
-- ACCEPTED implies intent to execute as official governed work.
-- A BOARD quest is a canonical proposal / ready artifact, not yet an execution commitment.
-
-World State Gate (execution legality):
-- Under Fog of War, Quests may be drafted on BOARD, but MUST NOT be ACCEPTED.
-- BOARD → ACCEPTED validation FAILS if Codex Freeze marker does not exist:
-  <Subject>_Data/Codex/CODEX_FREEZE.md
-
-See:
-- Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt
-- The Guild/Terminology/Locks/LOCK__FOG_OF_WAR.md
-- The Guild/Terminology/Locks/LOCK__CODEX_FREEZE_FOG_LIFTED.md
-
-5.1 What may happen before ACCEPTED
-The existence of a Quest candidate or a BOARD quest does not by itself mean governed execution has begun.
-
-Allowed before ACCEPTED (subject to World State and other gates):
-- ambient detection
-- candidate clustering
-- BOARD drafting
-- alignment and refinement
-- exploratory or non-governed movement recorded by the sidecar under separate law
-
-Forbidden before ACCEPTED:
-- claiming the Quest is official governed execution
-- claiming the Quest has been completed as governed work
-- using a BOARD quest as proof that a Raid is already underway
-
-================================================================================
-6) QUEST CREATION (WHEN AND HOW)
-================================================================================
-
-6.1 When to create a Quest
-Create a Quest when:
-- a concrete task has been identified
-- scope can be clearly defined
-- completion criteria can be stated
-- the work can be verified independently
-
-Do NOT create a Quest when:
-- the work is still vague
-- decisions are unresolved
-- scope cannot be bounded
-
-In that case, keep it as a note, candidate, or discuss it in a Control Sync first.
-
-6.2 How Quests are created
-Canonical BOARD quests may be created in three lawful ways:
-- Brains authors the Quest directly
-- a formal Control Sync decides and drafts the Quest
-- the ambient runtime formalizes a quest candidate into BOARD when the recorded evidence is sufficient to state the Quest truthfully
-
-Rules:
-- Quests MUST be created using the canonical Quest Template.
-- One Quest = one file.
-- The Quest file lives on the Quest Board in BOARD state until accepted.
-- If title, objective, scope, or verification cannot be stated truthfully from the available evidence,
-  the candidate MUST remain upstream and MUST NOT be forced into BOARD.
-
-See:
-- Quest Board/QUEST_TEMPLATE.txt
-- Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt
-
-================================================================================
-7) QUEST EXECUTION (HOW WORK HAPPENS)
-================================================================================
-
-Accepted Quests are executed through the Dailies loop.
-
-High-level flow (summary):
-1) Rehydrate + review active truth
-2) Decide whether formal Control Sync is required
-3) Accept Quest(s) or carry forward accepted scope
-4) Implement — execute accepted Quests (Quest Mini-Loop)
-5) System Verification — test/verify the system as appropriate for the Subject
-6) Snapshot + Continuity — record what changed and why
-7) Stop / Resume
-
-The Dailies document is authoritative for the full governed execution topology.
-See:
-- Processes/SYNAPSE_GUILD__DAILIES.txt
-
-Quests do not dictate *how* work is done.
-They define *what must be true* when work is finished.
-
-Important distinction:
-- Ambient quest formation may continue before, during, and after governed execution.
-- That upstream shaping does not itself begin governed execution.
-- Governed quest execution begins only after ACCEPTED state exists.
-
-================================================
-7.1 EXECUTION AUDITS (COMPLETION REQUIREMENT)
-================================================
-
-A Quest is not considered COMPLETED unless its execution is provable.
-
-Synapse enforces this via Execution Audits.
-
-Canonical rule:
-- Every executed Quest MUST have the mandatory Execution Audit phases:
-  1) Pre-Quest Alignment Audit
-  2) Execution Audit
-  3) Verification Audit
-  4) Post-Quest Outcome Note
-
-Storage law:
-- Execution Audits live under:
-  <Subject>_Data/Audits/Execution/
-- Canonical structure is an audit bundle folder per quest:
-  <Subject>_Data/Audits/Execution/QUEST_###__YYYY-MM-DD__<short_slug>/
-
-Canonical bundle minimum (required files):
-- 00_SUMMARY.md   (MANDATORY, human-readable)
-- 01_PREQUEST.md  (MANDATORY)
-- 02_EXECUTION.md (MANDATORY)
-- 03_VERIFY.md    (MANDATORY)
-- 04_OUTCOME.md   (MANDATORY)
-
-Quest file requirement:
-- Each ACCEPTED Quest file MUST record its audit bundle folder path
-  (see Quest Board/QUEST_TEMPLATE.txt).
-
-Verification law (anti-hallucination):
-- The Verification Audit MUST record what was actually checked.
-- Simulated runs are invalid ("reasoned PASS" is not PASS).
-- If the execution surface cannot perform verification, the Quest MUST NOT be marked COMPLETED.
-
-Multi-day / retries:
-- The audit bundle remains canonical.
-- Append attempt blocks inside the existing audit phase files.
-
-Completion rule:
-- Marking a Quest COMPLETED without these audits is an invalid state transition.
-
-See:
-- Processes/SYNAPSE_GUILD__EXECUTION_AUDITS.txt
-
-================================================================================
-8) DEPENDENCIES AND RELATIONSHIPS
-================================================================================
-
-Quests may depend on other Quests.
-
-Rules:
-- Dependencies MUST be explicit in the Quest file.
-- Implicit ordering is forbidden.
-
-Execution rule:
-- A Quest MUST NOT be executed unless its dependencies are satisfied.
-
-Acceptance rule:
-- A Quest may be ACCEPTED with unsatisfied dependencies ONLY if it is intentionally staged:
-  - dependencies are listed
-  - and the plan states how/when the dependency will be satisfied
-
-Multiple Quests may relate to the same Dungeon, system, or capability.
-That does not make them hierarchical.
-
-================================================================================
-9) TALENT POINTS AND QUESTS
-================================================================================
-
-Not all Quests award Talent Points.
-
-9.1 Talent-awarding Quests
-A Quest awards a Talent Point only if it:
-- introduces a new capability, OR
-- expands an existing capability in a meaningful way
-
-Examples:
-- adding a new pipeline stage
-- enabling search
-- adding a new interface door
-
-9.2 Non-talent Quests
-Quests that typically do NOT award Talent Points:
-- bug fixes
-- refactors
-- cleanup
-- documentation updates
-- renaming/reorganizing files
-- maintenance tasks
-
-Law:
-- The Quest MUST explicitly state whether it awards a Talent Point.
-- No automatic assumption is allowed.
-
-If capability changed:
-- update the Talent Tree
-- record the update in the Quest Outcome and the End-of-Day Snapshot
-
-================================================================================
-10) QUESTS VS GUILD ORDERS (CRITICAL DISTINCTION)
-================================================================================
-
-Guild Orders define scope and intent.
-Quests define execution commitments.
-
-Guild Orders:
-- answer “what are we building in this phase?”
-- are few and stable
-- may be drafted in PAUSED before governed execution begins
-
-Quests:
-- answer “what are we doing next?”
-- are many and transient
-- may emerge first as ambient candidates, then BOARD artifacts, then ACCEPTED work
-
-A Quest may exist without Guild Orders.
-Guild Orders are executed through Quests.
-
-================================================================================
-11) QUALITY BAR (WHAT MAKES A GOOD QUEST)
-================================================================================
-
-A good Quest:
-- has clear scope
-- has explicit out-of-scope
-- has objective completion criteria
-- can be completed without redefining itself
-- can be executed by an operator who did not write it
-
-A bad Quest:
-- mixes multiple independent objectives
-- has fuzzy boundaries
-- relies on implicit knowledge
-- cannot be verified when finished
-
-Quality gate:
-- If a Quest is vague or non-executable, it MUST NOT be ACCEPTED.
-- If a candidate cannot yet state a truthful Quest, it MUST remain upstream until it can.
-- Fix the Quest (or decompose it into smaller Quests) first.
-
-================================================================================
-12) CANONICAL COMMANDS
-================================================================================
-
-Once this law is accepted, the following phrases are valid:
-
-- “Create a Quest.”
-Meaning:
-Author a new atomic work commitment using the Quest Template and place it in BOARD state,
-or lawfully formalize a truthful ambient candidate into BOARD.
-
-- “Accept this Quest.”
-Meaning:
-Validate the Quest, create/record its audit bundle path, and move it to ACCEPTED.
-(If Codex Freeze marker does not exist, acceptance is invalid.)
-
-- “Complete this Quest.”
-Meaning:
-Completion criteria are satisfied AND the audit bundle exists with PASS verification.
-Then move the quest file to COMPLETED and record the result in the End-of-Day Snapshot.
-
-- “Abandon this Quest.”
-Meaning:
-Intentionally drop the commitment; record why (Control Sync + Snapshot as required),
-then move the quest file to ABANDONED.
-
-================================================================================
 END OF DOCUMENT
-================================================================================

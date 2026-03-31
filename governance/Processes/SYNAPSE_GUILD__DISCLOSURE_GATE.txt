@@ -194,7 +194,7 @@ Recording rules:
 A) If Disclosure occurs during a Quest lifecycle (accepted/executing/verifying):
 - Record it inside the Quest’s Execution Audit bundle:
   - 00_SUMMARY.md MUST reference the disclosure (at minimum)
-  - In the relevant phase file (01_PREQUEST / 02_EXECUTION / 03_VERIFY / 04_OUTCOME),
+  - In the active completion surface (normally 01_COMPLETION_AUDIT.md),
     include a “Disclosure Gate Event” subsection containing the canonical disclosure block.
 
 Optional (recommended):

@@ -58,7 +58,7 @@ CORE LAW
    - Brains MAY include scope toggles to constrain what Hands is allowed to do.
    - If a toggle is present, Hands MUST treat it as an additional hard constraint.
    - If toggles are absent, the confirmation applies to the R2 scope described by the Quest
-     + the PreQuest plan (01_PREQUEST.md).
+     + its persisted plan / completion-audit path.
 
 ================================================================================
 CONFIRMATION ARTIFACT FORMAT (CANON)
@@ -98,7 +98,7 @@ Quest Validation:
   - AND the file contains "CONFIRM: YES"
 
 Execution Audits:
-- The confirm file path MUST be recorded in 01_PREQUEST.md when Risk = R2.
-- If scope toggles are present, they MUST be copied into 01_PREQUEST.md.
+- The confirm file path MUST be recorded in the quest or completion-audit record when Risk = R2.
+- If scope toggles are present, they MUST be copied into the completion audit when closure is attempted.
 
 END OF DOCUMENT
