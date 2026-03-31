@@ -6,7 +6,8 @@ import re
 from pathlib import Path
 from typing import Any
 
-from synapse_runtime.quest_acceptance import parse_quest_document, prequest_has_execution_readiness
+from synapse_runtime.quest_acceptance import parse_quest_document
+from synapse_runtime.quest_completion import COMPLETION_AUDIT_FILENAME, completion_audit_is_clean_pass, parse_completion_audit
 
 
 _QUEST_NUMBER_RX = re.compile(r"(?i)(?:SIDE-QUEST|QUEST)_(\d{3})")
@@ -74,13 +75,9 @@ def load_accepted_quest_details(subject: str, data_root: Path) -> list[dict[str,
         except Exception:
             continue
         bundle_path = doc.audit_bundle_path
-        execution_ready = False
-        if bundle_path and bundle_path.exists():
-            prequest = bundle_path / "01_PREQUEST.md"
-            if prequest.exists():
-                execution_ready = prequest_has_execution_readiness(
-                    prequest.read_text(encoding="utf-8", errors="replace")
-                )
+        execution_ready = bool(bundle_path and bundle_path.exists())
+        latest_completion = bundle_path / COMPLETION_AUDIT_FILENAME if bundle_path else None
+        completion = parse_completion_audit(latest_completion) if latest_completion and latest_completion.exists() else None
         details.append(
             {
                 "quest_id": doc.quest_id or path.stem,
@@ -89,6 +86,8 @@ def load_accepted_quest_details(subject: str, data_root: Path) -> list[dict[str,
                 "state": "accepted",
                 "audit_bundle_path": str(bundle_path.resolve()) if bundle_path else None,
                 "execution_ready": execution_ready,
+                "audit_state": doc.audit_state,
+                "completion_verdict": completion.overall_verdict if completion else None,
             }
         )
     return details
@@ -97,10 +96,7 @@ def load_accepted_quest_details(subject: str, data_root: Path) -> list[dict[str,
 def select_current_accepted_quest(details: list[dict[str, Any]]) -> dict[str, Any] | None:
     if not details:
         return None
-    for item in details:
-        if item.get("execution_ready"):
-            return item
-    return details[0]
+    return sorted(details, key=_quest_sort_key, reverse=True)[0]
 
 
 def load_completed_quest_details(subject: str, data_root: Path) -> list[dict[str, Any]]:
@@ -124,6 +120,11 @@ def load_completed_quest_details(subject: str, data_root: Path) -> list[dict[str
                 "path": str(path.resolve()),
                 "state": "completed",
                 "audit_bundle_path": str(audit_bundle_path.resolve()) if audit_bundle_path else None,
+                "completion_verdict": (
+                    parse_completion_audit(audit_bundle_path / COMPLETION_AUDIT_FILENAME).overall_verdict
+                    if audit_bundle_path and (audit_bundle_path / COMPLETION_AUDIT_FILENAME).exists()
+                    else ("PASS" if audit_bundle_path and completion_audit_is_clean_pass(audit_bundle_path / COMPLETION_AUDIT_FILENAME) else None)
+                ),
             }
         )
     return sorted(details, key=_quest_sort_key, reverse=True)
@@ -136,14 +137,13 @@ def select_latest_completed_quest(details: list[dict[str, Any]]) -> dict[str, An
 
 
 def _disclosure_phase_path(bundle: Path, trigger: str, status_labels: list[str]) -> Path:
-    text = f"{trigger} {' '.join(status_labels)}".lower()
-    if any(marker in text for marker in ("verify", "verification", "test", "unverified")):
-        return bundle / "03_VERIFY.md"
-    if any(marker in text for marker in ("anchor", "codex", "canonical", "orientation", "placement", "prequest")):
-        return bundle / "01_PREQUEST.md"
-    if any(marker in text for marker in ("outcome", "resume", "closeout")):
-        return bundle / "04_OUTCOME.md"
-    return bundle / "02_EXECUTION.md"
+    latest = bundle / COMPLETION_AUDIT_FILENAME
+    if latest.exists():
+        return latest
+    legacy_verify = bundle / "03_VERIFY.md"
+    if legacy_verify.exists():
+        return legacy_verify
+    return bundle / "00_SUMMARY.md"
 
 
 def _append_markdown_section(path: Path, heading: str, body: str, token: str) -> bool:

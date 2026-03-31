@@ -409,6 +409,13 @@ def _upsert_quest_candidate(
         "summary": summary,
         "description": summary,
         "objective": summary,
+        "coherent_outcome": summary,
+        "closure_statement": f"Close only when {summary.lower()} is honestly satisfied and the completion audit returns PASS.",
+        "split_triggers": ["Split if the work reveals more than one independently closable outcome."],
+        "milestones": _open_plan_items(active_run) or [summary],
+        "guild_orders_ref": None,
+        "dungeon_ref": None,
+        "dungeon_coverage": "N/A",
         "reason": promotion.reason,
         "scope_classification": scope_classification,
         "blockers": list(promotion.blockers),
@@ -426,14 +433,16 @@ def _upsert_quest_candidate(
         "priority": "P1",
         "risk": "R0",
         "door_impact": "NONE",
-        "testing_level": "DEFERRED TO 01_PREQUEST.md",
-        "verification_plan": "DEFERRED TO 01_PREQUEST.md",
+        "testing_level": "TL2",
+        "verification_plan": (
+            "Run the scope-appropriate commands/checks for this quest, record the exact commands and receipts in the "
+            "completion audit, and do not close the quest without a clean PASS."
+        ),
         "codex_anchors": "BLOCKED - CODEX_ANCHORS_MISSING",
         "anti_dup": DEFAULT_REPO_ORIENTATION_BLOCKER,
         "placement_intent": DEFAULT_REPO_ORIENTATION_BLOCKER,
         "out_of_scope": "Any work beyond this clustered candidate scope.",
         "dependencies": "None",
-        "talent_awarded": "NO",
         "last_signal_fingerprint": fingerprint,
     }
     if existing and existing.get("formalized_artifact_path"):

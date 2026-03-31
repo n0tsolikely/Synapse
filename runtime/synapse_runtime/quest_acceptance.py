@@ -10,28 +10,28 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from synapse_runtime.governance_model import derive_world_state, quest_state_from_path
+from synapse_runtime.quest_plans import (
+    VALID_DUNGEON_COVERAGE,
+    normalize_milestones,
+    parse_plan_artifact_refs,
+    persist_execution_plan,
+)
 
 
 DEFAULT_TIMEZONE = ZoneInfo("America/Toronto")
 VALID_PRIORITIES = {"P0", "P1", "P2"}
 VALID_CHANGE_CLASSES = {"TRIVIAL", "FEATURE", "STRUCTURAL"}
 VALID_VISION_DELTAS = {"ALIGNED", "VARIATION", "SHIFT"}
-VALID_TALENT_FLAGS = {"YES", "NO"}
 VALID_RISK_LEVELS = {"R0", "R1", "R2"}
 PLACEHOLDER_TOKENS = ("<fill>", "tbd", "placeholder", "unknown")
-REQUIRED_AUDIT_FILES = (
-    "00_SUMMARY.md",
-    "01_PREQUEST.md",
-    "02_EXECUTION.md",
-    "03_VERIFY.md",
-    "04_OUTCOME.md",
+SUPPORTING_ACCEPTANCE_FILES = (
+    "00_ACCEPTANCE_RECEIPT.txt",
+    "00_GOVERNANCE_PREFLIGHT.md",
+    "DISCLOSURE_GATE.md",
     "06_CHANGED_FILES.txt",
     "06_TESTS.txt",
     "06_WRAPPER_PROOF.json",
-    "00_ACCEPTANCE_RECEIPT.txt",
     "90_ORIGINAL_QUEST__as_found.txt",
-    "00_GOVERNANCE_PREFLIGHT.md",
-    "DISCLOSURE_GATE.md",
 )
 
 
@@ -48,6 +48,12 @@ class QuestDocument:
     subject: str
     origin: str
     priority: str
+    links: str
+    quest_state: str
+    created_at: str
+    accepted_at: str
+    completed_at: str
+    last_audit_at: str
     codex_anchors_raw: str
     codex_constraints_raw: str
     change_class: str
@@ -55,21 +61,42 @@ class QuestDocument:
     system_context: str
     anti_duplication_plan: str
     placement_intent: str
-    atomicity_statement: str
+    guild_orders_ref: str
+    dungeon_ref: str
+    dungeon_coverage: str
+    coherent_outcome: str
+    closure_statement: str
+    split_triggers_raw: str
     risk: str
     r2_confirmation_artifact: str
     description: str
     objective: str
+    milestones_raw: str
     out_of_scope: str
-    dependencies: str
+    dependencies_raw: str
     door_impact: str
     testing_level: str
     verification_plan: str
-    talent_point_awarded: str
+    plan_artifact_refs_raw: str
+    plan_artifact_refs: list[str]
+    audit_state: str
     audit_bundle_field: str
     audit_bundle_path: Path | None
     variation_mapping: str
     codification_sidequest: str
+    state_history_raw: str
+
+    @property
+    def dependencies(self) -> str:
+        return self.dependencies_raw
+
+    @property
+    def milestones(self) -> str:
+        return self.milestones_raw
+
+    @property
+    def split_triggers(self) -> str:
+        return self.split_triggers_raw
 
 
 def _now() -> dt.datetime:
@@ -78,10 +105,6 @@ def _now() -> dt.datetime:
 
 def _now_iso() -> str:
     return _now().isoformat()
-
-
-def _today() -> str:
-    return _now().date().isoformat()
 
 
 def _read_text(path: Path) -> str:
@@ -96,6 +119,8 @@ def _write_text(path: Path, content: str) -> None:
 def _looks_like_label(line: str) -> bool:
     stripped = line.strip()
     if not stripped or stripped.startswith("#"):
+        return False
+    if stripped.startswith("- ") or stripped.startswith("* "):
         return False
     return bool(re.match(r"^[A-Za-z0-9_ /().-]+:\s*(?:.*)?$", stripped))
 
@@ -204,9 +229,63 @@ def _extract_codification_sidequest(text: str) -> str:
     return ""
 
 
+def _extract_list_entries(raw: str) -> list[str]:
+    values: list[str] = []
+    for line in str(raw or "").splitlines():
+        text = re.sub(r"^[-*]\s*", "", line.strip())
+        if text:
+            values.append(text)
+    return values
+
+
+def _compat_split_triggers(doc: QuestDocument) -> list[str]:
+    values = _extract_list_entries(doc.split_triggers_raw)
+    if values:
+        return values
+    return ["Split if the work reveals more than one independently closable outcome."]
+
+
+def _compat_milestones(doc: QuestDocument) -> list[str]:
+    values = _extract_list_entries(doc.milestones_raw)
+    if values:
+        return values
+    fallback = doc.objective.strip() or doc.closure_statement.strip() or doc.coherent_outcome.strip()
+    return [fallback] if fallback else []
+
+
+def _compat_coherent_outcome(doc: QuestDocument) -> str:
+    value = doc.coherent_outcome.strip()
+    if value:
+        return value
+    for fallback in (doc.objective, doc.description, doc.title):
+        text = str(fallback or "").strip()
+        if text:
+            return text
+    return ""
+
+
+def _compat_closure_statement(doc: QuestDocument) -> str:
+    value = doc.closure_statement.strip()
+    if value:
+        return value
+    for fallback in (doc.objective, doc.description, doc.title):
+        text = str(fallback or "").strip()
+        if text:
+            return f"Close only when {text.lower()} is honestly satisfied and the completion audit returns PASS."
+    return ""
+
+
 def parse_quest_document(*, subject: str, data_root: Path, path: Path) -> QuestDocument:
     raw_text = _read_text(path)
     audit_field = _extract_labeled_block(raw_text, "Audit Bundle Folder Path (required once ACCEPTED)")
+    coherent_outcome = _extract_labeled_block(raw_text, "Coherent Outcome") or _extract_labeled_block(raw_text, "Atomicity Statement")
+    closure_statement = _extract_labeled_block(raw_text, "Closure Statement") or _extract_labeled_block(raw_text, "Scope / Objective")
+    split_triggers_raw = _extract_labeled_block(raw_text, "Split Triggers")
+    quest_state = _normalize_inline_value(_extract_labeled_block(raw_text, "Quest State")).upper()
+    if not quest_state:
+        state = quest_state_from_path(path.resolve(), data_root)
+        quest_state = str(getattr(state, "value", state) if state is not None else "").upper() or "BOARD"
+    plan_artifact_refs_raw = _extract_labeled_block(raw_text, "Plan Artifact Refs")
     return QuestDocument(
         path=path.resolve(),
         raw_text=raw_text,
@@ -215,6 +294,12 @@ def parse_quest_document(*, subject: str, data_root: Path, path: Path) -> QuestD
         subject=_normalize_inline_value(_extract_labeled_block(raw_text, "Subject")),
         origin=_normalize_inline_value(_extract_labeled_block(raw_text, "Origin")),
         priority=_normalize_inline_value(_extract_labeled_block(raw_text, "Priority")).upper(),
+        links=_extract_labeled_block(raw_text, "Links"),
+        quest_state=quest_state,
+        created_at=_normalize_inline_value(_extract_labeled_block(raw_text, "Created At")),
+        accepted_at=_normalize_inline_value(_extract_labeled_block(raw_text, "Accepted At")),
+        completed_at=_normalize_inline_value(_extract_labeled_block(raw_text, "Completed At")),
+        last_audit_at=_normalize_inline_value(_extract_labeled_block(raw_text, "Last Audit At")),
         codex_anchors_raw=_extract_labeled_block(raw_text, "Codex Anchors (DRAFT)"),
         codex_constraints_raw=_extract_labeled_block(raw_text, "Codex Constraint Summary (DRAFT)"),
         change_class=_normalize_inline_value(_extract_labeled_block(raw_text, "Change Class")).upper(),
@@ -222,21 +307,33 @@ def parse_quest_document(*, subject: str, data_root: Path, path: Path) -> QuestD
         system_context=_extract_labeled_block(raw_text, "System Context Statement"),
         anti_duplication_plan=_extract_labeled_block(raw_text, "Anti-Duplication Plan"),
         placement_intent=_extract_labeled_block(raw_text, "Placement Intent"),
-        atomicity_statement=_extract_labeled_block(raw_text, "Atomicity Statement"),
+        guild_orders_ref=_normalize_inline_value(_extract_labeled_block(raw_text, "Guild Orders Ref")) or "N/A",
+        dungeon_ref=_normalize_inline_value(_extract_labeled_block(raw_text, "Dungeon Ref")) or "N/A",
+        dungeon_coverage=_normalize_inline_value(_extract_labeled_block(raw_text, "Dungeon Coverage")).upper() or "N/A",
+        coherent_outcome=coherent_outcome,
+        closure_statement=closure_statement,
+        split_triggers_raw=split_triggers_raw,
         risk=_normalize_inline_value(_extract_labeled_block(raw_text, "Risk")).upper() or "R0",
         r2_confirmation_artifact=_normalize_inline_value(_extract_labeled_block(raw_text, "R2 Confirmation Artifact (REQUIRED if Risk = R2)")),
         description=_extract_labeled_block(raw_text, "Description"),
         objective=_extract_labeled_block(raw_text, "Scope / Objective"),
+        milestones_raw=_extract_labeled_block(raw_text, "Stretch Plan / Milestones"),
         out_of_scope=_extract_labeled_block(raw_text, "Out of Scope"),
-        dependencies=_extract_labeled_block(raw_text, "Dependencies"),
+        dependencies_raw=_extract_labeled_block(raw_text, "Dependencies"),
         door_impact=_normalize_inline_value(_extract_labeled_block(raw_text, "Door Impact")).upper(),
         testing_level=_normalize_inline_value(_extract_labeled_block(raw_text, "Testing Level (TL)")).upper(),
         verification_plan=_extract_labeled_block(raw_text, "Verification Plan"),
-        talent_point_awarded=_normalize_inline_value(_extract_labeled_block(raw_text, "Talent Point Awarded")).upper(),
+        plan_artifact_refs_raw=plan_artifact_refs_raw,
+        plan_artifact_refs=[
+            str(_resolve_data_relative_path(subject, data_root, item) or item)
+            for item in parse_plan_artifact_refs(plan_artifact_refs_raw)
+        ],
+        audit_state=_normalize_inline_value(_extract_labeled_block(raw_text, "Audit State")).lower() or "not_started",
         audit_bundle_field=audit_field,
         audit_bundle_path=_resolve_data_relative_path(subject, data_root, audit_field),
         variation_mapping=_extract_variation_mapping(raw_text),
         codification_sidequest=_extract_codification_sidequest(raw_text),
+        state_history_raw=_extract_labeled_block(raw_text, "State History"),
     )
 
 
@@ -268,8 +365,15 @@ def _replace_labeled_value(text: str, label: str, value: str) -> str:
     for idx, raw in enumerate(lines):
         if raw.strip().startswith(needle):
             prefix = raw.split(":", 1)[0] + ":"
-            lines[idx] = f"{prefix} {value}".rstrip()
-            j = idx + 1
+            rendered_lines = [line.rstrip() for line in str(value or "").splitlines()]
+            if len(rendered_lines) <= 1:
+                replacement = f"{prefix} {rendered_lines[0] if rendered_lines else ''}".rstrip()
+                lines[idx] = replacement
+                j = idx + 1
+            else:
+                lines[idx] = prefix
+                lines[idx + 1 : idx + 1] = rendered_lines
+                j = idx + 1 + len(rendered_lines)
             while j < len(lines):
                 stripped = lines[j].strip()
                 if not stripped:
@@ -282,6 +386,11 @@ def _replace_labeled_value(text: str, label: str, value: str) -> str:
                 del lines[j]
             return "\n".join(lines).rstrip() + "\n"
     return text.rstrip() + f"\n{label}: {value}\n"
+
+
+def _replace_multi_value(text: str, label: str, values: list[str]) -> str:
+    rendered = "\n".join(values)
+    return _replace_labeled_value(text, label, rendered)
 
 
 def resolve_board_quest(data_root: Path, quest_ref: str) -> Path:
@@ -309,6 +418,28 @@ def resolve_board_quest(data_root: Path, quest_ref: str) -> Path:
     if not path.is_file():
         raise QuestAcceptanceError(f"Quest file does not exist: {path}")
     return path
+
+
+def resolve_active_quest(data_root: Path, quest_ref: str) -> Path:
+    raw = str(quest_ref or "").strip()
+    if not raw:
+        raise QuestAcceptanceError("Quest reference is required.")
+    probe = Path(raw).expanduser()
+    if probe.exists():
+        path = probe.resolve()
+        state = quest_state_from_path(path, data_root)
+        if state is None or str(getattr(state, "value", state)) not in {"accepted", "completed"}:
+            raise QuestAcceptanceError(f"Quest must be ACCEPTED or COMPLETED: {path}")
+        return path
+    board_root = data_root / "Quest Board"
+    for folder in (board_root / "Accepted", board_root / "Completed"):
+        exact = folder / Path(raw).name
+        if exact.exists():
+            return exact.resolve()
+        matches = sorted(folder.glob(f"{raw.upper()}__*.txt"))
+        if matches:
+            return matches[0].resolve()
+    raise QuestAcceptanceError(f"Quest not found in Accepted/ or Completed/: {raw}")
 
 
 def _load_control_sync_state(data_root: Path) -> tuple[dict, Path]:
@@ -356,8 +487,8 @@ def _validate_confirmation_artifact(data_root: Path, doc: QuestDocument, failure
 
 def _validate_bundle_path(data_root: Path, doc: QuestDocument, failures: list[str]) -> Path | None:
     if doc.audit_bundle_path is None:
-        failures.append("Audit Bundle Folder Path is required before acceptance.")
-        return None
+        bundle_name = f"{doc.quest_id}__{_now().date().isoformat()}__{_slugify(doc.title)}"
+        return (data_root / "Audits" / "Execution" / bundle_name).resolve()
     bundle_path = doc.audit_bundle_path
     audits_root = (data_root / "Audits" / "Execution").resolve()
     if bundle_path.parent != audits_root:
@@ -367,21 +498,31 @@ def _validate_bundle_path(data_root: Path, doc: QuestDocument, failures: list[st
     return bundle_path
 
 
-def _resolve_verification_plan(doc: QuestDocument, bundle_path: Path | None, failures: list[str]) -> tuple[str | None, str | None]:
+def _resolve_verification_plan(doc: QuestDocument, failures: list[str]) -> str | None:
     quest_plan = doc.verification_plan.strip()
-    if quest_plan and "DEFERRED TO 01_PREQUEST.MD" not in quest_plan.upper() and not _placeholder_like(quest_plan):
-        return quest_plan, "quest_file"
-    if bundle_path is not None:
-        prequest = bundle_path / "01_PREQUEST.md"
-        if prequest.exists():
-            text = _read_text(prequest)
-            if prequest_has_execution_readiness(text):
-                return text, "audit_bundle"
-    failures.append("Verification Plan must be concrete before acceptance; a deferred/empty plan is not execution-ready.")
-    return None, None
+    if not quest_plan:
+        failures.append("Verification Plan must be concrete before acceptance.")
+        return None
+    lowered = quest_plan.lower()
+    if "deferred to 01_prequest.md" in lowered or "deferred indefinitely" in lowered:
+        failures.append("Verification Plan must be concrete before acceptance; deferred verification is illegal.")
+        return None
+    if _placeholder_like(quest_plan):
+        failures.append("Verification Plan must be concrete before acceptance.")
+        return None
+    return quest_plan
 
 
-def _build_summary(doc: QuestDocument, accepted_path: Path, bundle_path: Path) -> str:
+def _build_summary(
+    doc: QuestDocument,
+    accepted_path: Path,
+    bundle_path: Path,
+    *,
+    plan_artifact_refs: list[str],
+    milestone_lines: list[str],
+    coherent_outcome: str,
+    closure_statement: str,
+) -> str:
     lines = [
         "# 00_SUMMARY.md",
         "",
@@ -390,97 +531,31 @@ def _build_summary(doc: QuestDocument, accepted_path: Path, bundle_path: Path) -
         f"- Accepted At: {_now_iso()}",
         f"- Accepted Quest Path: {accepted_path}",
         f"- Audit Bundle: {bundle_path}",
-        "- State: ACCEPTED",
-        "- Governed Execution Ready: YES",
+        f"- Audit State: pending_completion_audit",
+        f"- Plan Artifact Refs: {', '.join(plan_artifact_refs) if plan_artifact_refs else 'none'}",
         "",
-        "## Scope Summary",
-        doc.objective or doc.description,
+        "## Coherent Outcome",
+        coherent_outcome,
         "",
-        "## Immediate Next Step",
-        "- Execute the quest through runtime/tools/synapse_quest_run.sh using this audit bundle.",
+        "## Closure Statement",
+        closure_statement,
         "",
+        "## Milestones",
     ]
-    return "\n".join(lines)
-
-
-def _build_prequest(
-    *,
-    subject: str,
-    data_root: Path,
-    engine_root: Path,
-    doc: QuestDocument,
-    accepted_path: Path,
-    bundle_path: Path,
-    verification_plan: str,
-    verification_plan_source: str,
-    confirmation_path: Path | None,
-) -> str:
-    anchors = _anchor_tokens(doc.codex_anchors_raw)
-    constraints = [item.strip() for item in doc.codex_constraints_raw.splitlines() if item.strip()]
-    lines = [
-        "# 01_PREQUEST.md",
-        "",
-        "## Acceptance Readiness",
-        "Execution Readiness: READY",
-        f"- Accepted At: {_now_iso()}",
-        f"- Verification Plan Source: {verification_plan_source}",
-        "",
-        "## Quest Identity",
-        f"- Quest ID: {doc.quest_id}",
-        f"- Title: {doc.title}",
-        f"- Subject: {subject}",
-        f"- Accepted Quest Path: {accepted_path}",
-        f"- Audit Bundle Path: {bundle_path}",
-        "",
-        "## Orientation Receipt",
-        f"- ENGINE_ROOT: {engine_root}",
-        f"- DATA_ROOT: {data_root}",
-        f"- GOVERNANCE_ROOT: {engine_root / 'governance'}",
-        f"- Working Tree Root: {engine_root}",
-        f"- System Context Statement: {doc.system_context}",
-        "",
-        "## Repo Orientation Receipt",
-        f"- Anti-Duplication Plan: {doc.anti_duplication_plan}",
-        f"- Placement Intent: {doc.placement_intent}",
-        "",
-        "## Quest Structure",
-        f"- Change Class: {doc.change_class}",
-        f"- Vision Delta: {doc.vision_delta}",
-        f"- Atomicity Statement: {doc.atomicity_statement}",
-        f"- Dependencies: {doc.dependencies}",
-        "",
-        "## Codex Anchors",
-    ]
-    lines.extend(f"- {anchor}" for anchor in anchors)
-    lines.extend(["", "## Codex Constraint Summary"])
-    if constraints:
-        lines.extend(f"- {item}" for item in constraints)
+    if milestone_lines:
+        lines.extend(f"- {item}" for item in milestone_lines)
     else:
-        lines.append(f"- {doc.codex_constraints_raw}")
-    lines.extend(
-        [
-            "",
-            "## Success Definition",
-            f"- Objective: {doc.objective}",
-            f"- Out of Scope: {doc.out_of_scope}",
-            "",
-            "## Verification Plan",
-            verification_plan.strip(),
-            "",
-            "## Verification Metadata",
-            f"- Door Impact: {doc.door_impact}",
-            f"- Testing Level: {doc.testing_level}",
-            "",
-            "## Risk / Consent",
-            f"- Risk: {doc.risk}",
-            f"- Confirmation Artifact: {confirmation_path if confirmation_path else 'NOT REQUIRED'}",
-            "",
-            "## World State",
-            f"- World State: {derive_world_state(data_root).value}",
-            f"- Codex Freeze Marker: {data_root / 'Codex' / 'CODEX_FREEZE.md'}",
-            "",
-        ]
-    )
+        lines.append("- none")
+    lines.extend([
+        "",
+        "## Verification Plan",
+        doc.verification_plan,
+        "",
+        "## Current State",
+        "- ACCEPTED",
+        "- Completion requires a clean PASS in 01_COMPLETION_AUDIT.md",
+        "",
+    ])
     return "\n".join(lines)
 
 
@@ -491,12 +566,12 @@ def _build_acceptance_receipt(
     accepted_path: Path,
     bundle_path: Path,
     control_sync_path: Path,
-    verification_plan_source: str,
     confirmation_path: Path | None,
+    plan_artifact_refs: list[str],
 ) -> str:
     lines = [
         "ACCEPTANCE RECEIPT",
-        f"ACCEPTANCE_STATUS: PASS",
+        "ACCEPTANCE_STATUS: PASS",
         f"ACCEPTED_AT: {_now_iso()}",
         f"QUEST_ID: {doc.quest_id}",
         f"QUEST_TITLE: {doc.title}",
@@ -504,9 +579,9 @@ def _build_acceptance_receipt(
         f"ACCEPTED_TARGET: {accepted_path}",
         f"AUDIT_BUNDLE: {bundle_path}",
         f"CONTROL_SYNC_STATE: {control_sync_path}",
-        f"CONTROL_SYNC_ACTIVE: YES",
+        "CONTROL_SYNC_ACTIVE: YES",
         f"WORLD_STATE: {derive_world_state(bundle_path.parents[2]).value}",
-        f"VERIFICATION_PLAN_SOURCE: {verification_plan_source}",
+        f"PLAN_ARTIFACT_REFS: {', '.join(plan_artifact_refs) if plan_artifact_refs else 'none'}",
         f"RISK: {doc.risk}",
         f"R2_CONFIRMATION: {confirmation_path if confirmation_path else 'NOT REQUIRED'}",
         "GOVERNED_EXECUTION_READY: YES",
@@ -514,14 +589,7 @@ def _build_acceptance_receipt(
     return "\n".join(lines)
 
 
-def _build_preflight(
-    *,
-    doc: QuestDocument,
-    board_path: Path,
-    accepted_path: Path,
-    bundle_path: Path,
-    control_sync_path: Path,
-) -> str:
+def _build_preflight(*, doc: QuestDocument, board_path: Path, accepted_path: Path, bundle_path: Path, control_sync_path: Path) -> str:
     lines = [
         "# Governance Preflight",
         "",
@@ -549,51 +617,17 @@ def _build_disclosure_gate(doc: QuestDocument) -> str:
         "- USER_DISCLOSED: YES",
         "- DISCLOSURE_DECISION: ACKNOWLEDGED",
         "- EXECUTION_ALLOWED: YES",
-        "- NOTES: Acceptance gate passed; continue under audit truth requirements.",
+        "- NOTES: Acceptance gate passed; completion still requires a clean PASS audit.",
         "",
     ]
     return "\n".join(lines)
 
 
-def _build_execution_placeholder(name: str, bundle_path: Path) -> str:
-    if name == "02_EXECUTION.md":
-        return "\n".join(
-            [
-                "# 02_EXECUTION.md",
-                "",
-                "## Execution",
-                "- No commands executed yet. Use synapse_quest_run.sh to populate real receipts during execution.",
-                f"- Audit bundle: {bundle_path}",
-                "",
-            ]
-        )
-    if name == "03_VERIFY.md":
-        return "\n".join(
-            [
-                "# 03_VERIFY.md",
-                "",
-                "## Verification",
-                "- No verification executed yet.",
-                "- Use 06_TESTS.txt for raw receipts captured during execution.",
-                "",
-            ]
-        )
-    if name == "04_OUTCOME.md":
-        return "\n".join(
-            [
-                "# 04_OUTCOME.md",
-                "",
-                "## Outcome",
-                "- Final status: ACCEPTED (execution not started yet)",
-                f"- Audit bundle: {bundle_path}",
-                "- Notes: Governed execution readiness established at acceptance.",
-                "",
-            ]
-        )
+def _supporting_file_content(name: str) -> str:
     if name == "06_TESTS.txt":
-        return "PLACEHOLDER: no commands executed yet. Populate with real wrapper receipts during execution.\n"
+        return "PLACEHOLDER: populate with real completion-audit command receipts.\n"
     if name == "06_CHANGED_FILES.txt":
-        return "PLACEHOLDER: no governed execution changes recorded yet.\n"
+        return "PLACEHOLDER: populate with real governed execution file changes.\n"
     if name == "06_WRAPPER_PROOF.json":
         return '{\n  "schema_version": 1,\n  "status": "NOT_RUN_YET"\n}\n'
     return f"# {name}\n"
@@ -601,17 +635,16 @@ def _build_execution_placeholder(name: str, bundle_path: Path) -> str:
 
 def _ensure_bundle(
     *,
-    subject: str,
-    data_root: Path,
-    engine_root: Path,
     doc: QuestDocument,
     board_path: Path,
     accepted_path: Path,
     bundle_path: Path,
-    verification_plan: str,
-    verification_plan_source: str,
     control_sync_path: Path,
     confirmation_path: Path | None,
+    plan_artifact_refs: list[str],
+    milestone_lines: list[str],
+    coherent_outcome: str,
+    closure_statement: str,
 ) -> dict[str, list[str]]:
     created: list[str] = []
     existing: list[str] = []
@@ -622,17 +655,14 @@ def _ensure_bundle(
 
     file_specs = {
         "90_ORIGINAL_QUEST__as_found.txt": doc.raw_text,
-        "00_SUMMARY.md": _build_summary(doc, accepted_path, bundle_path),
-        "01_PREQUEST.md": _build_prequest(
-            subject=subject,
-            data_root=data_root,
-            engine_root=engine_root,
-            doc=doc,
-            accepted_path=accepted_path,
-            bundle_path=bundle_path,
-            verification_plan=verification_plan,
-            verification_plan_source=verification_plan_source,
-            confirmation_path=confirmation_path,
+        "00_SUMMARY.md": _build_summary(
+            doc,
+            accepted_path,
+            bundle_path,
+            plan_artifact_refs=plan_artifact_refs,
+            milestone_lines=milestone_lines,
+            coherent_outcome=coherent_outcome,
+            closure_statement=closure_statement,
         ),
         "00_ACCEPTANCE_RECEIPT.txt": _build_acceptance_receipt(
             doc=doc,
@@ -640,8 +670,8 @@ def _ensure_bundle(
             accepted_path=accepted_path,
             bundle_path=bundle_path,
             control_sync_path=control_sync_path,
-            verification_plan_source=verification_plan_source,
             confirmation_path=confirmation_path,
+            plan_artifact_refs=plan_artifact_refs,
         ),
         "00_GOVERNANCE_PREFLIGHT.md": _build_preflight(
             doc=doc,
@@ -652,45 +682,21 @@ def _ensure_bundle(
         ),
         "DISCLOSURE_GATE.md": _build_disclosure_gate(doc),
     }
-    for name in REQUIRED_AUDIT_FILES:
+    for name in SUPPORTING_ACCEPTANCE_FILES:
         if name not in file_specs:
-            file_specs[name] = _build_execution_placeholder(name, bundle_path)
+            file_specs[name] = _supporting_file_content(name)
 
     for name, content in file_specs.items():
         path = bundle_path / name
         if path.exists():
             existing.append(str(path.resolve()))
-            if name == "01_PREQUEST.md" and not prequest_has_execution_readiness(_read_text(path)):
-                raise QuestAcceptanceError(
-                    f"Existing audit bundle is not execution-ready: {path} is missing a concrete verification plan."
-                )
-            if name == "00_ACCEPTANCE_RECEIPT.txt":
-                receipt = _read_text(path)
-                if "ACCEPTANCE_STATUS: PASS" not in receipt or f"QUEST_ID: {doc.quest_id}" not in receipt:
-                    raise QuestAcceptanceError(
-                        f"Existing acceptance receipt in {path} conflicts with the current quest and cannot be overwritten."
-                    )
-            if name == "00_GOVERNANCE_PREFLIGHT.md":
-                preflight = _read_text(path)
-                if "PRE-FLIGHT: PASS" not in preflight:
-                    raise QuestAcceptanceError(f"Existing governance preflight in {path} is not PASS.")
-            if name == "DISCLOSURE_GATE.md":
-                disclosure = _read_text(path)
-                if "EXECUTION_ALLOWED: YES" not in disclosure:
-                    raise QuestAcceptanceError(f"Existing disclosure gate in {path} does not allow execution.")
             continue
         _write_text(path, content)
         created.append(str(path.resolve()))
     return {"created": created, "existing": existing}
 
 
-def accept_quest(
-    *,
-    subject: str,
-    data_root: Path,
-    engine_root: Path,
-    quest_ref: str,
-) -> dict[str, object]:
+def accept_quest(*, subject: str, data_root: Path, engine_root: Path, quest_ref: str) -> dict[str, object]:
     board_path = resolve_board_quest(data_root, quest_ref)
     doc = parse_quest_document(subject=subject, data_root=data_root, path=board_path)
     accepted_dir = data_root / "Quest Board" / "Accepted"
@@ -728,10 +734,20 @@ def accept_quest(
         failures.append("Description is required before acceptance.")
     if _placeholder_like(doc.objective):
         failures.append("Scope / Objective is required before acceptance.")
+    effective_coherent_outcome = _compat_coherent_outcome(doc)
+    if _placeholder_like(effective_coherent_outcome):
+        failures.append("Coherent Outcome is required before acceptance.")
+    effective_closure_statement = _compat_closure_statement(doc)
+    if _placeholder_like(effective_closure_statement):
+        failures.append("Closure Statement is required before acceptance.")
+    effective_split_triggers = _compat_split_triggers(doc)
     if _placeholder_like(doc.out_of_scope):
         failures.append("Out of Scope is required before acceptance.")
-    if _placeholder_like(doc.dependencies):
+    if _placeholder_like(doc.dependencies_raw):
         failures.append("Dependencies must be stated explicitly (or 'None') before acceptance.")
+    effective_milestones = _compat_milestones(doc)
+    if not effective_milestones:
+        failures.append("Stretch Plan / Milestones are required before acceptance.")
     if doc.change_class not in VALID_CHANGE_CLASSES:
         failures.append(
             f"Change Class must be one of {sorted(VALID_CHANGE_CLASSES)}, got {doc.change_class or '<missing>'}."
@@ -749,16 +765,16 @@ def accept_quest(
             failures.append("Anti-Duplication Plan is unresolved; FEATURE/STRUCTURAL quests cannot be accepted yet.")
         if _placeholder_like(doc.placement_intent) or "REPO_ORIENTATION_REQUIRED" in doc.placement_intent.upper():
             failures.append("Placement Intent is unresolved; FEATURE/STRUCTURAL quests cannot be accepted yet.")
-    if _placeholder_like(doc.atomicity_statement):
-        failures.append("Atomicity Statement is required before acceptance.")
     if doc.risk not in VALID_RISK_LEVELS:
         failures.append(f"Risk must be one of {sorted(VALID_RISK_LEVELS)}, got {doc.risk or '<missing>'}.")
     if _placeholder_like(doc.door_impact):
         failures.append("Door Impact must be set before acceptance.")
     if _placeholder_like(doc.testing_level):
         failures.append("Testing Level must be set before acceptance.")
-    if doc.talent_point_awarded not in VALID_TALENT_FLAGS:
-        failures.append("Talent Point Awarded must be explicitly YES or NO before acceptance.")
+    if doc.dungeon_coverage not in VALID_DUNGEON_COVERAGE:
+        failures.append(
+            f"Dungeon Coverage must be one of {sorted(VALID_DUNGEON_COVERAGE)}, got {doc.dungeon_coverage or '<missing>'}."
+        )
 
     anchors = _anchor_tokens(doc.codex_anchors_raw)
     if not anchors or "CODEX_ANCHORS_MISSING" in doc.codex_anchors_raw.upper():
@@ -776,35 +792,79 @@ def accept_quest(
         elif _find_sidequest_anywhere(data_root, doc.codification_sidequest) is None:
             failures.append(f"Codification Side-Quest does not exist on the Quest Board: {doc.codification_sidequest}")
 
+    effective_plan_artifact_refs = list(doc.plan_artifact_refs)
+    for plan_ref in effective_plan_artifact_refs:
+        plan_path = Path(plan_ref)
+        if not plan_path.exists():
+            failures.append(f"Plan artifact ref does not exist: {plan_ref}")
+
     bundle_path = _validate_bundle_path(data_root, doc, failures)
-    verification_plan, verification_plan_source = _resolve_verification_plan(doc, bundle_path, failures)
+    verification_plan = _resolve_verification_plan(doc, failures)
     confirmation_path = _validate_confirmation_artifact(data_root, doc, failures)
 
     if failures:
         raise QuestAcceptanceError("\n".join(f"- {item}" for item in failures))
 
-    if bundle_path is None or verification_plan is None or verification_plan_source is None:
+    if bundle_path is None or verification_plan is None:
         raise QuestAcceptanceError("Quest acceptance prerequisites were not satisfied.")
 
+    if not effective_plan_artifact_refs:
+        plan_payload = persist_execution_plan(
+            subject=subject,
+            data_root=data_root,
+            title=doc.title,
+            summary=doc.description or doc.objective or doc.title,
+            origin=doc.origin,
+            objective=doc.objective or doc.closure_statement or doc.coherent_outcome,
+            coherent_outcome=effective_coherent_outcome,
+            closure_statement=effective_closure_statement,
+            out_of_scope=doc.out_of_scope,
+            dependencies=_extract_list_entries(doc.dependencies_raw) or ["None"],
+            risk=doc.risk,
+            verification_plan=verification_plan,
+            milestones=normalize_milestones(effective_milestones),
+            split_triggers=effective_split_triggers,
+            guild_orders_ref=doc.guild_orders_ref if doc.guild_orders_ref != "N/A" else None,
+            dungeon_ref=doc.dungeon_ref if doc.dungeon_ref != "N/A" else None,
+            dungeon_coverage=doc.dungeon_coverage,
+            links=_extract_list_entries(doc.links) or [doc.origin],
+            quest_refs=[str(accepted_path.resolve())],
+            source="accept-quest-compat",
+        )
+        effective_plan_artifact_refs = [str(plan_payload["path"])]
+
     bundle_info = _ensure_bundle(
-        subject=subject,
-        data_root=data_root,
-        engine_root=engine_root,
         doc=doc,
         board_path=board_path,
         accepted_path=accepted_path,
         bundle_path=bundle_path,
-        verification_plan=verification_plan,
-        verification_plan_source=verification_plan_source,
         control_sync_path=control_sync_path,
         confirmation_path=confirmation_path,
+        plan_artifact_refs=effective_plan_artifact_refs,
+        milestone_lines=effective_milestones,
+        coherent_outcome=effective_coherent_outcome,
+        closure_statement=effective_closure_statement,
     )
 
+    accepted_at = _now_iso()
+    state_history = _extract_list_entries(doc.state_history_raw)
+    state_history.append(f"{accepted_at} :: ACCEPTED")
+    normalized_text = doc.raw_text
+    normalized_text = _replace_labeled_value(normalized_text, "Quest State", "ACCEPTED")
+    normalized_text = _replace_labeled_value(normalized_text, "Accepted At", accepted_at)
+    normalized_text = _replace_labeled_value(normalized_text, "Audit State", "pending_completion_audit")
+    normalized_text = _replace_labeled_value(normalized_text, "Coherent Outcome", effective_coherent_outcome)
+    normalized_text = _replace_labeled_value(normalized_text, "Closure Statement", effective_closure_statement)
+    normalized_text = _replace_multi_value(normalized_text, "Split Triggers", [f"- {item}" for item in effective_split_triggers])
+    normalized_text = _replace_multi_value(normalized_text, "Stretch Plan / Milestones", [f"- {item}" for item in effective_milestones])
     normalized_text = _replace_labeled_value(
-        doc.raw_text,
+        normalized_text,
         "Audit Bundle Folder Path (required once ACCEPTED)",
         _canonical_bundle_field(subject, data_root, bundle_path),
     )
+    normalized_text = _replace_multi_value(normalized_text, "Plan Artifact Refs", [f"- {item}" for item in effective_plan_artifact_refs])
+    normalized_text = _replace_multi_value(normalized_text, "State History", [f"- {item}" for item in state_history])
+
     accepted_path.write_text(normalized_text, encoding="utf-8")
     try:
         board_path.unlink()
@@ -821,7 +881,8 @@ def accept_quest(
         "control_sync_state_path": str(control_sync_path.resolve()),
         "world_state": world_state,
         "risk": doc.risk,
-        "verification_plan_source": verification_plan_source,
+        "verification_plan": verification_plan,
+        "plan_artifact_refs": effective_plan_artifact_refs,
         "confirmation_artifact_path": str(confirmation_path.resolve()) if confirmation_path else None,
         "created_bundle_files": bundle_info["created"],
         "existing_bundle_files": bundle_info["existing"],

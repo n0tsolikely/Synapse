@@ -106,22 +106,20 @@ def _apply_quest_lifecycle_projection(
     current_accepted = select_current_accepted_quest(accepted_details)
     completed_details = load_completed_quest_details(subject, data_root)
     latest_completed = select_latest_completed_quest(completed_details)
-    governed_execution_ready = bool(
-        current_accepted
-        and current_accepted.get("execution_ready")
-        and world_state.value == "fog_lifted"
-    )
+    governed_execution_ready = bool(current_accepted and world_state.value == "fog_lifted")
 
     state["governed_execution_ready"] = governed_execution_ready
     state["current_accepted_quest_id"] = current_accepted.get("quest_id") if current_accepted else None
     state["current_accepted_audit_bundle_path"] = (
         current_accepted.get("audit_bundle_path") if current_accepted else None
     )
+    state["current_accepted_audit_state"] = current_accepted.get("audit_state") if current_accepted else None
     state["last_completed_quest_id"] = latest_completed.get("quest_id") if latest_completed else None
     state["last_completed_quest_path"] = latest_completed.get("path") if latest_completed else None
     state["last_completed_audit_bundle_path"] = (
         latest_completed.get("audit_bundle_path") if latest_completed else None
     )
+    state["last_completed_verdict"] = latest_completed.get("completion_verdict") if latest_completed else None
 
     manifold["accepted_quest_ids"] = [str(item.get("quest_id")) for item in accepted_details if item.get("quest_id")]
     manifold["accepted_quest_details"] = accepted_details
@@ -130,6 +128,7 @@ def _apply_quest_lifecycle_projection(
     manifold["current_accepted_audit_bundle_path"] = (
         current_accepted.get("audit_bundle_path") if current_accepted else None
     )
+    manifold["current_accepted_audit_state"] = current_accepted.get("audit_state") if current_accepted else None
     manifold["completed_quest_ids"] = [str(item.get("quest_id")) for item in completed_details if item.get("quest_id")]
     manifold["completed_quest_details"] = completed_details
     manifold["last_completed_quest_id"] = latest_completed.get("quest_id") if latest_completed else None
@@ -137,6 +136,7 @@ def _apply_quest_lifecycle_projection(
     manifold["last_completed_audit_bundle_path"] = (
         latest_completed.get("audit_bundle_path") if latest_completed else None
     )
+    manifold["last_completed_verdict"] = latest_completed.get("completion_verdict") if latest_completed else None
     manifold["governed_execution_ready"] = governed_execution_ready
 
     return {
@@ -832,6 +832,7 @@ def _ambient_signal_from_event(subject: str, event: dict[str, Any], active_run: 
         "log-disclosure",
         "formalize",
         "accept-quest",
+        "complete-quest",
     }:
         return None
 
