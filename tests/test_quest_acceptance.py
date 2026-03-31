@@ -115,7 +115,9 @@ class QuestAcceptanceTests(unittest.TestCase):
             ),
             "Anti-Duplication Plan": 'rg -n "accept-quest|Quest Board|Accepted" runtime tests governance',
             "Placement Intent": "Intended layer: runtime | Intended target path(s): runtime/synapse.py, runtime/synapse_runtime/",
-            "Atomicity Statement": "Atomic: yes - one independently verifiable governed acceptance path.",
+            "Coherent Outcome": "Move the quest into governed execution as one bounded coherent runtime outcome.",
+            "Closure Statement": "Close only when governed acceptance is complete and later completion audit PASS can honestly close it.",
+            "Split Triggers": "- Split if acceptance work reveals more than one independently closable outcome.",
             "Risk": "R1",
             "R2 Confirmation Artifact (REQUIRED if Risk = R2)": "",
             "Description": "Accept a board quest into governed execution.",
@@ -123,15 +125,17 @@ class QuestAcceptanceTests(unittest.TestCase):
                 "Successful acceptance moves the quest into Accepted/ with a canonical audit bundle "
                 "and explicit readiness."
             ),
+            "Stretch Plan / Milestones": "- MILESTONE-001 :: Move the quest into Accepted/.\n- MILESTONE-002 :: Create the governed audit bundle.",
             "Out of Scope": "Completing the quest or writing execution receipts.",
             "Dependencies": "None",
             "Door Impact": "CLI",
             "Testing Level (TL)": "TL2",
             "Verification Plan": (
                 "Verification Commands: python3 -m unittest tests.test_quest_acceptance "
-                "| PASS when exit code is 0 | FAIL otherwise | Receipts: 03_VERIFY.md + 06_TESTS.txt"
+                "| PASS when exit code is 0 | FAIL otherwise | Receipts: 01_COMPLETION_AUDIT.md + 06_TESTS.txt"
             ),
             "Talent Point Awarded": "NO",
+            "Plan Artifact Refs": "",
             "Audit Bundle Folder Path (required once ACCEPTED)": bundle_path,
         }
         fields.update(overrides)
@@ -161,19 +165,22 @@ class QuestAcceptanceTests(unittest.TestCase):
         self.assertTrue(accepted_path.exists())
         self.assertTrue(bundle_path.exists())
         self.assertTrue((bundle_path / "00_ACCEPTANCE_RECEIPT.txt").exists())
-        self.assertTrue((bundle_path / "01_PREQUEST.md").exists())
+        self.assertTrue((bundle_path / "00_SUMMARY.md").exists())
+        self.assertFalse((bundle_path / "01_PREQUEST.md").exists())
         receipt_text = (bundle_path / "00_ACCEPTANCE_RECEIPT.txt").read_text(encoding="utf-8")
         self.assertIn("ACCEPTANCE_STATUS: PASS", receipt_text)
         self.assertIn("CONTROL_SYNC_ACTIVE: YES", receipt_text)
-        prequest_text = (bundle_path / "01_PREQUEST.md").read_text(encoding="utf-8")
-        self.assertIn("Execution Readiness: READY", prequest_text)
-        self.assertIn("Verification Plan", prequest_text)
+        summary_text = (bundle_path / "00_SUMMARY.md").read_text(encoding="utf-8")
+        self.assertIn("Audit State: pending_completion_audit", summary_text)
+        self.assertIn("Completion requires a clean PASS in 01_COMPLETION_AUDIT.md", summary_text)
+        self.assertIn("Verification Plan", summary_text)
 
         manifold = yaml.safe_load((self.data_root / ".synapse" / "MANIFOLD.yaml").read_text(encoding="utf-8"))
         self.assertEqual(manifold.get("current_accepted_quest_id"), "QUEST_001")
         self.assertEqual(Path(manifold.get("current_accepted_quest_path")).resolve(), accepted_path.resolve())
         self.assertEqual(Path(manifold.get("current_accepted_audit_bundle_path")).resolve(), bundle_path.resolve())
         self.assertTrue(manifold.get("governed_execution_ready"))
+        self.assertEqual(manifold.get("current_accepted_audit_state"), "pending_completion_audit")
         self.assertEqual(event_payload["action_name"], "accept-quest")
         self.assertEqual(event_payload["outputs"]["accepted_quest_id"], "QUEST_001")
         state = yaml.safe_load((self.data_root / ".synapse" / "STATE.yaml").read_text(encoding="utf-8"))
@@ -215,15 +222,36 @@ class QuestAcceptanceTests(unittest.TestCase):
         self.assertIn("Verification Plan must be concrete", result.stdout + result.stderr)
         self.assertTrue(board_path.exists())
 
-    def test_accept_quest_rejects_missing_audit_bundle(self):
+    def test_accept_quest_materializes_default_bundle_and_plan_refs_for_legacy_board_quest(self):
         self._write_codex_freeze()
         self._open_control_sync()
-        board_path = self._write_board_quest(**{"Audit Bundle Folder Path (required once ACCEPTED)": ""})
+        board_path = self._write_board_quest(
+            **{
+                "Coherent Outcome": "",
+                "Closure Statement": "",
+                "Split Triggers": "",
+                "Stretch Plan / Milestones": "",
+                "Plan Artifact Refs": "",
+                "Audit Bundle Folder Path (required once ACCEPTED)": "",
+            }
+        )
 
-        result = run_synapse(["accept-quest", str(board_path), *self.subject_args], cwd=REPO_ROOT, home=self.home)
-        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("Audit Bundle Folder Path is required", result.stdout + result.stderr)
-        self.assertTrue(board_path.exists())
+        result = run_synapse(["accept-quest", str(board_path), "--json", *self.subject_args], cwd=REPO_ROOT, home=self.home)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        acceptance = payload["acceptance"]
+        accepted_path = Path(acceptance["accepted_path"])
+        bundle_path = Path(acceptance["audit_bundle_path"])
+        self.assertTrue(accepted_path.exists())
+        self.assertTrue(bundle_path.exists())
+        self.assertTrue(acceptance["plan_artifact_refs"])
+        self.assertTrue(Path(acceptance["plan_artifact_refs"][0]).exists())
+
+        accepted_text = accepted_path.read_text(encoding="utf-8")
+        self.assertIn("Split Triggers:", accepted_text)
+        self.assertIn("Stretch Plan / Milestones:", accepted_text)
+        self.assertIn("Plan Artifact Refs:", accepted_text)
+        self.assertIn(f"{self.subject}_Data/Audits/Execution/{bundle_path.name}", accepted_text)
 
 
 if __name__ == "__main__":

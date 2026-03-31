@@ -224,7 +224,7 @@ class LiveMemoryFlowTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
-        for name in ["00_SUMMARY.md", "01_PREQUEST.md", "02_EXECUTION.md", "03_VERIFY.md", "04_OUTCOME.md"]:
+        for name in ["00_SUMMARY.md", "01_COMPLETION_AUDIT.md"]:
             (bundle_dir / name).write_text(f"# {name}\n", encoding="utf-8")
 
         result = run_cmd(
@@ -252,7 +252,7 @@ class LiveMemoryFlowTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
         summary_text = (bundle_dir / "00_SUMMARY.md").read_text(encoding="utf-8")
-        verify_text = (bundle_dir / "03_VERIFY.md").read_text(encoding="utf-8")
+        verify_text = (bundle_dir / "01_COMPLETION_AUDIT.md").read_text(encoding="utf-8")
         disclosure_text = (bundle_dir / "05_DISCLOSURE.md").read_text(encoding="utf-8")
         self.assertIn("Disclosure Gate Event", summary_text)
         self.assertIn("QUEST_001", summary_text)

@@ -26,6 +26,7 @@ if str(RUNTIME_ROOT) not in sys.path:
     sys.path.insert(0, str(RUNTIME_ROOT))
 
 from synapse_runtime.repo_archaeology import evidence_ref
+from synapse_runtime.quest_plans import persist_execution_plan
 from synapse_runtime.sidecar_store import canonical_open_questions_path, ensure_live_scaffold
 from synapse_runtime.subject_bootstrap import initialize_subject_state
 
@@ -52,6 +53,8 @@ FIXED_TOOL_CATALOG = [
     "list_formalization_candidates",
     "formalize_candidate",
     "accept_quest",
+    "complete_quest",
+    "plan_quests",
     "refresh_continuity",
     "finalize_run",
 ]
@@ -129,6 +132,32 @@ class McpIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
     def _write_ready_board_quest(self, subject: str, data_root: Path, *, quest_id: str = "QUEST_001") -> Path:
         filename = f"{quest_id}__runtime-governed-bridge__2026-03-21.txt"
+        plan_payload = persist_execution_plan(
+            subject=subject,
+            data_root=data_root,
+            title="Runtime governed bridge",
+            summary="Persist the governed MCP acceptance path.",
+            origin="Control Sync 2026-03-21",
+            objective="Successful acceptance moves the quest into Accepted/ with a canonical audit bundle and explicit readiness.",
+            coherent_outcome="Accept a board quest into governed execution through the MCP bridge without bypassing the canonical runtime.",
+            closure_statement="Close only when governed acceptance is proven and the completion audit passes cleanly.",
+            out_of_scope="Completing the quest or writing execution receipts.",
+            dependencies=["None"],
+            risk="R1",
+            verification_plan="Verification Commands: python3 -m unittest tests.test_mcp_integration -v | PASS when exit code is 0 | FAIL otherwise | Receipts: 01_COMPLETION_AUDIT.md + 06_TESTS.txt",
+            milestones=[
+                "Accept the quest into governed execution through MCP.",
+                "Preserve the canonical completion-audit closure path.",
+            ],
+            split_triggers=["Split if MCP transport work and governed execution work become independently closable outcomes."],
+            guild_orders_ref="",
+            dungeon_ref="",
+            dungeon_coverage="N/A",
+            links=[],
+            quest_refs=[],
+            related_run_ids=[],
+            source="test-mcp-fixture",
+        )
         lines = [
             f"Quest ID: {quest_id}",
             "",
@@ -156,7 +185,11 @@ class McpIntegrationTests(unittest.IsolatedAsyncioTestCase):
             "",
             "Placement Intent: Intended layer: runtime transport | Intended target path(s): runtime/synapse_mcp/, runtime/synapse.py",
             "",
-            "Atomicity Statement: Atomic: yes - one independently verifiable governed acceptance path.",
+            "Coherent Outcome: Accept a board quest into governed execution through the MCP bridge without bypassing the canonical runtime.",
+            "",
+            "Closure Statement: Close only when governed acceptance is proven and the completion audit passes cleanly.",
+            "",
+            "Split Triggers: Split if MCP transport work and governed execution work become independently closable outcomes.",
             "",
             "Risk: R1",
             "",
@@ -166,6 +199,10 @@ class McpIntegrationTests(unittest.IsolatedAsyncioTestCase):
             "",
             "Scope / Objective: Successful acceptance moves the quest into Accepted/ with a canonical audit bundle and explicit readiness.",
             "",
+            "Stretch Plan / Milestones:",
+            "- MILESTONE-001 :: Accept the quest into governed execution through MCP.",
+            "- MILESTONE-002 :: Preserve the canonical completion-audit closure path.",
+            "",
             "Out of Scope: Completing the quest or writing execution receipts.",
             "",
             "Dependencies: None",
@@ -174,7 +211,11 @@ class McpIntegrationTests(unittest.IsolatedAsyncioTestCase):
             "",
             "Testing Level (TL): TL2",
             "",
-            "Verification Plan: Verification Commands: /tmp/synapse-mcp-venv/bin/python -m unittest tests.test_mcp_integration -v | PASS when exit code is 0 | FAIL otherwise | Receipts: 03_VERIFY.md + 06_TESTS.txt",
+            "Verification Plan: Verification Commands: python3 -m unittest tests.test_mcp_integration -v | PASS when exit code is 0 | FAIL otherwise | Receipts: 01_COMPLETION_AUDIT.md + 06_TESTS.txt",
+            "",
+            f"Plan Artifact Refs: {plan_payload['path']}",
+            "",
+            "Audit State: not_started",
             "",
             "Talent Point Awarded: NO",
             "",
@@ -895,6 +936,87 @@ class McpIntegrationTests(unittest.IsolatedAsyncioTestCase):
             accepted_by_id = await self._call(session, "accept_quest", {"quest_id": "QUEST_002"})
             self.assertEqual(accepted_by_id["status"], "ok")
             self.assertEqual(accepted_by_id["data"]["acceptance"]["quest_id"], "QUEST_002")
+
+    async def test_plan_quests_and_complete_quest_round_trip(self) -> None:
+        workspace = self._make_workspace("mcp-plan-complete")
+        subject = "QuestMcpSubject"
+        data_root = self.root / f"{subject}_Data"
+        initialize_subject_state(subject, data_root, workspace)
+        ensure_live_scaffold(subject, data_root)
+        async with self._session(workspace) as session:
+            bootstrap = await self._call(
+                session,
+                "bootstrap_session",
+                {
+                    "title": "Quest runtime MCP flow",
+                    "session_mode": "scope_planning",
+                    "adopt_current_repo": False,
+                    "context": {
+                        "subject": subject,
+                        "engine_root": str(workspace),
+                        "data_root": str(data_root),
+                    },
+                },
+            )
+            subject = bootstrap["subject_context"]["subject"]
+            data_root = Path(bootstrap["subject_context"]["data_root"])
+            self._write_codex_freeze(data_root)
+            self._open_control_sync(subject, data_root)
+
+            planned = await self._call(
+                session,
+                "plan_quests",
+                {
+                    "title": "MCP quest flow",
+                    "goal": "Draft, accept, and close one bounded coherent quest through the MCP bridge.",
+                    "items": [
+                        "Draft the quest from a persisted plan revision.",
+                        "Accept the quest through the governed runtime.",
+                        "Close the quest only with a clean completion audit PASS.",
+                    ],
+                    "anchors": ["6.5", "9.2"],
+                    "constraints": ["Keep MCP transport thin and receipt-backed."],
+                    "change_class": "FEATURE",
+                    "vision_delta": "ALIGNED",
+                    "door_impact": "MCP",
+                    "testing_level": "TL2",
+                },
+            )
+            self.assertEqual(planned["status"], "ok")
+            quest_path = Path(planned["data"]["quests"][0]["path"])
+            self.assertTrue(quest_path.exists())
+            self.assertTrue(Path(planned["data"]["plan_artifact_path"]).exists())
+
+            accepted = await self._call(session, "accept_quest", {"quest_path": str(quest_path)})
+            self.assertEqual(accepted["status"], "ok")
+            accepted_path = Path(accepted["data"]["acceptance"]["accepted_path"])
+            bundle_path = Path(accepted["data"]["acceptance"]["audit_bundle_path"])
+            self.assertTrue(accepted_path.exists())
+
+            completed = await self._call(
+                session,
+                "complete_quest",
+                {
+                    "quest_path": str(accepted_path),
+                    "milestone_statuses": [
+                        "MILESTONE-001:DONE:Drafted from a persisted plan revision.",
+                        "MILESTONE-002:DONE:Accepted through the governed runtime.",
+                        "MILESTONE-003:DONE:Closed only with a clean completion audit PASS.",
+                    ],
+                    "checks": [
+                        "MCP_FLOW:PASS:MCP quest lifecycle stayed on the governed runtime path.",
+                        "AUDIT:PASS:Completion audit receipts were written.",
+                    ],
+                    "receipt_refs": [str(bundle_path / "06_TESTS.txt"), str(bundle_path / "06_CHANGED_FILES.txt")],
+                    "commands_run": ["python3 -m unittest tests.test_mcp_integration -v"],
+                    "changed_files": ["runtime/synapse_mcp/runtime_bridge.py"],
+                },
+            )
+            self.assertEqual(completed["status"], "ok")
+            self.assertEqual(completed["data"]["completion"]["overall_verdict"], "PASS")
+            self.assertEqual(completed["data"]["completion"]["final_state_decision"], "COMPLETED")
+            self.assertTrue(Path(completed["data"]["completion"]["latest_completion_audit_path"]).exists())
+            self.assertIn("/Completed/", completed["data"]["completion"]["active_path"])
 
     async def test_capture_partial_preserves_runtime_status(self) -> None:
         workspace = self._make_workspace("mcp-partial")

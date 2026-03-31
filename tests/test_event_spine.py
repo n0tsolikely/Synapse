@@ -518,7 +518,7 @@ class EventSpineTests(unittest.TestCase):
 
     def test_all_event_pipeline_call_sites_route_through_shared_result_handler(self) -> None:
         source = (REPO_ROOT / "runtime" / "synapse.py").read_text(encoding="utf-8")
-        self.assertEqual(source.count("event_info = _event_pipeline("), 23)
+        self.assertEqual(source.count("event_info = _event_pipeline("), 25)
         inline_event_commands = (
             "cmd_attach_or_init",
             "cmd_live_bootstrap",
@@ -541,7 +541,9 @@ class EventSpineTests(unittest.TestCase):
         helper_event_commands = {
             "cmd_onboard_repo": "_run_onboarding_bootstrap(",
             "cmd_accept_quest": "_accept_quest_mutation(",
+            "cmd_complete_quest": "_complete_quest_mutation(",
             "cmd_formalize": "_formalize_candidate_mutation(",
+            "cmd_plan_quests": "_plan_quests_mutation(",
             "cmd_compile_current_state": "_run_truth_compile(",
         }
         for fn_name in inline_event_commands:
@@ -566,7 +568,9 @@ class EventSpineTests(unittest.TestCase):
         for helper_name in (
             "_run_onboarding_bootstrap",
             "_accept_quest_mutation",
+            "_complete_quest_mutation",
             "_formalize_candidate_mutation",
+            "_plan_quests_mutation",
             "_run_truth_compile",
         ):
             marker = f"def {helper_name}("

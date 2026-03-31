@@ -55,7 +55,7 @@ class QuestDetectionTests(unittest.TestCase):
         bundle_dir = self.data_root / "Audits" / "Execution" / f"{quest_id}__2026-03-10__accepted"
         accepted_dir.mkdir(parents=True, exist_ok=True)
         bundle_dir.mkdir(parents=True, exist_ok=True)
-        (bundle_dir / "01_PREQUEST.md").write_text("# 01_PREQUEST.md\n\nExecution Readiness: READY\n", encoding="utf-8")
+        (bundle_dir / "00_SUMMARY.md").write_text("# 00_SUMMARY.md\n\n- Audit State: pending_completion_audit\n", encoding="utf-8")
         quest_path = accepted_dir / f"{quest_id}__accepted__2026-03-10.txt"
         quest_path.write_text(
             "\n".join(
@@ -65,6 +65,17 @@ class QuestDetectionTests(unittest.TestCase):
                     f"Title: {title}",
                     "",
                     "Subject: QuestSubject",
+                    "",
+                    "Coherent Outcome: Keep the current accepted runtime work bounded and honest.",
+                    "",
+                    "Closure Statement: Close only when the bounded runtime work is complete and the completion audit passes.",
+                    "",
+                    "Stretch Plan / Milestones:",
+                    "- MILESTONE-001 :: Keep the governed runtime work coherent.",
+                    "",
+                    "Plan Artifact Refs: QuestSubject_Data/.synapse/PLANS/PLAN__PLAN-20260310T120000-0500__REVISION-001__accepted.yaml",
+                    "",
+                    "Audit State: pending_completion_audit",
                     "",
                     f"Audit Bundle Folder Path (required once ACCEPTED): {bundle_dir}",
                     "",

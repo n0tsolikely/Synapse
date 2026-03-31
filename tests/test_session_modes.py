@@ -345,16 +345,21 @@ class SessionModeLifecycleTests(unittest.TestCase):
             "System Context Statement": "Synapse runtime inside the existing governed CLI.",
             "Anti-Duplication Plan": 'rg -n "accept-quest|Quest Board|Accepted" runtime tests governance',
             "Placement Intent": "Intended layer: runtime | Intended target path(s): runtime/synapse.py",
-            "Atomicity Statement": "Atomic: yes - one independently verifiable governed acceptance path.",
+            "Coherent Outcome": "Accept a governed quest into runtime execution without leaving the board/accepted/completed model.",
+            "Closure Statement": "Close only when governed acceptance is proven cleanly and the completion audit passes.",
+            "Split Triggers": "Split if acceptance work and closure/audit work become independently closable outcomes.",
             "Risk": "R1",
             "R2 Confirmation Artifact (REQUIRED if Risk = R2)": "",
             "Description": "Accept a board quest into governed execution.",
             "Scope / Objective": "Successful acceptance moves the quest into Accepted/ with a canonical audit bundle.",
+            "Stretch Plan / Milestones": "- MILESTONE-001 :: Accept the quest into governed execution.\n- MILESTONE-002 :: Preserve the canonical bundle and completion-audit path.",
             "Out of Scope": "Completing the quest or writing execution receipts.",
             "Dependencies": "None",
             "Door Impact": "CLI",
             "Testing Level (TL)": "TL2",
             "Verification Plan": "Verification Commands: python3 -m unittest tests.test_quest_acceptance | PASS when exit code is 0 | FAIL otherwise",
+            "Plan Artifact Refs": "ModeSubject_Data/.synapse/PLANS/PLAN__PLAN-20260310T120000-0500__REVISION-001__runtime-governed-bridge.yaml",
+            "Audit State": "not_started",
             "Talent Point Awarded": "NO",
             "Audit Bundle Folder Path (required once ACCEPTED)": bundle_path,
         }
@@ -494,12 +499,12 @@ class SessionModeLifecycleTests(unittest.TestCase):
         self.assertEqual(manifold["active_session_mode_source"], "command_default")
         self.assertEqual(
             manifold["active_session_mode_policy"]["blocked_mutation_commands"],
-            ["formalize", "accept-quest"],
+            ["formalize", "accept-quest", "complete-quest"],
         )
         self.assertIn("scope_planning", manifold["active_session_mode_policy"]["allowed_next_modes"])
         self.assertIn("## Session posture", rehydrate)
         self.assertIn("Current session mode: brainstorm_spec", rehydrate)
-        self.assertIn("Blocked mutation commands: formalize, accept-quest", rehydrate)
+        self.assertIn("Blocked mutation commands: formalize, accept-quest, complete-quest", rehydrate)
         self.assertIn("Allowed next modes: control_sync, scope_planning, closeout", rehydrate)
 
     def test_valid_session_mode_transition_emits_event_and_updates_active_run(self) -> None:
