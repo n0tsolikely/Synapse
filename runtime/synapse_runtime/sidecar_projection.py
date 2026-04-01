@@ -12,6 +12,8 @@ from synapse_runtime.accepted_execution_view import (
     select_latest_completed_quest,
 )
 from synapse_runtime.automation_orchestrator import automation_summary
+from synapse_runtime.conversation_ingest import load_raw_turn, load_raw_turn_text
+from synapse_runtime.execution_observer import load_raw_execution_event, load_raw_execution_payload
 from synapse_runtime.governance_model import (
     AmbientSignal,
     PromotionRecord,
@@ -22,6 +24,7 @@ from synapse_runtime.governance_model import (
     evaluate_promotion,
     infer_interaction_mode,
 )
+from synapse_runtime.imported_continuity import imported_segments_from_envelope
 from synapse_runtime.ledger_store import _classify_verification_status
 from synapse_runtime.live_memory_common import LiveMemoryError
 from synapse_runtime.provenance import compute_current_provenance_summary, projectable_provenance_summary
@@ -45,8 +48,23 @@ from synapse_runtime.semantic_intake import (
     load_capture_batches,
     matches_open_questions_scaffold,
     merge_semantic_details,
+    plan_events_from_capture_batch,
     render_managed_open_questions,
+    semantic_events_from_capture_batch,
     semantic_detail_lists,
+)
+from synapse_runtime.semantic_classifier import (
+    classify_conversation_segment,
+    classify_execution_segment,
+    conversation_blocks,
+    conversation_segments_from_raw_turn,
+    execution_segment_from_raw_event,
+    normalized_semantic_summary,
+    plan_events_from_semantic_events,
+    persist_conversation_segments,
+    persist_execution_segments,
+    persist_plan_events,
+    persist_semantic_events,
 )
 from synapse_runtime.session_modes import SessionMode, active_session_mode, policy_for, policy_summary
 from synapse_runtime.sidecar_store import (
@@ -452,6 +470,125 @@ def _sync_open_questions_thread(*, data_root: Path, details: list[dict[str, Any]
     )
 
 
+def _apply_normalized_semantic_projection(
+    *,
+    data_root: Path,
+    state: dict[str, Any],
+    manifold: dict[str, Any],
+    raw_turn_path: Path | None = None,
+    raw_event_path: Path | None = None,
+    semantic_capture_batch: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    if raw_turn_path is not None and raw_turn_path.exists():
+        raw_turn = load_raw_turn(raw_turn_path)
+        raw_text = load_raw_turn_text(raw_turn)
+        blocks = conversation_blocks(raw_text)
+        conversation_segments = conversation_segments_from_raw_turn(raw_turn, text=raw_text)
+        semantic_events = []
+        for segment, block in zip(conversation_segments, blocks):
+            semantic_events.extend(classify_conversation_segment(segment, text=block))
+        plan_events = plan_events_from_semantic_events(
+            semantic_events,
+            subject=str(raw_turn.get("subject") or "").strip(),
+            recorded_at=str(raw_turn.get("recorded_at") or "").strip(),
+        )
+        persist_conversation_segments(data_root, conversation_segments)
+        persist_semantic_events(data_root, semantic_events)
+        persist_plan_events(data_root, plan_events)
+
+    if raw_event_path is not None and raw_event_path.exists():
+        raw_event = load_raw_execution_event(raw_event_path)
+        payload = load_raw_execution_payload(raw_event)
+        if str(raw_event.get("family") or "").strip() == "IMPORT_EVENTS":
+            if isinstance(payload, dict):
+                source_refs = [
+                    {
+                        "kind": "raw_import_event",
+                        "id": raw_event.get("raw_event_id"),
+                        "path": raw_event.get("raw_event_path"),
+                        "sha256": raw_event.get("raw_event_sha256"),
+                    }
+                ]
+                if isinstance(raw_event.get("payload_blob"), dict):
+                    source_refs.append(
+                        {
+                            "kind": "raw_blob",
+                            "id": raw_event["payload_blob"].get("sha256"),
+                            "path": raw_event["payload_blob"].get("path"),
+                            "sha256": raw_event["payload_blob"].get("sha256"),
+                            "mime_type": raw_event["payload_blob"].get("mime_type"),
+                        }
+                    )
+                imported_segments = imported_segments_from_envelope(
+                    payload,
+                    subject=str(raw_event.get("subject") or "").strip(),
+                    recorded_at=str(raw_event.get("recorded_at") or "").strip(),
+                    source_refs=source_refs,
+                    session_id=str(raw_event.get("session_id") or "").strip() or None,
+                    run_id=str(raw_event.get("run_id") or "").strip() or None,
+                    source_surface=str(raw_event.get("source_surface") or "import").strip() or "import",
+                )
+                persist_conversation_segments(data_root, imported_segments)
+                imported_events = []
+                for segment, block in zip(imported_segments, conversation_blocks(str(payload.get("extracted_text") or ""))):
+                    imported_events.extend(
+                        classify_conversation_segment(
+                            segment,
+                            text=block,
+                            imported_limited=True,
+                        )
+                    )
+                persist_semantic_events(data_root, imported_events)
+                persist_plan_events(
+                    data_root,
+                    plan_events_from_semantic_events(
+                        imported_events,
+                        subject=str(raw_event.get("subject") or "").strip(),
+                        recorded_at=str(raw_event.get("recorded_at") or "").strip(),
+                    ),
+                )
+        else:
+            execution_segment = execution_segment_from_raw_event(
+                raw_event,
+                payload_preview=(" ".join(str(payload or "").split()) if isinstance(payload, str) else None),
+            )
+            persist_execution_segments(data_root, [execution_segment])
+            execution_events = classify_execution_segment(execution_segment)
+            persist_semantic_events(data_root, execution_events)
+            persist_plan_events(
+                data_root,
+                plan_events_from_semantic_events(
+                    execution_events,
+                    subject=str(raw_event.get("subject") or "").strip(),
+                    recorded_at=str(raw_event.get("recorded_at") or "").strip(),
+                ),
+            )
+
+    if semantic_capture_batch is not None:
+        capture_semantic_events = semantic_events_from_capture_batch(semantic_capture_batch)
+        persist_semantic_events(data_root, capture_semantic_events)
+        persist_plan_events(data_root, plan_events_from_capture_batch(semantic_capture_batch))
+
+    summary = normalized_semantic_summary(data_root)
+    state["last_conversation_segment_id"] = summary.get("last_conversation_segment_id")
+    state["last_execution_segment_id"] = summary.get("last_execution_segment_id")
+    state["last_semantic_event_id"] = summary.get("last_semantic_event_id")
+    state["last_semantic_event_at"] = summary.get("last_semantic_event_at")
+    state["semantic_event_count"] = summary.get("semantic_event_count") or 0
+    state["plan_event_count"] = summary.get("plan_event_count") or 0
+
+    manifold["recent_conversation_segment_ids"] = list(summary.get("recent_conversation_segment_ids") or [])
+    manifold["recent_execution_segment_ids"] = list(summary.get("recent_execution_segment_ids") or [])
+    manifold["recent_semantic_event_details"] = list(summary.get("recent_semantic_event_details") or [])
+    manifold["recent_plan_event_ids"] = list(summary.get("recent_plan_event_ids") or [])
+    manifold["semantic_event_count"] = summary.get("semantic_event_count") or 0
+    manifold["transient_semantic_event_count"] = summary.get("transient_semantic_event_count") or 0
+    manifold["plan_event_count"] = summary.get("plan_event_count") or 0
+    manifold["last_semantic_event_id"] = summary.get("last_semantic_event_id")
+    manifold["last_semantic_event_at"] = summary.get("last_semantic_event_at")
+    return summary
+
+
 def _reset_semantic_projection_fields(*, state: dict[str, Any], manifold: dict[str, Any]) -> None:
     state["last_capture_batch_id"] = None
     state["last_capture_at"] = None
@@ -556,6 +693,8 @@ def _sync_sidecar(
     active_run: dict[str, Any],
     signal: AmbientSignal | None = None,
     semantic_capture_batch: dict[str, Any] | None = None,
+    raw_turn_path: Path | None = None,
+    raw_event_path: Path | None = None,
     decisions_path: Path | None = None,
     discoveries_path: Path | None = None,
     disclosures_path: Path | None = None,
@@ -626,6 +765,14 @@ def _sync_sidecar(
             manifold=manifold,
             semantic_capture_batch=semantic_capture_batch,
         )
+    normalized_semantic = _apply_normalized_semantic_projection(
+        data_root=data_root,
+        state=state,
+        manifold=manifold,
+        raw_turn_path=raw_turn_path,
+        raw_event_path=raw_event_path,
+        semantic_capture_batch=semantic_capture_batch,
+    )
 
     accepted_details = load_accepted_quest_details(subject, data_root)
     current_accepted = select_current_accepted_quest(accepted_details)
@@ -792,6 +939,7 @@ def _sync_sidecar(
         "capture_batch_id": semantic_projection.get("capture_batch_id") if semantic_projection else None,
         "capture_count": semantic_projection.get("capture_count") if semantic_projection else None,
         "capture_kinds": semantic_projection.get("capture_kinds") if semantic_projection else None,
+        "normalized_semantic": normalized_semantic,
         "interaction_mode": interaction_mode,
         "world_state": world_state.value,
         "active_onboarding_id": onboarding_state.get("active_onboarding_id"),
@@ -901,6 +1049,8 @@ def reduce_sidecar_from_event(*, subject: str, data_root: Path, event: dict[str,
     capture_artifact_path = maybe_path(outputs.get("capture_artifact_path"))
     if capture_artifact_path is not None:
         capture_batch = load_capture_batch(capture_artifact_path)
+    raw_turn_path = maybe_path(outputs.get("raw_turn_path"))
+    raw_event_path = maybe_path(outputs.get("raw_event_path"))
     signals = event.get("signals")
     if not isinstance(signals, dict):
         signals = {}
@@ -912,6 +1062,8 @@ def reduce_sidecar_from_event(*, subject: str, data_root: Path, event: dict[str,
         active_run=active_run,
         signal=signal,
         semantic_capture_batch=capture_batch,
+        raw_turn_path=raw_turn_path,
+        raw_event_path=raw_event_path,
         decisions_path=maybe_path(outputs.get("decisions_ledger_path")),
         discoveries_path=maybe_path(outputs.get("discoveries_path")),
         disclosures_path=maybe_path(outputs.get("disclosures_ledger_path")),

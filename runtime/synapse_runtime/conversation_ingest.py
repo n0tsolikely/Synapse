@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+import json
 
 from synapse_runtime.kernel_types import (
     ConversationTurnRole,
@@ -38,6 +39,30 @@ def _preview(text: str) -> str:
     if len(compact) <= MAX_PREVIEW_CHARS:
         return compact
     return compact[: MAX_PREVIEW_CHARS - 1] + "…"
+
+
+def load_raw_turn(path: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise ConversationIngestError(f"Unable to load raw turn record: {path}") from exc
+    if not isinstance(payload, dict) or not str(payload.get("raw_turn_id") or "").strip():
+        raise ConversationIngestError(f"Malformed raw turn record: {path}")
+    payload["raw_turn_path"] = str(path.resolve())
+    return payload
+
+
+def load_raw_turn_text(raw_turn: dict[str, Any]) -> str:
+    text_blob = raw_turn.get("text_blob")
+    if not isinstance(text_blob, dict):
+        raise ConversationIngestError("Raw turn record is missing text_blob metadata.")
+    blob_path = Path(str(text_blob.get("path") or "")).expanduser()
+    if not blob_path.exists():
+        raise ConversationIngestError(f"Raw turn text blob does not exist: {blob_path}")
+    try:
+        return blob_path.read_text(encoding="utf-8")
+    except Exception as exc:
+        raise ConversationIngestError(f"Unable to read raw turn text blob: {blob_path}") from exc
 
 
 

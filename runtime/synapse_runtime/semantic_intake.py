@@ -10,8 +10,18 @@ from typing import Any
 import yaml
 
 from synapse_runtime.governance_model import PromotionRecord, ProposalKind, ProposalState
+from synapse_runtime.kernel_types import (
+    KERNEL_SCHEMA_VERSION,
+    SEMANTIC_CLASSIFIER_VERSION,
+    SemanticClassLabel,
+    SemanticConfidenceBand,
+    SemanticEventEnvelope,
+    SemanticMaterialityBand,
+    stable_kernel_id,
+)
 from synapse_runtime.ledger_store import _append_ledger_entry, _entry_id
 from synapse_runtime.live_memory_common import _slugify
+from synapse_runtime.semantic_classifier import plan_events_from_semantic_events
 from synapse_runtime.sidecar_store import _now_iso, live_root
 
 
@@ -466,6 +476,83 @@ def capture_kinds(batch: dict[str, Any]) -> list[str]:
         if kind:
             kinds.append(kind)
     return kinds
+
+
+_CAPTURE_KIND_TO_SEMANTIC = {
+    CaptureKind.IDEA.value: (SemanticClassLabel.BUILD_PLAN_SIGNAL.value, "build.plan", "medium", "high"),
+    CaptureKind.QUESTION.value: (SemanticClassLabel.QUESTION.value, "question.open", "high", "medium"),
+    CaptureKind.CONSTRAINT.value: (SemanticClassLabel.SCOPE_STATEMENT.value, "project.constraint", "high", "medium"),
+    CaptureKind.DECISION.value: (SemanticClassLabel.DECISION_SIGNAL.value, "decision.locked", "high", "high"),
+    CaptureKind.UNKNOWN.value: (SemanticClassLabel.RISK_SIGNAL.value, "risk.unknown", "medium", "high"),
+    CaptureKind.RISK.value: (SemanticClassLabel.RISK_SIGNAL.value, "risk.blocker", "medium", "high"),
+    CaptureKind.DEPENDENCY.value: (SemanticClassLabel.SCOPE_STATEMENT.value, "project.dependency", "medium", "medium"),
+    CaptureKind.REPO_FACT.value: (SemanticClassLabel.REPO_FACT.value, "repo.fact", "high", "medium"),
+    CaptureKind.MILESTONE.value: (SemanticClassLabel.BUILD_PLAN_SIGNAL.value, "build.plan", "medium", "high"),
+    CaptureKind.NON_GOAL.value: (SemanticClassLabel.SCOPE_STATEMENT.value, "project.non_goal", "high", "medium"),
+}
+
+
+def semantic_events_from_capture_batch(batch: dict[str, Any]) -> list[SemanticEventEnvelope]:
+    recorded_at = str(batch.get("captured_at") or "").strip()
+    subject = str(batch.get("subject") or "").strip()
+    artifact_path = str(batch.get("artifact_path") or "").strip() or None
+    batch_id = str(batch.get("capture_batch_id") or "").strip()
+    results: list[SemanticEventEnvelope] = []
+    for capture in batch.get("captures") or []:
+        if not isinstance(capture, dict):
+            continue
+        kind = str(capture.get("kind") or "").strip()
+        mapping = _CAPTURE_KIND_TO_SEMANTIC.get(kind)
+        if mapping is None:
+            continue
+        class_label, topic_key, confidence_band, materiality_band = mapping
+        summary = str(capture.get("summary") or "").strip()
+        if not summary:
+            continue
+        capture_id = str(capture.get("capture_id") or "").strip()
+        source_refs = [
+            {
+                "kind": "capture_batch",
+                "id": batch_id,
+                "path": artifact_path,
+                "capture_id": capture_id or None,
+            }
+        ]
+        results.append(
+            SemanticEventEnvelope(
+                semantic_event_id=stable_kernel_id(
+                    "SEM",
+                    batch_id,
+                    capture_id or summary,
+                    class_label,
+                    topic_key,
+                    SEMANTIC_CLASSIFIER_VERSION,
+                ),
+                schema_version=KERNEL_SCHEMA_VERSION,
+                classifier_version=SEMANTIC_CLASSIFIER_VERSION,
+                recorded_at=recorded_at,
+                subject=subject,
+                class_label=class_label,
+                topic_key=topic_key,
+                confidence_band=SemanticConfidenceBand(confidence_band).value,
+                materiality_band=SemanticMaterialityBand(materiality_band).value,
+                summary=summary,
+                transient_noise=False,
+                imported_limited=False,
+                source_segment_ids=[],
+                source_refs=source_refs,
+                related_paths=list(capture.get("related_paths") or []),
+            )
+        )
+    deduped: dict[str, SemanticEventEnvelope] = {}
+    for event in results:
+        deduped[event.semantic_event_id] = event
+    return list(deduped.values())
+
+
+def plan_events_from_capture_batch(batch: dict[str, Any]) -> list[dict[str, Any]]:
+    semantic_events = semantic_events_from_capture_batch(batch)
+    return [item.to_dict() for item in plan_events_from_semantic_events(semantic_events, subject=str(batch.get("subject") or "").strip(), recorded_at=str(batch.get("captured_at") or "").strip())]
 
 
 def batch_uncertainty_present(batch: dict[str, Any]) -> bool:

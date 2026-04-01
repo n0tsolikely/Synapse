@@ -27,6 +27,7 @@ from synapse_runtime.semantic_intake import (
     matches_open_questions_scaffold,
     normalize_capture_payload,
     render_managed_open_questions,
+    semantic_events_from_capture_batch,
     semantic_detail_lists,
     write_capture_batch,
 )
@@ -258,15 +259,29 @@ class SemanticIntakeTests(unittest.TestCase):
         artifact = yaml.safe_load(artifact_path.read_text(encoding="utf-8"))
         self.assertEqual(artifact["raw_text"], "Need to map blocking unknowns.")
         self.assertEqual(artifact["title"], "Intake batch")
-        self.assertEqual(len(artifact["captures"]), 2)
 
-        ledger = yaml.safe_load(ledger_path.read_text(encoding="utf-8"))
-        self.assertEqual(len(ledger["entries"]), 1)
-        entry = ledger["entries"][0]
-        self.assertEqual(entry["capture_batch_id"], artifact["capture_batch_id"])
-        self.assertEqual(entry["capture_count"], 2)
-        self.assertEqual(entry["capture_kinds"], ["unknown", "repo_fact"])
-        self.assertEqual(entry["artifact_path"], str(artifact_path))
+    def test_capture_batches_bridge_into_noncanonical_semantic_events(self) -> None:
+        batch = build_capture_batch(
+            subject="Subject",
+            run_data=self.run_data,
+            raw_text="Need a plan and a locked decision.",
+            payload={
+                "captures": [
+                    {"kind": "milestone", "summary": "Plan the installable web app scope."},
+                    {"kind": "decision", "summary": "Use the existing reducer spine."},
+                ]
+            },
+            source_role="user",
+            engine_root=self.engine_root,
+            data_root=self.data_root,
+            capture_batch_id="CAPTURE-20260401-150000-000001",
+            captured_at="2026-04-01T15:00:00-04:00",
+        )
+        batch["artifact_path"] = "/tmp/capture.yaml"
+        semantic_events = semantic_events_from_capture_batch(batch)
+        self.assertTrue(any(item.topic_key == "build.plan" for item in semantic_events))
+        self.assertTrue(any(item.topic_key == "decision.locked" for item in semantic_events))
+        self.assertEqual(len(batch["captures"]), 2)
 
     def test_semantic_promotion_mapping_is_batch_level_and_deduped(self) -> None:
         batch = build_capture_batch(

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+import json
 
 from synapse_runtime.kernel_types import KERNEL_SCHEMA_VERSION, RawBlobRef, RawExecutionEnvelope, kernel_now_iso, raw_id
 from synapse_runtime.live_memory_common import _normalize_relpaths
@@ -45,7 +46,12 @@ def record_raw_execution(
 ) -> dict[str, Any]:
     family_value = _normalize_family(family)
     recorded_at = kernel_now_iso()
-    raw_event_id = raw_id("EXEC" if family_value == RawStoreFamily.EXECUTION_EVENTS else "TOOL")
+    if family_value == RawStoreFamily.EXECUTION_EVENTS:
+        raw_event_id = raw_id("EXEC")
+    elif family_value == RawStoreFamily.IMPORT_EVENTS:
+        raw_event_id = raw_id("IMPORT")
+    else:
+        raw_event_id = raw_id("TOOL")
     payload_blob: RawBlobRef | None = None
     if payload not in (None, "", [], {}):
         mime_type = "application/json" if not isinstance(payload, str) else "text/plain"
@@ -81,3 +87,33 @@ def record_raw_execution(
         "raw_event_path": record["path"],
         "raw_event_sha256": record["sha256"],
     }
+
+
+def load_raw_execution_event(path: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise ExecutionObserverError(f"Unable to load raw execution record: {path}") from exc
+    if not isinstance(payload, dict) or not str(payload.get("raw_event_id") or "").strip():
+        raise ExecutionObserverError(f"Malformed raw execution record: {path}")
+    payload["raw_event_path"] = str(path.resolve())
+    return payload
+
+
+def load_raw_execution_payload(raw_event: dict[str, Any]) -> Any | None:
+    blob = raw_event.get("payload_blob")
+    if not isinstance(blob, dict):
+        return None
+    blob_path = Path(str(blob.get("path") or "")).expanduser()
+    if not blob_path.exists():
+        raise ExecutionObserverError(f"Raw execution payload blob does not exist: {blob_path}")
+    mime_type = str(blob.get("mime_type") or "").strip().lower()
+    if mime_type == "application/json":
+        try:
+            return json.loads(blob_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            raise ExecutionObserverError(f"Unable to decode raw execution payload blob: {blob_path}") from exc
+    try:
+        return blob_path.read_text(encoding="utf-8")
+    except Exception as exc:
+        raise ExecutionObserverError(f"Unable to read raw execution payload blob: {blob_path}") from exc
