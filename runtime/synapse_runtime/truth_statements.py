@@ -47,6 +47,8 @@ PROVENANCE_SOURCE_TYPES = {
     "active_run",
     "quest_state",
     "repo_state",
+    "plan_revision",
+    "governed_working_record",
 }
 
 

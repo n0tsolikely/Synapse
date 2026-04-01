@@ -87,6 +87,12 @@ def _default_state(subject: str) -> dict[str, Any]:
         "last_semantic_event_at": None,
         "semantic_event_count": 0,
         "plan_event_count": 0,
+        "last_plan_revision_id": None,
+        "last_plan_revision_path": None,
+        "last_governed_record_id": None,
+        "working_record_count": 0,
+        "open_continuity_obligation_count": 0,
+        "blocker_continuity_obligation_count": 0,
         "onboarding_state": None,
         "active_onboarding_id": None,
         "latest_confirmed_onboarding_id": None,
@@ -194,6 +200,17 @@ def _default_manifold(subject: str) -> dict[str, Any]:
         "plan_event_count": 0,
         "last_semantic_event_id": None,
         "last_semantic_event_at": None,
+        "recent_working_record_details": [],
+        "working_record_family_counts": {},
+        "active_scope_campaign_ids": [],
+        "last_governed_record_id": None,
+        "recent_plan_revision_details": [],
+        "last_plan_revision_id": None,
+        "last_plan_revision_path": None,
+        "recent_lineage_edge_ids": [],
+        "open_continuity_obligation_count": 0,
+        "blocker_continuity_obligation_count": 0,
+        "recent_open_continuity_obligation_details": [],
         "active_onboarding_id": None,
         "latest_confirmed_onboarding_id": None,
         "onboarding_state": None,
@@ -334,6 +351,18 @@ def ensure_live_scaffold(subject: str, data_root: Path) -> dict[str, Any]:
     runs_dir = live / "RUNS"
     threads_dir = live / "THREADS"
     proposals_dir = live / "PROPOSALS"
+    intent_fragments_dir = live / "INTENT_FRAGMENTS"
+    scope_campaigns_dir = live / "SCOPE_CAMPAIGNS"
+    quest_links_dir = live / "QUEST_LINKS"
+    decision_graph_dir = live / "DECISION_GRAPH"
+    architecture_evolution_dir = live / "ARCHITECTURE_EVOLUTION"
+    failure_chains_dir = live / "FAILURE_CHAINS"
+    narrative_claims_dir = live / "NARRATIVE_CLAIMS"
+    project_identity_claims_dir = live / "PROJECT_IDENTITY_CLAIMS"
+    imported_evidence_dir = live / "IMPORTED_EVIDENCE"
+    continuity_obligations_dir = live / "CONTINUITY_OBLIGATIONS"
+    lineage_dir = live / "LINEAGE"
+    lineage_edges_dir = lineage_dir / "EDGES"
     proposal_kinds = {
         "quests": proposals_dir / "quests",
         "side_quests": proposals_dir / "side_quests",
@@ -367,6 +396,18 @@ def ensure_live_scaffold(subject: str, data_root: Path) -> dict[str, Any]:
     runs_dir.mkdir(parents=True, exist_ok=True)
     threads_dir.mkdir(parents=True, exist_ok=True)
     proposals_dir.mkdir(parents=True, exist_ok=True)
+    intent_fragments_dir.mkdir(parents=True, exist_ok=True)
+    scope_campaigns_dir.mkdir(parents=True, exist_ok=True)
+    quest_links_dir.mkdir(parents=True, exist_ok=True)
+    decision_graph_dir.mkdir(parents=True, exist_ok=True)
+    architecture_evolution_dir.mkdir(parents=True, exist_ok=True)
+    failure_chains_dir.mkdir(parents=True, exist_ok=True)
+    narrative_claims_dir.mkdir(parents=True, exist_ok=True)
+    project_identity_claims_dir.mkdir(parents=True, exist_ok=True)
+    imported_evidence_dir.mkdir(parents=True, exist_ok=True)
+    continuity_obligations_dir.mkdir(parents=True, exist_ok=True)
+    lineage_dir.mkdir(parents=True, exist_ok=True)
+    lineage_edges_dir.mkdir(parents=True, exist_ok=True)
     for directory in proposal_kinds.values():
         directory.mkdir(parents=True, exist_ok=True)
 

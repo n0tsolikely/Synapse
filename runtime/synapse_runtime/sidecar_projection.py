@@ -28,6 +28,7 @@ from synapse_runtime.imported_continuity import imported_segments_from_envelope
 from synapse_runtime.ledger_store import _classify_verification_status
 from synapse_runtime.live_memory_common import LiveMemoryError
 from synapse_runtime.provenance import compute_current_provenance_summary, projectable_provenance_summary
+from synapse_runtime.promotion_engine import promote_semantic_events, promotion_summary
 from synapse_runtime.repo_onboarding import onboarding_projection
 from synapse_runtime.quest_candidates import (
     QUEST_PROPOSAL_KINDS,
@@ -479,6 +480,8 @@ def _apply_normalized_semantic_projection(
     raw_event_path: Path | None = None,
     semantic_capture_batch: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    emitted_semantic_events: list[dict[str, Any]] = []
+    emitted_plan_events: list[dict[str, Any]] = []
     if raw_turn_path is not None and raw_turn_path.exists():
         raw_turn = load_raw_turn(raw_turn_path)
         raw_text = load_raw_turn_text(raw_turn)
@@ -495,6 +498,8 @@ def _apply_normalized_semantic_projection(
         persist_conversation_segments(data_root, conversation_segments)
         persist_semantic_events(data_root, semantic_events)
         persist_plan_events(data_root, plan_events)
+        emitted_semantic_events.extend(event.to_dict() for event in semantic_events)
+        emitted_plan_events.extend(event.to_dict() for event in plan_events)
 
     if raw_event_path is not None and raw_event_path.exists():
         raw_event = load_raw_execution_event(raw_event_path)
@@ -539,14 +544,14 @@ def _apply_normalized_semantic_projection(
                         )
                     )
                 persist_semantic_events(data_root, imported_events)
-                persist_plan_events(
-                    data_root,
-                    plan_events_from_semantic_events(
-                        imported_events,
-                        subject=str(raw_event.get("subject") or "").strip(),
-                        recorded_at=str(raw_event.get("recorded_at") or "").strip(),
-                    ),
+                imported_plan_events = plan_events_from_semantic_events(
+                    imported_events,
+                    subject=str(raw_event.get("subject") or "").strip(),
+                    recorded_at=str(raw_event.get("recorded_at") or "").strip(),
                 )
+                persist_plan_events(data_root, imported_plan_events)
+                emitted_semantic_events.extend(event.to_dict() for event in imported_events)
+                emitted_plan_events.extend(event.to_dict() for event in imported_plan_events)
         else:
             execution_segment = execution_segment_from_raw_event(
                 raw_event,
@@ -555,19 +560,22 @@ def _apply_normalized_semantic_projection(
             persist_execution_segments(data_root, [execution_segment])
             execution_events = classify_execution_segment(execution_segment)
             persist_semantic_events(data_root, execution_events)
-            persist_plan_events(
-                data_root,
-                plan_events_from_semantic_events(
-                    execution_events,
-                    subject=str(raw_event.get("subject") or "").strip(),
-                    recorded_at=str(raw_event.get("recorded_at") or "").strip(),
-                ),
+            execution_plan_events = plan_events_from_semantic_events(
+                execution_events,
+                subject=str(raw_event.get("subject") or "").strip(),
+                recorded_at=str(raw_event.get("recorded_at") or "").strip(),
             )
+            persist_plan_events(data_root, execution_plan_events)
+            emitted_semantic_events.extend(event.to_dict() for event in execution_events)
+            emitted_plan_events.extend(event.to_dict() for event in execution_plan_events)
 
     if semantic_capture_batch is not None:
         capture_semantic_events = semantic_events_from_capture_batch(semantic_capture_batch)
         persist_semantic_events(data_root, capture_semantic_events)
-        persist_plan_events(data_root, plan_events_from_capture_batch(semantic_capture_batch))
+        capture_plan_events = plan_events_from_capture_batch(semantic_capture_batch)
+        persist_plan_events(data_root, capture_plan_events)
+        emitted_semantic_events.extend(event.to_dict() for event in capture_semantic_events)
+        emitted_plan_events.extend(capture_plan_events)
 
     summary = normalized_semantic_summary(data_root)
     state["last_conversation_segment_id"] = summary.get("last_conversation_segment_id")
@@ -586,7 +594,11 @@ def _apply_normalized_semantic_projection(
     manifold["plan_event_count"] = summary.get("plan_event_count") or 0
     manifold["last_semantic_event_id"] = summary.get("last_semantic_event_id")
     manifold["last_semantic_event_at"] = summary.get("last_semantic_event_at")
-    return summary
+    return {
+        **summary,
+        "emitted_semantic_events": emitted_semantic_events,
+        "emitted_plan_events": emitted_plan_events,
+    }
 
 
 def _reset_semantic_projection_fields(*, state: dict[str, Any], manifold: dict[str, Any]) -> None:
@@ -608,6 +620,52 @@ def _reset_semantic_projection_fields(*, state: dict[str, Any], manifold: dict[s
     manifold["recent_non_goal_details"] = []
     manifold["recent_milestone_details"] = []
     manifold["candidate_decision_details"] = []
+
+
+def _apply_governed_promotion_projection(
+    *,
+    subject: str,
+    data_root: Path,
+    state: dict[str, Any],
+    manifold: dict[str, Any],
+    semantic_events: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    promotion_receipt = (
+        promote_semantic_events(subject=subject, data_root=data_root, semantic_events=semantic_events or [])
+        if semantic_events
+        else {
+            "plan_revisions": [],
+            "promoted_records": [],
+            "lineage_edges": [],
+            "opened_obligations": [],
+            "resolved_obligations": [],
+        }
+    )
+    summary = promotion_summary(data_root)
+
+    state["last_plan_revision_id"] = summary.get("last_plan_revision_id")
+    state["last_plan_revision_path"] = summary.get("last_plan_revision_path")
+    state["last_governed_record_id"] = summary.get("last_governed_record_id")
+    state["working_record_count"] = summary.get("working_record_count") or 0
+    state["open_continuity_obligation_count"] = summary.get("open_count") or 0
+    state["blocker_continuity_obligation_count"] = summary.get("blocker_count") or 0
+
+    manifold["recent_working_record_details"] = list(summary.get("recent_working_record_details") or [])
+    manifold["working_record_family_counts"] = dict(summary.get("working_record_family_counts") or {})
+    manifold["active_scope_campaign_ids"] = list(summary.get("active_scope_campaign_ids") or [])
+    manifold["last_governed_record_id"] = summary.get("last_governed_record_id")
+    manifold["recent_plan_revision_details"] = list(summary.get("recent_plan_revision_details") or [])
+    manifold["last_plan_revision_id"] = summary.get("last_plan_revision_id")
+    manifold["last_plan_revision_path"] = summary.get("last_plan_revision_path")
+    manifold["recent_lineage_edge_ids"] = list(summary.get("recent_lineage_edge_ids") or [])
+    manifold["open_continuity_obligation_count"] = summary.get("open_count") or 0
+    manifold["blocker_continuity_obligation_count"] = summary.get("blocker_count") or 0
+    manifold["recent_open_continuity_obligation_details"] = list(summary.get("recent_open_obligation_details") or [])
+
+    return {
+        **summary,
+        **promotion_receipt,
+    }
 
 
 def _rebuild_semantic_capture_projection(
@@ -772,6 +830,13 @@ def _sync_sidecar(
         raw_turn_path=raw_turn_path,
         raw_event_path=raw_event_path,
         semantic_capture_batch=semantic_capture_batch,
+    )
+    governed_promotion = _apply_governed_promotion_projection(
+        subject=subject,
+        data_root=data_root,
+        state=state,
+        manifold=manifold,
+        semantic_events=list(normalized_semantic.get("emitted_semantic_events") or []),
     )
 
     accepted_details = load_accepted_quest_details(subject, data_root)
@@ -940,6 +1005,7 @@ def _sync_sidecar(
         "capture_count": semantic_projection.get("capture_count") if semantic_projection else None,
         "capture_kinds": semantic_projection.get("capture_kinds") if semantic_projection else None,
         "normalized_semantic": normalized_semantic,
+        "governed_promotion": governed_promotion,
         "interaction_mode": interaction_mode,
         "world_state": world_state.value,
         "active_onboarding_id": onboarding_state.get("active_onboarding_id"),

@@ -390,6 +390,19 @@ def build_current_context_bundle(
         "recent_semantic_event_details": list(manifold_payload.get("recent_semantic_event_details") or []),
         "recent_plan_event_ids": list(manifold_payload.get("recent_plan_event_ids") or []),
     }
+    governed_summary = {
+        "working_record_count": state_payload.get("working_record_count") or 0,
+        "last_governed_record_id": state_payload.get("last_governed_record_id"),
+        "working_record_family_counts": dict(manifold_payload.get("working_record_family_counts") or {}),
+        "active_scope_campaign_ids": list(manifold_payload.get("active_scope_campaign_ids") or []),
+        "recent_working_record_details": list(manifold_payload.get("recent_working_record_details") or []),
+        "recent_plan_revision_details": list(manifold_payload.get("recent_plan_revision_details") or []),
+        "last_plan_revision_id": state_payload.get("last_plan_revision_id"),
+        "last_plan_revision_path": state_payload.get("last_plan_revision_path"),
+        "open_continuity_obligation_count": state_payload.get("open_continuity_obligation_count") or 0,
+        "blocker_continuity_obligation_count": state_payload.get("blocker_continuity_obligation_count") or 0,
+        "recent_open_continuity_obligation_details": list(manifold_payload.get("recent_open_continuity_obligation_details") or []),
+    }
     session_posture = {
         "active_session_mode": manifold_payload.get("active_session_mode") or state_payload.get("active_session_mode"),
         "active_session_mode_policy": manifold_payload.get("active_session_mode_policy"),
@@ -428,6 +441,7 @@ def build_current_context_bundle(
         "provenance": provenance_summary,
         "accepted_and_completed_quests": accepted_summary,
         "semantic_intake": semantic_summary,
+        "governed_history": governed_summary,
         "onboarding": onboarding_payload,
         "published_project_model_summary": {
             "path": str(project_model_path) if project_model_path.exists() else None,

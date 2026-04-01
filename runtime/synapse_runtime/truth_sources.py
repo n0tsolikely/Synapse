@@ -12,6 +12,8 @@ import yaml
 
 from synapse_runtime.accepted_execution_view import load_accepted_quest_details, load_completed_quest_details
 from synapse_runtime.live_memory_common import _slugify
+from synapse_runtime.promotion_engine import load_working_records
+from synapse_runtime.quest_plans import list_plan_artifacts, load_execution_plan
 from synapse_runtime.repo_onboarding import (
     canonical_codex_current_path,
     canonical_codex_future_path,
@@ -510,6 +512,89 @@ def quest_and_audit_evidence(*, subject: str, data_root: Path) -> tuple[list[Evi
     return records, warnings, {"accepted": accepted, "completed": completed}
 
 
+def plan_revision_evidence(*, data_root: Path) -> tuple[list[EvidenceRecord], list[EvidenceWarning]]:
+    records: list[EvidenceRecord] = []
+    warnings: list[EvidenceWarning] = []
+    for path in list_plan_artifacts(data_root):
+        payload = load_execution_plan(path)
+        summary = str(payload.get("summary") or payload.get("title") or "").strip()
+        if not summary:
+            continue
+        records.append(
+            _make_evidence(
+                source_type="plan_revision",
+                source_id=str(payload.get("revision_id") or payload.get("plan_id") or summary),
+                statement_kind_hint=StatementKind.WORKFLOW,
+                summary=summary,
+                detail=str(payload.get("objective") or payload.get("coherent_outcome") or "").strip(),
+                confidence_hint="medium",
+                operator_confirmed=False,
+                effective_time=_parse_time(payload.get("updated_at") or payload.get("created_at"), fallback=_file_time(path)),
+                topic_key_hint=str(payload.get("plan_id") or summary),
+                truth_layer_hint=TruthLayer.INTENDED,
+                path_ref=str(path.resolve()),
+                metadata={
+                    "revision_id": payload.get("revision_id"),
+                    "lineage_family_id": payload.get("lineage_family_id"),
+                    "scope_campaign_refs": list(payload.get("scope_campaign_refs") or []),
+                    "semantic_topics": list(payload.get("semantic_topics") or []),
+                },
+            )
+        )
+    return records, warnings
+
+
+def governed_working_record_evidence(*, data_root: Path) -> tuple[list[EvidenceRecord], list[EvidenceWarning]]:
+    records: list[EvidenceRecord] = []
+    warnings: list[EvidenceWarning] = []
+    for item in load_working_records(data_root):
+        family = str(item.get("family") or "").strip()
+        summary = str(item.get("summary") or item.get("title") or "").strip()
+        if not family or not summary:
+            continue
+        statement_kind = {
+            "DECISION_GRAPH": StatementKind.DECISION_SUMMARY,
+            "ARCHITECTURE_EVOLUTION": StatementKind.ARCHITECTURE,
+            "FAILURE_CHAINS": StatementKind.PROBLEM,
+            "PROJECT_IDENTITY_CLAIMS": StatementKind.IDENTITY_CLAIM,
+            "NARRATIVE_CLAIMS": StatementKind.PROJECT_PURPOSE,
+            "SCOPE_CAMPAIGNS": StatementKind.WORKFLOW,
+            "IMPORTED_EVIDENCE": StatementKind.HISTORY_TURN,
+        }.get(family, StatementKind.CAPABILITY)
+        truth_layer = {
+            "DECISION_GRAPH": TruthLayer.INTENDED,
+            "ARCHITECTURE_EVOLUTION": TruthLayer.PARTIAL,
+            "FAILURE_CHAINS": TruthLayer.PARTIAL,
+            "PROJECT_IDENTITY_CLAIMS": TruthLayer.PARTIAL,
+            "NARRATIVE_CLAIMS": TruthLayer.INTENDED,
+            "SCOPE_CAMPAIGNS": TruthLayer.INTENDED,
+            "IMPORTED_EVIDENCE": TruthLayer.SPECULATIVE,
+        }.get(family, TruthLayer.PARTIAL)
+        records.append(
+            _make_evidence(
+                source_type="governed_working_record",
+                source_id=str(item.get("record_id") or summary),
+                statement_kind_hint=statement_kind,
+                summary=summary,
+                detail=str(item.get("detail") or "").strip(),
+                confidence_hint=str(item.get("confidence_band") or "medium"),
+                operator_confirmed=False,
+                effective_time=_parse_time(item.get("recorded_at"), fallback=_file_time(Path(str(item.get("path"))))),
+                topic_key_hint=str(item.get("family_id") or summary),
+                truth_layer_hint=truth_layer,
+                path_ref=str(item.get("path") or ""),
+                needs_expansion_hint=family == "IMPORTED_EVIDENCE",
+                metadata={
+                    "family": family,
+                    "family_id": item.get("family_id"),
+                    "source_semantic_event_ids": list(item.get("source_semantic_event_ids") or []),
+                    "source_segment_ids": list(item.get("source_segment_ids") or []),
+                },
+            )
+        )
+    return records, warnings
+
+
 def workspace_receipt_evidence(*, data_root: Path) -> tuple[list[EvidenceRecord], list[EvidenceWarning]]:
     records: list[EvidenceRecord] = []
     warnings: list[EvidenceWarning] = []
@@ -590,6 +675,14 @@ def collect_evidence(*, subject: str, data_root: Path, engine_root: Path) -> dic
     quest_records, quest_warnings, quest_payload = quest_and_audit_evidence(subject=subject, data_root=data_root)
     evidence_records.extend(quest_records)
     warnings.extend(quest_warnings)
+
+    plan_records, plan_warnings = plan_revision_evidence(data_root=data_root)
+    evidence_records.extend(plan_records)
+    warnings.extend(plan_warnings)
+
+    governed_records, governed_warnings = governed_working_record_evidence(data_root=data_root)
+    evidence_records.extend(governed_records)
+    warnings.extend(governed_warnings)
 
     receipt_records, receipt_warnings = workspace_receipt_evidence(data_root=data_root)
     evidence_records.extend(receipt_records)
