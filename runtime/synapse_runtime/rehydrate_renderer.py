@@ -13,11 +13,30 @@ from synapse_runtime.sidecar_projection import (
     _append_recent_change,
     refresh_onboarding_projection,
     refresh_provenance_projection,
+    refresh_synthesis_projection,
     refresh_semantic_capture_projection,
     refresh_quest_lifecycle_projection,
     refresh_session_posture_projection,
 )
 from synapse_runtime.sidecar_store import _load_active_run, _load_manifold, _load_state, _now_iso, _write_yaml, live_root
+
+
+def _render_delta_block(lines: list[str], title: str, payload: dict[str, Any]) -> None:
+    if not isinstance(payload, dict) or not str(payload.get("summary") or "").strip():
+        return
+    lines.append(f"- {title}: {payload.get('summary')}")
+    refreshed_at = str(payload.get("refreshed_at") or "").strip()
+    if refreshed_at:
+        lines.append(f"  refreshed_at={refreshed_at}")
+    source_refs = list(payload.get("source_refs") or [])
+    if source_refs:
+        lines.append(f"  source_refs={len(source_refs)}")
+        for ref in source_refs[:3]:
+            path = str(ref.get("path") or "").strip()
+            if path:
+                lines.append(f"  source={path}")
+    for item in list(payload.get("detail_lines") or [])[:4]:
+        lines.append(f"  - {item}")
 
 
 def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
@@ -37,6 +56,7 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
     refresh_onboarding_projection(subject=subject, data_root=data_root)
     refresh_session_posture_projection(subject=subject, data_root=data_root)
     refresh_quest_lifecycle_projection(subject=subject, data_root=data_root)
+    refresh_synthesis_projection(subject=subject, data_root=data_root)
     refresh_provenance_projection(subject=subject, data_root=data_root)
 
     state = _load_state(state_path, subject)
@@ -399,6 +419,38 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
         lines.append("## Open project questions")
         for item in manifold.get("project_open_question_details") or []:
             lines.append(f"- [{item.get('priority')}] {item.get('prompt')}")
+        lines.append("")
+
+    derived_deltas = [
+        ("Active plan delta", dict(manifold.get("current_active_plan_delta") or {})),
+        ("Active scope delta", dict(manifold.get("current_active_scope_delta") or {})),
+        ("Obligation delta", dict(manifold.get("current_obligation_delta") or {})),
+        ("Architecture delta", dict(manifold.get("current_architecture_delta") or {})),
+        ("Identity delta", dict(manifold.get("current_identity_delta") or {})),
+        ("Narrative delta", dict(manifold.get("current_narrative_delta") or {})),
+    ]
+    if any(str(payload.get("summary") or "").strip() for _, payload in derived_deltas):
+        lines.append("## Derived synthesis")
+        refreshed_at = str(manifold.get("last_synthesis_refresh_at") or "").strip()
+        lines.append(f"- Last synthesis refresh: {refreshed_at or 'none'}")
+        for title, payload in derived_deltas:
+            _render_delta_block(lines, title, payload)
+        lines.append("")
+
+    codex_packets = list(manifold.get("recent_codex_packet_details") or [])
+    if codex_packets:
+        lines.append("## Codex section packets")
+        lines.append(
+            f"- Packet count: {manifold.get('codex_packet_count') or len(codex_packets)}"
+        )
+        last_refreshed = str(manifold.get("last_codex_packet_refreshed_at") or "").strip()
+        lines.append(f"- Last packet refresh: {last_refreshed or 'none'}")
+        for item in codex_packets[:6]:
+            lines.append(
+                f"- {item.get('section_title') or item.get('section_key')}: {item.get('summary')}"
+            )
+            if item.get("path"):
+                lines.append(f"  packet={item.get('path')}")
         lines.append("")
 
     semantic_sections = [

@@ -403,6 +403,21 @@ def build_current_context_bundle(
         "blocker_continuity_obligation_count": state_payload.get("blocker_continuity_obligation_count") or 0,
         "recent_open_continuity_obligation_details": list(manifold_payload.get("recent_open_continuity_obligation_details") or []),
     }
+    synthesis_summary = {
+        "last_synthesis_refresh_at": state_payload.get("last_synthesis_refresh_at"),
+        "active_plan_delta": dict(manifold_payload.get("current_active_plan_delta") or {}),
+        "active_scope_delta": dict(manifold_payload.get("current_active_scope_delta") or {}),
+        "obligation_delta": dict(manifold_payload.get("current_obligation_delta") or {}),
+        "architecture_delta": dict(manifold_payload.get("current_architecture_delta") or {}),
+        "identity_delta": dict(manifold_payload.get("current_identity_delta") or {}),
+        "narrative_delta": dict(manifold_payload.get("current_narrative_delta") or {}),
+    }
+    codex_packet_summary = {
+        "codex_packet_count": state_payload.get("codex_packet_count") or 0,
+        "last_codex_packet_refreshed_at": state_payload.get("last_codex_packet_refreshed_at"),
+        "packet_section_keys": list(manifold_payload.get("packet_section_keys") or []),
+        "recent_codex_packet_details": list(manifold_payload.get("recent_codex_packet_details") or []),
+    }
     session_posture = {
         "active_session_mode": manifold_payload.get("active_session_mode") or state_payload.get("active_session_mode"),
         "active_session_mode_policy": manifold_payload.get("active_session_mode_policy"),
@@ -442,6 +457,8 @@ def build_current_context_bundle(
         "accepted_and_completed_quests": accepted_summary,
         "semantic_intake": semantic_summary,
         "governed_history": governed_summary,
+        "derived_synthesis": synthesis_summary,
+        "codex_packets": codex_packet_summary,
         "onboarding": onboarding_payload,
         "published_project_model_summary": {
             "path": str(project_model_path) if project_model_path.exists() else None,
@@ -515,6 +532,8 @@ def resource_catalog(*, state: ConnectionState) -> list[dict[str, Any]]:
         {"uri": "synapse://current/semantic-summary.json", "mime_type": "application/json"},
         {"uri": "synapse://current/semantic-events.json", "mime_type": "application/json"},
         {"uri": "synapse://current/plan-events.json", "mime_type": "application/json"},
+        {"uri": "synapse://current/synthesis-summary.json", "mime_type": "application/json"},
+        {"uri": "synapse://current/codex-packets.json", "mime_type": "application/json"},
         {"uri": "synapse://current/rehydrate.md", "mime_type": "text/markdown"},
         {"uri": "synapse://current/open-questions.md", "mime_type": "text/markdown"},
         {"uri": "synapse://current/onboarding/status.json", "mime_type": "application/json"},
@@ -589,6 +608,12 @@ def read_resource(*, state: ConnectionState, uri: str) -> tuple[dict[str, Any], 
     if uri == "synapse://current/plan-events.json":
         payload = normalized_semantic_summary(data_root)
         return ctx, json.dumps(list(payload.get("recent_plan_event_ids") or []), indent=2, sort_keys=True) + "\n", "application/json"
+    if uri == "synapse://current/synthesis-summary.json":
+        _, bundle = build_current_context_bundle(state=state, context=None, include_rehydrate=False, include_project_story=False)
+        return ctx, json.dumps(bundle["context"]["derived_synthesis"], indent=2, sort_keys=True) + "\n", "application/json"
+    if uri == "synapse://current/codex-packets.json":
+        _, bundle = build_current_context_bundle(state=state, context=None, include_rehydrate=False, include_project_story=False)
+        return ctx, json.dumps(bundle["context"]["codex_packets"], indent=2, sort_keys=True) + "\n", "application/json"
     if uri == "synapse://current/rehydrate.md":
         return ctx, _text_or_empty(rehydrate_path), "text/markdown"
     if uri == "synapse://current/open-questions.md":
