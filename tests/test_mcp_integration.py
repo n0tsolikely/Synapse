@@ -42,6 +42,7 @@ FIXED_TOOL_CATALOG = [
     "record_activity",
     "record_raw_turn",
     "record_raw_execution",
+    "import_continuity",
     "record_decision",
     "record_disclosure",
     "capture_chunk",
@@ -66,6 +67,9 @@ FIXED_RESOURCES = {
     "synapse://current/state.json",
     "synapse://current/manifold.json",
     "synapse://current/active-run.json",
+    "synapse://current/semantic-summary.json",
+    "synapse://current/semantic-events.json",
+    "synapse://current/plan-events.json",
     "synapse://current/rehydrate.md",
     "synapse://current/open-questions.md",
     "synapse://current/onboarding/status.json",
@@ -452,6 +456,29 @@ class McpIntegrationTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(turn["data"]["kernel_posture"]["posture"], "degraded")
             self.assertEqual(execution["data"]["family"], "TOOL_EVENTS")
             self.assertTrue((data_root / ".synapse" / "RAW" / "CONVERSATION_TURNS").is_dir())
+
+    async def test_import_continuity_tool_updates_semantic_resources(self) -> None:
+        workspace = self._make_workspace("mcp-imported-continuity")
+        note = workspace / "brainstorm.txt"
+        note.write_text(
+            "We need a plan for installable web apps.\n\nSupport separate user accounts.\n",
+            encoding="utf-8",
+        )
+        async with self._session(workspace) as session:
+            await self._call(session, "bootstrap_session", {"title": "Imported continuity"})
+            imported = await self._call(
+                session,
+                "import_continuity",
+                {"source_file": str(note), "kind": "transcript"},
+            )
+            self.assertEqual(imported["status"], "ok")
+            self.assertEqual(imported["data"]["family"], "IMPORT_EVENTS")
+
+            summary = json.loads(await self._read_text_resource(session, "synapse://current/semantic-summary.json"))
+            recent_events = json.loads(await self._read_text_resource(session, "synapse://current/semantic-events.json"))
+            self.assertGreaterEqual(summary["conversation_segment_count"], 1)
+            self.assertGreaterEqual(summary["semantic_event_count"], 1)
+            self.assertTrue(recent_events)
 
     async def test_explicit_context_override_does_not_mutate_defaults(self) -> None:
         workspace = self._make_workspace("mcp-default-a")

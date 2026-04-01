@@ -144,6 +144,16 @@ class RecordRawExecutionInput(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class ImportContinuityInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    context: ContextInput | None = None
+    source_file: str
+    kind: Literal["auto", "transcript", "note", "pdf"] = "auto"
+    source_surface: str = "mcp_import"
+    run_id: str | None = None
+
+
 class InstallLocalIntegrationInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

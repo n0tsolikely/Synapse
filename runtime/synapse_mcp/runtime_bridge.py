@@ -53,6 +53,7 @@ from synapse_runtime.repo_onboarding import (
 from synapse_runtime.rehydration_pack import refresh_rehydration_pack
 from synapse_runtime.rehydrate_renderer import render_rehydrate
 from synapse_runtime.run_lifecycle import load_active_run_record, run_finalize, run_start, run_update
+from synapse_runtime.semantic_classifier import normalized_semantic_summary
 from synapse_runtime.semantic_intake import (
     SemanticIntakeError,
     batch_disclosure_needed,
@@ -380,6 +381,14 @@ def build_current_context_bundle(
         "last_capture_at": state_payload.get("last_capture_at"),
         "open_question_count": state_payload.get("open_question_count") or 0,
         "blocking_question_count": state_payload.get("blocking_question_count") or 0,
+        "last_conversation_segment_id": state_payload.get("last_conversation_segment_id"),
+        "last_execution_segment_id": state_payload.get("last_execution_segment_id"),
+        "last_semantic_event_id": state_payload.get("last_semantic_event_id"),
+        "last_semantic_event_at": state_payload.get("last_semantic_event_at"),
+        "semantic_event_count": state_payload.get("semantic_event_count") or 0,
+        "plan_event_count": state_payload.get("plan_event_count") or 0,
+        "recent_semantic_event_details": list(manifold_payload.get("recent_semantic_event_details") or []),
+        "recent_plan_event_ids": list(manifold_payload.get("recent_plan_event_ids") or []),
     }
     session_posture = {
         "active_session_mode": manifold_payload.get("active_session_mode") or state_payload.get("active_session_mode"),
@@ -489,6 +498,9 @@ def resource_catalog(*, state: ConnectionState) -> list[dict[str, Any]]:
         {"uri": "synapse://current/state.json", "mime_type": "application/json"},
         {"uri": "synapse://current/manifold.json", "mime_type": "application/json"},
         {"uri": "synapse://current/active-run.json", "mime_type": "application/json"},
+        {"uri": "synapse://current/semantic-summary.json", "mime_type": "application/json"},
+        {"uri": "synapse://current/semantic-events.json", "mime_type": "application/json"},
+        {"uri": "synapse://current/plan-events.json", "mime_type": "application/json"},
         {"uri": "synapse://current/rehydrate.md", "mime_type": "text/markdown"},
         {"uri": "synapse://current/open-questions.md", "mime_type": "text/markdown"},
         {"uri": "synapse://current/onboarding/status.json", "mime_type": "application/json"},
@@ -555,6 +567,14 @@ def read_resource(*, state: ConnectionState, uri: str) -> tuple[dict[str, Any], 
         return ctx, json.dumps(_json_file_or_empty(manifold_path), indent=2, sort_keys=True) + "\n", "application/json"
     if uri == "synapse://current/active-run.json":
         return ctx, json.dumps(load_active_run_record(subject=ctx["subject"], data_root=data_root, ensure_scaffold=False), indent=2, sort_keys=True) + "\n", "application/json"
+    if uri == "synapse://current/semantic-summary.json":
+        return ctx, json.dumps(normalized_semantic_summary(data_root), indent=2, sort_keys=True) + "\n", "application/json"
+    if uri == "synapse://current/semantic-events.json":
+        payload = normalized_semantic_summary(data_root)
+        return ctx, json.dumps(list(payload.get("recent_semantic_event_details") or []), indent=2, sort_keys=True) + "\n", "application/json"
+    if uri == "synapse://current/plan-events.json":
+        payload = normalized_semantic_summary(data_root)
+        return ctx, json.dumps(list(payload.get("recent_plan_event_ids") or []), indent=2, sort_keys=True) + "\n", "application/json"
     if uri == "synapse://current/rehydrate.md":
         return ctx, _text_or_empty(rehydrate_path), "text/markdown"
     if uri == "synapse://current/open-questions.md":
@@ -1851,6 +1871,88 @@ def record_raw_execution_tool(
     )
     result = {
         **result_payload,
+        "kernel_posture": inspect_engaged_kernel_posture(repo_root=Path(ctx["engine_root"]), data_root=Path(ctx["data_root"])),
+        "event": event_info.get("event"),
+        "reducer": event_info.get("reducer"),
+    }
+    return ctx, result, event_info, STATUS_OK
+
+
+def import_continuity_tool(
+    *,
+    state: ConnectionState,
+    context: ContextInput | dict[str, Any] | None,
+    source_file: str,
+    kind: str,
+    source_surface: str,
+    run_id: str | None,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], str]:
+    ctx = _resolve_runtime_context(state=state, context=context, allow_attach_current_repo=False, requires_session=False)
+    parsed = cli_runtime.parse_imported_continuity_source(
+        source_path=Path(str(source_file)),
+        source_kind=kind,
+    )
+    parsed["recorded_at"] = cli_runtime.kernel_now_iso()
+    result_payload = cli_runtime.record_raw_execution(
+        subject=ctx["subject"],
+        data_root=Path(ctx["data_root"]),
+        family="import",
+        source_surface=source_surface,
+        phase="imported_continuity",
+        session_id=ctx.get("session_id"),
+        run_id=run_id,
+        command=f"import-continuity {parsed.get('source_kind')} {parsed.get('source_path')}",
+        tool_name="import-continuity",
+        status=str(parsed.get("parser_status") or "parsed"),
+        changed_files=[],
+        payload=parsed,
+        metadata={
+            "source_kind": parsed.get("source_kind"),
+            "parser_status": parsed.get("parser_status"),
+            "confidence_band": parsed.get("confidence_band"),
+            "source_path": parsed.get("source_path"),
+            "warnings": list(parsed.get("warnings") or []),
+        },
+    )
+    raw_ref = cli_runtime.raw_artifact_ref(
+        raw_id=result_payload["raw_event_id"],
+        family=result_payload["family"],
+        path=result_payload["raw_event_path"],
+        sha256=result_payload["raw_event_sha256"],
+    )
+    event_info = cli_runtime._event_pipeline(
+        ctx=ctx,
+        action_name="import-continuity",
+        summary=f"Imported {parsed.get('source_kind')} continuity evidence for {ctx['subject']}.",
+        session_id=ctx.get("session_id"),
+        signals=cli_runtime.raw_capture_signals(
+            accepted_context=cli_runtime._accepted_context_snapshot(Path(ctx["data_root"])),
+            session_mode_fields=cli_runtime._current_session_mode_fields(ctx),
+            raw_refs=[raw_ref],
+            source_surface=source_surface,
+            raw_family=result_payload["family"],
+        ),
+        truth_flags={
+            "canon_mutated": False,
+            "derived_state_changed": True,
+            "governed": False,
+            "uncertainty_present": str(parsed.get("confidence_band") or "").strip().lower() == "low",
+        },
+        outputs={
+            "raw_event_id": result_payload["raw_event_id"],
+            "raw_event_path": result_payload["raw_event_path"],
+            "raw_event_sha256": result_payload["raw_event_sha256"],
+            "payload_blob_path": result_payload.get("payload_blob", {}).get("path") if result_payload.get("payload_blob") else None,
+            "payload_blob_sha256": result_payload.get("payload_blob", {}).get("sha256") if result_payload.get("payload_blob") else None,
+            "import_source_path": parsed.get("source_path"),
+            "import_source_kind": parsed.get("source_kind"),
+            "import_parser_status": parsed.get("parser_status"),
+            "import_confidence_band": parsed.get("confidence_band"),
+        },
+    )
+    result = {
+        **result_payload,
+        "import_envelope": parsed,
         "kernel_posture": inspect_engaged_kernel_posture(repo_root=Path(ctx["engine_root"]), data_root=Path(ctx["data_root"])),
         "event": event_info.get("event"),
         "reducer": event_info.get("reducer"),

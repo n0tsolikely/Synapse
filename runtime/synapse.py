@@ -48,6 +48,8 @@ from synapse_runtime.governance_inventory import build_governance_inventory, wri
 from synapse_runtime.governance_model import AmbientSignal, ProposalKind, ProposalState
 from synapse_runtime.live_journal import log_decision, log_disclosure, record_quest_acceptance
 from synapse_runtime.live_memory_common import LiveMemoryError
+from synapse_runtime.imported_continuity import ImportedContinuityError, parse_imported_continuity_source
+from synapse_runtime.kernel_types import kernel_now_iso
 from synapse_runtime.persona import resolve_persona
 from synapse_runtime.git_hooks import GitHooksError, install_managed_hooks, inspect_git_hooks, write_hooks_receipt
 from synapse_runtime.provenance import (
@@ -742,6 +744,23 @@ def build_parser() -> argparse.ArgumentParser:
     raw_execution_parser.add_argument("--selected-by", default="Brains", help="Who made the selection (default: Brains)")
     raw_execution_parser.add_argument("--no-home-lock", action="store_true", help="Do not write ~/.synapse/ACTIVE_SUBJECT.json")
     raw_execution_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
+    import_continuity_parser = subparsers.add_parser(
+        "import-continuity",
+        help="Parse a transcript/note/PDF into a noncanonical imported-continuity envelope and record it as raw import evidence",
+    )
+    import_continuity_parser.add_argument("--source-file", required=True, help="Path to the transcript, note, or PDF source")
+    import_continuity_parser.add_argument("--kind", choices=["auto", "transcript", "note", "pdf"], default="auto", help="Imported continuity source kind")
+    import_continuity_parser.add_argument("--source-surface", default="cli_import", help="Source surface label (default: cli_import)")
+    import_continuity_parser.add_argument("--run-id", help="Optional run id")
+    import_continuity_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
+    import_continuity_parser.add_argument("--subject", help="Optional subject override")
+    import_continuity_parser.add_argument("--data-root", help="Override data root path")
+    import_continuity_parser.add_argument("--engine-root", help="Override engine root path")
+    import_continuity_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    import_continuity_parser.add_argument("--selected-by", default="Brains", help="Who made the selection (default: Brains)")
+    import_continuity_parser.add_argument("--no-home-lock", action="store_true", help="Do not write ~/.synapse/ACTIVE_SUBJECT.json")
+    import_continuity_parser.add_argument("--json", action="store_true", help="Print JSON output")
 
     local_integration_parser = subparsers.add_parser(
         "install-local-integration",
@@ -6582,6 +6601,105 @@ def cmd_record_raw_execution(args: argparse.Namespace) -> int:
     )
 
 
+def cmd_import_continuity(args: argparse.Namespace) -> int:
+    ctx = _resolve_or_attach_subject_from_args(args)
+    if not ctx:
+        return 2
+    try:
+        parsed = parse_imported_continuity_source(
+            source_path=Path(str(args.source_file)),
+            source_kind=args.kind,
+        )
+        parsed["recorded_at"] = kernel_now_iso()
+        payload = record_raw_execution(
+            subject=ctx["subject"],
+            data_root=Path(ctx["data_root"]),
+            family="import",
+            source_surface=args.source_surface,
+            phase="imported_continuity",
+            session_id=_resolved_session_id(args),
+            run_id=getattr(args, "run_id", None),
+            command=f"import-continuity {parsed.get('source_kind')} {parsed.get('source_path')}",
+            tool_name="import-continuity",
+            status=str(parsed.get("parser_status") or "parsed"),
+            changed_files=[],
+            payload=parsed,
+            metadata={
+                "source_kind": parsed.get("source_kind"),
+                "parser_status": parsed.get("parser_status"),
+                "confidence_band": parsed.get("confidence_band"),
+                "source_path": parsed.get("source_path"),
+                "warnings": list(parsed.get("warnings") or []),
+            },
+        )
+    except (ImportedContinuityError, ExecutionObserverError, LiveMemoryError) as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    raw_ref = raw_artifact_ref(
+        raw_id=payload["raw_event_id"],
+        family=payload["family"],
+        path=payload["raw_event_path"],
+        sha256=payload["raw_event_sha256"],
+    )
+    event_info = _event_pipeline(
+        ctx=ctx,
+        action_name="import-continuity",
+        summary=f"Imported {parsed.get('source_kind')} continuity evidence for {ctx['subject']}.",
+        session_id=_resolved_session_id(args),
+        signals=raw_capture_signals(
+            accepted_context=_accepted_context_snapshot(Path(ctx["data_root"])),
+            session_mode_fields=_current_session_mode_fields(ctx),
+            raw_refs=[raw_ref],
+            source_surface=args.source_surface,
+            raw_family=payload["family"],
+        ),
+        truth_flags={
+            "canon_mutated": False,
+            "derived_state_changed": True,
+            "governed": False,
+            "uncertainty_present": str(parsed.get("confidence_band") or "").strip().lower() == "low",
+        },
+        outputs={
+            "raw_event_id": payload["raw_event_id"],
+            "raw_event_path": payload["raw_event_path"],
+            "raw_event_sha256": payload["raw_event_sha256"],
+            "payload_blob_path": payload.get("payload_blob", {}).get("path") if payload.get("payload_blob") else None,
+            "payload_blob_sha256": payload.get("payload_blob", {}).get("sha256") if payload.get("payload_blob") else None,
+            "import_source_path": parsed.get("source_path"),
+            "import_source_kind": parsed.get("source_kind"),
+            "import_parser_status": parsed.get("parser_status"),
+            "import_confidence_band": parsed.get("confidence_band"),
+        },
+    )
+    rendered = {
+        "subject_context": ctx,
+        "kernel_posture": _kernel_posture_payload(ctx),
+        "import_envelope": parsed,
+        **payload,
+        "event": event_info.get("event"),
+        "reducer": event_info.get("reducer"),
+    }
+
+    def _emit_import(result_payload: dict[str, Any]) -> None:
+        envelope = result_payload.get("import_envelope") or {}
+        print("=== IMPORT CONTINUITY RECEIPT ===")
+        print(f"subject: {result_payload['subject_context']['subject']}")
+        print(f"source_kind: {envelope.get('source_kind')}")
+        print(f"source_path: {envelope.get('source_path')}")
+        print(f"parser_status: {envelope.get('parser_status')}")
+        print(f"confidence_band: {envelope.get('confidence_band')}")
+        print(f"raw_event_id: {result_payload.get('raw_event_id')}")
+        print(f"raw_event_path: {result_payload.get('raw_event_path')}")
+
+    return _finalize_mutation_result(
+        payload=rendered,
+        event_info=event_info,
+        json_mode=args.json,
+        text_emitter=_emit_import,
+    )
+
+
 def _install_local_integration_receipt(ctx: dict[str, Any]) -> dict[str, Any]:
     return install_local_codex_integration(
         subject=ctx["subject"],
@@ -7223,6 +7341,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_record_raw_turn(args)
     if args.command == "record-raw-execution":
         return cmd_record_raw_execution(args)
+    if args.command == "import-continuity":
+        return cmd_import_continuity(args)
     if args.command == "install-local-integration":
         return cmd_install_local_integration(args)
     if args.command == "plan-quests":

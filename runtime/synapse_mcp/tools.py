@@ -20,6 +20,7 @@ from synapse_mcp.runtime_bridge import (
     finalize_run_tool,
     formalize_candidate_tool,
     get_provenance_status_tool,
+    import_continuity_tool,
     install_git_hooks_tool,
     install_local_integration_tool,
     list_formalization_candidates_tool,
@@ -253,6 +254,27 @@ def register_tools(mcp: FastMCP, state: ConnectionState) -> None:
                 payload=payload,
                 run_id=run_id,
                 metadata=metadata,
+            )
+            return _handle_mutation_result(ctx, result_payload, event_info, result_status)
+        except Exception as exc:
+            return _handle_exception(exc)
+
+    @mcp.tool(name="import_continuity", structured_output=True)
+    def _import_continuity(
+        source_file: str,
+        context: ContextInput | None = None,
+        kind: Literal["auto", "transcript", "note", "pdf"] = "auto",
+        source_surface: str = "mcp_import",
+        run_id: str | None = None,
+    ) -> dict[str, Any]:
+        try:
+            ctx, result_payload, event_info, result_status = import_continuity_tool(
+                state=state,
+                context=context,
+                source_file=source_file,
+                kind=kind,
+                source_surface=source_surface,
+                run_id=run_id,
             )
             return _handle_mutation_result(ctx, result_payload, event_info, result_status)
         except Exception as exc:
