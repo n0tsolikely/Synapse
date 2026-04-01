@@ -16,7 +16,10 @@ from synapse_runtime.live_memory_common import _slugify, _unique_strings
 DEFAULT_TIMEZONE = ZoneInfo("America/Toronto")
 PLAN_SCHEMA_VERSION = 1
 VALID_DUNGEON_COVERAGE = {"FULL_DUNGEON", "PARTIAL_DUNGEON", "N/A"}
-_PLAN_FILENAME_STEM = re.compile(r"^PLAN__(?P<plan_id>PLAN-[A-Z0-9T]+)__REVISION-(?P<rev>\d{3})__", re.IGNORECASE)
+_PLAN_FILENAME_STEM = re.compile(
+    r"^PLAN__(?P<plan_id>.+?)__REVISION-(?P<rev>\d{3})__",
+    re.IGNORECASE,
+)
 
 
 def _now() -> dt.datetime:
@@ -48,6 +51,13 @@ def _existing_revisions(root: Path, plan_id: str) -> list[Path]:
     if not root.exists():
         return []
     return sorted(root.glob(f"PLAN__{plan_id}__REVISION-*.yaml"))
+
+
+def list_plan_artifacts(data_root: Path) -> list[Path]:
+    root = plans_root(data_root)
+    if not root.exists():
+        return []
+    return sorted(root.glob("PLAN__*.yaml"))
 
 
 def _revision_number(path: Path) -> int | None:
@@ -108,6 +118,13 @@ def persist_execution_plan(
     links: Iterable[str] = (),
     quest_refs: Iterable[str] = (),
     related_run_ids: Iterable[str] = (),
+    source_segment_ids: Iterable[str] = (),
+    source_semantic_event_ids: Iterable[str] = (),
+    source_refs: Iterable[dict[str, Any]] = (),
+    lineage_family_id: str | None = None,
+    semantic_topics: Iterable[str] = (),
+    scope_campaign_refs: Iterable[str] = (),
+    plan_metadata: dict[str, Any] | None = None,
     source: str = "plan-quests",
     plan_id: str | None = None,
 ) -> dict[str, Any]:
@@ -153,6 +170,13 @@ def persist_execution_plan(
         "links": _normalize_text_list(links),
         "related_run_ids": _normalize_text_list(related_run_ids),
         "quest_refs": _normalize_text_list(quest_refs),
+        "source_segment_ids": _normalize_text_list(source_segment_ids),
+        "source_semantic_event_ids": _normalize_text_list(source_semantic_event_ids),
+        "source_refs": [dict(item) for item in source_refs if isinstance(item, dict)],
+        "lineage_family_id": str(lineage_family_id or "").strip() or None,
+        "semantic_topics": _normalize_text_list(semantic_topics),
+        "scope_campaign_refs": _normalize_text_list(scope_campaign_refs),
+        "plan_metadata": dict(plan_metadata or {}),
         "previous_revision_path": str(previous_path.resolve()) if previous_path else None,
         "revision_history_paths": [str(item.resolve()) for item in prior_revisions] + [str(path.resolve())],
     }
@@ -167,6 +191,13 @@ def load_execution_plan(path: Path) -> dict[str, Any]:
     payload = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError(f"Invalid plan artifact: {path}")
+    payload.setdefault("source_segment_ids", [])
+    payload.setdefault("source_semantic_event_ids", [])
+    payload.setdefault("source_refs", [])
+    payload.setdefault("lineage_family_id", None)
+    payload.setdefault("semantic_topics", [])
+    payload.setdefault("scope_campaign_refs", [])
+    payload.setdefault("plan_metadata", {})
     payload["path"] = str(Path(path).resolve())
     return payload
 
