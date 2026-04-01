@@ -40,10 +40,13 @@ FIXED_TOOL_CATALOG = [
     "get_provenance_status",
     "transition_session_mode",
     "record_activity",
+    "record_raw_turn",
+    "record_raw_execution",
     "record_decision",
     "record_disclosure",
     "capture_chunk",
     "install_git_hooks",
+    "install_local_integration",
     "verify_git_hooks",
     "run_repo_onboarding",
     "submit_onboarding_draft",
@@ -417,6 +420,38 @@ class McpIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 automation["automation_pending_gate"],
                 "adopted_existing_repo_missing_confirmed_project_identity",
             )
+
+    async def test_mcp_raw_capture_tools_write_append_only_artifacts(self) -> None:
+        workspace = self._make_workspace("mcp-raw-capture")
+        async with self._session(workspace) as session:
+            bootstrap = await self._call(session, "bootstrap_session", {"title": "Raw capture"})
+            self.assertEqual(bootstrap["status"], "ok")
+            data_root = Path(bootstrap["data"]["current_context"]["resolved_subject_context"]["data_root"])
+
+            turn = await self._call(
+                session,
+                "record_raw_turn",
+                {
+                    "role": "user",
+                    "text": "Need installable packaging and account support.",
+                },
+            )
+            execution = await self._call(
+                session,
+                "record_raw_execution",
+                {
+                    "family": "tool",
+                    "tool_name": "exec_command",
+                    "status": "ok",
+                    "payload": {"stdout": "green", "exit_code": 0},
+                },
+            )
+
+            self.assertTrue(Path(turn["data"]["raw_turn_path"]).exists())
+            self.assertTrue(Path(execution["data"]["raw_event_path"]).exists())
+            self.assertEqual(turn["data"]["kernel_posture"]["posture"], "degraded")
+            self.assertEqual(execution["data"]["family"], "TOOL_EVENTS")
+            self.assertTrue((data_root / ".synapse" / "RAW" / "CONVERSATION_TURNS").is_dir())
 
     async def test_explicit_context_override_does_not_mutate_defaults(self) -> None:
         workspace = self._make_workspace("mcp-default-a")

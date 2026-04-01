@@ -20,8 +20,15 @@ If you want Synapse-managed persona overlays, use:
 Recommended session start:
 
 ```bash
-cd /path/to/Synapse
-python3 runtime/synapse.py engage
+cd /path/to/subject-repo
+python3 /path/to/Synapse/runtime/synapse.py engage --adopt-current-repo
+```
+
+Optional local integration install/refresh:
+
+```bash
+cd /path/to/subject-repo
+python3 /path/to/Synapse/runtime/synapse.py install-local-integration
 ```
 
 For local MCP integration, use the dedicated stdio server:
@@ -35,5 +42,14 @@ Run that process with:
 - `SYNAPSE_ROOT` set to the Synapse install root
 
 See [docs/integrations/mcp.md](/home/notsolikely/Synapse/docs/integrations/mcp.md) for the tool/resource inventory and example MCP client config.
+
+Phase 0 truth:
+
+- raw boundary capture is available through:
+  - `record-raw-turn`
+  - `record-raw-execution`
+  - the optional local hook entrypoints installed by `install-local-integration`
+- repo-local `.codex` assets are optional and explicitly installed
+- repos surface `hooked` vs `degraded` posture through doctor/current-context instead of pretending hook mediation always exists
 
 Do not run the full Synapse boot ritual globally outside a Synapse repo.

@@ -71,6 +71,9 @@ Runtime CLI (`runtime/synapse.py`)
 - `engage`: session-start helper; interactive continue/change flow, or explicit non-interactive intent (`--continue-active` / `--adopt-current-repo`).
 - `focus`: explicitly set or switch the persistent active subject lock.
 - `resolve-subject`: deterministic subject receipt for scripts and wrappers.
+- `record-raw-turn`: append one raw user/executor turn into `.synapse/RAW/CONVERSATION_TURNS/`.
+- `record-raw-execution`: append one raw execution/tool/import receipt into `.synapse/RAW/*` using the canonical event spine path.
+- `install-local-integration`: explicitly install or refresh optional repo-local `.codex` integration assets.
 - `persona`: resolve the optional Synapse-managed persona overlay.
 - `mode`: get/set elastic governance mode.
 - `drift`: inspect governance drift status and show diff commands.
@@ -104,11 +107,15 @@ RUNTIME TOOL COMPATIBILITY
 - Canonical governed operations include:
   - subject resolution / focus
   - doctor
+  - explicit raw boundary capture when using optional local integration hooks
   - snapshots
   - consent recording
   - quest execution
   - audit bundle validation
   - codex/canon gating when applicable
+
+- Optional local `.codex` integration is a local install/refresh path, not universal law.
+- If the repo/client does not load those local assets, Synapse is in degraded posture rather than hooked posture.
 
 ================================================================================
 1) PRIME LAWS (HARD — NO EXCEPTIONS)
