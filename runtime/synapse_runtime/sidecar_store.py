@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 import yaml
 
 from synapse_runtime.governance_model import required_sidecar_paths
+from synapse_runtime.raw_store import ensure_raw_scaffold
 from synapse_runtime.session_modes import backfill_mode_from_active_run
 
 
@@ -296,6 +297,7 @@ def _default_onboarding_pointer(subject: str) -> dict[str, Any]:
 
 def ensure_live_scaffold(subject: str, data_root: Path) -> dict[str, Any]:
     live = live_root(data_root)
+    raw_receipt = ensure_raw_scaffold(data_root)
     events_dir = live / "EVENTS"
     decisions_dir = live / "DECISIONS"
     discoveries_dir = live / "DISCOVERIES"
@@ -475,6 +477,7 @@ Run `python3 runtime/synapse.py render-rehydrate` to refresh this file.
         "created": created,
         "existing": existing,
         "required_paths": {kind.value: str(path) for kind, path in required_sidecar_paths(data_root).items()},
+        "raw_scaffold": raw_receipt,
     }
 
 

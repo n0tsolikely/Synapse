@@ -12,6 +12,7 @@ from synapse_runtime.cwt import detect_canonical_working_tree
 from synapse_runtime.event_log import validate_event_stream
 from synapse_runtime.governance_model import derive_world_state, required_sidecar_paths
 from synapse_runtime.governance_pack import required_file_checks, resolve_governance_root, resolve_synapse_root
+from synapse_runtime.repo_state import inspect_engaged_kernel_posture
 from synapse_runtime.schema_validation import load_json, load_yaml, validate_state_schema
 from synapse_runtime.truth_compiler import canonical_truth_publication_paths, load_compiler_report
 
@@ -229,6 +230,31 @@ def _check_subject_state(governance_root: Path, subject_receipt: dict) -> list[R
                     add(str(path), False, "FAIL")
                 continue
             add(str(path), True, "EXISTS")
+
+    engine_root = Path(str(subject_receipt.get("engine_root") or "")).expanduser().resolve()
+    if engine_root.exists() and engine_root.is_dir():
+        kernel_posture = inspect_engaged_kernel_posture(repo_root=engine_root, data_root=data_root)
+        raw_scaffold = kernel_posture.get("raw_scaffold") or {}
+        raw_root = str(raw_scaffold.get("raw_root") or (data_root / ".synapse" / "RAW"))
+        raw_status = str(raw_scaffold.get("scaffold_status") or "missing").strip().lower()
+        raw_missing = list(raw_scaffold.get("missing_families") or [])
+        if raw_status == "healthy":
+            add(raw_root, True, "RAW_HEALTHY")
+        elif raw_status == "partial":
+            add(raw_root, True, f"RAW_PARTIAL:{','.join(raw_missing) or 'unknown'}")
+        else:
+            add(raw_root, True, "RAW_MISSING (UPGRADEABLE RAW SCAFFOLD)")
+
+        integration = kernel_posture.get("local_integration") or {}
+        posture = str(kernel_posture.get("posture") or "degraded").strip().upper()
+        integration_dir = str(integration.get("integration_dir") or (engine_root / ".codex"))
+        health = str(integration.get("integration_health") or "missing").strip().lower()
+        missing_assets = ",".join(str(item) for item in integration.get("missing_assets") or [])
+        if health in {"installed", "missing"}:
+            add(integration_dir, True, f"LOCAL_INTEGRATION:{posture}:{health.upper()}")
+        else:
+            suffix = missing_assets or "unknown"
+            add(integration_dir, False, f"LOCAL_INTEGRATION:{posture}:{health.upper()}:{suffix}")
 
     try:
         automation_policy = automation_policy_for_context(data_root=data_root)

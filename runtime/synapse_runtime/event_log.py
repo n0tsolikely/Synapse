@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Any, Iterable
 from zoneinfo import ZoneInfo
 
+from synapse_runtime.kernel_types import RawArtifactRef
+
 
 DEFAULT_TIMEZONE = ZoneInfo("America/Toronto")
 EVENTS_DIRNAME = "EVENTS"
@@ -148,6 +150,43 @@ def default_actor() -> dict[str, str]:
         "id": actor_id,
         "runtime": runtime,
     }
+
+
+def raw_artifact_ref(*, raw_id: str, family: str, path: str, sha256: str) -> dict[str, Any]:
+    return RawArtifactRef(
+        raw_id=str(raw_id).strip(),
+        family=str(family).strip(),
+        path=str(path).strip(),
+        sha256=str(sha256).strip(),
+    ).to_dict()
+
+
+def raw_capture_signals(
+    *,
+    accepted_context: dict[str, Any] | None,
+    session_mode_fields: dict[str, Any] | None = None,
+    raw_refs: Iterable[dict[str, Any]] | None = None,
+    source_surface: str | None = None,
+    raw_role: str | None = None,
+    raw_family: str | None = None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "changed_files": [],
+        "verification_entries": [],
+        "related_quest_ids": [],
+        "related_sidequest_ids": [],
+        "accepted_context": accepted_context or {},
+        "raw_refs": [dict(item) for item in raw_refs or []],
+    }
+    if source_surface:
+        payload["raw_source_surface"] = str(source_surface).strip()
+    if raw_role:
+        payload["raw_role"] = str(raw_role).strip()
+    if raw_family:
+        payload["raw_family"] = str(raw_family).strip()
+    if session_mode_fields:
+        payload.update(session_mode_fields)
+    return payload
 
 
 def build_event(

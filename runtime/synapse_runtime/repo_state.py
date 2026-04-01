@@ -12,6 +12,9 @@ from typing import Any
 
 from synapse_runtime.cwt import detect_canonical_working_tree
 from synapse_runtime.governance_pack import resolve_synapse_root
+from synapse_runtime.kernel_types import LocalIntegrationHealth, LocalIntegrationPosture
+from synapse_runtime.raw_store import inspect_raw_scaffold
+from synapse_runtime.subject_bridge import inspect_local_codex_integration
 
 VALID_MODES = {"INCUBATION", "PLAN", "EXECUTE"}
 DEFAULT_MODE = "EXECUTE"
@@ -249,3 +252,27 @@ def enforce_execution_gate(
         f"Inspect:\n- {cmds[0]}\n- {cmds[1]}\n"
         "Acknowledge: python3 runtime/synapse.py acknowledge",
     )
+
+
+def inspect_engaged_kernel_posture(
+    *,
+    repo_root: Path,
+    data_root: Path,
+    synapse_root: Path | None = None,
+) -> dict[str, Any]:
+    repo_root = repo_root.expanduser().resolve()
+    data_root = data_root.expanduser().resolve()
+    integration = inspect_local_codex_integration(repo_root, synapse_root=synapse_root)
+    raw_scaffold = inspect_raw_scaffold(data_root)
+    posture = (
+        LocalIntegrationPosture.HOOKED.value
+        if integration.get("integration_health") == LocalIntegrationHealth.INSTALLED.value
+        else LocalIntegrationPosture.DEGRADED.value
+    )
+    return {
+        "repo_root": str(repo_root),
+        "data_root": str(data_root),
+        "local_integration": integration,
+        "raw_scaffold": raw_scaffold,
+        "posture": posture,
+    }
