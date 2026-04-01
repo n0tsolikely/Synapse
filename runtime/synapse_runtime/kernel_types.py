@@ -87,6 +87,18 @@ class ImportedContinuityParseStatus(str, Enum):
     UNSUPPORTED = "unsupported"
 
 
+class GovernedRecordFamily(str, Enum):
+    INTENT_FRAGMENT = "INTENT_FRAGMENTS"
+    SCOPE_CAMPAIGN = "SCOPE_CAMPAIGNS"
+    QUEST_LINK = "QUEST_LINKS"
+    DECISION_GRAPH = "DECISION_GRAPH"
+    ARCHITECTURE_EVOLUTION = "ARCHITECTURE_EVOLUTION"
+    FAILURE_CHAIN = "FAILURE_CHAINS"
+    NARRATIVE_CLAIM = "NARRATIVE_CLAIMS"
+    PROJECT_IDENTITY_CLAIM = "PROJECT_IDENTITY_CLAIMS"
+    IMPORTED_EVIDENCE = "IMPORTED_EVIDENCE"
+
+
 @dataclass(frozen=True)
 class RawArtifactRef:
     raw_id: str
@@ -374,6 +386,114 @@ class ImportedContinuityEnvelope:
             "text_preview": self.text_preview,
             "extracted_text": self.extracted_text,
             "warnings": list(self.warnings),
+        }
+
+
+@dataclass(frozen=True)
+class GovernedWorkingRecordEnvelope:
+    record_id: str
+    schema_version: int
+    recorded_at: str
+    subject: str
+    family: str
+    family_id: str
+    title: str
+    summary: str
+    detail: str
+    confidence_band: str
+    materiality_band: str
+    source_segment_ids: list[str]
+    source_semantic_event_ids: list[str]
+    source_refs: list[dict[str, Any]]
+    related_paths: list[str]
+    status: str
+    metadata: dict[str, Any]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "record_id": self.record_id,
+            "schema_version": self.schema_version,
+            "recorded_at": self.recorded_at,
+            "subject": self.subject,
+            "family": self.family,
+            "family_id": self.family_id,
+            "title": self.title,
+            "summary": self.summary,
+            "detail": self.detail,
+            "confidence_band": self.confidence_band,
+            "materiality_band": self.materiality_band,
+            "source_segment_ids": list(self.source_segment_ids),
+            "source_semantic_event_ids": list(self.source_semantic_event_ids),
+            "source_refs": list(self.source_refs),
+            "related_paths": list(self.related_paths),
+            "status": self.status,
+            "metadata": dict(self.metadata),
+        }
+
+
+@dataclass(frozen=True)
+class LineageEdgeEnvelope:
+    edge_id: str
+    schema_version: int
+    recorded_at: str
+    subject: str
+    source_kind: str
+    source_id: str
+    target_kind: str
+    target_id: str
+    relation: str
+    metadata: dict[str, Any]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "edge_id": self.edge_id,
+            "schema_version": self.schema_version,
+            "recorded_at": self.recorded_at,
+            "subject": self.subject,
+            "source_kind": self.source_kind,
+            "source_id": self.source_id,
+            "target_kind": self.target_kind,
+            "target_id": self.target_id,
+            "relation": self.relation,
+            "metadata": dict(self.metadata),
+        }
+
+
+@dataclass(frozen=True)
+class ContinuityObligationEnvelope:
+    obligation_id: str
+    schema_version: int
+    recorded_at: str
+    subject: str
+    obligation_kind: str
+    severity: str
+    state: str
+    summary: str
+    required_record_families: list[str]
+    source_segment_ids: list[str]
+    source_semantic_event_ids: list[str]
+    source_refs: list[dict[str, Any]]
+    resolved_at: str | None
+    resolution_record_ids: list[str]
+    metadata: dict[str, Any]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "obligation_id": self.obligation_id,
+            "schema_version": self.schema_version,
+            "recorded_at": self.recorded_at,
+            "subject": self.subject,
+            "obligation_kind": self.obligation_kind,
+            "severity": self.severity,
+            "state": self.state,
+            "summary": self.summary,
+            "required_record_families": list(self.required_record_families),
+            "source_segment_ids": list(self.source_segment_ids),
+            "source_semantic_event_ids": list(self.source_semantic_event_ids),
+            "source_refs": list(self.source_refs),
+            "resolved_at": self.resolved_at,
+            "resolution_record_ids": list(self.resolution_record_ids),
+            "metadata": dict(self.metadata),
         }
 
 
