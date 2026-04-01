@@ -79,6 +79,7 @@ from synapse_runtime.sidecar_store import (
     ensure_live_scaffold,
     live_root,
 )
+from synapse_runtime.synthesis_refresh import refresh_synthesis
 
 
 def _latest_finalized_run(*, subject: str, data_root: Path) -> dict[str, Any]:
@@ -668,6 +669,56 @@ def _apply_governed_promotion_projection(
     }
 
 
+def _apply_derived_synthesis_projection(
+    *,
+    subject: str,
+    data_root: Path,
+    state: dict[str, Any],
+    manifold: dict[str, Any],
+) -> dict[str, Any]:
+    synthesis = refresh_synthesis(subject=subject, data_root=data_root)
+    packet_summary = dict(synthesis.get("codex_packets") or {})
+
+    state["last_synthesis_refresh_at"] = synthesis.get("refreshed_at")
+    state["codex_packet_count"] = int(packet_summary.get("codex_packet_count") or 0)
+    state["last_codex_packet_refreshed_at"] = packet_summary.get("last_codex_packet_refreshed_at")
+
+    manifold["current_active_plan_delta"] = dict(synthesis.get("active_plan_delta") or {})
+    manifold["current_active_scope_delta"] = dict(synthesis.get("active_scope_delta") or {})
+    manifold["current_obligation_delta"] = dict(synthesis.get("obligation_delta") or {})
+    manifold["current_architecture_delta"] = dict(synthesis.get("architecture_delta") or {})
+    manifold["current_identity_delta"] = dict(synthesis.get("identity_delta") or {})
+    manifold["current_narrative_delta"] = dict(synthesis.get("narrative_delta") or {})
+    manifold["codex_packet_count"] = int(packet_summary.get("codex_packet_count") or 0)
+    manifold["last_codex_packet_refreshed_at"] = packet_summary.get("last_codex_packet_refreshed_at")
+    manifold["recent_codex_packet_details"] = list(packet_summary.get("recent_codex_packet_details") or [])
+    manifold["packet_section_keys"] = list(packet_summary.get("packet_section_keys") or [])
+    manifold["last_synthesis_refresh_at"] = synthesis.get("refreshed_at")
+    return synthesis
+
+
+def refresh_synthesis_projection(*, subject: str, data_root: Path) -> dict[str, Any]:
+    live = live_root(data_root)
+    state_path = live / "STATE.yaml"
+    manifold_path = live / "MANIFOLD.yaml"
+    state = _load_state(state_path, subject)
+    manifold = _load_manifold(manifold_path, subject)
+    projection = _apply_derived_synthesis_projection(
+        subject=subject,
+        data_root=data_root,
+        state=state,
+        manifold=manifold,
+    )
+    _write_yaml(state_path, state)
+    manifold["last_updated_at"] = _now_iso()
+    _write_yaml(manifold_path, manifold)
+    return {
+        "state_path": str(state_path),
+        "manifold_path": str(manifold_path),
+        **projection,
+    }
+
+
 def _rebuild_semantic_capture_projection(
     *,
     data_root: Path,
@@ -838,6 +889,12 @@ def _sync_sidecar(
         manifold=manifold,
         semantic_events=list(normalized_semantic.get("emitted_semantic_events") or []),
     )
+    derived_synthesis = _apply_derived_synthesis_projection(
+        subject=subject,
+        data_root=data_root,
+        state=state,
+        manifold=manifold,
+    )
 
     accepted_details = load_accepted_quest_details(subject, data_root)
     current_accepted = select_current_accepted_quest(accepted_details)
@@ -1006,6 +1063,7 @@ def _sync_sidecar(
         "capture_kinds": semantic_projection.get("capture_kinds") if semantic_projection else None,
         "normalized_semantic": normalized_semantic,
         "governed_promotion": governed_promotion,
+        "derived_synthesis": derived_synthesis,
         "interaction_mode": interaction_mode,
         "world_state": world_state.value,
         "active_onboarding_id": onboarding_state.get("active_onboarding_id"),

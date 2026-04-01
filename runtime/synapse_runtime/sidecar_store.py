@@ -93,6 +93,9 @@ def _default_state(subject: str) -> dict[str, Any]:
         "working_record_count": 0,
         "open_continuity_obligation_count": 0,
         "blocker_continuity_obligation_count": 0,
+        "last_synthesis_refresh_at": None,
+        "codex_packet_count": 0,
+        "last_codex_packet_refreshed_at": None,
         "onboarding_state": None,
         "active_onboarding_id": None,
         "latest_confirmed_onboarding_id": None,
@@ -211,6 +214,17 @@ def _default_manifold(subject: str) -> dict[str, Any]:
         "open_continuity_obligation_count": 0,
         "blocker_continuity_obligation_count": 0,
         "recent_open_continuity_obligation_details": [],
+        "current_active_plan_delta": {},
+        "current_active_scope_delta": {},
+        "current_obligation_delta": {},
+        "current_architecture_delta": {},
+        "current_identity_delta": {},
+        "current_narrative_delta": {},
+        "codex_packet_count": 0,
+        "last_codex_packet_refreshed_at": None,
+        "recent_codex_packet_details": [],
+        "packet_section_keys": [],
+        "last_synthesis_refresh_at": None,
         "active_onboarding_id": None,
         "latest_confirmed_onboarding_id": None,
         "onboarding_state": None,
@@ -363,6 +377,7 @@ def ensure_live_scaffold(subject: str, data_root: Path) -> dict[str, Any]:
     continuity_obligations_dir = live / "CONTINUITY_OBLIGATIONS"
     lineage_dir = live / "LINEAGE"
     lineage_edges_dir = lineage_dir / "EDGES"
+    codex_packets_dir = live / "CODEX_SECTION_PACKETS"
     proposal_kinds = {
         "quests": proposals_dir / "quests",
         "side_quests": proposals_dir / "side_quests",
@@ -408,6 +423,7 @@ def ensure_live_scaffold(subject: str, data_root: Path) -> dict[str, Any]:
     continuity_obligations_dir.mkdir(parents=True, exist_ok=True)
     lineage_dir.mkdir(parents=True, exist_ok=True)
     lineage_edges_dir.mkdir(parents=True, exist_ok=True)
+    codex_packets_dir.mkdir(parents=True, exist_ok=True)
     for directory in proposal_kinds.values():
         directory.mkdir(parents=True, exist_ok=True)
 
