@@ -23,6 +23,7 @@ from synapse_runtime.quest_acceptance import QuestAcceptanceError
 from synapse_runtime.quest_candidates import list_proposals, mark_proposal_state
 from synapse_runtime.reducer import ReducerError
 from synapse_runtime.repo_archaeology import RepoArchaeologyError
+from synapse_runtime.repo_state import inspect_engaged_kernel_posture
 from synapse_runtime.repo_onboarding import (
     RepoOnboardingError,
     archived_project_model_path,
@@ -394,6 +395,7 @@ def build_current_context_bundle(
         "git_hooks_status": manifold_payload.get("git_hooks_status") or state_payload.get("git_hooks_status"),
     }
     automation_summary = cli_runtime._readiness_payload(data_root)
+    kernel_posture = inspect_engaged_kernel_posture(repo_root=Path(ctx["engine_root"]), data_root=data_root)
     bundle = {
         "resolved_subject_context": {
             "subject": ctx["subject"],
@@ -412,6 +414,7 @@ def build_current_context_bundle(
             "session_mode": active_run.get("session_mode"),
         },
         "session_posture": session_posture,
+        "kernel_posture": kernel_posture,
         "automation": automation_summary,
         "provenance": provenance_summary,
         "accepted_and_completed_quests": accepted_summary,
@@ -1719,6 +1722,192 @@ def get_provenance_status_tool(*, state: ConnectionState, context: ContextInput 
     if strict and summary.get("provenance_status") == cli_runtime.ProvenanceStatus.BLOCKED.value:
         status = STATUS_BLOCKED
     return ctx, summary, status
+
+
+def record_raw_turn_tool(
+    *,
+    state: ConnectionState,
+    context: ContextInput | dict[str, Any] | None,
+    role: str,
+    text: str,
+    source_surface: str,
+    run_id: str | None,
+    metadata: dict[str, Any] | None,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], str]:
+    ctx = _resolve_runtime_context(state=state, context=context, allow_attach_current_repo=False, requires_session=False)
+    payload = cli_runtime.record_raw_turn(
+        subject=ctx["subject"],
+        data_root=Path(ctx["data_root"]),
+        role=role,
+        text=text,
+        source_surface=source_surface,
+        session_id=ctx.get("session_id"),
+        run_id=run_id,
+        metadata=dict(metadata or {}),
+    )
+    raw_ref = cli_runtime.raw_artifact_ref(
+        raw_id=payload["raw_turn_id"],
+        family="CONVERSATION_TURNS",
+        path=payload["raw_turn_path"],
+        sha256=payload["raw_turn_sha256"],
+    )
+    event_info = cli_runtime._event_pipeline(
+        ctx=ctx,
+        action_name="record-raw-turn",
+        summary=f"Recorded raw {role} turn for {ctx['subject']}.",
+        session_id=ctx.get("session_id"),
+        signals=cli_runtime.raw_capture_signals(
+            accepted_context=cli_runtime._accepted_context_snapshot(Path(ctx["data_root"])),
+            session_mode_fields=cli_runtime._current_session_mode_fields(ctx),
+            raw_refs=[raw_ref],
+            source_surface=source_surface,
+            raw_role=role,
+        ),
+        truth_flags={
+            "canon_mutated": False,
+            "derived_state_changed": True,
+            "governed": False,
+            "uncertainty_present": False,
+        },
+        outputs={
+            "raw_turn_id": payload["raw_turn_id"],
+            "raw_turn_path": payload["raw_turn_path"],
+            "raw_turn_sha256": payload["raw_turn_sha256"],
+            "raw_text_blob_path": payload["text_blob"]["path"],
+            "raw_text_blob_sha256": payload["text_blob"]["sha256"],
+        },
+    )
+    result = {
+        **payload,
+        "kernel_posture": inspect_engaged_kernel_posture(repo_root=Path(ctx["engine_root"]), data_root=Path(ctx["data_root"])),
+        "event": event_info.get("event"),
+        "reducer": event_info.get("reducer"),
+    }
+    return ctx, result, event_info, STATUS_OK
+
+
+def record_raw_execution_tool(
+    *,
+    state: ConnectionState,
+    context: ContextInput | dict[str, Any] | None,
+    family: str,
+    source_surface: str,
+    phase: str | None,
+    command_text: str | None,
+    tool_name: str | None,
+    status: str | None,
+    changed_files: list[str] | None,
+    payload: Any | None,
+    run_id: str | None,
+    metadata: dict[str, Any] | None,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], str]:
+    ctx = _resolve_runtime_context(state=state, context=context, allow_attach_current_repo=False, requires_session=False)
+    result_payload = cli_runtime.record_raw_execution(
+        subject=ctx["subject"],
+        data_root=Path(ctx["data_root"]),
+        family=family,
+        source_surface=source_surface,
+        phase=phase,
+        session_id=ctx.get("session_id"),
+        run_id=run_id,
+        command=command_text,
+        tool_name=tool_name,
+        status=status,
+        changed_files=list(changed_files or []),
+        payload=payload,
+        metadata=dict(metadata or {}),
+    )
+    raw_ref = cli_runtime.raw_artifact_ref(
+        raw_id=result_payload["raw_event_id"],
+        family=result_payload["family"],
+        path=result_payload["raw_event_path"],
+        sha256=result_payload["raw_event_sha256"],
+    )
+    event_info = cli_runtime._event_pipeline(
+        ctx=ctx,
+        action_name="record-raw-execution",
+        summary=f"Recorded raw {family} evidence for {ctx['subject']}.",
+        session_id=ctx.get("session_id"),
+        signals=cli_runtime.raw_capture_signals(
+            accepted_context=cli_runtime._accepted_context_snapshot(Path(ctx["data_root"])),
+            session_mode_fields=cli_runtime._current_session_mode_fields(ctx),
+            raw_refs=[raw_ref],
+            source_surface=source_surface,
+            raw_family=result_payload["family"],
+        ),
+        truth_flags={
+            "canon_mutated": False,
+            "derived_state_changed": True,
+            "governed": False,
+            "uncertainty_present": False,
+        },
+        outputs={
+            "raw_event_id": result_payload["raw_event_id"],
+            "raw_event_path": result_payload["raw_event_path"],
+            "raw_event_sha256": result_payload["raw_event_sha256"],
+            "payload_blob_path": result_payload.get("payload_blob", {}).get("path") if result_payload.get("payload_blob") else None,
+            "payload_blob_sha256": result_payload.get("payload_blob", {}).get("sha256") if result_payload.get("payload_blob") else None,
+        },
+    )
+    result = {
+        **result_payload,
+        "kernel_posture": inspect_engaged_kernel_posture(repo_root=Path(ctx["engine_root"]), data_root=Path(ctx["data_root"])),
+        "event": event_info.get("event"),
+        "reducer": event_info.get("reducer"),
+    }
+    return ctx, result, event_info, STATUS_OK
+
+
+def install_local_integration_tool(
+    *,
+    state: ConnectionState,
+    context: ContextInput | dict[str, Any] | None,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], str]:
+    ctx = _resolve_runtime_context(state=state, context=context, allow_attach_current_repo=False, requires_session=False)
+    payload = cli_runtime._install_local_integration_receipt(ctx)
+    changed_files = [
+        str(payload.get("manifest_path") or ""),
+        str(payload.get("mcp_config_path") or ""),
+        str(payload.get("readme_path") or ""),
+        *[str(path) for path in (payload.get("hook_paths") or {}).values()],
+    ]
+    event_info = cli_runtime._event_pipeline(
+        ctx=ctx,
+        action_name="install-local-integration",
+        summary=f"Installed or refreshed optional local integration for {ctx['subject']}.",
+        session_id=ctx.get("session_id"),
+        signals={
+            "changed_files": [path for path in changed_files if path],
+            "verification_entries": [],
+            "related_quest_ids": [],
+            "related_sidequest_ids": [],
+            "accepted_context": cli_runtime._accepted_context_snapshot(Path(ctx["data_root"])),
+            **cli_runtime._current_session_mode_fields(ctx),
+        },
+        truth_flags={
+            "canon_mutated": False,
+            "derived_state_changed": True,
+            "governed": False,
+            "uncertainty_present": False,
+        },
+        outputs={
+            "integration_posture": payload.get("integration_posture"),
+            "integration_health": payload.get("integration_health"),
+            "integration_dir": payload.get("integration_dir"),
+            "manifest_path": payload.get("manifest_path"),
+            "mcp_config_path": payload.get("mcp_config_path"),
+            "readme_path": payload.get("readme_path"),
+            "hook_paths": payload.get("hook_paths"),
+            "missing_assets": list(payload.get("missing_assets") or []),
+        },
+    )
+    result = {
+        **payload,
+        "kernel_posture": inspect_engaged_kernel_posture(repo_root=Path(ctx["engine_root"]), data_root=Path(ctx["data_root"])),
+        "event": event_info.get("event"),
+        "reducer": event_info.get("reducer"),
+    }
+    return ctx, result, event_info, STATUS_OK
 
 
 def install_git_hooks_tool(*, state: ConnectionState, context: ContextInput | dict[str, Any] | None, force: bool) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any] | None, str]:

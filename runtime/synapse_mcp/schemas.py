@@ -117,6 +117,39 @@ class CaptureChunkInput(BaseModel):
     source_role: str = "agent"
 
 
+class RecordRawTurnInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    context: ContextInput | None = None
+    role: Literal["user", "executor"]
+    text: str
+    source_surface: str = "mcp"
+    run_id: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class RecordRawExecutionInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    context: ContextInput | None = None
+    family: Literal["execution", "tool", "import"]
+    source_surface: str = "mcp"
+    phase: str | None = None
+    command_text: str | None = None
+    tool_name: str | None = None
+    status: str | None = None
+    changed_files: list[str] = Field(default_factory=list)
+    payload: Any | None = None
+    run_id: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class InstallLocalIntegrationInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    context: ContextInput | None = None
+
+
 class RunRepoOnboardingInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

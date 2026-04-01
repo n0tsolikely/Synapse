@@ -30,9 +30,19 @@ from synapse_runtime.automation_orchestrator import (
     plan_automation_side_effects,
     ready_state_gate_for_mode,
 )
+from synapse_runtime.conversation_ingest import ConversationIngestError, record_raw_turn
 from synapse_runtime.cwt import detect_canonical_working_tree
 from synapse_runtime.doctor import run_doctor
-from synapse_runtime.event_log import EventLogError, REDUCER_VERSION, append_event, build_event, load_event_records
+from synapse_runtime.event_log import (
+    EventLogError,
+    REDUCER_VERSION,
+    append_event,
+    build_event,
+    load_event_records,
+    raw_artifact_ref,
+    raw_capture_signals,
+)
+from synapse_runtime.execution_observer import ExecutionObserverError, record_raw_execution
 from synapse_runtime.governance_pack import resolve_governance_asset, resolve_governance_root, resolve_synapse_root
 from synapse_runtime.governance_inventory import build_governance_inventory, write_governance_inventory
 from synapse_runtime.governance_model import AmbientSignal, ProposalKind, ProposalState
@@ -70,6 +80,7 @@ from synapse_runtime.repo_state import (
     drift_commands,
     drift_status,
     enforce_execution_gate,
+    inspect_engaged_kernel_posture,
     load_state,
     set_mode,
     state_path,
@@ -95,7 +106,7 @@ from synapse_runtime.semantic_intake import (
 from synapse_runtime.sidecar_projection import _sync_sidecar, refresh_provenance_projection
 from synapse_runtime.sidecar_store import ensure_live_scaffold
 from synapse_runtime.subject_bootstrap import initialize_subject_state, repo_subject_defaults
-from synapse_runtime.subject_bridge import ensure_subject_repo_bridges
+from synapse_runtime.subject_bridge import ensure_subject_repo_bridges, install_local_codex_integration
 from synapse_runtime.quest_acceptance import QuestAcceptanceError, accept_quest, parse_quest_document
 from synapse_runtime.quest_completion import QuestCompletionError, complete_quest
 from synapse_runtime.quest_board import (
@@ -687,6 +698,64 @@ def build_parser() -> argparse.ArgumentParser:
     verify_hooks_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
     verify_hooks_parser.add_argument("--json", action="store_true", help="Print JSON output")
 
+    raw_turn_parser = subparsers.add_parser(
+        "record-raw-turn",
+        help="Append one raw user/executor conversation turn into the Phase 0 raw evidence store",
+    )
+    raw_turn_parser.add_argument("--role", choices=["user", "executor"], required=True, help="Raw turn role")
+    raw_turn_parser.add_argument("--text", help="Literal turn text")
+    raw_turn_parser.add_argument("--text-file", help="Path to a text file containing the turn body")
+    raw_turn_parser.add_argument("--stdin", action="store_true", help="Read the turn body from stdin")
+    raw_turn_parser.add_argument("--source-surface", default="cli", help="Source surface label (default: cli)")
+    raw_turn_parser.add_argument("--run-id", help="Optional run id")
+    raw_turn_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
+    raw_turn_parser.add_argument("--metadata-json", help="Optional JSON metadata object")
+    raw_turn_parser.add_argument("--subject", help="Optional subject override")
+    raw_turn_parser.add_argument("--data-root", help="Override data root path")
+    raw_turn_parser.add_argument("--engine-root", help="Override engine root path")
+    raw_turn_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    raw_turn_parser.add_argument("--selected-by", default="Brains", help="Who made the selection (default: Brains)")
+    raw_turn_parser.add_argument("--no-home-lock", action="store_true", help="Do not write ~/.synapse/ACTIVE_SUBJECT.json")
+    raw_turn_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
+    raw_execution_parser = subparsers.add_parser(
+        "record-raw-execution",
+        help="Append one raw execution/tool/import receipt into the Phase 0 raw evidence store",
+    )
+    raw_execution_parser.add_argument("--family", choices=["execution", "tool", "import"], required=True, help="Raw execution family")
+    raw_execution_parser.add_argument("--source-surface", default="cli", help="Source surface label (default: cli)")
+    raw_execution_parser.add_argument("--phase", help="Optional phase label")
+    raw_execution_parser.add_argument("--command-text", help="Optional command summary")
+    raw_execution_parser.add_argument("--tool-name", help="Optional tool name")
+    raw_execution_parser.add_argument("--status", help="Optional status label")
+    raw_execution_parser.add_argument("--changed-file", action="append", default=[], help="Changed file (repeatable)")
+    raw_execution_parser.add_argument("--payload", help="Literal payload string")
+    raw_execution_parser.add_argument("--payload-json", help="Inline JSON payload")
+    raw_execution_parser.add_argument("--payload-file", help="Path to payload file (.json parses as JSON)")
+    raw_execution_parser.add_argument("--metadata-json", help="Optional JSON metadata object")
+    raw_execution_parser.add_argument("--run-id", help="Optional run id")
+    raw_execution_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
+    raw_execution_parser.add_argument("--subject", help="Optional subject override")
+    raw_execution_parser.add_argument("--data-root", help="Override data root path")
+    raw_execution_parser.add_argument("--engine-root", help="Override engine root path")
+    raw_execution_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    raw_execution_parser.add_argument("--selected-by", default="Brains", help="Who made the selection (default: Brains)")
+    raw_execution_parser.add_argument("--no-home-lock", action="store_true", help="Do not write ~/.synapse/ACTIVE_SUBJECT.json")
+    raw_execution_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
+    local_integration_parser = subparsers.add_parser(
+        "install-local-integration",
+        help="Install or refresh optional local .codex integration assets for the resolved subject repo",
+    )
+    local_integration_parser.add_argument("--subject", help="Optional subject override")
+    local_integration_parser.add_argument("--data-root", help="Override data root path")
+    local_integration_parser.add_argument("--engine-root", help="Override engine root path")
+    local_integration_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    local_integration_parser.add_argument("--selected-by", default="Brains", help="Who made the selection (default: Brains)")
+    local_integration_parser.add_argument("--no-home-lock", action="store_true", help="Do not write ~/.synapse/ACTIVE_SUBJECT.json")
+    local_integration_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
+    local_integration_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
     return parser
 
 
@@ -863,6 +932,85 @@ def _readiness_payload(data_root: Path) -> dict[str, Any]:
         "automation_last_continuity_update_at": summary.get("automation_last_continuity_update_at"),
         "automation_recent_actions": list(summary.get("automation_recent_actions") or []),
     }
+
+
+def _kernel_posture_payload(ctx: dict[str, Any]) -> dict[str, Any]:
+    return inspect_engaged_kernel_posture(
+        repo_root=Path(str(ctx["engine_root"])),
+        data_root=Path(str(ctx["data_root"])),
+        synapse_root=resolve_synapse_root(),
+    )
+
+
+def _load_json_text(raw: str | None, *, label: str) -> dict[str, Any]:
+    text = str(raw or "").strip()
+    if not text:
+        return {}
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise LiveMemoryError(f"{label} must be valid JSON: {exc.msg}") from exc
+    if not isinstance(payload, dict):
+        raise LiveMemoryError(f"{label} must decode to a JSON object.")
+    return payload
+
+
+def _read_text_input(
+    *,
+    literal: str | None = None,
+    file_path: str | None = None,
+    read_stdin: bool = False,
+    label: str,
+) -> str:
+    sources = [bool(str(literal or "").strip()), bool(str(file_path or "").strip()), bool(read_stdin)]
+    if sum(1 for item in sources if item) > 1:
+        raise LiveMemoryError(f"Provide only one of --text, --text-file, or --stdin for {label}.")
+    if str(literal or "").strip():
+        return str(literal)
+    if str(file_path or "").strip():
+        path = Path(str(file_path)).expanduser().resolve()
+        if not path.exists() or not path.is_file():
+            raise LiveMemoryError(f"{label} file does not exist: {path}")
+        return path.read_text(encoding="utf-8")
+    if read_stdin:
+        return sys.stdin.read()
+    if not _stdin_is_interactive():
+        return sys.stdin.read()
+    raise LiveMemoryError(f"{label} requires --text, --text-file, or piped stdin.")
+
+
+def _read_payload_input(
+    *,
+    literal: str | None = None,
+    json_text: str | None = None,
+    file_path: str | None = None,
+    label: str,
+) -> Any:
+    sources = [
+        bool(str(literal or "").strip()),
+        bool(str(json_text or "").strip()),
+        bool(str(file_path or "").strip()),
+    ]
+    if sum(1 for item in sources if item) > 1:
+        raise LiveMemoryError(f"Provide only one of --payload, --payload-json, or --payload-file for {label}.")
+    if str(json_text or "").strip():
+        try:
+            return json.loads(str(json_text))
+        except json.JSONDecodeError as exc:
+            raise LiveMemoryError(f"{label} JSON payload is invalid: {exc.msg}") from exc
+    if str(file_path or "").strip():
+        path = Path(str(file_path)).expanduser().resolve()
+        if not path.exists() or not path.is_file():
+            raise LiveMemoryError(f"{label} file does not exist: {path}")
+        if path.suffix.lower() == ".json":
+            try:
+                return json.loads(path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError as exc:
+                raise LiveMemoryError(f"{label} JSON file is invalid: {exc.msg}") from exc
+        return path.read_text(encoding="utf-8")
+    if str(literal or "").strip():
+        return str(literal)
+    return None
 
 
 def _onboarding_gate_message(*, target_mode: str, gate: dict[str, Any]) -> str:
@@ -6261,6 +6409,259 @@ def cmd_provenance_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_record_raw_turn(args: argparse.Namespace) -> int:
+    ctx = _resolve_or_attach_subject_from_args(args)
+    if not ctx:
+        return 2
+    try:
+        text = _read_text_input(
+            literal=getattr(args, "text", None),
+            file_path=getattr(args, "text_file", None),
+            read_stdin=bool(getattr(args, "stdin", False)),
+            label="record-raw-turn",
+        )
+        metadata = _load_json_text(getattr(args, "metadata_json", None), label="record-raw-turn metadata")
+        payload = record_raw_turn(
+            subject=ctx["subject"],
+            data_root=Path(ctx["data_root"]),
+            role=args.role,
+            text=text,
+            source_surface=args.source_surface,
+            session_id=_resolved_session_id(args),
+            run_id=getattr(args, "run_id", None),
+            metadata=metadata,
+        )
+    except (ConversationIngestError, LiveMemoryError) as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    raw_ref = raw_artifact_ref(
+        raw_id=payload["raw_turn_id"],
+        family="CONVERSATION_TURNS",
+        path=payload["raw_turn_path"],
+        sha256=payload["raw_turn_sha256"],
+    )
+    event_info = _event_pipeline(
+        ctx=ctx,
+        action_name="record-raw-turn",
+        summary=f"Recorded raw {args.role} turn for {ctx['subject']}.",
+        session_id=_resolved_session_id(args),
+        signals=raw_capture_signals(
+            accepted_context=_accepted_context_snapshot(Path(ctx["data_root"])),
+            session_mode_fields=_current_session_mode_fields(ctx),
+            raw_refs=[raw_ref],
+            source_surface=args.source_surface,
+            raw_role=args.role,
+        ),
+        truth_flags={
+            "canon_mutated": False,
+            "derived_state_changed": True,
+            "governed": False,
+            "uncertainty_present": False,
+        },
+        outputs={
+            "raw_turn_id": payload["raw_turn_id"],
+            "raw_turn_path": payload["raw_turn_path"],
+            "raw_turn_sha256": payload["raw_turn_sha256"],
+            "raw_text_blob_path": payload["text_blob"]["path"],
+            "raw_text_blob_sha256": payload["text_blob"]["sha256"],
+        },
+    )
+    rendered = {
+        "subject_context": ctx,
+        "kernel_posture": _kernel_posture_payload(ctx),
+        **payload,
+        "event": event_info.get("event"),
+        "reducer": event_info.get("reducer"),
+    }
+
+    def _emit_raw_turn(result_payload: dict[str, Any]) -> None:
+        print("=== RAW TURN RECEIPT ===")
+        print(f"subject: {result_payload['subject_context']['subject']}")
+        print(f"role: {result_payload.get('role')}")
+        print(f"raw_turn_id: {result_payload.get('raw_turn_id')}")
+        print(f"raw_turn_path: {result_payload.get('raw_turn_path')}")
+        print(f"text_blob_path: {result_payload.get('text_blob', {}).get('path')}")
+        print(f"integration_posture: {result_payload.get('kernel_posture', {}).get('posture')}")
+
+    return _finalize_mutation_result(
+        payload=rendered,
+        event_info=event_info,
+        json_mode=args.json,
+        text_emitter=_emit_raw_turn,
+    )
+
+
+def cmd_record_raw_execution(args: argparse.Namespace) -> int:
+    ctx = _resolve_or_attach_subject_from_args(args)
+    if not ctx:
+        return 2
+    try:
+        metadata = _load_json_text(getattr(args, "metadata_json", None), label="record-raw-execution metadata")
+        payload_body = _read_payload_input(
+            literal=getattr(args, "payload", None),
+            json_text=getattr(args, "payload_json", None),
+            file_path=getattr(args, "payload_file", None),
+            label="record-raw-execution payload",
+        )
+        payload = record_raw_execution(
+            subject=ctx["subject"],
+            data_root=Path(ctx["data_root"]),
+            family=args.family,
+            source_surface=args.source_surface,
+            phase=getattr(args, "phase", None),
+            session_id=_resolved_session_id(args),
+            run_id=getattr(args, "run_id", None),
+            command=getattr(args, "command_text", None),
+            tool_name=getattr(args, "tool_name", None),
+            status=getattr(args, "status", None),
+            changed_files=list(getattr(args, "changed_file", []) or []),
+            payload=payload_body,
+            metadata=metadata,
+        )
+    except (ExecutionObserverError, LiveMemoryError) as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    raw_ref = raw_artifact_ref(
+        raw_id=payload["raw_event_id"],
+        family=payload["family"],
+        path=payload["raw_event_path"],
+        sha256=payload["raw_event_sha256"],
+    )
+    outputs = {
+        "raw_event_id": payload["raw_event_id"],
+        "raw_event_path": payload["raw_event_path"],
+        "raw_event_sha256": payload["raw_event_sha256"],
+        "payload_blob_path": payload.get("payload_blob", {}).get("path") if payload.get("payload_blob") else None,
+        "payload_blob_sha256": payload.get("payload_blob", {}).get("sha256") if payload.get("payload_blob") else None,
+    }
+    event_info = _event_pipeline(
+        ctx=ctx,
+        action_name="record-raw-execution",
+        summary=f"Recorded raw {args.family} evidence for {ctx['subject']}.",
+        session_id=_resolved_session_id(args),
+        signals=raw_capture_signals(
+            accepted_context=_accepted_context_snapshot(Path(ctx["data_root"])),
+            session_mode_fields=_current_session_mode_fields(ctx),
+            raw_refs=[raw_ref],
+            source_surface=args.source_surface,
+            raw_family=payload["family"],
+        ),
+        truth_flags={
+            "canon_mutated": False,
+            "derived_state_changed": True,
+            "governed": False,
+            "uncertainty_present": False,
+        },
+        outputs=outputs,
+    )
+    rendered = {
+        "subject_context": ctx,
+        "kernel_posture": _kernel_posture_payload(ctx),
+        **payload,
+        "event": event_info.get("event"),
+        "reducer": event_info.get("reducer"),
+    }
+
+    def _emit_raw_execution(result_payload: dict[str, Any]) -> None:
+        print("=== RAW EXECUTION RECEIPT ===")
+        print(f"subject: {result_payload['subject_context']['subject']}")
+        print(f"family: {result_payload.get('family')}")
+        print(f"raw_event_id: {result_payload.get('raw_event_id')}")
+        print(f"raw_event_path: {result_payload.get('raw_event_path')}")
+        if result_payload.get("payload_blob"):
+            print(f"payload_blob_path: {result_payload.get('payload_blob', {}).get('path')}")
+        print(f"integration_posture: {result_payload.get('kernel_posture', {}).get('posture')}")
+
+    return _finalize_mutation_result(
+        payload=rendered,
+        event_info=event_info,
+        json_mode=args.json,
+        text_emitter=_emit_raw_execution,
+    )
+
+
+def _install_local_integration_receipt(ctx: dict[str, Any]) -> dict[str, Any]:
+    return install_local_codex_integration(
+        subject=ctx["subject"],
+        repo_root=Path(ctx["engine_root"]),
+        data_root=Path(ctx["data_root"]),
+        synapse_root=resolve_synapse_root(),
+    )
+
+
+def cmd_install_local_integration(args: argparse.Namespace) -> int:
+    ctx = _resolve_or_attach_subject_from_args(args)
+    if not ctx:
+        return 2
+    try:
+        payload = _install_local_integration_receipt(ctx)
+    except LiveMemoryError as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    changed_files = [
+        str(payload.get("manifest_path") or ""),
+        str(payload.get("mcp_config_path") or ""),
+        str(payload.get("readme_path") or ""),
+        *[str(path) for path in (payload.get("hook_paths") or {}).values()],
+    ]
+    event_info = _event_pipeline(
+        ctx=ctx,
+        action_name="install-local-integration",
+        summary=f"Installed or refreshed optional local integration for {ctx['subject']}.",
+        session_id=_resolved_session_id(args),
+        signals={
+            "changed_files": [path for path in changed_files if path],
+            "verification_entries": [],
+            "related_quest_ids": [],
+            "related_sidequest_ids": [],
+            "accepted_context": _accepted_context_snapshot(Path(ctx["data_root"])),
+            **_current_session_mode_fields(ctx),
+        },
+        truth_flags={
+            "canon_mutated": False,
+            "derived_state_changed": True,
+            "governed": False,
+            "uncertainty_present": False,
+        },
+        outputs={
+            "integration_posture": payload.get("integration_posture"),
+            "integration_health": payload.get("integration_health"),
+            "integration_dir": payload.get("integration_dir"),
+            "manifest_path": payload.get("manifest_path"),
+            "mcp_config_path": payload.get("mcp_config_path"),
+            "readme_path": payload.get("readme_path"),
+            "hook_paths": payload.get("hook_paths"),
+            "missing_assets": list(payload.get("missing_assets") or []),
+        },
+    )
+    rendered = {
+        "subject_context": ctx,
+        **payload,
+        "kernel_posture": _kernel_posture_payload(ctx),
+        "event": event_info.get("event"),
+        "reducer": event_info.get("reducer"),
+    }
+
+    def _emit_local_integration(result_payload: dict[str, Any]) -> None:
+        print("=== LOCAL INTEGRATION RECEIPT ===")
+        print(f"subject: {result_payload['subject_context']['subject']}")
+        print(f"integration_posture: {result_payload.get('integration_posture')}")
+        print(f"integration_health: {result_payload.get('integration_health')}")
+        print(f"integration_dir: {result_payload.get('integration_dir')}")
+        print(f"manifest_path: {result_payload.get('manifest_path')}")
+        print(f"mcp_config_path: {result_payload.get('mcp_config_path')}")
+
+    return _finalize_mutation_result(
+        payload=rendered,
+        event_info=event_info,
+        json_mode=args.json,
+        text_emitter=_emit_local_integration,
+    )
+
+
 def cmd_install_hooks(args: argparse.Namespace) -> int:
     ctx = _resolve_or_attach_subject_from_args(args)
     if not ctx:
@@ -6818,6 +7219,12 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_install_hooks(args)
     if args.command == "verify-hooks":
         return cmd_verify_hooks(args)
+    if args.command == "record-raw-turn":
+        return cmd_record_raw_turn(args)
+    if args.command == "record-raw-execution":
+        return cmd_record_raw_execution(args)
+    if args.command == "install-local-integration":
+        return cmd_install_local_integration(args)
     if args.command == "plan-quests":
         return cmd_plan_quests(args)
     if args.command == "plan-sidequests":

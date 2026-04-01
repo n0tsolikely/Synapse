@@ -21,12 +21,15 @@ from synapse_mcp.runtime_bridge import (
     formalize_candidate_tool,
     get_provenance_status_tool,
     install_git_hooks_tool,
+    install_local_integration_tool,
     list_formalization_candidates_tool,
     map_runtime_exception,
     plan_quests_tool,
     record_activity,
     record_decision,
     record_disclosure,
+    record_raw_execution_tool,
+    record_raw_turn_tool,
     refresh_continuity_tool,
     run_repo_onboarding_tool,
     submit_onboarding_draft,
@@ -199,6 +202,62 @@ def register_tools(mcp: FastMCP, state: ConnectionState) -> None:
         except Exception as exc:
             return _handle_exception(exc)
 
+    @mcp.tool(name="record_raw_turn", structured_output=True)
+    def _record_raw_turn(
+        role: Literal["user", "executor"],
+        text: str,
+        context: ContextInput | None = None,
+        source_surface: str = "mcp",
+        run_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        try:
+            ctx, payload, event_info, status = record_raw_turn_tool(
+                state=state,
+                context=context,
+                role=role,
+                text=text,
+                source_surface=source_surface,
+                run_id=run_id,
+                metadata=metadata,
+            )
+            return _handle_mutation_result(ctx, payload, event_info, status)
+        except Exception as exc:
+            return _handle_exception(exc)
+
+    @mcp.tool(name="record_raw_execution", structured_output=True)
+    def _record_raw_execution(
+        family: Literal["execution", "tool", "import"],
+        context: ContextInput | None = None,
+        source_surface: str = "mcp",
+        phase: str | None = None,
+        command_text: str | None = None,
+        tool_name: str | None = None,
+        status: str | None = None,
+        changed_files: list[str] | None = None,
+        payload: Any | None = None,
+        run_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        try:
+            ctx, result_payload, event_info, result_status = record_raw_execution_tool(
+                state=state,
+                context=context,
+                family=family,
+                source_surface=source_surface,
+                phase=phase,
+                command_text=command_text,
+                tool_name=tool_name,
+                status=status,
+                changed_files=list(changed_files or []),
+                payload=payload,
+                run_id=run_id,
+                metadata=metadata,
+            )
+            return _handle_mutation_result(ctx, result_payload, event_info, result_status)
+        except Exception as exc:
+            return _handle_exception(exc)
+
     @mcp.tool(name="record_decision", structured_output=True)
     def _record_decision(
         title: str,
@@ -288,6 +347,19 @@ def register_tools(mcp: FastMCP, state: ConnectionState) -> None:
                 state=state,
                 context=context,
                 force=force,
+            )
+            return _handle_mutation_result(ctx, payload, event_info, status)
+        except Exception as exc:
+            return _handle_exception(exc)
+
+    @mcp.tool(name="install_local_integration", structured_output=True)
+    def _install_local_integration(
+        context: ContextInput | None = None,
+    ) -> dict[str, Any]:
+        try:
+            ctx, payload, event_info, status = install_local_integration_tool(
+                state=state,
+                context=context,
             )
             return _handle_mutation_result(ctx, payload, event_info, status)
         except Exception as exc:
