@@ -1,0 +1,20 @@
+{
+  "actions": [
+    "control-open",
+    "plan-quests --json",
+    "accept-quest --json",
+    "complete-quest --json"
+  ],
+  "artifacts": {
+    "completed_path": "/tmp/final_audit_quest_lifecycle_regression_3v2a_xor/QuestAudit_Data/Quest Board/Completed/QUEST_001__quest-lifecycle__2026-04-01.txt",
+    "completion_audit_path": "/tmp/final_audit_quest_lifecycle_regression_3v2a_xor/QuestAudit_Data/Audits/Execution/QUEST_001__2026-04-01__quest-lifecycle/01_COMPLETION_AUDIT.md",
+    "plan_artifact_path": "/tmp/final_audit_quest_lifecycle_regression_3v2a_xor/QuestAudit_Data/.synapse/PLANS/PLAN__PLAN-20260401T203655297792-0400__REVISION-001__quest-lifecycle.yaml"
+  },
+  "passed": true,
+  "reasons": [],
+  "scenario": "quest_lifecycle_regression",
+  "setup": {
+    "data_root": "/tmp/final_audit_quest_lifecycle_regression_3v2a_xor/QuestAudit_Data",
+    "engine_root": "/tmp/final_audit_quest_lifecycle_regression_3v2a_xor/QuestAudit"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "actions": [
+    "record-raw-turn filler",
+    "close-turn --strict --json"
+  ],
+  "artifacts": {
+    "plan_count": 0,
+    "raw_turn": "/tmp/final_audit_false_positive_sludge_control_uk3xad7w/NoiseRepo_Data/.synapse/RAW/CONVERSATION_TURNS/2026-04-01/TURN-F6837C1391B24553.json",
+    "working_record_count": 0
+  },
+  "passed": true,
+  "reasons": [],
+  "scenario": "false_positive_sludge_control",
+  "setup": {
+    "data_root": "/tmp/final_audit_false_positive_sludge_control_uk3xad7w/NoiseRepo_Data",
+    "engine_root": "/tmp/final_audit_false_positive_sludge_control_uk3xad7w/NoiseRepo"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "actions": [
+    "install-local-integration",
+    "install-hooks",
+    "open warning obligation",
+    "close-turn --strict --json"
+  ],
+  "artifacts": {
+    "close_turn_payload": "close-turn returned caution",
+    "rehydrate_path": "/tmp/final_audit_session_closeout_without_manual_ritual_x23rtx_q/CloseoutRepo_Data/.synapse/REHYDRATE.md"
+  },
+  "passed": true,
+  "reasons": [],
+  "scenario": "session_closeout_without_manual_ritual",
+  "setup": {
+    "data_root": "/tmp/final_audit_session_closeout_without_manual_ritual_x23rtx_q/CloseoutRepo_Data",
+    "engine_root": "/tmp/final_audit_session_closeout_without_manual_ritual_x23rtx_q/CloseoutRepo"
+  }
+}

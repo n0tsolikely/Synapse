@@ -1,0 +1,23 @@
+{
+  "actions": [
+    "import-continuity --source-file transcript.txt --kind transcript --json"
+  ],
+  "artifacts": {
+    "imported_record_paths": [
+      "/tmp/final_audit_imported_transcript_recovery_jtgwxqkl/ImportRepo_Data/.synapse/IMPORTED_EVIDENCE/IMPORTED_EVIDENCE__REC-8055175818985F9F__we-need-a-reusable-website-system.-it-must-support-accounts-and-.yaml"
+    ],
+    "open_obligation_paths": [
+      "/tmp/final_audit_imported_transcript_recovery_jtgwxqkl/ImportRepo_Data/.synapse/CONTINUITY_OBLIGATIONS/OBLIGATION__OBLIG-A7A58BEE4E025ADA__WARN.yaml"
+    ],
+    "segment_path": "/tmp/final_audit_imported_transcript_recovery_jtgwxqkl/ImportRepo_Data/.synapse/SEGMENTS/CONVERSATION/2026-04-01.jsonl",
+    "semantic_path": "/tmp/final_audit_imported_transcript_recovery_jtgwxqkl/ImportRepo_Data/.synapse/SEMANTIC_EVENTS/2026-04-01.jsonl"
+  },
+  "passed": true,
+  "reasons": [],
+  "scenario": "imported_transcript_recovery",
+  "setup": {
+    "data_root": "/tmp/final_audit_imported_transcript_recovery_jtgwxqkl/ImportRepo_Data",
+    "engine_root": "/tmp/final_audit_imported_transcript_recovery_jtgwxqkl/ImportRepo",
+    "source_file": "/tmp/final_audit_imported_transcript_recovery_jtgwxqkl/transcript.txt"
+  }
+}

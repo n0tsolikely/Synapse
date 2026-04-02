@@ -1,0 +1,17 @@
+{
+  "actions": [
+    "control-open",
+    "control-close --next-action ..."
+  ],
+  "artifacts": {
+    "control_snapshot_path": "/tmp/final_audit_snapshot_draftshot_bridge_regression_e2cq2q01/SnapshotAudit_Data/Snapshots/Control Sync/SnapshotAudit_Control_Sync_Snapshot_2026-04-01.txt",
+    "draftshot_path": "/tmp/final_audit_snapshot_draftshot_bridge_regression_e2cq2q01/SnapshotAudit_Data/Snapshots/Draft Shots/DRAFTSHOT__runtime-bridge__REV1__2026-04-01.txt"
+  },
+  "passed": true,
+  "reasons": [],
+  "scenario": "snapshot_draftshot_control_sync_bridge_regression",
+  "setup": {
+    "data_root": "/tmp/final_audit_snapshot_draftshot_bridge_regression_e2cq2q01/SnapshotAudit_Data",
+    "engine_root": "/tmp/final_audit_snapshot_draftshot_bridge_regression_e2cq2q01/SnapshotAudit"
+  }
+}

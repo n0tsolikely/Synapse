@@ -1,0 +1,24 @@
+{
+  "actions": [
+    "provenance-status --strict --json"
+  ],
+  "artifacts": {
+    "missing_assets": [
+      "hooks/user_prompt_submit.sh",
+      "hooks/pre_tool.sh",
+      "hooks/post_tool.sh",
+      "hooks/stop.sh",
+      "synapse_local_integration.json",
+      "mcp.json",
+      "README.md"
+    ],
+    "payload_path": "inline json"
+  },
+  "passed": true,
+  "reasons": [],
+  "scenario": "degraded_enforcement_mode",
+  "setup": {
+    "data_root": "/tmp/final_audit_degraded_enforcement_mode_pw0dxjgc/DegradedRepo_Data",
+    "engine_root": "/tmp/final_audit_degraded_enforcement_mode_pw0dxjgc/DegradedRepo"
+  }
+}

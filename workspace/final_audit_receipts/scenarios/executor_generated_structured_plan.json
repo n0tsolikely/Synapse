@@ -1,0 +1,19 @@
+{
+  "actions": [
+    "record-raw-turn executor structured plan"
+  ],
+  "artifacts": {
+    "plan_artifact_path": "/tmp/final_audit_executor_structured_plan_tsxuka87/ExecutorPlanRepo_Data/.synapse/PLANS/PLAN__PLAN-20260401T203649755616-0400__REVISION-001__plan-1-build-an-installable-web-app-shell-2-add-separate-user-ac.yaml",
+    "raw_turn_path": "/tmp/final_audit_executor_structured_plan_tsxuka87/ExecutorPlanRepo_Data/.synapse/RAW/CONVERSATION_TURNS/2026-04-01/TURN-7467F2845B14488B.json",
+    "scope_campaign_refs": [
+      "REC-B82466DA1DC15108"
+    ]
+  },
+  "passed": true,
+  "reasons": [],
+  "scenario": "executor_generated_structured_plan",
+  "setup": {
+    "data_root": "/tmp/final_audit_executor_structured_plan_tsxuka87/ExecutorPlanRepo_Data",
+    "engine_root": "/tmp/final_audit_executor_structured_plan_tsxuka87/ExecutorPlanRepo"
+  }
+}

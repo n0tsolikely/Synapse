@@ -1,0 +1,76 @@
+{
+  "fail_count": 0,
+  "pass_count": 14,
+  "scenarios": [
+    {
+      "passed": true,
+      "reasons": [],
+      "scenario": "repo_adoption"
+    },
+    {
+      "passed": true,
+      "reasons": [],
+      "scenario": "ordinary_planning_chat"
+    },
+    {
+      "passed": true,
+      "reasons": [],
+      "scenario": "architecture_pivot"
+    },
+    {
+      "passed": true,
+      "reasons": [],
+      "scenario": "executor_generated_structured_plan"
+    },
+    {
+      "passed": true,
+      "reasons": [],
+      "scenario": "blocker_disclosure_case"
+    },
+    {
+      "passed": true,
+      "reasons": [],
+      "scenario": "imported_transcript_recovery"
+    },
+    {
+      "passed": true,
+      "reasons": [],
+      "scenario": "session_closeout_without_manual_ritual"
+    },
+    {
+      "passed": true,
+      "reasons": [],
+      "scenario": "bypass_missed_capture"
+    },
+    {
+      "passed": true,
+      "reasons": [],
+      "scenario": "false_positive_sludge_control"
+    },
+    {
+      "passed": true,
+      "reasons": [],
+      "scenario": "degraded_enforcement_mode"
+    },
+    {
+      "passed": true,
+      "reasons": [],
+      "scenario": "onboarding_readiness_regression"
+    },
+    {
+      "passed": true,
+      "reasons": [],
+      "scenario": "quest_lifecycle_regression"
+    },
+    {
+      "passed": true,
+      "reasons": [],
+      "scenario": "snapshot_draftshot_control_sync_bridge_regression"
+    },
+    {
+      "passed": true,
+      "reasons": [],
+      "scenario": "truth_compile_regression"
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "actions": [
+    {
+      "command": "record-raw-turn",
+      "returncode": 0,
+      "text": "Okay, that's the plan: we will build this as a local-only desktop app with no user accounts."
+    },
+    {
+      "command": "record-raw-turn",
+      "returncode": 0,
+      "text": "We are rejecting the desktop path. The plan is now an installable web app with an API and separate user accounts."
+    }
+  ],
+  "artifacts": {
+    "architecture_records": [
+      "/tmp/final_audit_architecture_pivot_y9mw_8ni/PivotRepo_Data/.synapse/ARCHITECTURE_EVOLUTION/ARCHITECTURE_EVOLUTION__REC-30D27D2D72EE5CCB__we-are-rejecting-the-desktop-path.-the-plan-is-now-an-installabl.yaml",
+      "/tmp/final_audit_architecture_pivot_y9mw_8ni/PivotRepo_Data/.synapse/ARCHITECTURE_EVOLUTION/ARCHITECTURE_EVOLUTION__REC-B49076A43DB15323__okay,-that's-the-plan:-we-will-build-this-as-a-local-only-deskto.yaml"
+    ],
+    "lineage_edges": [
+      "/tmp/final_audit_architecture_pivot_y9mw_8ni/PivotRepo_Data/.synapse/LINEAGE/EDGES/EDGE__EDGE-066703D9F370563F__supports.yaml",
+      "/tmp/final_audit_architecture_pivot_y9mw_8ni/PivotRepo_Data/.synapse/LINEAGE/EDGES/EDGE__EDGE-125E20ED6C155B91__supports.yaml",
+      "/tmp/final_audit_architecture_pivot_y9mw_8ni/PivotRepo_Data/.synapse/LINEAGE/EDGES/EDGE__EDGE-154C4F90918452E2__promoted_to_plan.yaml",
+      "/tmp/final_audit_architecture_pivot_y9mw_8ni/PivotRepo_Data/.synapse/LINEAGE/EDGES/EDGE__EDGE-4E091DA4451F51EB__promoted_to_plan.yaml",
+      "/tmp/final_audit_architecture_pivot_y9mw_8ni/PivotRepo_Data/.synapse/LINEAGE/EDGES/EDGE__EDGE-5F6D5131483F5FDC__describes_architecture.yaml",
+      "/tmp/final_audit_architecture_pivot_y9mw_8ni/PivotRepo_Data/.synapse/LINEAGE/EDGES/EDGE__EDGE-6AD29D0D6AE1502B__promoted_to_plan.yaml",
+      "/tmp/final_audit_architecture_pivot_y9mw_8ni/PivotRepo_Data/.synapse/LINEAGE/EDGES/EDGE__EDGE-8F4B1F579B81502B__promoted_to_plan.yaml",
+      "/tmp/final_audit_architecture_pivot_y9mw_8ni/PivotRepo_Data/.synapse/LINEAGE/EDGES/EDGE__EDGE-8FD691CF2B615515__describes_architecture.yaml",
+      "/tmp/final_audit_architecture_pivot_y9mw_8ni/PivotRepo_Data/.synapse/LINEAGE/EDGES/EDGE__EDGE-C38960D14AFC5FC4__supersedes.yaml",
+      "/tmp/final_audit_architecture_pivot_y9mw_8ni/PivotRepo_Data/.synapse/LINEAGE/EDGES/EDGE__EDGE-CF85406B6F2259D9__describes_architecture.yaml",
+      "/tmp/final_audit_architecture_pivot_y9mw_8ni/PivotRepo_Data/.synapse/LINEAGE/EDGES/EDGE__EDGE-F1A34DE5C7975F15__describes_architecture.yaml"
+    ],
+    "open_obligations": [
+      "/tmp/final_audit_architecture_pivot_y9mw_8ni/PivotRepo_Data/.synapse/CONTINUITY_OBLIGATIONS/OBLIGATION__OBLIG-87FA097DCF8B5597__WARN.yaml"
+    ]
+  },
+  "passed": true,
+  "reasons": [],
+  "scenario": "architecture_pivot",
+  "setup": {
+    "data_root": "/tmp/final_audit_architecture_pivot_y9mw_8ni/PivotRepo_Data",
+    "engine_root": "/tmp/final_audit_architecture_pivot_y9mw_8ni/PivotRepo"
+  }
+}

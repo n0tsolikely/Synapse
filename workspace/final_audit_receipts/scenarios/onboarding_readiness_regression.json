@@ -1,0 +1,16 @@
+{
+  "actions": [
+    "engage --adopt-current-repo --json",
+    "doctor --governance-root governance"
+  ],
+  "artifacts": {
+    "doctor_output_contains": "FAIL_ONBOARDING_CONFIRMATION_REQUIRED"
+  },
+  "passed": true,
+  "reasons": [],
+  "scenario": "onboarding_readiness_regression",
+  "setup": {
+    "data_root": "/tmp/final_audit_onboarding_readiness_regression_bknc1_us/ExistingRepo_Data",
+    "repo": "/tmp/final_audit_onboarding_readiness_regression_bknc1_us/ExistingRepo"
+  }
+}

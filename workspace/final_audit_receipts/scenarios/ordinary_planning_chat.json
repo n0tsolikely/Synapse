@@ -1,0 +1,18 @@
+{
+  "actions": [
+    "record-raw-turn user planning statement"
+  ],
+  "artifacts": {
+    "plan_artifact_path": "/tmp/final_audit_ordinary_planning_chat_j9458nwf/PlanningRepo_Data/.synapse/PLANS/PLAN__PLAN-20260401T203648116645-0400__REVISION-001__okay-that-s-the-plan-build-an-installable-web-app-with-separate-.yaml",
+    "raw_turn_path": "/tmp/final_audit_ordinary_planning_chat_j9458nwf/PlanningRepo_Data/.synapse/RAW/CONVERSATION_TURNS/2026-04-01/TURN-CDDCB6DE51864A79.json",
+    "segment_path": "/tmp/final_audit_ordinary_planning_chat_j9458nwf/PlanningRepo_Data/.synapse/SEGMENTS/CONVERSATION/2026-04-01.jsonl",
+    "semantic_path": "/tmp/final_audit_ordinary_planning_chat_j9458nwf/PlanningRepo_Data/.synapse/SEMANTIC_EVENTS/2026-04-01.jsonl"
+  },
+  "passed": true,
+  "reasons": [],
+  "scenario": "ordinary_planning_chat",
+  "setup": {
+    "data_root": "/tmp/final_audit_ordinary_planning_chat_j9458nwf/PlanningRepo_Data",
+    "engine_root": "/tmp/final_audit_ordinary_planning_chat_j9458nwf/PlanningRepo"
+  }
+}

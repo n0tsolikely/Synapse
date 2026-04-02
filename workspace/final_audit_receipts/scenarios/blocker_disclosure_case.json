@@ -1,0 +1,21 @@
+{
+  "actions": [
+    "record-raw-turn blocker/unsafe claim"
+  ],
+  "artifacts": {
+    "disclosure_paths": [],
+    "failure_chain_paths": [
+      "/tmp/final_audit_blocker_disclosure_case_n44ucvpc/BlockerRepo_Data/.synapse/FAILURE_CHAINS/FAILURE_CHAINS__REC-64BBCA30C6B256C9__we-are-blocked-on-provider-credentials-and-it-would-be-unsafe-to.yaml"
+    ],
+    "open_obligation_paths": [
+      "/tmp/final_audit_blocker_disclosure_case_n44ucvpc/BlockerRepo_Data/.synapse/CONTINUITY_OBLIGATIONS/OBLIGATION__OBLIG-94813648EFC35ECC__WARN.yaml"
+    ]
+  },
+  "passed": true,
+  "reasons": [],
+  "scenario": "blocker_disclosure_case",
+  "setup": {
+    "data_root": "/tmp/final_audit_blocker_disclosure_case_n44ucvpc/BlockerRepo_Data",
+    "engine_root": "/tmp/final_audit_blocker_disclosure_case_n44ucvpc/BlockerRepo"
+  }
+}

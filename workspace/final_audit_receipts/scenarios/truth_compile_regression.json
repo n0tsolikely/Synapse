@@ -1,0 +1,19 @@
+{
+  "actions": [
+    "record planning turn",
+    "record blocker turn",
+    "compile-current-state --json"
+  ],
+  "artifacts": {
+    "compiler_report": "/tmp/final_audit_truth_compile_regression_6m487ozq/TruthRepo_Data/.synapse/TRUTH/COMPILER_REPORT.yaml",
+    "current_state": "/tmp/final_audit_truth_compile_regression_6m487ozq/TruthRepo_Data/.synapse/TRUTH/PUBLICATIONS/CURRENT_STATE.md",
+    "truth_statements": "/tmp/final_audit_truth_compile_regression_6m487ozq/TruthRepo_Data/.synapse/TRUTH/STATEMENTS.yaml"
+  },
+  "passed": true,
+  "reasons": [],
+  "scenario": "truth_compile_regression",
+  "setup": {
+    "data_root": "/tmp/final_audit_truth_compile_regression_6m487ozq/TruthRepo_Data",
+    "engine_root": "/tmp/final_audit_truth_compile_regression_6m487ozq/TruthRepo"
+  }
+}

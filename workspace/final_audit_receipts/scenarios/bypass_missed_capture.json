@@ -1,0 +1,19 @@
+{
+  "actions": [
+    "install-hooks --json",
+    "open blocker obligation",
+    ".git/hooks/pre-commit",
+    ".git/hooks/pre-push"
+  ],
+  "artifacts": {
+    "pre_commit_output": "=== PROVENANCE STATUS ===\nprovenance_status: blocked\nhonesty_note: Clear means no current warnings or blockers under Phase 5 checks. It does not prove universal mediation or perfect provenance.\ncurrent_wrapper_proof_status: not_applicable\ngit_hooks_status: installed\nblockers: 0\nwarnings: 0\nintegration_posture: degraded\nlocal_integration_health: missing\nopen_continuity_obligation_count: 1\nblocker_continuity_obligation_count: 1\ndegraded_mode_reason: Optional local integration is absent, partial, or stale. Turn-bound validation is not guaranteed and later honest boundaries must carry enforcement.\nlast_watch_at: None\nbaseline_path: None\n",
+    "pre_push_output": "=== PROVENANCE STATUS ===\nprovenance_status: blocked\nhonesty_note: Clear means no current warnings or blockers under Phase 5 checks. It does not prove universal mediation or perfect provenance.\ncurrent_wrapper_proof_status: not_applicable\ngit_hooks_status: installed\nblockers: 0\nwarnings: 0\nintegration_posture: degraded\nlocal_integration_health: missing\nopen_continuity_obligation_count: 1\nblocker_continuity_obligation_count: 1\ndegraded_mode_reason: Optional local integration is absent, partial, or stale. Turn-bound validation is not guaranteed and later honest boundaries must carry enforcement.\nlast_watch_at: None\nbaseline_path: None\n"
+  },
+  "passed": true,
+  "reasons": [],
+  "scenario": "bypass_missed_capture",
+  "setup": {
+    "data_root": "/tmp/final_audit_bypass_missed_capture_bhdfb9a7/BypassRepo_Data",
+    "engine_root": "/tmp/final_audit_bypass_missed_capture_bhdfb9a7/BypassRepo"
+  }
+}

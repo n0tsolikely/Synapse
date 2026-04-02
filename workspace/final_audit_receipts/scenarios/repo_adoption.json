@@ -1,0 +1,20 @@
+{
+  "actions": [
+    "engage --adopt-current-repo --json",
+    "install-local-integration --json",
+    "doctor --governance-root governance"
+  ],
+  "artifacts": {
+    "agents_bridge": "/tmp/final_audit_repo_adoption_semp1e9d/FrontendPlayground/AGENTS.md",
+    "claude_bridge": "/tmp/final_audit_repo_adoption_semp1e9d/FrontendPlayground/CLAUDE.md",
+    "data_root": "/tmp/final_audit_repo_adoption_semp1e9d/FrontendPlayground_Data",
+    "local_integration_manifest": "/tmp/final_audit_repo_adoption_semp1e9d/FrontendPlayground/.codex/synapse_local_integration.json"
+  },
+  "passed": true,
+  "reasons": [],
+  "scenario": "repo_adoption",
+  "setup": {
+    "home": "/tmp/final_audit_repo_adoption_semp1e9d/home",
+    "repo": "/tmp/final_audit_repo_adoption_semp1e9d/FrontendPlayground"
+  }
+}
