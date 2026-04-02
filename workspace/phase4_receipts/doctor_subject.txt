@@ -1,0 +1,91 @@
+=== SYNAPSE DOCTOR REPORT ===
+CWT: /home/notsolikely/Synapse
+Governance root: /home/notsolikely/Synapse/governance
+Schema validation: PASS
+Required Read Order:
+  - README.txt: EXISTS
+  - INDEX.txt: EXISTS
+  - SYNAPSE_STATE.yaml: EXISTS
+  - Continuity/SYNAPSE_GUILD__BOOTSTRAP_PROMPT.txt: EXISTS
+  - Continuity/SYNAPSE_GUILD__BUFFS.txt: EXISTS
+  - Continuity/SYNAPSE_GUILD__CONTINUITY_LOCK.txt: EXISTS
+  - Continuity/SYNAPSE_GUILD__EXECUTION_PACKS.txt: EXISTS
+  - latest_rehydration_pack.bootstrap_prompt: INFO (pointer)
+  - buffs: INFO (pointer)
+  - latest_rehydration_pack.continuity_lock: INFO (pointer)
+  - Continuity/SYNAPSE_GUILD__REHYDRATION_PACK_CHECKLIST.txt: EXISTS
+  - The Guild/SYNAPSE_GUILD_CANONICAL_MANUAL.txt: EXISTS
+  - The Guild/SYNAPSE_GUILD__SUBJECT_MODEL.txt: EXISTS
+  - The Guild/SYNAPSE_GUILD__QUICK_START.txt: EXISTS
+  - Processes/SYNAPSE_GUILD__THE_LOOP.txt: EXISTS
+  - Processes/SYNAPSE_GUILD__TRUTH_GATE.txt: EXISTS
+  - Processes/SYNAPSE_GUILD__DISCLOSURE_GATE.txt: EXISTS
+  - Processes/SYNAPSE_GUILD__SCHEMA_VALIDATION.txt: EXISTS
+  - Processes/SYNAPSE_GUILD__EXECUTION_AUDITS.txt: EXISTS
+  - Processes/SYNAPSE_GUILD__VERIFICATION_LADDER.txt: EXISTS
+  - Processes/SYNAPSE_GUILD__RISK_RUBRIC.txt: EXISTS
+  - Processes/SYNAPSE_GUILD__CONSENT_GATE.txt: EXISTS
+  - Processes/SYNAPSE_GUILD__LARGE_ARTIFACT_COMPOSITION.txt: EXISTS
+  - Processes/SYNAPSE_GUILD__SUBJECT_INITIALIZATION_AND_INCUBATION.txt: EXISTS
+  - Processes/SYNAPSE_GUILD__CONTROL_SYNC.txt: EXISTS
+  - Processes/SYNAPSE_GUILD__CONTROL_SYNC_CHECKLIST.txt: EXISTS
+  - Processes/SYNAPSE_GUILD__DAILIES.txt: EXISTS
+  - Processes/SYNAPSE_GUILD__DRAFTSHOTS.txt: EXISTS
+  - Guild Docs/SYNAPSE_GUILD__CODEX.txt: EXISTS
+  - Guild Docs/SYNAPSE_GUILD__GUILD_ORDERS.txt: EXISTS
+  - Guild Docs/SYNAPSE_GUILD__SNAPSHOTS.txt: EXISTS
+  - Guild Docs/SYNAPSE_GUILD__SNAPSHOT_TEMPLATES.txt: EXISTS
+  - Quest Board/SYNAPSE_GUILD__QUEST_BOARD.txt: EXISTS
+  - Quest Board/SYNAPSE_GUILD__QUEST_VALIDATION_RULES.txt: EXISTS
+  - Quest Board/SYNAPSE_GUILD__QUESTS.txt: EXISTS
+  - Quest Board/QUEST_TEMPLATE.txt: EXISTS
+  - Quest Board/CONFIRM_R2_TEMPLATE.txt: EXISTS
+  - Talent Tree/SYNAPSE_GUILD__TALENT_TREE.txt: EXISTS
+  - Talent Tree/TALENT_TREE.txt: EXISTS
+  - Talent Tree/TALENT_LOG.txt: EXISTS
+  - Talent Tree/RESPEC_RULES.txt: EXISTS
+  - The Guild/Terminology/README.md: EXISTS
+  - The Guild/Terminology/Terms/Build_Manual.md: EXISTS
+  - The Guild/Terminology/Terms/Canonical_Working_Tree.md: EXISTS
+  - The Guild/Terminology/Terms/Codex.md: EXISTS
+  - The Guild/Terminology/Terms/Control_Sync.md: EXISTS
+  - The Guild/Terminology/Terms/Dailies.md: EXISTS
+  - The Guild/Terminology/Terms/Disclosure_Gate.md: EXISTS
+  - The Guild/Terminology/Terms/Discovery.md: EXISTS
+  - The Guild/Terminology/Terms/Door.md: EXISTS
+  - The Guild/Terminology/Terms/Dungeon.md: EXISTS
+  - The Guild/Terminology/Terms/Exploration.md: EXISTS
+  - The Guild/Terminology/Terms/Fog_of_War.md: EXISTS
+  - The Guild/Terminology/Terms/Formalization.md: EXISTS
+  - The Guild/Terminology/Terms/God_Artifact.md: EXISTS
+  - The Guild/Terminology/Terms/Guild_Orders.md: EXISTS
+  - The Guild/Terminology/Terms/Incubation.md: EXISTS
+  - The Guild/Terminology/Terms/Mode_Awareness.md: EXISTS
+  - The Guild/Terminology/Terms/Quest.md: EXISTS
+  - The Guild/Terminology/Terms/Raid.md: EXISTS
+  - The Guild/Terminology/Terms/Rehydration.md: EXISTS
+  - The Guild/Terminology/Terms/Smoke_Test.md: EXISTS
+  - The Guild/Terminology/Terms/Snapshot.md: EXISTS
+  - The Guild/Terminology/Terms/Snapshot_Control_Sync.md: EXISTS
+  - The Guild/Terminology/Terms/Snapshot_End_of_Day.md: EXISTS
+  - The Guild/Terminology/Terms/Snapshot_General.md: EXISTS
+  - The Guild/Terminology/Terms/TOC.md: EXISTS
+  - The Guild/Terminology/Terms/Talent_Tree.md: EXISTS
+  - The Guild/Terminology/Terms/Truth_Gate.md: EXISTS
+  - The Guild/Terminology/Terms/Verification_Ladder.md: EXISTS
+  - The Guild/Terminology/Terms/World_State.md: EXISTS
+  - The Guild/Terminology/Terms/engine_DATA.md: EXISTS
+  - The Guild/Terminology/Locks/LOCK__CANONICAL_WORKING_TREE.md: EXISTS
+  - The Guild/Terminology/Locks/LOCK__CODEX_FREEZE_FOG_LIFTED.md: EXISTS
+  - The Guild/Terminology/Locks/LOCK__CONTROL_SYNC.md: EXISTS
+  - The Guild/Terminology/Locks/LOCK__DISCLOSURE_GATE.md: EXISTS
+  - The Guild/Terminology/Locks/LOCK__ENGINE_VS_DATA.md: EXISTS
+  - The Guild/Terminology/Locks/LOCK__FOG_OF_WAR.md: EXISTS
+  - The Guild/Terminology/Locks/LOCK__LAYER_RESPONSIBILITIES.md: EXISTS
+  - The Guild/Terminology/Locks/LOCK__MODE_AWARENESS.md: EXISTS
+  - The Guild/Terminology/Locks/LOCK__NO_GOD_ARTIFACTS.md: EXISTS
+  - The Guild/Terminology/Locks/LOCK__SCHEMA_VALIDATION_REQUIRED.md: EXISTS
+  - The Guild/Terminology/Locks/LOCK__SNAPSHOTS.md: EXISTS
+  - The Guild/Terminology/Locks/LOCK__SUBJECT_DATA_SKELETON.md: EXISTS
+  - The Guild/Terminology/Locks/LOCK__TRUTH_GATE.md: EXISTS
+Overall Status: PASS

@@ -1,0 +1,418 @@
+{
+  "blocker_continuity_obligation_count": 0,
+  "boundary": "close_turn",
+  "continuation_required": false,
+  "continuity_blockers": [],
+  "continuity_warnings": [
+    {
+      "obligation_id": "OBLIG-46B2F8D7291754F0",
+      "obligation_kind": "draftshot.recommended",
+      "path": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/CONTINUITY_OBLIGATIONS/OBLIGATION__OBLIG-46B2F8D7291754F0__WARNING.yaml",
+      "required_record_families": [
+        "governed_working_record"
+      ],
+      "severity": "warning",
+      "summary": "High-signal planning happened without a draftshot or equivalent session capture."
+    }
+  ],
+  "degraded_mode": false,
+  "degraded_mode_reason": null,
+  "event": {
+    "payload": {
+      "action_name": "close-turn",
+      "actor": {
+        "id": "notsolikely",
+        "runtime": "synapse-cli",
+        "type": "executor"
+      },
+      "event_id": "EVT-3787bfd0-aa7a-48fd-a61b-0658806be00d",
+      "outputs": {
+        "accepted_quest_id": null,
+        "audit_bundle_path": null,
+        "boundary": "close_turn",
+        "errors": [],
+        "formalized_artifacts": [],
+        "written_artifacts": []
+      },
+      "reducer_version": "v2.1-phase1",
+      "schema_version": 1,
+      "semantic_fingerprint": "b4f7c892e7b581f1ffd47e9b9f8386eab9b4ca2156058c630906516891e1b107",
+      "session_id": null,
+      "signals": {
+        "accepted_context": {
+          "active_order_ids": [],
+          "current_accepted_quest_id": null,
+          "governed_execution_ready": false
+        },
+        "changed_files": [],
+        "commands": [],
+        "decisions": [],
+        "disclosures": [],
+        "discoveries": [],
+        "plan_items": [],
+        "related_quest_ids": [],
+        "related_sidequest_ids": [],
+        "run_goal": null,
+        "run_summary": null,
+        "run_title": null,
+        "verification_entries": []
+      },
+      "status": "ok",
+      "subject": "Phase4WarnRepo",
+      "summary": "Validated close-turn continuity boundary for Phase4WarnRepo.",
+      "timestamp": "2026-04-01T20:18:42.290556-04:00",
+      "truth_flags": {
+        "canon_mutated": false,
+        "derived_state_changed": true,
+        "disclosure_open": false,
+        "governed": false,
+        "uncertainty_present": false,
+        "verification_present": false
+      }
+    },
+    "receipt": {
+      "event_id": "EVT-3787bfd0-aa7a-48fd-a61b-0658806be00d",
+      "path": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/EVENTS/2026-04-01.jsonl",
+      "semantic_fingerprint": "b4f7c892e7b581f1ffd47e9b9f8386eab9b4ca2156058c630906516891e1b107",
+      "timestamp": "2026-04-01T20:18:42.290556-04:00"
+    }
+  },
+  "integration_posture": "hooked",
+  "kernel_posture": {
+    "blocker_continuity_obligation_count": 0,
+    "data_root": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data",
+    "degraded_reason": null,
+    "local_integration": {
+      "hook_paths": {
+        "PostToolUse": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo/.codex/hooks/post_tool.sh",
+        "PreToolUse": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo/.codex/hooks/pre_tool.sh",
+        "Stop": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo/.codex/hooks/stop.sh",
+        "UserPromptSubmit": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo/.codex/hooks/user_prompt_submit.sh"
+      },
+      "integration_dir": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo/.codex",
+      "integration_health": "installed",
+      "integration_posture": "hooked",
+      "manifest_path": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo/.codex/synapse_local_integration.json",
+      "mcp_config_path": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo/.codex/mcp.json",
+      "missing_assets": [],
+      "readme_path": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo/.codex/README.md",
+      "synapse_root": "/home/notsolikely/Synapse"
+    },
+    "open_continuity_obligation_count": 1,
+    "posture": "hooked",
+    "raw_scaffold": {
+      "families": {
+        "blobs": "exists",
+        "conversation_turns": "exists",
+        "execution_events": "exists",
+        "import_events": "exists",
+        "tool_events": "exists"
+      },
+      "missing_families": [],
+      "raw_root": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/RAW",
+      "scaffold_status": "healthy"
+    },
+    "recent_open_continuity_obligation_details": [
+      {
+        "obligation_id": "OBLIG-46B2F8D7291754F0",
+        "obligation_kind": "draftshot.recommended",
+        "severity": "warning",
+        "summary": "High-signal planning happened without a draftshot or equivalent session capture."
+      }
+    ],
+    "repo_root": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo",
+    "strict_boundary_status": "caution"
+  },
+  "local_integration_health": "installed",
+  "local_integration_missing_assets": [],
+  "open_continuity_obligation_count": 1,
+  "provenance_blockers": [],
+  "provenance_warnings": [],
+  "recent_open_continuity_obligation_details": [
+    {
+      "obligation_id": "OBLIG-46B2F8D7291754F0",
+      "obligation_kind": "draftshot.recommended",
+      "path": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/CONTINUITY_OBLIGATIONS/OBLIGATION__OBLIG-46B2F8D7291754F0__WARNING.yaml",
+      "required_record_families": [
+        "governed_working_record"
+      ],
+      "severity": "warning",
+      "summary": "High-signal planning happened without a draftshot or equivalent session capture."
+    }
+  ],
+  "reducer": {
+    "continuity": null,
+    "event_id": "EVT-3787bfd0-aa7a-48fd-a61b-0658806be00d",
+    "mode": "active",
+    "reducer_version": "v2.1-phase1",
+    "rehydrate": {
+      "auto_formalizations": [],
+      "pending_formalization_count": 0,
+      "recent_decision_count": 0,
+      "recent_disclosure_count": 0,
+      "recent_discovery_count": 0,
+      "rehydrate_path": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/REHYDRATE.md"
+    },
+    "sidecar": {
+      "active_onboarding_id": null,
+      "automation_pending_gate": null,
+      "automation_status": "active",
+      "capture_batch_id": null,
+      "capture_count": null,
+      "capture_kinds": null,
+      "continuity_ready": true,
+      "current_accepted_quest_id": null,
+      "derived_synthesis": {
+        "active_plan_delta": null,
+        "active_scope_delta": null,
+        "architecture_delta": null,
+        "baseline_publication_ref": null,
+        "codex_packets": {
+          "codex_packet_count": 1,
+          "last_codex_packet_refreshed_at": "2026-04-01T20:18:42.321328-04:00",
+          "packet_section_keys": [
+            "OPEN_OBLIGATIONS"
+          ],
+          "recent_codex_packet_details": [
+            {
+              "packet_id": "PACKET-1991770427385295",
+              "path": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/CODEX_SECTION_PACKETS/PACKET__OPEN_OBLIGATIONS.yaml",
+              "refreshed_at": "2026-04-01T20:18:42.321328-04:00",
+              "section_key": "OPEN_OBLIGATIONS",
+              "section_title": "Open Continuity Obligations",
+              "source_ref_count": 1,
+              "summary": "1 open continuity obligations"
+            }
+          ]
+        },
+        "identity_delta": null,
+        "narrative_delta": null,
+        "obligation_delta": {
+          "delta_key": "OPEN_OBLIGATIONS",
+          "detail_lines": [
+            "High-signal planning happened without a draftshot or equivalent session capture."
+          ],
+          "metadata": {
+            "blocker_count": 0,
+            "open_count": 1
+          },
+          "refreshed_at": "2026-04-01T20:18:42.321328-04:00",
+          "source_ref_count": 1,
+          "source_refs": [
+            {
+              "id": "OBLIG-46B2F8D7291754F0",
+              "kind": "continuity_obligation",
+              "obligation_kind": "draftshot.recommended",
+              "path": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/CONTINUITY_OBLIGATIONS/OBLIGATION__OBLIG-46B2F8D7291754F0__WARNING.yaml"
+            }
+          ],
+          "summary": "1 open continuity obligations",
+          "title": "Open Continuity Obligations"
+        },
+        "refreshed_at": "2026-04-01T20:18:42.321328-04:00",
+        "removed_packet_paths": [],
+        "written_packet_paths": [
+          "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/CODEX_SECTION_PACKETS/PACKET__OPEN_OBLIGATIONS.yaml"
+        ]
+      },
+      "governed_promotion": {
+        "active_scope_campaign_ids": [],
+        "blocker_count": 0,
+        "last_governed_record_id": null,
+        "last_plan_revision_id": null,
+        "last_plan_revision_path": null,
+        "lineage_edge_count": 0,
+        "lineage_edges": [],
+        "lineage_relation_counts": {},
+        "open_count": 1,
+        "opened_obligations": [],
+        "plan_revisions": [],
+        "promoted_records": [],
+        "recent_lineage_edge_ids": [],
+        "recent_open_obligation_details": [
+          {
+            "obligation_id": "OBLIG-46B2F8D7291754F0",
+            "obligation_kind": "draftshot.recommended",
+            "severity": "warning",
+            "summary": "High-signal planning happened without a draftshot or equivalent session capture."
+          }
+        ],
+        "recent_open_obligation_ids": [
+          "OBLIG-46B2F8D7291754F0"
+        ],
+        "recent_plan_revision_details": [],
+        "recent_working_record_details": [],
+        "resolved_obligations": [],
+        "working_record_count": 0,
+        "working_record_family_counts": {}
+      },
+      "interaction_mode": "maintenance",
+      "last_completed_quest_id": null,
+      "manifold_path": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/MANIFOLD.yaml",
+      "normalized_semantic": {
+        "conversation_segment_count": 0,
+        "emitted_plan_events": [],
+        "emitted_semantic_events": [],
+        "execution_segment_count": 0,
+        "last_conversation_segment_id": null,
+        "last_execution_segment_id": null,
+        "last_semantic_event_at": null,
+        "last_semantic_event_id": null,
+        "plan_event_count": 0,
+        "recent_conversation_segment_ids": [],
+        "recent_execution_segment_ids": [],
+        "recent_plan_event_ids": [],
+        "recent_semantic_event_details": [],
+        "semantic_event_count": 0,
+        "transient_semantic_event_count": 0
+      },
+      "onboarding_confirmed": false,
+      "onboarding_required": false,
+      "onboarding_state": null,
+      "open_questions_path": null,
+      "project_identity_ready": false,
+      "proposal_paths": [],
+      "provenance_status": "caution",
+      "published_project_model_path": null,
+      "state_path": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/STATE.yaml",
+      "world_state": "fog_of_war"
+    }
+  },
+  "runtime_status": {
+    "derived_state_current": true,
+    "error_code": null,
+    "error_message": null,
+    "event_id": "EVT-3787bfd0-aa7a-48fd-a61b-0658806be00d",
+    "event_recorded": true,
+    "operation_status": "ok",
+    "primary_mutation_committed": true,
+    "recovery_hint": null
+  },
+  "strict_boundary_status": "caution",
+  "subject_context": {
+    "auto_initialized": false,
+    "data_root": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data",
+    "engine_root": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo",
+    "home_lockfile": "/tmp/synapse_phase4_warn_gyp2ni61/home/.synapse/ACTIVE_SUBJECT.json",
+    "initialized_created": [],
+    "initialized_existing": [],
+    "live_created": [],
+    "live_existing": [
+      "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/VISION.md",
+      "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/STATE.yaml",
+      "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/MANIFOLD.yaml",
+      "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/REHYDRATE.md",
+      "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/ACTIVE_RUN.yaml",
+      "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/ONBOARDING/CURRENT.yaml",
+      "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/DECISIONS/2026-04-01.yaml",
+      "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/DISCOVERIES/2026-04-01.yaml",
+      "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/DISCLOSURES/2026-04-01.yaml",
+      "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/CAPTURES/2026-04-01.yaml",
+      "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/THREADS/open_questions.md"
+    ],
+    "live_root": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse",
+    "repo_lockfile": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo/.synapse/ACTIVE_SUBJECT.json",
+    "required_paths": {
+      "active_run": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/ACTIVE_RUN.yaml",
+      "decision_ledger": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/DECISIONS/2026-04-01.yaml",
+      "disclosure_ledger": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/DISCLOSURES/2026-04-01.yaml",
+      "discovery_ledger": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/DISCOVERIES/2026-04-01.yaml",
+      "event_spine": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/EVENTS",
+      "proposal": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/PROPOSALS",
+      "rehydrate": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/REHYDRATE.md",
+      "run_ledger": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/RUNS",
+      "sidecar_manifold": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/MANIFOLD.yaml",
+      "sidecar_state": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/STATE.yaml",
+      "threads": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/THREADS/open_questions.md",
+      "vision": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/VISION.md"
+    },
+    "selected_at": "2026-04-01T20:18:41.765218-04:00",
+    "selected_by": "Brains",
+    "selection_method": "lockfile",
+    "source_detail": "lockfile_repo",
+    "subject": "Phase4WarnRepo"
+  },
+  "summary": {
+    "accepted_audit_bundle_path": null,
+    "accepted_quest_id": null,
+    "baseline_path": null,
+    "blocker_continuity_obligation_count": 0,
+    "blockers": [],
+    "continuity_blockers": [],
+    "continuity_warnings": [
+      {
+        "obligation_id": "OBLIG-46B2F8D7291754F0",
+        "obligation_kind": "draftshot.recommended",
+        "path": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/CONTINUITY_OBLIGATIONS/OBLIGATION__OBLIG-46B2F8D7291754F0__WARNING.yaml",
+        "required_record_families": [
+          "governed_working_record"
+        ],
+        "severity": "warning",
+        "summary": "High-signal planning happened without a draftshot or equivalent session capture."
+      }
+    ],
+    "current_wrapper_proof_fingerprint": null,
+    "current_wrapper_proof_path": null,
+    "current_wrapper_proof_status": "not_applicable",
+    "degraded_mode": false,
+    "degraded_mode_reason": null,
+    "git_hooks_last_verified_at": "2026-04-01T20:18:41.911016-04:00",
+    "git_hooks_status": "installed",
+    "git_hooks_template_version": 1,
+    "honesty_note": "Clear means no current warnings or blockers under Phase 5 checks. It does not prove universal mediation or perfect provenance.",
+    "integration_posture": "hooked",
+    "last_watch_at": null,
+    "local_integration_health": "installed",
+    "local_integration_missing_assets": [],
+    "observed_at": "2026-04-01T20:18:42.501104-04:00",
+    "open_continuity_obligation_count": 1,
+    "provenance_status": "caution",
+    "recent_anomaly_count": 0,
+    "recent_open_continuity_obligation_details": [
+      {
+        "obligation_id": "OBLIG-46B2F8D7291754F0",
+        "obligation_kind": "draftshot.recommended",
+        "path": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/CONTINUITY_OBLIGATIONS/OBLIGATION__OBLIG-46B2F8D7291754F0__WARNING.yaml",
+        "required_record_families": [
+          "governed_working_record"
+        ],
+        "severity": "warning",
+        "summary": "High-signal planning happened without a draftshot or equivalent session capture."
+      }
+    ],
+    "recent_provenance_anomalies": [],
+    "snapshot": {
+      "accepted_audit_bundle_path": null,
+      "accepted_quest_id": null,
+      "baseline_id": "BASELINE-20260401T201842501089-0400",
+      "captured_at": "2026-04-01T20:18:42.501104-04:00",
+      "coordination_fingerprints": {
+        "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/ACTIVE_RUN.yaml": "4cfa70a6e8701eb908c8239d8d3c9de82d17f210e0f1127a0ef928c03f58198a",
+        "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/ONBOARDING/CURRENT.yaml": "8d0b723ef20ff7932901f5b788ed685b57cf32c2a9eef6cca62ccf590c43ba00"
+      },
+      "engine_dirty_files": [
+        "?? .synapse/"
+      ],
+      "engine_dirty_fingerprint": "e0fac83f15f8c2e04b14c1c60e045c12cd33da1c2e8346773a8c134858dce6c5",
+      "engine_git_head": null,
+      "engine_is_git_repo": true,
+      "event_progress": {
+        "latest_event_count": 2,
+        "latest_event_file_fingerprint": "1292ba095baff45d5d8a7c2709cdcb467202c4127aa6a33f20878a639d2a453b",
+        "latest_event_file_path": "/tmp/synapse_phase4_warn_gyp2ni61/Phase4WarnRepo_Data/.synapse/EVENTS/2026-04-01.jsonl"
+      },
+      "git_hooks_fingerprint": "0326730a01ba91fd7f56154bd11947b80479b532c20b643eb4bb8fb284094ea8",
+      "git_hooks_status": "installed",
+      "run_id": null,
+      "session_id": null,
+      "subject": "Phase4WarnRepo",
+      "wrapper_proof_fingerprint": null,
+      "wrapper_proof_path": null,
+      "wrapper_proof_status": "not_applicable"
+    },
+    "strict_boundary_status": "caution",
+    "subject": "Phase4WarnRepo",
+    "warnings": []
+  },
+  "validation_status": "caution"
+}

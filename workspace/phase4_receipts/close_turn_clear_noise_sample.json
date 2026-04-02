@@ -1,0 +1,338 @@
+{
+  "blocker_continuity_obligation_count": 0,
+  "boundary": "close_turn",
+  "continuation_required": false,
+  "continuity_blockers": [],
+  "continuity_warnings": [],
+  "degraded_mode": false,
+  "degraded_mode_reason": null,
+  "event": {
+    "payload": {
+      "action_name": "close-turn",
+      "actor": {
+        "id": "notsolikely",
+        "runtime": "synapse-cli",
+        "type": "executor"
+      },
+      "event_id": "EVT-224d5b3d-90db-4443-bd1a-df8387772cf3",
+      "outputs": {
+        "accepted_quest_id": null,
+        "audit_bundle_path": null,
+        "boundary": "close_turn",
+        "errors": [],
+        "formalized_artifacts": [],
+        "written_artifacts": []
+      },
+      "reducer_version": "v2.1-phase1",
+      "schema_version": 1,
+      "semantic_fingerprint": "f010775522be3beac05c8709dbcafe46fccb2a65ad9226eee671c3dbc43a9d63",
+      "session_id": null,
+      "signals": {
+        "accepted_context": {
+          "active_order_ids": [],
+          "current_accepted_quest_id": null,
+          "governed_execution_ready": false
+        },
+        "changed_files": [],
+        "commands": [],
+        "decisions": [],
+        "disclosures": [],
+        "discoveries": [],
+        "plan_items": [],
+        "related_quest_ids": [],
+        "related_sidequest_ids": [],
+        "run_goal": null,
+        "run_summary": null,
+        "run_title": null,
+        "verification_entries": []
+      },
+      "status": "ok",
+      "subject": "Phase4ClearRepo",
+      "summary": "Validated close-turn continuity boundary for Phase4ClearRepo.",
+      "timestamp": "2026-04-01T20:18:59.920415-04:00",
+      "truth_flags": {
+        "canon_mutated": false,
+        "derived_state_changed": true,
+        "disclosure_open": false,
+        "governed": false,
+        "uncertainty_present": false,
+        "verification_present": false
+      }
+    },
+    "receipt": {
+      "event_id": "EVT-224d5b3d-90db-4443-bd1a-df8387772cf3",
+      "path": "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data/.synapse/EVENTS/2026-04-01.jsonl",
+      "semantic_fingerprint": "f010775522be3beac05c8709dbcafe46fccb2a65ad9226eee671c3dbc43a9d63",
+      "timestamp": "2026-04-01T20:18:59.920415-04:00"
+    }
+  },
+  "integration_posture": "hooked",
+  "kernel_posture": {
+    "blocker_continuity_obligation_count": 0,
+    "data_root": "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data",
+    "degraded_reason": null,
+    "local_integration": {
+      "hook_paths": {
+        "PostToolUse": "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo/.codex/hooks/post_tool.sh",
+        "PreToolUse": "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo/.codex/hooks/pre_tool.sh",
+        "Stop": "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo/.codex/hooks/stop.sh",
+        "UserPromptSubmit": "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo/.codex/hooks/user_prompt_submit.sh"
+      },
+      "integration_dir": "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo/.codex",
+      "integration_health": "installed",
+      "integration_posture": "hooked",
+      "manifest_path": "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo/.codex/synapse_local_integration.json",
+      "mcp_config_path": "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo/.codex/mcp.json",
+      "missing_assets": [],
+      "readme_path": "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo/.codex/README.md",
+      "synapse_root": "/home/notsolikely/Synapse"
+    },
+    "open_continuity_obligation_count": 0,
+    "posture": "hooked",
+    "raw_scaffold": {
+      "families": {
+        "blobs": "exists",
+        "conversation_turns": "exists",
+        "execution_events": "exists",
+        "import_events": "exists",
+        "tool_events": "exists"
+      },
+      "missing_families": [],
+      "raw_root": "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data/.synapse/RAW",
+      "scaffold_status": "healthy"
+    },
+    "recent_open_continuity_obligation_details": [],
+    "repo_root": "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo",
+    "strict_boundary_status": "clear"
+  },
+  "local_integration_health": "installed",
+  "local_integration_missing_assets": [],
+  "open_continuity_obligation_count": 0,
+  "provenance_blockers": [],
+  "provenance_warnings": [],
+  "recent_open_continuity_obligation_details": [],
+  "reducer": {
+    "continuity": null,
+    "event_id": "EVT-224d5b3d-90db-4443-bd1a-df8387772cf3",
+    "mode": "active",
+    "reducer_version": "v2.1-phase1",
+    "rehydrate": {
+      "auto_formalizations": [],
+      "pending_formalization_count": 0,
+      "recent_decision_count": 0,
+      "recent_disclosure_count": 0,
+      "recent_discovery_count": 0,
+      "rehydrate_path": "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data/.synapse/REHYDRATE.md"
+    },
+    "sidecar": {
+      "active_onboarding_id": null,
+      "automation_pending_gate": null,
+      "automation_status": "active",
+      "capture_batch_id": null,
+      "capture_count": null,
+      "capture_kinds": null,
+      "continuity_ready": true,
+      "current_accepted_quest_id": null,
+      "derived_synthesis": {
+        "active_plan_delta": null,
+        "active_scope_delta": null,
+        "architecture_delta": null,
+        "baseline_publication_ref": null,
+        "codex_packets": {
+          "codex_packet_count": 0,
+          "last_codex_packet_refreshed_at": null,
+          "packet_section_keys": [],
+          "recent_codex_packet_details": []
+        },
+        "identity_delta": null,
+        "narrative_delta": null,
+        "obligation_delta": null,
+        "refreshed_at": "2026-04-01T20:18:59.950832-04:00",
+        "removed_packet_paths": [],
+        "written_packet_paths": []
+      },
+      "governed_promotion": {
+        "active_scope_campaign_ids": [],
+        "blocker_count": 0,
+        "last_governed_record_id": null,
+        "last_plan_revision_id": null,
+        "last_plan_revision_path": null,
+        "lineage_edge_count": 0,
+        "lineage_edges": [],
+        "lineage_relation_counts": {},
+        "open_count": 0,
+        "opened_obligations": [],
+        "plan_revisions": [],
+        "promoted_records": [],
+        "recent_lineage_edge_ids": [],
+        "recent_open_obligation_details": [],
+        "recent_open_obligation_ids": [],
+        "recent_plan_revision_details": [],
+        "recent_working_record_details": [],
+        "resolved_obligations": [],
+        "working_record_count": 0,
+        "working_record_family_counts": {}
+      },
+      "interaction_mode": "maintenance",
+      "last_completed_quest_id": null,
+      "manifold_path": "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data/.synapse/MANIFOLD.yaml",
+      "normalized_semantic": {
+        "conversation_segment_count": 1,
+        "emitted_plan_events": [],
+        "emitted_semantic_events": [],
+        "execution_segment_count": 0,
+        "last_conversation_segment_id": "SEGCONV-360A9164A8425087",
+        "last_execution_segment_id": null,
+        "last_semantic_event_at": "2026-04-01T20:18:59.531738-04:00",
+        "last_semantic_event_id": "SEM-5D91934EE9E9570C",
+        "plan_event_count": 0,
+        "recent_conversation_segment_ids": [
+          "SEGCONV-360A9164A8425087"
+        ],
+        "recent_execution_segment_ids": [],
+        "recent_plan_event_ids": [],
+        "recent_semantic_event_details": [
+          {
+            "class_label": "transient_noise",
+            "confidence_band": "high",
+            "materiality_band": "low",
+            "semantic_event_id": "SEM-5D91934EE9E9570C",
+            "source_segment_ids": [
+              "SEGCONV-360A9164A8425087"
+            ],
+            "summary": "ok",
+            "topic_key": "transient.noise",
+            "transient_noise": true
+          }
+        ],
+        "semantic_event_count": 1,
+        "transient_semantic_event_count": 1
+      },
+      "onboarding_confirmed": false,
+      "onboarding_required": false,
+      "onboarding_state": null,
+      "open_questions_path": null,
+      "project_identity_ready": false,
+      "proposal_paths": [],
+      "provenance_status": "clear",
+      "published_project_model_path": null,
+      "state_path": "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data/.synapse/STATE.yaml",
+      "world_state": "fog_of_war"
+    }
+  },
+  "runtime_status": {
+    "derived_state_current": true,
+    "error_code": null,
+    "error_message": null,
+    "event_id": "EVT-224d5b3d-90db-4443-bd1a-df8387772cf3",
+    "event_recorded": true,
+    "operation_status": "ok",
+    "primary_mutation_committed": true,
+    "recovery_hint": null
+  },
+  "strict_boundary_status": "clear",
+  "subject_context": {
+    "auto_initialized": false,
+    "data_root": "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data",
+    "engine_root": "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo",
+    "home_lockfile": "/tmp/synapse_phase4_clear_okdtpvf2/home/.synapse/ACTIVE_SUBJECT.json",
+    "initialized_created": [],
+    "initialized_existing": [],
+    "live_created": [],
+    "live_existing": [
+      "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data/.synapse/VISION.md",
+      "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data/.synapse/STATE.yaml",
+      "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data/.synapse/MANIFOLD.yaml",
+      "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data/.synapse/REHYDRATE.md",
+      "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data/.synapse/ACTIVE_RUN.yaml",
+      "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data/.synapse/ONBOARDING/CURRENT.yaml",
+      "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data/.synapse/DECISIONS/2026-04-01.yaml",
+      "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data/.synapse/DISCOVERIES/2026-04-01.yaml",
+      "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data/.synapse/DISCLOSURES/2026-04-01.yaml",
+      "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data/.synapse/CAPTURES/2026-04-01.yaml",
+      "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data/.synapse/THREADS/open_questions.md"
+    ],
+    "live_root": "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data/.synapse",
+    "repo_lockfile": "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo/.synapse/ACTIVE_SUBJECT.json",
+    "required_paths": {
+      "active_run": "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data/.synapse/ACTIVE_RUN.yaml",
+      "decision_ledger": "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data/.synapse/DECISIONS/2026-04-01.yaml",
+      "disclosure_ledger": "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data/.synapse/DISCLOSURES/2026-04-01.yaml",
+      "discovery_ledger": "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data/.synapse/DISCOVERIES/2026-04-01.yaml",
+      "event_spine": "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data/.synapse/EVENTS",
+      "proposal": "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data/.synapse/PROPOSALS",
+      "rehydrate": "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data/.synapse/REHYDRATE.md",
+      "run_ledger": "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data/.synapse/RUNS",
+      "sidecar_manifold": "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data/.synapse/MANIFOLD.yaml",
+      "sidecar_state": "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data/.synapse/STATE.yaml",
+      "threads": "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data/.synapse/THREADS/open_questions.md",
+      "vision": "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data/.synapse/VISION.md"
+    },
+    "selected_at": "2026-04-01T20:18:58.977761-04:00",
+    "selected_by": "Brains",
+    "selection_method": "lockfile",
+    "source_detail": "lockfile_repo",
+    "subject": "Phase4ClearRepo"
+  },
+  "summary": {
+    "accepted_audit_bundle_path": null,
+    "accepted_quest_id": null,
+    "baseline_path": null,
+    "blocker_continuity_obligation_count": 0,
+    "blockers": [],
+    "continuity_blockers": [],
+    "continuity_warnings": [],
+    "current_wrapper_proof_fingerprint": null,
+    "current_wrapper_proof_path": null,
+    "current_wrapper_proof_status": "not_applicable",
+    "degraded_mode": false,
+    "degraded_mode_reason": null,
+    "git_hooks_last_verified_at": "2026-04-01T20:18:59.135412-04:00",
+    "git_hooks_status": "installed",
+    "git_hooks_template_version": 1,
+    "honesty_note": "Clear means no current warnings or blockers under Phase 5 checks. It does not prove universal mediation or perfect provenance.",
+    "integration_posture": "hooked",
+    "last_watch_at": null,
+    "local_integration_health": "installed",
+    "local_integration_missing_assets": [],
+    "observed_at": "2026-04-01T20:19:00.109942-04:00",
+    "open_continuity_obligation_count": 0,
+    "provenance_status": "clear",
+    "recent_anomaly_count": 0,
+    "recent_open_continuity_obligation_details": [],
+    "recent_provenance_anomalies": [],
+    "snapshot": {
+      "accepted_audit_bundle_path": null,
+      "accepted_quest_id": null,
+      "baseline_id": "BASELINE-20260401T201900109917-0400",
+      "captured_at": "2026-04-01T20:19:00.109942-04:00",
+      "coordination_fingerprints": {
+        "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data/.synapse/ACTIVE_RUN.yaml": "319e089298ea1b1a9c2a64e9663ecdc18bc293412a9b3ba9b31e28d3f263ad78",
+        "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data/.synapse/ONBOARDING/CURRENT.yaml": "7f11c2ff0548ecf54ebde9e1f1966f4bdf609dcebd95b23719e1881262444885"
+      },
+      "engine_dirty_files": [
+        "?? .synapse/"
+      ],
+      "engine_dirty_fingerprint": "e0fac83f15f8c2e04b14c1c60e045c12cd33da1c2e8346773a8c134858dce6c5",
+      "engine_git_head": null,
+      "engine_is_git_repo": true,
+      "event_progress": {
+        "latest_event_count": 3,
+        "latest_event_file_fingerprint": "2000fd1d27f98d0d5e0112d6181b8e6c124c7506343035787c6e478c8d96611e",
+        "latest_event_file_path": "/tmp/synapse_phase4_clear_okdtpvf2/Phase4ClearRepo_Data/.synapse/EVENTS/2026-04-01.jsonl"
+      },
+      "git_hooks_fingerprint": "0326730a01ba91fd7f56154bd11947b80479b532c20b643eb4bb8fb284094ea8",
+      "git_hooks_status": "installed",
+      "run_id": null,
+      "session_id": null,
+      "subject": "Phase4ClearRepo",
+      "wrapper_proof_fingerprint": null,
+      "wrapper_proof_path": null,
+      "wrapper_proof_status": "not_applicable"
+    },
+    "strict_boundary_status": "clear",
+    "subject": "Phase4ClearRepo",
+    "warnings": []
+  },
+  "validation_status": "clear"
+}

@@ -40,3 +40,10 @@ Phase 0 integration truth:
   - `hooked` when the optional assets are installed and healthy
   - `degraded` when those assets are absent, partial, or stale
 - degraded posture is supported; it is not a fake failure mode, and it must not be described as full hook mediation
+
+Phase 4 integration truth:
+
+- hook-backed clients can run `close-turn` validation at real turn-stop boundaries through the optional local integration assets
+- strict commit/push backstops can fail closed on blocker-class continuity obligations only
+- warning-only conditions remain warnings; Synapse must not describe them as hard gates
+- degraded posture remains explicit when turn-bound hooks are unavailable or untrusted

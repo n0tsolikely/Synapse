@@ -1,0 +1,10 @@
+{
+  "degraded_mode_returncode": 0,
+  "install_hooks_returncode": 0,
+  "close_turn_warn_returncode": 0,
+  "close_turn_block_returncode": 2,
+  "pre_commit_returncode": 2,
+  "pre_push_returncode": 2,
+  "engine_root": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo",
+  "data_root": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data"
+}

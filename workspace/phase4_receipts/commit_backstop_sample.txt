@@ -1,0 +1,15 @@
+=== PROVENANCE STATUS ===
+provenance_status: blocked
+honesty_note: Clear means no current warnings or blockers under Phase 5 checks. It does not prove universal mediation or perfect provenance.
+current_wrapper_proof_status: not_applicable
+git_hooks_status: installed
+blockers: 0
+warnings: 0
+integration_posture: hooked
+local_integration_health: installed
+open_continuity_obligation_count: 1
+blocker_continuity_obligation_count: 1
+last_watch_at: None
+baseline_path: None
+
+---STDERR---

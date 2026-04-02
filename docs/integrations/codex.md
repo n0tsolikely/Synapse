@@ -52,4 +52,11 @@ Phase 0 truth:
 - repo-local `.codex` assets are optional and explicitly installed
 - repos surface `hooked` vs `degraded` posture through doctor/current-context instead of pretending hook mediation always exists
 
+Phase 4 truth:
+
+- the optional `Stop` hook can run `close-turn` validation automatically when the local integration assets are installed and the Codex client actually invokes that boundary
+- managed `pre-commit` / `pre-push` hooks can fail closed on blocker-class continuity obligations through `provenance-status --strict`
+- degraded posture is still supported and must be stated explicitly; it means those turn-bound checks are not guaranteed to have run
+- Synapse does not claim universal interception, rollback of already-run commands, or guaranteed chat capture outside honest boundaries
+
 Do not run the full Synapse boot ritual globally outside a Synapse repo.

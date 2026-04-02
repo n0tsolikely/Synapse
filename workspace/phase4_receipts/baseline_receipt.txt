@@ -1,0 +1,14 @@
+branch: codex/engaged-kernel-p4-enforcement-hardening
+head: c4e530b4d8e2e58448664f490768240462c5956b
+worktree: clean
+baseline_doctor: PASS (python3 runtime/synapse.py doctor --governance-root governance --no-subject)
+baseline_provenance: not applicable without subject
+baseline_tests:
+  - tests.test_provenance
+  - tests.test_phase0_runtime_hardening
+  - tests.test_mcp_integration
+  - tests.test_event_spine
+  - tests.test_missed_capture_detection
+  - tests.test_close_turn_validation
+  - tests.test_degraded_mode_enforcement
+  - tests.test_governance_guard_wrapper_proof

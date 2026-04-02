@@ -1,0 +1,3 @@
+Phase 4 goal: honest warn/block/backstop enforcement only.
+In scope: hook entrypoints, repo_state, doctor, provenance, git_hooks, strict hook templates, sidecar projection posture visibility, MCP exposure, docs that match actual Phase 4 behavior.
+Out of scope: new semantic promotion owners, new canonical writers, new sidecar roots, phase 5 whole-system changes.

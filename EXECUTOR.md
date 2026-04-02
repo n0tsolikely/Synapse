@@ -73,6 +73,7 @@ Runtime CLI (`runtime/synapse.py`)
 - `resolve-subject`: deterministic subject receipt for scripts and wrappers.
 - `record-raw-turn`: append one raw user/executor turn into `.synapse/RAW/CONVERSATION_TURNS/`.
 - `record-raw-execution`: append one raw execution/tool/import receipt into `.synapse/RAW/*` using the canonical event spine path.
+- `close-turn`: validate the current close-turn boundary, surface blocker-class continuity obligations, and fail closed only when the invoked boundary is honest and strict.
 - `install-local-integration`: explicitly install or refresh optional repo-local `.codex` integration assets.
 - `persona`: resolve the optional Synapse-managed persona overlay.
 - `mode`: get/set elastic governance mode.
@@ -116,6 +117,8 @@ RUNTIME TOOL COMPATIBILITY
 
 - Optional local `.codex` integration is a local install/refresh path, not universal law.
 - If the repo/client does not load those local assets, Synapse is in degraded posture rather than hooked posture.
+- Hook-backed close-turn validation is only real when the local integration assets are installed and the client actually runs them.
+- Strict commit/push backstops may fail closed on blocker-class continuity obligations; warning-only conditions remain detection/reporting only.
 
 ================================================================================
 1) PRIME LAWS (HARD — NO EXCEPTIONS)

@@ -1,0 +1,237 @@
+{
+  "backups": [],
+  "event": {
+    "payload": {
+      "action_name": "install-hooks",
+      "actor": {
+        "id": "notsolikely",
+        "runtime": "synapse-cli",
+        "type": "executor"
+      },
+      "event_id": "EVT-6a75766a-ae9b-4421-a9bd-d69606ef7deb",
+      "outputs": {
+        "accepted_quest_id": null,
+        "audit_bundle_path": null,
+        "backups": [],
+        "errors": [],
+        "formalized_artifacts": [],
+        "git_hooks_status": "installed",
+        "hooks_receipt_path": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/PROVENANCE/HOOKS.yaml",
+        "pre_commit_status": "installed",
+        "pre_push_status": "installed",
+        "template_version": 1,
+        "written_artifacts": []
+      },
+      "reducer_version": "v2.1-phase1",
+      "schema_version": 1,
+      "semantic_fingerprint": "abb00e1e8df5800f465a249b58bc6e67e075ace3d02d65134cc22fc8fe687fb2",
+      "session_id": null,
+      "signals": {
+        "accepted_context": {
+          "active_order_ids": [],
+          "current_accepted_quest_id": null,
+          "governed_execution_ready": false
+        },
+        "changed_files": [
+          "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/PROVENANCE/HOOKS.yaml"
+        ],
+        "commands": [],
+        "decisions": [],
+        "disclosures": [],
+        "discoveries": [],
+        "plan_items": [],
+        "related_quest_ids": [],
+        "related_sidequest_ids": [],
+        "run_goal": null,
+        "run_summary": null,
+        "run_title": null,
+        "verification_entries": []
+      },
+      "status": "ok",
+      "subject": "Phase4ReceiptRepo",
+      "summary": "Installed or verified managed git hooks for Phase4ReceiptRepo.",
+      "timestamp": "2026-04-01T20:17:58.051055-04:00",
+      "truth_flags": {
+        "canon_mutated": false,
+        "derived_state_changed": true,
+        "disclosure_open": false,
+        "governed": false,
+        "uncertainty_present": false,
+        "verification_present": false
+      }
+    },
+    "receipt": {
+      "event_id": "EVT-6a75766a-ae9b-4421-a9bd-d69606ef7deb",
+      "path": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/EVENTS/2026-04-01.jsonl",
+      "semantic_fingerprint": "abb00e1e8df5800f465a249b58bc6e67e075ace3d02d65134cc22fc8fe687fb2",
+      "timestamp": "2026-04-01T20:17:58.051055-04:00"
+    }
+  },
+  "git_hooks_status": "installed",
+  "hooks_receipt_path": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/PROVENANCE/HOOKS.yaml",
+  "pre_commit_status": "installed",
+  "pre_push_status": "installed",
+  "reducer": {
+    "continuity": {
+      "archived_paths": [
+        "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/Archive/Latest Rehydration Pack/Phase4ReceiptRepo_BOOTSTRAP_PROMPT__2026-04-01.txt",
+        "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/Archive/Latest Rehydration Pack/Phase4ReceiptRepo_CONTINUITY_LOCK__2026-04-01.txt"
+      ],
+      "bootstrap_changed": true,
+      "bootstrap_prompt_path": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/Latest Rehydration Pack/Phase4ReceiptRepo_BOOTSTRAP_PROMPT__2026-04-01__02.txt",
+      "continuity_changed": true,
+      "continuity_lock_path": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/Latest Rehydration Pack/Phase4ReceiptRepo_CONTINUITY_LOCK__2026-04-01__02.txt",
+      "execution_pack_archived_paths": [],
+      "execution_pack_changed": false,
+      "execution_pack_pointer_path": null,
+      "execution_pack_source_path": null,
+      "resume_point": "Open Control Sync and determine the next governed scope.",
+      "subject_state_path": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/SUBJECT_STATE.yaml"
+    },
+    "event_id": "EVT-6a75766a-ae9b-4421-a9bd-d69606ef7deb",
+    "mode": "active",
+    "reducer_version": "v2.1-phase1",
+    "rehydrate": {
+      "auto_formalizations": [],
+      "pending_formalization_count": 0,
+      "recent_decision_count": 0,
+      "recent_disclosure_count": 0,
+      "recent_discovery_count": 0,
+      "rehydrate_path": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/REHYDRATE.md"
+    },
+    "sidecar": {
+      "active_onboarding_id": null,
+      "automation_pending_gate": null,
+      "automation_status": "active",
+      "capture_batch_id": null,
+      "capture_count": null,
+      "capture_kinds": null,
+      "continuity_ready": true,
+      "current_accepted_quest_id": null,
+      "derived_synthesis": {
+        "active_plan_delta": null,
+        "active_scope_delta": null,
+        "architecture_delta": null,
+        "baseline_publication_ref": null,
+        "codex_packets": {
+          "codex_packet_count": 0,
+          "last_codex_packet_refreshed_at": null,
+          "packet_section_keys": [],
+          "recent_codex_packet_details": []
+        },
+        "identity_delta": null,
+        "narrative_delta": null,
+        "obligation_delta": null,
+        "refreshed_at": "2026-04-01T20:17:58.080899-04:00",
+        "removed_packet_paths": [],
+        "written_packet_paths": []
+      },
+      "governed_promotion": {
+        "active_scope_campaign_ids": [],
+        "blocker_count": 0,
+        "last_governed_record_id": null,
+        "last_plan_revision_id": null,
+        "last_plan_revision_path": null,
+        "lineage_edge_count": 0,
+        "lineage_edges": [],
+        "lineage_relation_counts": {},
+        "open_count": 0,
+        "opened_obligations": [],
+        "plan_revisions": [],
+        "promoted_records": [],
+        "recent_lineage_edge_ids": [],
+        "recent_open_obligation_details": [],
+        "recent_open_obligation_ids": [],
+        "recent_plan_revision_details": [],
+        "recent_working_record_details": [],
+        "resolved_obligations": [],
+        "working_record_count": 0,
+        "working_record_family_counts": {}
+      },
+      "interaction_mode": "maintenance",
+      "last_completed_quest_id": null,
+      "manifold_path": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/MANIFOLD.yaml",
+      "normalized_semantic": {
+        "conversation_segment_count": 0,
+        "emitted_plan_events": [],
+        "emitted_semantic_events": [],
+        "execution_segment_count": 0,
+        "last_conversation_segment_id": null,
+        "last_execution_segment_id": null,
+        "last_semantic_event_at": null,
+        "last_semantic_event_id": null,
+        "plan_event_count": 0,
+        "recent_conversation_segment_ids": [],
+        "recent_execution_segment_ids": [],
+        "recent_plan_event_ids": [],
+        "recent_semantic_event_details": [],
+        "semantic_event_count": 0,
+        "transient_semantic_event_count": 0
+      },
+      "onboarding_confirmed": false,
+      "onboarding_required": false,
+      "onboarding_state": null,
+      "open_questions_path": null,
+      "project_identity_ready": false,
+      "proposal_paths": [],
+      "provenance_status": "clear",
+      "published_project_model_path": null,
+      "state_path": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/STATE.yaml",
+      "world_state": "fog_of_war"
+    }
+  },
+  "runtime_status": {
+    "derived_state_current": true,
+    "error_code": null,
+    "error_message": null,
+    "event_id": "EVT-6a75766a-ae9b-4421-a9bd-d69606ef7deb",
+    "event_recorded": true,
+    "operation_status": "ok",
+    "primary_mutation_committed": true,
+    "recovery_hint": null
+  },
+  "subject": {
+    "auto_initialized": false,
+    "data_root": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data",
+    "engine_root": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo",
+    "home_lockfile": "/tmp/synapse_phase4_u5rabj8p/home/.synapse/ACTIVE_SUBJECT.json",
+    "initialized_created": [],
+    "initialized_existing": [],
+    "live_created": [],
+    "live_existing": [
+      "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/VISION.md",
+      "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/STATE.yaml",
+      "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/MANIFOLD.yaml",
+      "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/REHYDRATE.md",
+      "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/ACTIVE_RUN.yaml",
+      "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/ONBOARDING/CURRENT.yaml",
+      "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/DECISIONS/2026-04-01.yaml",
+      "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/DISCOVERIES/2026-04-01.yaml",
+      "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/DISCLOSURES/2026-04-01.yaml",
+      "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/CAPTURES/2026-04-01.yaml",
+      "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/THREADS/open_questions.md"
+    ],
+    "live_root": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse",
+    "repo_lockfile": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo/.synapse/ACTIVE_SUBJECT.json",
+    "required_paths": {
+      "active_run": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/ACTIVE_RUN.yaml",
+      "decision_ledger": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/DECISIONS/2026-04-01.yaml",
+      "disclosure_ledger": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/DISCLOSURES/2026-04-01.yaml",
+      "discovery_ledger": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/DISCOVERIES/2026-04-01.yaml",
+      "event_spine": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/EVENTS",
+      "proposal": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/PROPOSALS",
+      "rehydrate": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/REHYDRATE.md",
+      "run_ledger": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/RUNS",
+      "sidecar_manifold": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/MANIFOLD.yaml",
+      "sidecar_state": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/STATE.yaml",
+      "threads": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/THREADS/open_questions.md",
+      "vision": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/VISION.md"
+    },
+    "selected_at": "2026-04-01T20:17:57.655928-04:00",
+    "selected_by": "Brains",
+    "selection_method": "lockfile",
+    "source_detail": "lockfile_repo",
+    "subject": "Phase4ReceiptRepo"
+  },
+  "template_version": 1
+}

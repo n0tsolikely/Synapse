@@ -1,0 +1,433 @@
+{
+  "blocker_continuity_obligation_count": 1,
+  "boundary": "close_turn",
+  "continuation_required": true,
+  "continuity_blockers": [
+    {
+      "obligation_id": "OBLIG-220E1A462A1C5BC2",
+      "obligation_kind": "plan.capture.required",
+      "path": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/CONTINUITY_OBLIGATIONS/OBLIGATION__OBLIG-220E1A462A1C5BC2__BLOCKER.yaml",
+      "required_record_families": [
+        "plan_revision"
+      ],
+      "severity": "blocker",
+      "summary": "Execution-grade planning is still missing a lawful persisted plan revision."
+    }
+  ],
+  "continuity_warnings": [],
+  "degraded_mode": false,
+  "degraded_mode_reason": null,
+  "event": {
+    "payload": {
+      "action_name": "close-turn",
+      "actor": {
+        "id": "notsolikely",
+        "runtime": "synapse-cli",
+        "type": "executor"
+      },
+      "event_id": "EVT-f1e3ad84-80ff-467b-9906-38ee0134f655",
+      "outputs": {
+        "accepted_quest_id": null,
+        "audit_bundle_path": null,
+        "boundary": "close_turn",
+        "errors": [],
+        "formalized_artifacts": [],
+        "written_artifacts": []
+      },
+      "reducer_version": "v2.1-phase1",
+      "schema_version": 1,
+      "semantic_fingerprint": "aeba68bd1b0aa498e81cd7fa095dd094a93467488fd4305f39a84c13fb42c12e",
+      "session_id": null,
+      "signals": {
+        "accepted_context": {
+          "active_order_ids": [],
+          "current_accepted_quest_id": null,
+          "governed_execution_ready": false
+        },
+        "changed_files": [],
+        "commands": [],
+        "decisions": [],
+        "disclosures": [],
+        "discoveries": [],
+        "plan_items": [],
+        "related_quest_ids": [],
+        "related_sidequest_ids": [],
+        "run_goal": null,
+        "run_summary": null,
+        "run_title": null,
+        "verification_entries": []
+      },
+      "status": "ok",
+      "subject": "Phase4ReceiptRepo",
+      "summary": "Validated close-turn continuity boundary for Phase4ReceiptRepo.",
+      "timestamp": "2026-04-01T20:17:59.075543-04:00",
+      "truth_flags": {
+        "canon_mutated": false,
+        "derived_state_changed": true,
+        "disclosure_open": false,
+        "governed": false,
+        "uncertainty_present": false,
+        "verification_present": false
+      }
+    },
+    "receipt": {
+      "event_id": "EVT-f1e3ad84-80ff-467b-9906-38ee0134f655",
+      "path": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/EVENTS/2026-04-01.jsonl",
+      "semantic_fingerprint": "aeba68bd1b0aa498e81cd7fa095dd094a93467488fd4305f39a84c13fb42c12e",
+      "timestamp": "2026-04-01T20:17:59.075543-04:00"
+    }
+  },
+  "integration_posture": "hooked",
+  "kernel_posture": {
+    "blocker_continuity_obligation_count": 1,
+    "data_root": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data",
+    "degraded_reason": null,
+    "local_integration": {
+      "hook_paths": {
+        "PostToolUse": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo/.codex/hooks/post_tool.sh",
+        "PreToolUse": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo/.codex/hooks/pre_tool.sh",
+        "Stop": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo/.codex/hooks/stop.sh",
+        "UserPromptSubmit": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo/.codex/hooks/user_prompt_submit.sh"
+      },
+      "integration_dir": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo/.codex",
+      "integration_health": "installed",
+      "integration_posture": "hooked",
+      "manifest_path": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo/.codex/synapse_local_integration.json",
+      "mcp_config_path": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo/.codex/mcp.json",
+      "missing_assets": [],
+      "readme_path": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo/.codex/README.md",
+      "synapse_root": "/home/notsolikely/Synapse"
+    },
+    "open_continuity_obligation_count": 1,
+    "posture": "hooked",
+    "raw_scaffold": {
+      "families": {
+        "blobs": "exists",
+        "conversation_turns": "exists",
+        "execution_events": "exists",
+        "import_events": "exists",
+        "tool_events": "exists"
+      },
+      "missing_families": [],
+      "raw_root": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/RAW",
+      "scaffold_status": "healthy"
+    },
+    "recent_open_continuity_obligation_details": [
+      {
+        "obligation_id": "OBLIG-220E1A462A1C5BC2",
+        "obligation_kind": "plan.capture.required",
+        "severity": "blocker",
+        "summary": "Execution-grade planning is still missing a lawful persisted plan revision."
+      }
+    ],
+    "repo_root": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo",
+    "strict_boundary_status": "blocked"
+  },
+  "local_integration_health": "installed",
+  "local_integration_missing_assets": [],
+  "open_continuity_obligation_count": 1,
+  "provenance_blockers": [],
+  "provenance_warnings": [],
+  "recent_open_continuity_obligation_details": [
+    {
+      "obligation_id": "OBLIG-220E1A462A1C5BC2",
+      "obligation_kind": "plan.capture.required",
+      "path": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/CONTINUITY_OBLIGATIONS/OBLIGATION__OBLIG-220E1A462A1C5BC2__BLOCKER.yaml",
+      "required_record_families": [
+        "plan_revision"
+      ],
+      "severity": "blocker",
+      "summary": "Execution-grade planning is still missing a lawful persisted plan revision."
+    }
+  ],
+  "reducer": {
+    "continuity": null,
+    "event_id": "EVT-f1e3ad84-80ff-467b-9906-38ee0134f655",
+    "mode": "active",
+    "reducer_version": "v2.1-phase1",
+    "rehydrate": {
+      "auto_formalizations": [],
+      "pending_formalization_count": 0,
+      "recent_decision_count": 0,
+      "recent_disclosure_count": 0,
+      "recent_discovery_count": 0,
+      "rehydrate_path": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/REHYDRATE.md"
+    },
+    "sidecar": {
+      "active_onboarding_id": null,
+      "automation_pending_gate": null,
+      "automation_status": "active",
+      "capture_batch_id": null,
+      "capture_count": null,
+      "capture_kinds": null,
+      "continuity_ready": true,
+      "current_accepted_quest_id": null,
+      "derived_synthesis": {
+        "active_plan_delta": null,
+        "active_scope_delta": null,
+        "architecture_delta": null,
+        "baseline_publication_ref": null,
+        "codex_packets": {
+          "codex_packet_count": 1,
+          "last_codex_packet_refreshed_at": "2026-04-01T20:17:59.106146-04:00",
+          "packet_section_keys": [
+            "OPEN_OBLIGATIONS"
+          ],
+          "recent_codex_packet_details": [
+            {
+              "packet_id": "PACKET-113D4E920E0F5AC0",
+              "path": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/CODEX_SECTION_PACKETS/PACKET__OPEN_OBLIGATIONS.yaml",
+              "refreshed_at": "2026-04-01T20:17:59.106146-04:00",
+              "section_key": "OPEN_OBLIGATIONS",
+              "section_title": "Open Continuity Obligations",
+              "source_ref_count": 1,
+              "summary": "1 open continuity obligations (1 blockers)"
+            }
+          ]
+        },
+        "identity_delta": null,
+        "narrative_delta": null,
+        "obligation_delta": {
+          "delta_key": "OPEN_OBLIGATIONS",
+          "detail_lines": [
+            "Execution-grade planning is still missing a lawful persisted plan revision."
+          ],
+          "metadata": {
+            "blocker_count": 1,
+            "open_count": 1
+          },
+          "refreshed_at": "2026-04-01T20:17:59.106146-04:00",
+          "source_ref_count": 1,
+          "source_refs": [
+            {
+              "id": "OBLIG-220E1A462A1C5BC2",
+              "kind": "continuity_obligation",
+              "obligation_kind": "plan.capture.required",
+              "path": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/CONTINUITY_OBLIGATIONS/OBLIGATION__OBLIG-220E1A462A1C5BC2__BLOCKER.yaml"
+            }
+          ],
+          "summary": "1 open continuity obligations (1 blockers)",
+          "title": "Open Continuity Obligations"
+        },
+        "refreshed_at": "2026-04-01T20:17:59.106146-04:00",
+        "removed_packet_paths": [],
+        "written_packet_paths": [
+          "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/CODEX_SECTION_PACKETS/PACKET__OPEN_OBLIGATIONS.yaml"
+        ]
+      },
+      "governed_promotion": {
+        "active_scope_campaign_ids": [],
+        "blocker_count": 1,
+        "last_governed_record_id": null,
+        "last_plan_revision_id": null,
+        "last_plan_revision_path": null,
+        "lineage_edge_count": 0,
+        "lineage_edges": [],
+        "lineage_relation_counts": {},
+        "open_count": 1,
+        "opened_obligations": [],
+        "plan_revisions": [],
+        "promoted_records": [],
+        "recent_lineage_edge_ids": [],
+        "recent_open_obligation_details": [
+          {
+            "obligation_id": "OBLIG-220E1A462A1C5BC2",
+            "obligation_kind": "plan.capture.required",
+            "severity": "blocker",
+            "summary": "Execution-grade planning is still missing a lawful persisted plan revision."
+          }
+        ],
+        "recent_open_obligation_ids": [
+          "OBLIG-220E1A462A1C5BC2"
+        ],
+        "recent_plan_revision_details": [],
+        "recent_working_record_details": [],
+        "resolved_obligations": [],
+        "working_record_count": 0,
+        "working_record_family_counts": {}
+      },
+      "interaction_mode": "maintenance",
+      "last_completed_quest_id": null,
+      "manifold_path": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/MANIFOLD.yaml",
+      "normalized_semantic": {
+        "conversation_segment_count": 1,
+        "emitted_plan_events": [],
+        "emitted_semantic_events": [],
+        "execution_segment_count": 0,
+        "last_conversation_segment_id": "SEGCONV-26E57FF059EA5821",
+        "last_execution_segment_id": null,
+        "last_semantic_event_at": "2026-04-01T20:17:58.375890-04:00",
+        "last_semantic_event_id": "SEM-A457CE3A585A5026",
+        "plan_event_count": 0,
+        "recent_conversation_segment_ids": [
+          "SEGCONV-26E57FF059EA5821"
+        ],
+        "recent_execution_segment_ids": [],
+        "recent_plan_event_ids": [],
+        "recent_semantic_event_details": [
+          {
+            "class_label": "transient_noise",
+            "confidence_band": "high",
+            "materiality_band": "low",
+            "semantic_event_id": "SEM-A457CE3A585A5026",
+            "source_segment_ids": [
+              "SEGCONV-26E57FF059EA5821"
+            ],
+            "summary": "ok",
+            "topic_key": "transient.noise",
+            "transient_noise": true
+          }
+        ],
+        "semantic_event_count": 1,
+        "transient_semantic_event_count": 1
+      },
+      "onboarding_confirmed": false,
+      "onboarding_required": false,
+      "onboarding_state": null,
+      "open_questions_path": null,
+      "project_identity_ready": false,
+      "proposal_paths": [],
+      "provenance_status": "blocked",
+      "published_project_model_path": null,
+      "state_path": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/STATE.yaml",
+      "world_state": "fog_of_war"
+    }
+  },
+  "runtime_status": {
+    "derived_state_current": true,
+    "error_code": null,
+    "error_message": null,
+    "event_id": "EVT-f1e3ad84-80ff-467b-9906-38ee0134f655",
+    "event_recorded": true,
+    "operation_status": "ok",
+    "primary_mutation_committed": true,
+    "recovery_hint": null
+  },
+  "strict_boundary_status": "blocked",
+  "subject_context": {
+    "auto_initialized": false,
+    "data_root": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data",
+    "engine_root": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo",
+    "home_lockfile": "/tmp/synapse_phase4_u5rabj8p/home/.synapse/ACTIVE_SUBJECT.json",
+    "initialized_created": [],
+    "initialized_existing": [],
+    "live_created": [],
+    "live_existing": [
+      "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/VISION.md",
+      "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/STATE.yaml",
+      "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/MANIFOLD.yaml",
+      "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/REHYDRATE.md",
+      "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/ACTIVE_RUN.yaml",
+      "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/ONBOARDING/CURRENT.yaml",
+      "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/DECISIONS/2026-04-01.yaml",
+      "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/DISCOVERIES/2026-04-01.yaml",
+      "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/DISCLOSURES/2026-04-01.yaml",
+      "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/CAPTURES/2026-04-01.yaml",
+      "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/THREADS/open_questions.md"
+    ],
+    "live_root": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse",
+    "repo_lockfile": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo/.synapse/ACTIVE_SUBJECT.json",
+    "required_paths": {
+      "active_run": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/ACTIVE_RUN.yaml",
+      "decision_ledger": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/DECISIONS/2026-04-01.yaml",
+      "disclosure_ledger": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/DISCLOSURES/2026-04-01.yaml",
+      "discovery_ledger": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/DISCOVERIES/2026-04-01.yaml",
+      "event_spine": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/EVENTS",
+      "proposal": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/PROPOSALS",
+      "rehydrate": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/REHYDRATE.md",
+      "run_ledger": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/RUNS",
+      "sidecar_manifold": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/MANIFOLD.yaml",
+      "sidecar_state": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/STATE.yaml",
+      "threads": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/THREADS/open_questions.md",
+      "vision": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/VISION.md"
+    },
+    "selected_at": "2026-04-01T20:17:57.655928-04:00",
+    "selected_by": "Brains",
+    "selection_method": "lockfile",
+    "source_detail": "lockfile_repo",
+    "subject": "Phase4ReceiptRepo"
+  },
+  "summary": {
+    "accepted_audit_bundle_path": null,
+    "accepted_quest_id": null,
+    "baseline_path": null,
+    "blocker_continuity_obligation_count": 1,
+    "blockers": [],
+    "continuity_blockers": [
+      {
+        "obligation_id": "OBLIG-220E1A462A1C5BC2",
+        "obligation_kind": "plan.capture.required",
+        "path": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/CONTINUITY_OBLIGATIONS/OBLIGATION__OBLIG-220E1A462A1C5BC2__BLOCKER.yaml",
+        "required_record_families": [
+          "plan_revision"
+        ],
+        "severity": "blocker",
+        "summary": "Execution-grade planning is still missing a lawful persisted plan revision."
+      }
+    ],
+    "continuity_warnings": [],
+    "current_wrapper_proof_fingerprint": null,
+    "current_wrapper_proof_path": null,
+    "current_wrapper_proof_status": "not_applicable",
+    "degraded_mode": false,
+    "degraded_mode_reason": null,
+    "git_hooks_last_verified_at": "2026-04-01T20:17:58.022486-04:00",
+    "git_hooks_status": "installed",
+    "git_hooks_template_version": 1,
+    "honesty_note": "Clear means no current warnings or blockers under Phase 5 checks. It does not prove universal mediation or perfect provenance.",
+    "integration_posture": "hooked",
+    "last_watch_at": null,
+    "local_integration_health": "installed",
+    "local_integration_missing_assets": [],
+    "observed_at": "2026-04-01T20:17:59.278806-04:00",
+    "open_continuity_obligation_count": 1,
+    "provenance_status": "blocked",
+    "recent_anomaly_count": 0,
+    "recent_open_continuity_obligation_details": [
+      {
+        "obligation_id": "OBLIG-220E1A462A1C5BC2",
+        "obligation_kind": "plan.capture.required",
+        "path": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/CONTINUITY_OBLIGATIONS/OBLIGATION__OBLIG-220E1A462A1C5BC2__BLOCKER.yaml",
+        "required_record_families": [
+          "plan_revision"
+        ],
+        "severity": "blocker",
+        "summary": "Execution-grade planning is still missing a lawful persisted plan revision."
+      }
+    ],
+    "recent_provenance_anomalies": [],
+    "snapshot": {
+      "accepted_audit_bundle_path": null,
+      "accepted_quest_id": null,
+      "baseline_id": "BASELINE-20260401T201759278789-0400",
+      "captured_at": "2026-04-01T20:17:59.278806-04:00",
+      "coordination_fingerprints": {
+        "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/ACTIVE_RUN.yaml": "6ab9e5b27d46252bf72f79d986703ab81348237b59907cda9f7e1006e65f747c",
+        "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/ONBOARDING/CURRENT.yaml": "9e37646c0d36bc61b8b853458164ab270f0bbb72cfe07a0fa795dd0a2a6bed3d"
+      },
+      "engine_dirty_files": [
+        "?? .synapse/"
+      ],
+      "engine_dirty_fingerprint": "e0fac83f15f8c2e04b14c1c60e045c12cd33da1c2e8346773a8c134858dce6c5",
+      "engine_git_head": null,
+      "engine_is_git_repo": true,
+      "event_progress": {
+        "latest_event_count": 4,
+        "latest_event_file_fingerprint": "68c4aed8704cf90721fb3250f5d813ee95c319ed29eaf9e5687f7dccc877ba7c",
+        "latest_event_file_path": "/tmp/synapse_phase4_u5rabj8p/Phase4ReceiptRepo_Data/.synapse/EVENTS/2026-04-01.jsonl"
+      },
+      "git_hooks_fingerprint": "0326730a01ba91fd7f56154bd11947b80479b532c20b643eb4bb8fb284094ea8",
+      "git_hooks_status": "installed",
+      "run_id": null,
+      "session_id": null,
+      "subject": "Phase4ReceiptRepo",
+      "wrapper_proof_fingerprint": null,
+      "wrapper_proof_path": null,
+      "wrapper_proof_status": "not_applicable"
+    },
+    "strict_boundary_status": "blocked",
+    "subject": "Phase4ReceiptRepo",
+    "warnings": []
+  },
+  "validation_status": "blocked"
+}

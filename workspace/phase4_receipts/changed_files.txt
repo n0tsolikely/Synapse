@@ -1,0 +1,21 @@
+ M EXECUTOR.md
+ M docs/INTEGRATIONS.md
+ M docs/integrations/codex.md
+ M runtime/synapse.py
+ M runtime/synapse_mcp/runtime_bridge.py
+ M runtime/synapse_runtime/doctor.py
+ M runtime/synapse_runtime/provenance.py
+ M runtime/synapse_runtime/rehydrate_renderer.py
+ M runtime/synapse_runtime/repo_state.py
+ M runtime/synapse_runtime/sidecar_projection.py
+ M runtime/synapse_runtime/sidecar_store.py
+ M runtime/tools/synapse_hook_post_tool.py
+ M runtime/tools/synapse_hook_pre_tool.py
+ M runtime/tools/synapse_hook_stop.py
+ M runtime/tools/synapse_hook_user_prompt_submit.py
+ M tests/test_event_spine.py
+ M tests/test_mcp_integration.py
+ M tests/test_provenance.py
+?? tests/test_close_turn_validation.py
+?? tests/test_degraded_mode_enforcement.py
+?? tests/test_missed_capture_detection.py

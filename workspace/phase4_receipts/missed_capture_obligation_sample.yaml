@@ -1,0 +1,21 @@
+obligation_id: OBLIG-220E1A462A1C5BC2
+schema_version: 1
+recorded_at: '2026-04-01T11:45:00-04:00'
+subject: Phase4ReceiptRepo
+obligation_kind: plan.capture.required
+severity: blocker
+state: open
+summary: Execution-grade planning is still missing a lawful persisted plan revision.
+required_record_families:
+- plan_revision
+source_segment_ids:
+- SEGMENT-PHASE4-001
+source_semantic_event_ids:
+- SEMANTIC-PHASE4-001
+source_refs:
+- kind: semantic_event
+  id: SEMANTIC-PHASE4-001
+resolved_at: null
+resolution_record_ids: []
+metadata:
+  topic_key: build.plan
