@@ -14,7 +14,9 @@ from zoneinfo import ZoneInfo
 import yaml
 
 from synapse_runtime.accepted_execution_view import load_accepted_quest_details, select_current_accepted_quest
+from synapse_runtime.continuity_obligations import load_obligations
 from synapse_runtime.git_hooks import HOOK_TEMPLATE_VERSION, inspect_git_hooks, load_hooks_receipt
+from synapse_runtime.repo_state import inspect_engaged_kernel_posture
 from synapse_runtime.sidecar_store import _load_active_run, authoritative_coordination_paths
 from synapse_runtime.wrapper_proof import current_wrapper_proof_receipt
 
@@ -493,6 +495,26 @@ def _trust_from_current(anomalies: list[dict[str, Any]]) -> tuple[ProvenanceStat
     return ProvenanceStatus.CLEAR, blockers, warnings
 
 
+def _open_continuity_obligation_details(data_root: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    open_items: list[dict[str, Any]] = []
+    blocker_items: list[dict[str, Any]] = []
+    for obligation in load_obligations(data_root):
+        if str(obligation.get("state") or "open").strip().lower() != "open":
+            continue
+        detail = {
+            "obligation_id": obligation.get("obligation_id"),
+            "obligation_kind": obligation.get("obligation_kind"),
+            "severity": obligation.get("severity"),
+            "summary": obligation.get("summary"),
+            "required_record_families": list(obligation.get("required_record_families") or []),
+            "path": obligation.get("path"),
+        }
+        open_items.append(detail)
+        if str(obligation.get("severity") or "").strip().lower() == "blocker":
+            blocker_items.append(detail)
+    return open_items, blocker_items
+
+
 def compute_current_provenance_summary(subject, data_root, engine_root=None, *, write_projection: bool = False) -> dict:
     data_root = Path(data_root).expanduser().resolve()
     if engine_root is None:
@@ -508,14 +530,36 @@ def compute_current_provenance_summary(subject, data_root, engine_root=None, *, 
     hooks_receipt = load_hooks_receipt(data_root) or {}
     recent = _recent_anomalies(data_root, limit=10)
     current_anomalies = absolute + _unresolved_historical_delta_anomalies(snapshot, recent)
-    status, blockers, warnings = _trust_from_current(current_anomalies)
+    anomaly_status, anomaly_blockers, anomaly_warnings = _trust_from_current(current_anomalies)
+    kernel_posture = inspect_engaged_kernel_posture(repo_root=engine_root, data_root=data_root)
+    open_obligations, blocker_obligations = _open_continuity_obligation_details(data_root)
+    warning_obligations = [item for item in open_obligations if item not in blocker_obligations]
+    local_integration = dict(kernel_posture.get("local_integration") or {})
+    degraded_mode = str(kernel_posture.get("posture") or "").strip().lower() != "hooked"
+    if anomaly_status == ProvenanceStatus.BLOCKED or blocker_obligations:
+        status = ProvenanceStatus.BLOCKED
+    elif anomaly_status == ProvenanceStatus.CAUTION or anomaly_warnings or open_obligations or degraded_mode:
+        status = ProvenanceStatus.CAUTION
+    else:
+        status = ProvenanceStatus.CLEAR
     summary = {
         "observed_at": snapshot.get("captured_at"),
         "subject": subject,
         "provenance_status": status.value,
         "honesty_note": HONESTY_NOTE,
-        "blockers": blockers,
-        "warnings": warnings,
+        "blockers": anomaly_blockers,
+        "warnings": anomaly_warnings,
+        "open_continuity_obligation_count": len(open_obligations),
+        "blocker_continuity_obligation_count": len(blocker_obligations),
+        "recent_open_continuity_obligation_details": open_obligations[-10:],
+        "continuity_blockers": blocker_obligations[-10:],
+        "continuity_warnings": warning_obligations[-10:],
+        "integration_posture": kernel_posture.get("posture"),
+        "local_integration_health": local_integration.get("integration_health"),
+        "local_integration_missing_assets": list(local_integration.get("missing_assets") or []),
+        "degraded_mode": degraded_mode,
+        "degraded_mode_reason": kernel_posture.get("degraded_reason"),
+        "strict_boundary_status": kernel_posture.get("strict_boundary_status"),
         "recent_provenance_anomalies": recent,
         "recent_anomaly_count": len(recent),
         "current_wrapper_proof_status": snapshot.get("wrapper_proof_status") or WrapperProofStatus.NOT_APPLICABLE.value,
@@ -543,6 +587,17 @@ def projectable_provenance_summary(summary) -> dict:
         "provenance_last_watch_at": summary.get("last_watch_at"),
         "provenance_blockers": list(summary.get("blockers") or []),
         "provenance_warnings": list(summary.get("warnings") or []),
+        "open_continuity_obligation_count": summary.get("open_continuity_obligation_count") or 0,
+        "blocker_continuity_obligation_count": summary.get("blocker_continuity_obligation_count") or 0,
+        "recent_open_continuity_obligation_details": list(summary.get("recent_open_continuity_obligation_details") or []),
+        "continuity_blockers": list(summary.get("continuity_blockers") or []),
+        "continuity_warnings": list(summary.get("continuity_warnings") or []),
+        "integration_posture": summary.get("integration_posture"),
+        "local_integration_health": summary.get("local_integration_health"),
+        "local_integration_missing_assets": list(summary.get("local_integration_missing_assets") or []),
+        "degraded_mode": bool(summary.get("degraded_mode")),
+        "degraded_mode_reason": summary.get("degraded_mode_reason"),
+        "strict_boundary_status": summary.get("strict_boundary_status"),
         "recent_provenance_anomalies": list(summary.get("recent_provenance_anomalies") or []),
         "current_wrapper_proof_status": summary.get("current_wrapper_proof_status"),
         "current_wrapper_proof_path": summary.get("current_wrapper_proof_path"),

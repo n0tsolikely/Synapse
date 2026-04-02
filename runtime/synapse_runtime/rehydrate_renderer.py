@@ -335,20 +335,40 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
     )
     lines.append(f"- Wrapper proof status: {state.get('current_wrapper_proof_status') or 'unknown'}")
     lines.append(f"- Git hooks status: {state.get('git_hooks_status') or 'unknown'}")
+    lines.append(f"- Integration posture: {state.get('integration_posture') or 'unknown'}")
+    lines.append(f"- Local integration health: {state.get('local_integration_health') or 'unknown'}")
+    lines.append(f"- Open continuity obligations: {state.get('open_continuity_obligation_count') or 0}")
+    lines.append(f"- Blocker continuity obligations: {state.get('blocker_continuity_obligation_count') or 0}")
+    if state.get("degraded_mode"):
+        lines.append(f"- Degraded-mode note: {manifold.get('degraded_mode_reason') or 'turn-bound enforcement is not guaranteed'}")
     blockers = list(manifold.get("provenance_blockers") or [])
     warnings = list(manifold.get("provenance_warnings") or [])
+    continuity_blockers = list(manifold.get("continuity_blockers") or [])
+    continuity_warnings = list(manifold.get("continuity_warnings") or [])
     if blockers:
         lines.append("- Current blockers:")
         for item in blockers:
             lines.append(f"  - {item.get('kind')}: {item.get('message')}")
     else:
         lines.append("- Current blockers: none")
+    if continuity_blockers:
+        lines.append("- Continuity blockers:")
+        for item in continuity_blockers[:5]:
+            lines.append(f"  - {item.get('obligation_kind')}: {item.get('summary')}")
+    else:
+        lines.append("- Continuity blockers: none")
     if warnings:
         lines.append("- Current warnings:")
         for item in warnings:
             lines.append(f"  - {item.get('kind')}: {item.get('message')}")
     else:
         lines.append("- Current warnings: none")
+    if continuity_warnings:
+        lines.append("- Continuity warnings:")
+        for item in continuity_warnings[:5]:
+            lines.append(f"  - {item.get('obligation_kind')}: {item.get('summary')}")
+    else:
+        lines.append("- Continuity warnings: none")
     recent_anomalies = list(manifold.get("recent_provenance_anomalies") or [])
     if recent_anomalies:
         lines.append("- Recent anomalies:")

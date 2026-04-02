@@ -745,6 +745,21 @@ def build_parser() -> argparse.ArgumentParser:
     raw_execution_parser.add_argument("--no-home-lock", action="store_true", help="Do not write ~/.synapse/ACTIVE_SUBJECT.json")
     raw_execution_parser.add_argument("--json", action="store_true", help="Print JSON output")
 
+    close_turn_parser = subparsers.add_parser(
+        "close-turn",
+        help="Validate close-turn continuity and surface blocker obligations at an honest boundary",
+    )
+    close_turn_parser.add_argument("--boundary", default="close_turn", help="Boundary label for the validation receipt")
+    close_turn_parser.add_argument("--strict", action="store_true", help="Exit 2 when the close-turn boundary is blocked")
+    close_turn_parser.add_argument("--subject", help="Optional subject override")
+    close_turn_parser.add_argument("--data-root", help="Override data root path")
+    close_turn_parser.add_argument("--engine-root", help="Override engine root path")
+    close_turn_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    close_turn_parser.add_argument("--selected-by", default="Brains", help="Who made the selection (default: Brains)")
+    close_turn_parser.add_argument("--no-home-lock", action="store_true", help="Do not write ~/.synapse/ACTIVE_SUBJECT.json")
+    close_turn_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
+    close_turn_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
     import_continuity_parser = subparsers.add_parser(
         "import-continuity",
         help="Parse a transcript/note/PDF into a noncanonical imported-continuity envelope and record it as raw import evidence",
@@ -1519,6 +1534,29 @@ def _current_provenance_summary(ctx: dict[str, Any]) -> dict[str, Any]:
         engine_root=Path(ctx["engine_root"]),
         write_projection=False,
     )
+
+
+def _close_turn_validation_payload(ctx: dict[str, Any], *, boundary: str) -> dict[str, Any]:
+    summary = _current_provenance_summary(ctx)
+    return {
+        "boundary": boundary,
+        "validation_status": summary.get("provenance_status"),
+        "continuation_required": summary.get("provenance_status") == ProvenanceStatus.BLOCKED.value,
+        "integration_posture": summary.get("integration_posture"),
+        "local_integration_health": summary.get("local_integration_health"),
+        "local_integration_missing_assets": list(summary.get("local_integration_missing_assets") or []),
+        "degraded_mode": bool(summary.get("degraded_mode")),
+        "degraded_mode_reason": summary.get("degraded_mode_reason"),
+        "strict_boundary_status": summary.get("strict_boundary_status"),
+        "open_continuity_obligation_count": summary.get("open_continuity_obligation_count") or 0,
+        "blocker_continuity_obligation_count": summary.get("blocker_continuity_obligation_count") or 0,
+        "recent_open_continuity_obligation_details": list(summary.get("recent_open_continuity_obligation_details") or []),
+        "continuity_blockers": list(summary.get("continuity_blockers") or []),
+        "continuity_warnings": list(summary.get("continuity_warnings") or []),
+        "provenance_blockers": list(summary.get("blockers") or []),
+        "provenance_warnings": list(summary.get("warnings") or []),
+        "summary": summary,
+    }
 
 
 def _verify_hooks_receipt(ctx: dict[str, Any]) -> dict[str, Any]:
@@ -6403,6 +6441,17 @@ def cmd_provenance_status(args: argparse.Namespace) -> int:
         "provenance_status": summary.get("provenance_status"),
         "blockers": list(summary.get("blockers") or []),
         "warnings": list(summary.get("warnings") or []),
+        "integration_posture": summary.get("integration_posture"),
+        "local_integration_health": summary.get("local_integration_health"),
+        "local_integration_missing_assets": list(summary.get("local_integration_missing_assets") or []),
+        "degraded_mode": bool(summary.get("degraded_mode")),
+        "degraded_mode_reason": summary.get("degraded_mode_reason"),
+        "strict_boundary_status": summary.get("strict_boundary_status"),
+        "open_continuity_obligation_count": summary.get("open_continuity_obligation_count") or 0,
+        "blocker_continuity_obligation_count": summary.get("blocker_continuity_obligation_count") or 0,
+        "recent_open_continuity_obligation_details": list(summary.get("recent_open_continuity_obligation_details") or []),
+        "continuity_blockers": list(summary.get("continuity_blockers") or []),
+        "continuity_warnings": list(summary.get("continuity_warnings") or []),
         "current_wrapper_proof_status": summary.get("current_wrapper_proof_status"),
         "current_wrapper_proof_path": summary.get("current_wrapper_proof_path"),
         "git_hooks_status": summary.get("git_hooks_status"),
@@ -6421,6 +6470,12 @@ def cmd_provenance_status(args: argparse.Namespace) -> int:
         print(f"git_hooks_status: {payload.get('git_hooks_status')}")
         print(f"blockers: {len(payload.get('blockers') or [])}")
         print(f"warnings: {len(payload.get('warnings') or [])}")
+        print(f"integration_posture: {summary.get('integration_posture')}")
+        print(f"local_integration_health: {summary.get('local_integration_health')}")
+        print(f"open_continuity_obligation_count: {summary.get('open_continuity_obligation_count') or 0}")
+        print(f"blocker_continuity_obligation_count: {summary.get('blocker_continuity_obligation_count') or 0}")
+        if summary.get("degraded_mode"):
+            print(f"degraded_mode_reason: {summary.get('degraded_mode_reason')}")
         print(f"last_watch_at: {payload.get('last_watch_at')}")
         print(f"baseline_path: {payload.get('baseline_path')}")
     if args.strict and payload.get("provenance_status") == ProvenanceStatus.BLOCKED.value:
@@ -6599,6 +6654,68 @@ def cmd_record_raw_execution(args: argparse.Namespace) -> int:
         json_mode=args.json,
         text_emitter=_emit_raw_execution,
     )
+
+
+def cmd_close_turn(args: argparse.Namespace) -> int:
+    ctx = _resolve_or_attach_subject_from_args(args)
+    if not ctx:
+        return 2
+    event_info = _event_pipeline(
+        ctx=ctx,
+        action_name="close-turn",
+        summary=f"Validated close-turn continuity boundary for {ctx['subject']}.",
+        session_id=_resolved_session_id(args),
+        refresh_continuity=False,
+        signals={
+            "changed_files": [],
+            "verification_entries": [],
+            "related_quest_ids": [],
+            "related_sidequest_ids": [],
+            "accepted_context": _accepted_context_snapshot(Path(ctx["data_root"])),
+            **_current_session_mode_fields(ctx),
+        },
+        truth_flags={
+            "canon_mutated": False,
+            "derived_state_changed": True,
+            "governed": False,
+            "uncertainty_present": False,
+        },
+        outputs={"boundary": args.boundary},
+    )
+    payload = _close_turn_validation_payload(ctx, boundary=args.boundary)
+    rendered = {
+        "subject_context": ctx,
+        "kernel_posture": _kernel_posture_payload(ctx),
+        **payload,
+        "event": event_info.get("event"),
+        "reducer": event_info.get("reducer"),
+    }
+
+    def _emit_close_turn(result_payload: dict[str, Any]) -> None:
+        print("=== CLOSE TURN RECEIPT ===")
+        print(f"subject: {result_payload['subject_context']['subject']}")
+        print(f"boundary: {result_payload.get('boundary')}")
+        print(f"validation_status: {result_payload.get('validation_status')}")
+        print(f"integration_posture: {result_payload.get('integration_posture')}")
+        print(f"local_integration_health: {result_payload.get('local_integration_health')}")
+        print(f"open_continuity_obligation_count: {result_payload.get('open_continuity_obligation_count')}")
+        print(f"blocker_continuity_obligation_count: {result_payload.get('blocker_continuity_obligation_count')}")
+        if result_payload.get("degraded_mode"):
+            print(f"degraded_mode_reason: {result_payload.get('degraded_mode_reason')}")
+        if result_payload.get("continuation_required"):
+            print("continuation_required: yes")
+
+    exit_code = _finalize_mutation_result(
+        payload=rendered,
+        event_info=event_info,
+        json_mode=args.json,
+        text_emitter=_emit_close_turn,
+    )
+    if exit_code != 0:
+        return exit_code
+    if args.strict and rendered.get("validation_status") == ProvenanceStatus.BLOCKED.value:
+        return 2
+    return 0
 
 
 def cmd_import_continuity(args: argparse.Namespace) -> int:
@@ -7341,6 +7458,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_record_raw_turn(args)
     if args.command == "record-raw-execution":
         return cmd_record_raw_execution(args)
+    if args.command == "close-turn":
+        return cmd_close_turn(args)
     if args.command == "import-continuity":
         return cmd_import_continuity(args)
     if args.command == "install-local-integration":

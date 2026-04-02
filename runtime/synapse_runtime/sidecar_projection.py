@@ -399,6 +399,12 @@ def _apply_provenance_projection(
     state["provenance_last_watch_at"] = projection.get("provenance_last_watch_at")
     state["provenance_blocker_count"] = len(list(projection.get("provenance_blockers") or []))
     state["provenance_warning_count"] = len(list(projection.get("provenance_warnings") or []))
+    state["open_continuity_obligation_count"] = projection.get("open_continuity_obligation_count") or 0
+    state["blocker_continuity_obligation_count"] = projection.get("blocker_continuity_obligation_count") or 0
+    state["integration_posture"] = projection.get("integration_posture")
+    state["local_integration_health"] = projection.get("local_integration_health")
+    state["degraded_mode"] = bool(projection.get("degraded_mode"))
+    state["strict_boundary_status"] = projection.get("strict_boundary_status")
     state["current_wrapper_proof_status"] = projection.get("current_wrapper_proof_status")
     state["git_hooks_status"] = projection.get("git_hooks_status")
 
@@ -407,6 +413,11 @@ def _apply_provenance_projection(
     manifold["provenance_last_watch_at"] = projection.get("provenance_last_watch_at")
     manifold["provenance_blockers"] = list(projection.get("provenance_blockers") or [])
     manifold["provenance_warnings"] = list(projection.get("provenance_warnings") or [])
+    manifold["continuity_blockers"] = list(projection.get("continuity_blockers") or [])
+    manifold["continuity_warnings"] = list(projection.get("continuity_warnings") or [])
+    manifold["recent_open_continuity_obligation_details"] = list(
+        projection.get("recent_open_continuity_obligation_details") or []
+    )
     manifold["recent_provenance_anomalies"] = list(projection.get("recent_provenance_anomalies") or [])
     manifold["current_wrapper_proof_status"] = projection.get("current_wrapper_proof_status")
     manifold["current_wrapper_proof_path"] = projection.get("current_wrapper_proof_path")
@@ -415,6 +426,12 @@ def _apply_provenance_projection(
     manifold["git_hooks_template_version"] = projection.get("git_hooks_template_version")
     manifold["git_hooks_last_verified_at"] = projection.get("git_hooks_last_verified_at")
     manifold["provenance_baseline_path"] = projection.get("provenance_baseline_path")
+    manifold["integration_posture"] = projection.get("integration_posture")
+    manifold["local_integration_health"] = projection.get("local_integration_health")
+    manifold["local_integration_missing_assets"] = list(projection.get("local_integration_missing_assets") or [])
+    manifold["degraded_mode"] = bool(projection.get("degraded_mode"))
+    manifold["degraded_mode_reason"] = projection.get("degraded_mode_reason")
+    manifold["strict_boundary_status"] = projection.get("strict_boundary_status")
     return projection
 
 

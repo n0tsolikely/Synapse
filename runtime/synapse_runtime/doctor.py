@@ -256,6 +256,16 @@ def _check_subject_state(governance_root: Path, subject_receipt: dict) -> list[R
             suffix = missing_assets or "unknown"
             add(integration_dir, False, f"LOCAL_INTEGRATION:{posture}:{health.upper()}:{suffix}")
 
+        obligations_root = str((data_root / ".synapse" / "CONTINUITY_OBLIGATIONS").resolve())
+        blocker_count = int(kernel_posture.get("blocker_continuity_obligation_count") or 0)
+        open_count = int(kernel_posture.get("open_continuity_obligation_count") or 0)
+        if blocker_count:
+            add(obligations_root, False, f"BLOCKER_CONTINUITY_OBLIGATIONS:{blocker_count}")
+        elif open_count:
+            add(obligations_root, True, f"OPEN_CONTINUITY_OBLIGATIONS:{open_count}")
+        else:
+            add(obligations_root, True, "NO_OPEN_CONTINUITY_OBLIGATIONS")
+
     try:
         automation_policy = automation_policy_for_context(data_root=data_root)
     except Exception:

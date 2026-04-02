@@ -10,6 +10,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from synapse_runtime.continuity_obligations import obligation_summary
 from synapse_runtime.cwt import detect_canonical_working_tree
 from synapse_runtime.governance_pack import resolve_synapse_root
 from synapse_runtime.kernel_types import LocalIntegrationHealth, LocalIntegrationPosture
@@ -264,15 +265,35 @@ def inspect_engaged_kernel_posture(
     data_root = data_root.expanduser().resolve()
     integration = inspect_local_codex_integration(repo_root, synapse_root=synapse_root)
     raw_scaffold = inspect_raw_scaffold(data_root)
+    obligations = obligation_summary(data_root)
     posture = (
         LocalIntegrationPosture.HOOKED.value
         if integration.get("integration_health") == LocalIntegrationHealth.INSTALLED.value
         else LocalIntegrationPosture.DEGRADED.value
     )
+    blocker_count = int(obligations.get("blocker_count") or 0)
+    open_count = int(obligations.get("open_count") or 0)
+    if blocker_count:
+        strict_boundary_status = "blocked"
+    elif open_count or posture != LocalIntegrationPosture.HOOKED.value:
+        strict_boundary_status = "caution"
+    else:
+        strict_boundary_status = "clear"
+    degraded_reason = None
+    if posture != LocalIntegrationPosture.HOOKED.value:
+        degraded_reason = (
+            "Optional local integration is absent, partial, or stale. "
+            "Turn-bound validation is not guaranteed and later honest boundaries must carry enforcement."
+        )
     return {
         "repo_root": str(repo_root),
         "data_root": str(data_root),
         "local_integration": integration,
         "raw_scaffold": raw_scaffold,
         "posture": posture,
+        "open_continuity_obligation_count": open_count,
+        "blocker_continuity_obligation_count": blocker_count,
+        "recent_open_continuity_obligation_details": list(obligations.get("recent_open_obligation_details") or []),
+        "strict_boundary_status": strict_boundary_status,
+        "degraded_reason": degraded_reason,
     }

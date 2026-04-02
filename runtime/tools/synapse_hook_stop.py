@@ -22,6 +22,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--status", default="stop")
     parser.add_argument("--source-surface", default="codex_hook_stop")
     parser.add_argument("--phase", default="stop")
+    parser.add_argument("--no-close-turn", action="store_true", help="Skip close-turn validation after raw capture")
+    parser.add_argument("--warn-only", action="store_true", help="Do not fail closed when close-turn detects blocker obligations")
     return parser
 
 
@@ -54,7 +56,21 @@ def main(argv: list[str] | None = None) -> int:
     if args.session_id:
         command.extend(["--session-id", args.session_id])
     result = subprocess.run(command, cwd=args.repo_root, text=True, check=False)
-    return result.returncode
+    if result.returncode != 0 or args.no_close_turn:
+        return result.returncode
+    close_command = [
+        sys.executable,
+        str(synapse_root / "runtime" / "synapse.py"),
+        "close-turn",
+        "--boundary",
+        "stop",
+    ]
+    if not args.warn_only:
+        close_command.append("--strict")
+    if args.session_id:
+        close_command.extend(["--session-id", args.session_id])
+    close_result = subprocess.run(close_command, cwd=args.repo_root, text=True, check=False)
+    return close_result.returncode
 
 
 if __name__ == "__main__":
