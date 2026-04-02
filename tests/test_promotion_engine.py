@@ -91,3 +91,54 @@ class PromotionEngineTests(unittest.TestCase):
 
         records = load_working_records(self.data_root, "IMPORTED_EVIDENCE")
         self.assertEqual(len(records), 1)
+
+    def test_architecture_pivot_records_supersession_and_review_obligation(self) -> None:
+        promote_semantic_events(
+            subject=self.subject,
+            data_root=self.data_root,
+            semantic_events=[
+                self._event(
+                    "SEMEVT-ARCH-1",
+                    "architecture.shape",
+                    "We will build this as a local-only desktop app.",
+                    segment_id="SEG-ARCH-1",
+                )
+            ],
+        )
+
+        receipt = promote_semantic_events(
+            subject=self.subject,
+            data_root=self.data_root,
+            semantic_events=[
+                self._event(
+                    "SEMEVT-ARCH-2",
+                    "architecture.shape",
+                    "We are rejecting the desktop path. The plan is now an installable web app with separate user accounts.",
+                    segment_id="SEG-ARCH-2",
+                )
+            ],
+        )
+
+        supersedes = [item for item in receipt["lineage_edges"] if item.get("relation") == "supersedes"]
+        self.assertEqual(len(supersedes), 1)
+        self.assertEqual(len(receipt["opened_obligations"]), 1)
+        self.assertEqual(receipt["opened_obligations"][0]["obligation_kind"], "architecture.review.required")
+
+    def test_unsafe_blocker_opens_disclosure_review_obligation(self) -> None:
+        receipt = promote_semantic_events(
+            subject=self.subject,
+            data_root=self.data_root,
+            semantic_events=[
+                self._event(
+                    "SEMEVT-RISK-UNSAFE",
+                    "risk.blocker",
+                    "We are blocked on provider credentials and it would be unsafe to claim the feature works.",
+                    segment_id="SEG-RISK-UNSAFE",
+                )
+            ],
+        )
+
+        families = {item["family"] for item in receipt["promoted_records"]}
+        self.assertIn("FAILURE_CHAINS", families)
+        self.assertEqual(len(receipt["opened_obligations"]), 1)
+        self.assertEqual(receipt["opened_obligations"][0]["obligation_kind"], "disclosure.review.required")

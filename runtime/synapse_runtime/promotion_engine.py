@@ -29,6 +29,29 @@ _HIGH_SIGNAL_TOPICS = {
     "project.vision",
 }
 
+_ARCHITECTURE_PIVOT_CUES = (
+    "rejecting",
+    "rejected",
+    "reject ",
+    "instead",
+    "now ",
+    "pivot",
+    "switch",
+    "moving to",
+    "move to",
+    "no longer",
+)
+
+_DISCLOSURE_REVIEW_CUES = (
+    "unsafe",
+    "cannot safely",
+    "can't safely",
+    "not safe to claim",
+    "unsafe to claim",
+    "cannot claim",
+    "can't claim",
+)
+
 
 class PromotionEngineError(RuntimeError):
     """Raised when semantic promotion cannot proceed safely."""
@@ -230,6 +253,36 @@ def _high_signal_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ]
 
 
+def _latest_record(records: list[dict[str, Any]]) -> dict[str, Any] | None:
+    if not records:
+        return None
+    return sorted(
+        records,
+        key=lambda item: (
+            str(item.get("recorded_at") or ""),
+            str(item.get("path") or ""),
+        ),
+    )[-1]
+
+
+def _architecture_shift_event(events: list[dict[str, Any]]) -> dict[str, Any] | None:
+    for event in events:
+        if str(event.get("topic_key") or "") != "architecture.shape":
+            continue
+        summary = str(event.get("summary") or "").lower()
+        if any(cue in summary for cue in _ARCHITECTURE_PIVOT_CUES):
+            return event
+    return None
+
+
+def _needs_disclosure_review(event: dict[str, Any]) -> bool:
+    topic_key = str(event.get("topic_key") or "")
+    if topic_key not in {"risk.blocker", "execution.error"}:
+        return False
+    summary = str(event.get("summary") or "").lower()
+    return any(cue in summary for cue in _DISCLOSURE_REVIEW_CUES)
+
+
 def _find_latest_plan_for_family(data_root: Path, family_id: str) -> dict[str, Any] | None:
     latest: dict[str, Any] | None = None
     for path in list_plan_artifacts(data_root):
@@ -409,6 +462,7 @@ def promote_semantic_events(
         recorded_at = _group_recorded_at(group)
         non_imported = _non_imported_events(group)
         created_for_group: list[dict[str, Any]] = []
+        prior_architecture_records = load_working_records(data_root, GovernedRecordFamily.ARCHITECTURE_EVOLUTION.value)
 
         imported_events = [event for event in group if bool(event.get("imported_limited"))]
         if imported_events:
@@ -558,6 +612,70 @@ def promote_semantic_events(
                         relation=relation,
                     ).to_dict()
                 )
+
+        architecture_record = next(
+            (record for record in created_for_group if str(record.get("family") or "") == GovernedRecordFamily.ARCHITECTURE_EVOLUTION.value),
+            None,
+        )
+        architecture_shift = _architecture_shift_event(non_imported)
+        latest_prior_architecture = _latest_record(
+            [
+                item
+                for item in prior_architecture_records
+                if str(item.get("record_id") or "").strip() != str((architecture_record or {}).get("record_id") or "").strip()
+            ]
+        )
+        if architecture_record is not None and architecture_shift is not None and latest_prior_architecture is not None:
+            lineage_edges.append(
+                build_lineage_edge(
+                    subject=subject,
+                    recorded_at=recorded_at,
+                    source_kind="governed_working_record",
+                    source_id=str(latest_prior_architecture.get("record_id") or ""),
+                    target_kind="governed_working_record",
+                    target_id=str(architecture_record.get("record_id") or ""),
+                    relation="supersedes",
+                    metadata={"reason": "architecture_pivot"},
+                ).to_dict()
+            )
+            opened_obligations.append(
+                open_obligation(
+                    subject=subject,
+                    data_root=data_root,
+                    recorded_at=recorded_at,
+                    obligation_kind="architecture.review.required",
+                    severity="warn",
+                    summary="Architecture meaning shifted and requires review before stronger canon or execution claims.",
+                    required_record_families=[GovernedRecordFamily.ARCHITECTURE_EVOLUTION.value],
+                    source_segment_ids=architecture_shift.get("source_segment_ids") or [],
+                    source_semantic_event_ids=[str(architecture_shift.get("semantic_event_id") or "")],
+                    source_refs=architecture_shift.get("source_refs") or [],
+                    metadata={
+                        "prior_record_id": latest_prior_architecture.get("record_id"),
+                        "new_record_id": architecture_record.get("record_id"),
+                        "topic_key": architecture_shift.get("topic_key"),
+                    },
+                )
+            )
+
+        for event in non_imported:
+            if not _needs_disclosure_review(event):
+                continue
+            opened_obligations.append(
+                open_obligation(
+                    subject=subject,
+                    data_root=data_root,
+                    recorded_at=recorded_at,
+                    obligation_kind="disclosure.review.required",
+                    severity="warn",
+                    summary="Unsafe blocker language requires disclosure-aware review before stronger claims continue.",
+                    required_record_families=[GovernedRecordFamily.FAILURE_CHAIN.value],
+                    source_segment_ids=event.get("source_segment_ids") or [],
+                    source_semantic_event_ids=[str(event.get("semantic_event_id") or "")],
+                    source_refs=event.get("source_refs") or [],
+                    metadata={"topic_key": event.get("topic_key")},
+                )
+            )
 
         if _high_signal_events(non_imported) and not created_for_group and plan is None:
             seed = _high_signal_events(non_imported)[0]
