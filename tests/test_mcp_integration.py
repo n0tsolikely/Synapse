@@ -597,12 +597,16 @@ class McpIntegrationTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(summary["status"], "ok")
             self.assertIn("provenance_status", summary["data"])
             self.assertEqual(summary["data"]["git_hooks_status"], "installed")
+            self.assertIn("integration_posture", summary["data"])
+            self.assertIn("open_continuity_obligation_count", summary["data"])
 
             context = await self._call(session, "get_current_context")
             provenance = context["data"]["context"]["provenance"]
             self.assertIn("provenance_status", provenance)
             self.assertIn("blocker_count", provenance)
             self.assertIn("warning_count", provenance)
+            self.assertIn("integration_posture", provenance)
+            self.assertIn("blocker_continuity_obligation_count", provenance)
 
             digest = await self._call(session, "get_session_digest")
             self.assertIn("provenance_summary", digest["data"])

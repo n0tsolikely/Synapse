@@ -364,7 +364,7 @@ class ProvenanceTests(unittest.TestCase):
         self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
         self.assertTrue(self._baseline_path().exists())
         first_payload = json.loads(first.stdout)
-        self.assertEqual(first_payload["ticks"][0]["provenance"]["provenance_status"], "clear")
+        self.assertEqual(first_payload["ticks"][0]["provenance"]["provenance_status"], "caution")
         actions_after_first = [entry.get("action_name") for entry in self._event_entries()]
         self.assertEqual(actions_after_first.count("provenance-watch-cycle"), 1)
 
