@@ -13,6 +13,8 @@ if str(RUNTIME_ROOT) not in sys.path:
     sys.path.insert(0, str(RUNTIME_ROOT))
 
 from synapse_runtime.continuity_obligations import open_obligation
+from synapse_runtime.promotion_engine import promote_semantic_events
+from synapse_runtime.quest_plans import persist_execution_plan
 from synapse_runtime.sidecar_store import ensure_live_scaffold
 from synapse_runtime.subject_bootstrap import initialize_subject_state
 from synapse_runtime.subject_bridge import install_local_codex_integration
@@ -108,6 +110,75 @@ class CloseTurnValidationTests(unittest.TestCase):
         self.assertEqual(payload["integration_posture"], "hooked")
         self.assertEqual(payload["blocker_continuity_obligation_count"], 1)
         self.assertEqual(payload["continuity_blockers"][0]["obligation_kind"], "plan.capture.required")
+
+    def test_close_turn_refreshes_typed_snapshot_candidates_when_session_is_hooked(self) -> None:
+        install_local_codex_integration(
+            subject=self.subject,
+            repo_root=self.engine_root,
+            data_root=self.data_root,
+            synapse_root=REPO_ROOT,
+        )
+        hooks = run_synapse(["install-hooks", "--json"], cwd=self.engine_root, home=self.home)
+        self.assertEqual(hooks.returncode, 0, hooks.stdout + hooks.stderr)
+        started = run_synapse(
+            ["run-start", "--title", "Hooked boundary session", "--plan-item", "Refresh snapshot candidates", "--json"],
+            cwd=self.engine_root,
+            home=self.home,
+        )
+        self.assertEqual(started.returncode, 0, started.stdout + started.stderr)
+
+        promote_semantic_events(
+            subject=self.subject,
+            data_root=self.data_root,
+            semantic_events=[
+                {
+                    "semantic_event_id": "SEMEVT-SCOPE",
+                    "schema_version": 1,
+                    "classifier_version": "v1-phase2",
+                    "recorded_at": "2026-04-04T14:00:00-04:00",
+                    "subject": self.subject,
+                    "class_label": "project.scope",
+                    "topic_key": "project.scope",
+                    "confidence_band": "high",
+                    "materiality_band": "high",
+                    "summary": "Scope the session around installable web workflows.",
+                    "transient_noise": False,
+                    "imported_limited": False,
+                    "source_segment_ids": ["SEG-SCOPE"],
+                    "source_refs": [{"kind": "conversation_segment", "id": "SEG-SCOPE", "path": "/tmp/SEG-SCOPE.json"}],
+                    "related_paths": [],
+                }
+            ],
+        )
+        persist_execution_plan(
+            subject=self.subject,
+            data_root=self.data_root,
+            title="Hooked close-turn fixture",
+            summary="Create enough durable continuity to refresh typed candidates at close-turn.",
+            origin="test",
+            objective="Refresh typed snapshot candidates from a hooked close-turn boundary.",
+            coherent_outcome="The close-turn boundary writes typed noncanonical snapshot candidates.",
+            closure_statement="Typed candidate artifacts exist without mutating canonical snapshots.",
+            out_of_scope="Canonical snapshot publication.",
+            dependencies=["None"],
+            risk="R1",
+            verification_plan="Run close-turn and inspect typed candidate paths.",
+            milestones=["Persist durable sources", "Refresh typed candidates"],
+            split_triggers=["Split if close-turn orchestration leaves the CLI owner."],
+            source_segment_ids=["SEG-PLAN"],
+            source_semantic_event_ids=["SEMEVT-PLAN"],
+            source_refs=[{"kind": "conversation_segment", "id": "SEG-PLAN", "path": "/tmp/SEG-PLAN.json"}],
+        )
+
+        result = run_synapse(["close-turn", "--strict", "--json"], cwd=self.engine_root, home=self.home)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["integration_posture"], "hooked")
+        summary = payload["snapshot_candidates"]["summary"]
+        self.assertTrue(summary["current_eod_candidate_path"])
+        self.assertTrue(summary["current_control_sync_candidate_path"])
+        self.assertTrue(Path(summary["current_eod_candidate_path"]).exists())
+        self.assertTrue(Path(summary["current_control_sync_candidate_path"]).exists())
 
 
 if __name__ == "__main__":

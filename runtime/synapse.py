@@ -30,9 +30,10 @@ from synapse_runtime.automation_orchestrator import (
     plan_automation_side_effects,
     ready_state_gate_for_mode,
 )
+from synapse_runtime.continuity_obligations import open_obligation, resolve_matching_obligations
 from synapse_runtime.conversation_ingest import ConversationIngestError, record_raw_turn
 from synapse_runtime.cwt import detect_canonical_working_tree
-from synapse_runtime.draftshots import DraftshotError, refresh_draftshot
+from synapse_runtime.draftshots import DraftshotError, load_active_draftshot, refresh_draftshot
 from synapse_runtime.doctor import run_doctor
 from synapse_runtime.event_log import (
     EventLogError,
@@ -107,8 +108,14 @@ from synapse_runtime.semantic_intake import (
     write_capture_batch,
 )
 from synapse_runtime.sidecar_projection import _sync_sidecar, refresh_provenance_projection, refresh_synthesis_projection
-from synapse_runtime.sidecar_store import ensure_live_scaffold
-from synapse_runtime.snapshot_candidates import SnapshotCandidateError, refresh_snapshot_candidates
+from synapse_runtime.sidecar_store import _read_yaml, ensure_live_scaffold
+from synapse_runtime.snapshot_candidates import (
+    CONTROL_SYNC_KIND,
+    EOD_KIND,
+    SnapshotCandidateError,
+    refresh_snapshot_candidates,
+    snapshot_candidate_summary,
+)
 from synapse_runtime.subject_bootstrap import initialize_subject_state, repo_subject_defaults
 from synapse_runtime.subject_bridge import ensure_subject_repo_bridges, install_local_codex_integration
 from synapse_runtime.quest_acceptance import QuestAcceptanceError, accept_quest, parse_quest_document
@@ -1584,6 +1591,250 @@ def _close_turn_validation_payload(ctx: dict[str, Any], *, boundary: str) -> dic
         "provenance_blockers": list(summary.get("blockers") or []),
         "provenance_warnings": list(summary.get("warnings") or []),
         "summary": summary,
+    }
+
+
+def _snapshot_candidate_required_kinds(ctx: dict[str, Any]) -> list[str]:
+    data_root = Path(ctx["data_root"])
+    active_run = _load_active_run_with_session_repair(ctx)
+    has_session_anchor = bool(_effective_session_id(ctx, active_run=active_run)) or load_active_draftshot(data_root, session_id=None) is not None
+    if not has_session_anchor:
+        return []
+
+    manifold = _read_yaml(data_root / ".synapse" / "MANIFOLD.yaml")
+    if not isinstance(manifold, dict):
+        manifold = {}
+
+    def has_summary(key: str) -> bool:
+        payload = manifold.get(key)
+        return bool(str(dict(payload or {}).get("summary") or "").strip())
+
+    required: list[str] = []
+    if any(
+        has_summary(key)
+        for key in (
+            "current_active_plan_delta",
+            "current_active_scope_delta",
+            "current_obligation_delta",
+            "current_architecture_delta",
+        )
+    ):
+        required.append(EOD_KIND)
+    if str(manifold.get("active_session_mode") or "").strip() == SessionMode.CONTROL_SYNC.value or any(
+        has_summary(key)
+        for key in (
+            "current_active_scope_delta",
+            "current_architecture_delta",
+            "current_identity_delta",
+            "current_narrative_delta",
+            "current_obligation_delta",
+        )
+    ):
+        required.append(CONTROL_SYNC_KIND)
+    return required
+
+
+def _snapshot_candidate_marker(kind: str, target_day: str) -> str:
+    return f"SNAPSHOT_CANDIDATE::{kind}::{target_day}"
+
+
+def _snapshot_candidate_obligation_kind(kind: str) -> str:
+    normalized = str(kind or "").strip().lower()
+    return f"snapshot.candidate.{normalized}.required"
+
+
+def _snapshot_candidate_path_key(kind: str) -> str:
+    return "current_eod_candidate_path" if kind == EOD_KIND else "current_control_sync_candidate_path"
+
+
+def _snapshot_candidate_target_day_key(kind: str) -> str:
+    return "current_eod_candidate_target_day" if kind == EOD_KIND else "current_control_sync_candidate_target_day"
+
+
+def _candidate_kind_satisfied(summary: dict[str, Any], *, kind: str, target_day: str | None = None) -> bool:
+    path = str(summary.get(_snapshot_candidate_path_key(kind)) or "").strip()
+    if not path:
+        return False
+    if target_day:
+        return str(summary.get(_snapshot_candidate_target_day_key(kind)) or "").strip() == str(target_day).strip()
+    return True
+
+
+def _sync_snapshot_candidate_obligations(
+    *,
+    ctx: dict[str, Any],
+    required_kinds: list[str],
+    target_day: str,
+    summary: dict[str, Any],
+    boundary: str,
+) -> dict[str, Any]:
+    data_root = Path(ctx["data_root"])
+    recorded_at = kernel_now_iso()
+    opened: list[dict[str, Any]] = []
+    resolved: list[dict[str, Any]] = []
+    active_draftshot = load_active_draftshot(data_root, session_id=None)
+    source_refs = []
+    if active_draftshot:
+        source_refs.append(
+            {
+                "kind": "draftshot_revision",
+                "id": active_draftshot.get("revision_id"),
+                "path": active_draftshot.get("path"),
+                "body_path": active_draftshot.get("body_path"),
+                "session_id": active_draftshot.get("session_id"),
+            }
+        )
+
+    for kind in required_kinds:
+        marker = _snapshot_candidate_marker(kind, target_day)
+        obligation_kind = _snapshot_candidate_obligation_kind(kind)
+        if _candidate_kind_satisfied(summary, kind=kind, target_day=target_day):
+            resolution_ids = []
+            path_key = _snapshot_candidate_path_key(kind)
+            if summary.get(path_key):
+                resolution_ids.append(str(summary.get(path_key)))
+            resolved.extend(
+                resolve_matching_obligations(
+                    data_root=data_root,
+                    recorded_at=recorded_at,
+                    source_segment_ids=[marker],
+                    source_semantic_event_ids=[marker],
+                    resolution_record_ids=resolution_ids,
+                    obligation_kinds=[obligation_kind],
+                )
+            )
+            continue
+        opened.append(
+            open_obligation(
+                subject=ctx["subject"],
+                data_root=data_root,
+                recorded_at=recorded_at,
+                obligation_kind=obligation_kind,
+                severity="blocker",
+                summary=f"{kind} snapshot candidate is required at the {boundary} boundary but could not be drafted lawfully.",
+                required_record_families=[f"snapshot_candidate_{str(kind).lower()}"],
+                source_segment_ids=[marker],
+                source_semantic_event_ids=[marker],
+                source_refs=source_refs,
+                metadata={
+                    "candidate_kind": kind,
+                    "target_day": target_day,
+                    "boundary": boundary,
+                },
+            )
+        )
+    return {"opened_obligations": opened, "resolved_obligations": resolved}
+
+
+def _refresh_snapshot_candidate_boundary(
+    *,
+    ctx: dict[str, Any],
+    boundary: str,
+    candidate_kinds: list[str] | None = None,
+    target_day: str | None = None,
+    prefer_latest_active_draftshot: bool = False,
+    refresh_draftshot_first: bool = True,
+    obligation_fallback: bool = True,
+    session_id_override: str | None = None,
+    run_id_override: str | None = None,
+) -> dict[str, Any]:
+    data_root = Path(ctx["data_root"])
+    active_run = _load_active_run_with_session_repair(ctx)
+    run_id = str(run_id_override or active_run.get("run_id") or "").strip() or None
+    session_id = _continuity_session_anchor(
+        ctx,
+        active_run=active_run,
+        session_id=session_id_override,
+        run_id=run_id,
+    )
+    draftshot_result: dict[str, Any] | None = None
+    draftshot_error: str | None = None
+
+    if refresh_draftshot_first and session_id:
+        try:
+            draftshot_result = refresh_draftshot(
+                subject=ctx["subject"],
+                data_root=data_root,
+                session_id=session_id,
+                run_id=run_id,
+            )
+        except DraftshotError as exc:
+            draftshot_error = str(exc)
+
+    refresh_synthesis_projection(subject=ctx["subject"], data_root=data_root)
+    required_kinds = list(candidate_kinds or _snapshot_candidate_required_kinds(ctx))
+    payload = refresh_snapshot_candidates(
+        subject=ctx["subject"],
+        data_root=data_root,
+        session_id=session_id,
+        candidate_kinds=required_kinds or None,
+        target_day=target_day,
+        prefer_latest_active_draftshot=prefer_latest_active_draftshot,
+    )
+    projection = _sync_sidecar(
+        subject=ctx["subject"],
+        data_root=data_root,
+        active_run=_load_active_run_with_session_repair(ctx),
+        mutate_proposals=False,
+    )
+    summary = dict(payload.get("summary") or snapshot_candidate_summary(data_root))
+    obligation_result = {"opened_obligations": [], "resolved_obligations": []}
+    effective_target_day = str(target_day or payload.get("target_day") or "").strip() or None
+    if obligation_fallback and required_kinds and not effective_target_day:
+        effective_target_day = kernel_now_iso().split("T", 1)[0]
+    if obligation_fallback and required_kinds and effective_target_day:
+        obligation_result = _sync_snapshot_candidate_obligations(
+            ctx=ctx,
+            required_kinds=required_kinds,
+            target_day=effective_target_day,
+            summary=summary,
+            boundary=boundary,
+        )
+        if obligation_result["opened_obligations"] or obligation_result["resolved_obligations"]:
+            projection = _sync_sidecar(
+                subject=ctx["subject"],
+                data_root=data_root,
+                active_run=_load_active_run_with_session_repair(ctx),
+                mutate_proposals=False,
+            )
+            summary = snapshot_candidate_summary(data_root)
+
+    return {
+        "boundary": boundary,
+        "required_kinds": required_kinds,
+        "target_day": effective_target_day,
+        "draftshot_result": draftshot_result,
+        "draftshot_error": draftshot_error,
+        "snapshot_candidates": payload,
+        "summary": summary,
+        "projection": projection,
+        **obligation_result,
+    }
+
+
+def _snapshot_candidate_boundary_noop(
+    *,
+    data_root: Path,
+    boundary: str,
+    reason: str,
+) -> dict[str, Any]:
+    summary = snapshot_candidate_summary(data_root)
+    return {
+        "boundary": boundary,
+        "required_kinds": [],
+        "target_day": None,
+        "draftshot_result": None,
+        "draftshot_error": None,
+        "snapshot_candidates": {
+            "status": "noop",
+            "reason": reason,
+            "summary": summary,
+            "candidates": [],
+        },
+        "summary": summary,
+        "projection": None,
+        "opened_obligations": [],
+        "resolved_obligations": [],
     }
 
 
@@ -3564,6 +3815,21 @@ def _write_session_overlay(
     return _write_session_run_overlay(session_id, payload)
 
 
+def _continuity_session_anchor(
+    ctx: dict[str, Any],
+    *,
+    active_run: dict[str, Any] | None = None,
+    session_id: str | None = None,
+    run_id: str | None = None,
+) -> str | None:
+    active_run = active_run or {}
+    resolved = _effective_session_id(ctx, active_run=active_run, session_id=session_id)
+    if resolved:
+        return resolved
+    fallback_run_id = str(run_id or active_run.get("run_id") or "").strip()
+    return fallback_run_id or None
+
+
 def _start_or_resume_session_run(
     ctx: dict[str, Any],
     *,
@@ -3760,7 +4026,28 @@ def cmd_session_start(args: argparse.Namespace) -> int:
         result.update(event_info)
         result["rehydrate"] = event_info["reducer"]["rehydrate"]
         result["continuity"] = event_info["reducer"]["continuity"]
-    except LiveMemoryError as exc:
+        snapshot_candidate_result = _snapshot_candidate_boundary_noop(
+            data_root=Path(ctx["data_root"]),
+            boundary="session-start",
+            reason="no_stale_prior_day_candidate_required",
+        )
+        snapshot_summary = dict(snapshot_candidate_result.get("summary") or {})
+        if snapshot_summary.get("stale_prior_day_candidate_required"):
+            latest_active_draftshot = load_active_draftshot(Path(ctx["data_root"]), session_id=None)
+            stale_target_day = str(latest_active_draftshot.get("refreshed_at") or "").split("T", 1)[0] if latest_active_draftshot else None
+            if stale_target_day:
+                snapshot_candidate_result = _refresh_snapshot_candidate_boundary(
+                    ctx=ctx,
+                    boundary="session-start",
+                    candidate_kinds=[EOD_KIND],
+                    target_day=stale_target_day,
+                    prefer_latest_active_draftshot=True,
+                    refresh_draftshot_first=False,
+                    session_id_override=session_id,
+                    run_id_override=result.get("run_id"),
+                )
+        result["snapshot_candidates"] = snapshot_candidate_result
+    except (LiveMemoryError, SnapshotCandidateError) as exc:
         print(f"FAIL: {exc}")
         return 2
 
@@ -4108,6 +4395,17 @@ def cmd_run_finalize(args: argparse.Namespace) -> int:
     result["rehydrate"] = event_info["reducer"]["rehydrate"]
     result["continuity"] = event_info["reducer"]["continuity"]
     result["truth_compile"] = truth_compile
+    try:
+        result["snapshot_candidates"] = _refresh_snapshot_candidate_boundary(
+            ctx=ctx,
+            boundary="run-finalize",
+            candidate_kinds=[EOD_KIND],
+            session_id_override=session_id,
+            run_id_override=result.get("run_id"),
+        )
+    except SnapshotCandidateError as exc:
+        print(f"FAIL: {exc}")
+        return 2
 
     overlay_path = None
     if session_id:
@@ -6688,32 +6986,42 @@ def cmd_close_turn(args: argparse.Namespace) -> int:
     ctx = _resolve_or_attach_subject_from_args(args)
     if not ctx:
         return 2
-    event_info = _event_pipeline(
-        ctx=ctx,
-        action_name="close-turn",
-        summary=f"Validated close-turn continuity boundary for {ctx['subject']}.",
-        session_id=_resolved_session_id(args),
-        refresh_continuity=False,
-        signals={
-            "changed_files": [],
-            "verification_entries": [],
-            "related_quest_ids": [],
-            "related_sidequest_ids": [],
-            "accepted_context": _accepted_context_snapshot(Path(ctx["data_root"])),
-            **_current_session_mode_fields(ctx),
-        },
-        truth_flags={
-            "canon_mutated": False,
-            "derived_state_changed": True,
-            "governed": False,
-            "uncertainty_present": False,
-        },
-        outputs={"boundary": args.boundary},
-    )
-    payload = _close_turn_validation_payload(ctx, boundary=args.boundary)
+    try:
+        event_info = _event_pipeline(
+            ctx=ctx,
+            action_name="close-turn",
+            summary=f"Validated close-turn continuity boundary for {ctx['subject']}.",
+            session_id=_resolved_session_id(args),
+            refresh_continuity=False,
+            signals={
+                "changed_files": [],
+                "verification_entries": [],
+                "related_quest_ids": [],
+                "related_sidequest_ids": [],
+                "accepted_context": _accepted_context_snapshot(Path(ctx["data_root"])),
+                **_current_session_mode_fields(ctx),
+            },
+            truth_flags={
+                "canon_mutated": False,
+                "derived_state_changed": True,
+                "governed": False,
+                "uncertainty_present": False,
+            },
+            outputs={"boundary": args.boundary},
+        )
+        snapshot_candidate_result = _refresh_snapshot_candidate_boundary(
+            ctx=ctx,
+            boundary=args.boundary,
+            session_id_override=_resolved_session_id(args),
+        )
+        payload = _close_turn_validation_payload(ctx, boundary=args.boundary)
+    except SnapshotCandidateError as exc:
+        print(f"FAIL: {exc}")
+        return 2
     rendered = {
         "subject_context": ctx,
         "kernel_posture": _kernel_posture_payload(ctx),
+        "snapshot_candidates": snapshot_candidate_result,
         **payload,
         "event": event_info.get("event"),
         "reducer": event_info.get("reducer"),
@@ -6817,10 +7125,30 @@ def cmd_import_continuity(args: argparse.Namespace) -> int:
             "import_confidence_band": parsed.get("confidence_band"),
         },
     )
+    try:
+        parser_status = str(parsed.get("parser_status") or "").strip().lower()
+        confidence_band = str(parsed.get("confidence_band") or "").strip().lower()
+        if parser_status == "parsed" and confidence_band in {"medium", "high"}:
+            snapshot_candidate_result = _refresh_snapshot_candidate_boundary(
+                ctx=ctx,
+                boundary="import-continuity",
+                session_id_override=_resolved_session_id(args),
+                run_id_override=getattr(args, "run_id", None),
+            )
+        else:
+            snapshot_candidate_result = _snapshot_candidate_boundary_noop(
+                data_root=Path(ctx["data_root"]),
+                boundary="import-continuity",
+                reason="import_confidence_not_permitted",
+            )
+    except SnapshotCandidateError as exc:
+        print(f"FAIL: {exc}")
+        return 2
     rendered = {
         "subject_context": ctx,
         "kernel_posture": _kernel_posture_payload(ctx),
         "import_envelope": parsed,
+        "snapshot_candidates": snapshot_candidate_result,
         **payload,
         "event": event_info.get("event"),
         "reducer": event_info.get("reducer"),
@@ -6930,9 +7258,9 @@ def cmd_refresh_draftshot(args: argparse.Namespace) -> int:
     if not ctx:
         return 2
     active_run = _load_active_run_with_session_repair(ctx)
-    session_id = _effective_session_id(ctx, active_run=active_run)
+    session_id = _continuity_session_anchor(ctx, active_run=active_run, session_id=_resolved_session_id(args))
     if not session_id:
-        print("FAIL: refresh-draftshot requires a session id or active run session context.")
+        print("FAIL: refresh-draftshot requires a session id or active run context.")
         return 2
     try:
         payload = refresh_draftshot(
@@ -7007,7 +7335,7 @@ def cmd_refresh_snapshot_candidates(args: argparse.Namespace) -> int:
     if not ctx:
         return 2
     active_run = _load_active_run_with_session_repair(ctx)
-    session_id = _effective_session_id(ctx, active_run=active_run)
+    session_id = _continuity_session_anchor(ctx, active_run=active_run, session_id=_resolved_session_id(args))
     try:
         refresh_synthesis_projection(subject=ctx["subject"], data_root=Path(ctx["data_root"]))
         payload = refresh_snapshot_candidates(

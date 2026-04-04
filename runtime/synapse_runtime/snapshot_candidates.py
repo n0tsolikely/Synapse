@@ -457,6 +457,15 @@ def snapshot_candidate_summary(data_root: Path) -> dict[str, Any]:
     control_sync = load_current_snapshot_candidate(data_root, CONTROL_SYNC_KIND)
     revisions = list_snapshot_candidate_revisions(data_root)
     latest_manifest = max(revisions, key=_record_time) if revisions else None
+    latest_active_draftshot = load_active_draftshot(data_root, session_id=None)
+    latest_draftshot_day = str(latest_active_draftshot.get("refreshed_at") or "").split("T", 1)[0] if latest_active_draftshot else None
+    current_eod_target_day = str(eod.get("target_day") or "").strip() or None if eod else None
+    current_control_sync_target_day = str(control_sync.get("target_day") or "").strip() or None if control_sync else None
+    stale_prior_day_candidate_required = bool(
+        latest_draftshot_day
+        and latest_draftshot_day < _now().date().isoformat()
+        and current_eod_target_day != latest_draftshot_day
+    )
 
     open_obligations = []
     try:
@@ -479,12 +488,14 @@ def snapshot_candidate_summary(data_root: Path) -> dict[str, Any]:
         "current_control_sync_candidate_manifest_path": control_sync.get("path") if control_sync else None,
         "current_eod_candidate_refreshed_at": eod.get("refreshed_at") if eod else None,
         "current_control_sync_candidate_refreshed_at": control_sync.get("refreshed_at") if control_sync else None,
+        "current_eod_candidate_target_day": current_eod_target_day,
+        "current_control_sync_candidate_target_day": current_control_sync_target_day,
         "current_eod_candidate_summary": eod.get("summary") if eod else None,
         "current_control_sync_candidate_summary": control_sync.get("summary") if control_sync else None,
         "current_snapshot_candidate_path": latest_manifest.get("body_path") if latest_manifest else None,
         "current_snapshot_candidate_manifest_path": latest_manifest.get("path") if latest_manifest else None,
         "current_snapshot_candidate_kind": latest_manifest.get("candidate_kind") if latest_manifest else None,
-        "stale_prior_day_candidate_required": False,
+        "stale_prior_day_candidate_required": stale_prior_day_candidate_required,
         "candidate_obligation_count": len(open_obligations),
         "recent_eod_candidate_details": [
             item
@@ -512,13 +523,20 @@ def refresh_snapshot_candidates(
     session_id: str | None = None,
     synthesis: dict[str, Any] | None = None,
     candidate_kinds: Iterable[str] | None = None,
+    target_day: str | None = None,
+    prefer_latest_active_draftshot: bool = False,
 ) -> dict[str, Any]:
     ensure_snapshot_candidate_scaffold(data_root)
     synthesis_payload = dict(synthesis or _load_synthesis_from_projection(data_root))
     refreshed_at = str(synthesis_payload.get("refreshed_at") or _now_iso())
     active_run = _load_active_run(data_root)
     effective_session_id = str(session_id or active_run.get("session_id") or "").strip() or None
-    if not effective_session_id:
+    draftshot = load_active_draftshot(data_root, session_id=effective_session_id) if effective_session_id else None
+    if draftshot is None and prefer_latest_active_draftshot:
+        draftshot = load_active_draftshot(data_root, session_id=None)
+    if draftshot is not None and not effective_session_id:
+        effective_session_id = str(draftshot.get("session_id") or "").strip() or None
+    if not effective_session_id and draftshot is None:
         return {
             "status": "noop",
             "reason": "missing_session_id",
@@ -526,7 +544,6 @@ def refresh_snapshot_candidates(
             "candidates": [],
         }
 
-    draftshot = load_active_draftshot(data_root, session_id=effective_session_id)
     if draftshot is None:
         return {
             "status": "noop",
@@ -536,7 +553,7 @@ def refresh_snapshot_candidates(
             "candidates": [],
         }
 
-    target_day = _target_day(synthesis_payload)
+    target_day = str(target_day or "").strip() or _target_day({"refreshed_at": draftshot.get("refreshed_at") or refreshed_at})
     requested_kinds = [_normalize_kind(kind) for kind in (candidate_kinds or SNAPSHOT_CANDIDATE_KINDS)]
     index = _load_index(data_root)
     current = dict(index.get("current") or {})

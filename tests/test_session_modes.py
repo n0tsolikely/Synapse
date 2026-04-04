@@ -16,6 +16,8 @@ if str(RUNTIME_ROOT) not in sys.path:
     sys.path.insert(0, str(RUNTIME_ROOT))
 
 from synapse_runtime.governance_model import ProposalKind
+from synapse_runtime.promotion_engine import promote_semantic_events
+from synapse_runtime.quest_plans import persist_execution_plan
 from synapse_runtime.session_modes import (
     SESSION_MODE_POLICY_VERSION,
     SessionMode,
@@ -477,6 +479,61 @@ class SessionModeLifecycleTests(unittest.TestCase):
         self.assertEqual(archived["session_mode"], SessionMode.EXECUTION.value)
         self.assertEqual(archived["last_session_mode"], SessionMode.EXECUTION.value)
         self.assertTrue(archived["last_session_mode_ended_at"])
+
+    def test_run_finalize_refreshes_eod_snapshot_candidate_without_control_sync_candidate(self) -> None:
+        promote_semantic_events(
+            subject="ModeSubject",
+            data_root=self.data_root,
+            semantic_events=[
+                {
+                    "semantic_event_id": "SEMEVT-ARCH",
+                    "schema_version": 1,
+                    "classifier_version": "v1-phase2",
+                    "recorded_at": "2026-04-04T14:20:00-04:00",
+                    "subject": "ModeSubject",
+                    "class_label": "architecture.shape",
+                    "topic_key": "architecture.shape",
+                    "confidence_band": "high",
+                    "materiality_band": "high",
+                    "summary": "Keep the runtime boundary closeout structured and auditable.",
+                    "transient_noise": False,
+                    "imported_limited": False,
+                    "source_segment_ids": ["SEG-ARCH"],
+                    "source_refs": [{"kind": "conversation_segment", "id": "SEG-ARCH", "path": "/tmp/SEG-ARCH.json"}],
+                    "related_paths": [],
+                }
+            ],
+        )
+        persist_execution_plan(
+            subject="ModeSubject",
+            data_root=self.data_root,
+            title="Finalize closeout candidate",
+            summary="Make run-finalize refresh an EOD candidate from durable sources.",
+            origin="test",
+            objective="Refresh a typed EOD candidate during run-finalize.",
+            coherent_outcome="Run finalization leaves behind a typed EOD candidate.",
+            closure_statement="The finalized run has a typed EOD candidate without minting Control Sync on the finalize path.",
+            out_of_scope="Canonical snapshots.",
+            dependencies=["None"],
+            risk="R1",
+            verification_plan="Finalize the run and inspect the snapshot candidate summary.",
+            milestones=["Seed durable sources", "Finalize run"],
+            split_triggers=["Split if run-finalize starts mutating canonical snapshot surfaces."],
+            source_segment_ids=["SEG-PLAN"],
+            source_semantic_event_ids=["SEMEVT-PLAN"],
+            source_refs=[{"kind": "conversation_segment", "id": "SEG-PLAN", "path": "/tmp/SEG-PLAN.json"}],
+        )
+        result = run_synapse(["run-start", "--title", "Build path", "--plan-item", "Ship it", "--json", *self.subject_args], cwd=REPO_ROOT, home=self.home)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        result = run_synapse(["run-update", "--set-item-status", "ITEM-001:DONE", "--json", *self.subject_args], cwd=REPO_ROOT, home=self.home)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        result = run_synapse(["run-finalize", "--status", "completed", "--json", *self.subject_args], cwd=REPO_ROOT, home=self.home)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+        payload = json.loads(result.stdout)
+        summary = payload["snapshot_candidates"]["summary"]
+        self.assertTrue(summary["current_eod_candidate_path"])
+        self.assertFalse(summary["current_control_sync_candidate_path"])
 
     def test_session_mode_inspect_returns_active_posture(self) -> None:
         self._start_brainstorm_session()
