@@ -508,6 +508,7 @@ def _open_continuity_obligation_details(data_root: Path) -> tuple[list[dict[str,
             "summary": obligation.get("summary"),
             "required_record_families": list(obligation.get("required_record_families") or []),
             "path": obligation.get("path"),
+            "metadata": dict(obligation.get("metadata") or {}),
         }
         open_items.append(detail)
         if str(obligation.get("severity") or "").strip().lower() == "blocker":
@@ -534,6 +535,10 @@ def compute_current_provenance_summary(subject, data_root, engine_root=None, *, 
     kernel_posture = inspect_engaged_kernel_posture(repo_root=engine_root, data_root=data_root)
     open_obligations, blocker_obligations = _open_continuity_obligation_details(data_root)
     warning_obligations = [item for item in open_obligations if item not in blocker_obligations]
+    import_review_obligations = [
+        item for item in open_obligations
+        if str(item.get("obligation_kind") or "").strip().lower() == "import.review.required"
+    ]
     local_integration = dict(kernel_posture.get("local_integration") or {})
     degraded_mode = str(kernel_posture.get("posture") or "").strip().lower() != "hooked"
     if anomaly_status == ProvenanceStatus.BLOCKED or blocker_obligations:
@@ -554,6 +559,8 @@ def compute_current_provenance_summary(subject, data_root, engine_root=None, *, 
         "recent_open_continuity_obligation_details": open_obligations[-10:],
         "continuity_blockers": blocker_obligations[-10:],
         "continuity_warnings": warning_obligations[-10:],
+        "import_review_required_count": len(import_review_obligations),
+        "recent_import_review_details": import_review_obligations[-10:],
         "integration_posture": kernel_posture.get("posture"),
         "local_integration_health": local_integration.get("integration_health"),
         "local_integration_missing_assets": list(local_integration.get("missing_assets") or []),
@@ -592,6 +599,8 @@ def projectable_provenance_summary(summary) -> dict:
         "recent_open_continuity_obligation_details": list(summary.get("recent_open_continuity_obligation_details") or []),
         "continuity_blockers": list(summary.get("continuity_blockers") or []),
         "continuity_warnings": list(summary.get("continuity_warnings") or []),
+        "import_review_required_count": summary.get("import_review_required_count") or 0,
+        "recent_import_review_details": list(summary.get("recent_import_review_details") or []),
         "integration_posture": summary.get("integration_posture"),
         "local_integration_health": summary.get("local_integration_health"),
         "local_integration_missing_assets": list(summary.get("local_integration_missing_assets") or []),

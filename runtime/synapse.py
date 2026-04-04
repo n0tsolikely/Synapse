@@ -50,7 +50,11 @@ from synapse_runtime.governance_inventory import build_governance_inventory, wri
 from synapse_runtime.governance_model import AmbientSignal, ProposalKind, ProposalState
 from synapse_runtime.live_journal import log_decision, log_disclosure, record_quest_acceptance
 from synapse_runtime.live_memory_common import LiveMemoryError
-from synapse_runtime.imported_continuity import ImportedContinuityError, parse_imported_continuity_source
+from synapse_runtime.imported_continuity import (
+    ImportedContinuityError,
+    imported_confidence_profile,
+    parse_imported_continuity_source,
+)
 from synapse_runtime.kernel_types import kernel_now_iso
 from synapse_runtime.persona import resolve_persona
 from synapse_runtime.git_hooks import GitHooksError, install_managed_hooks, inspect_git_hooks, write_hooks_receipt
@@ -131,6 +135,7 @@ from synapse_runtime.quest_board import (
 )
 from synapse_runtime.publication_candidates import (
     PublicationCandidateError,
+    publication_candidate_summary,
     refresh_publication_candidates,
     resolve_publication_candidate,
 )
@@ -1607,7 +1612,9 @@ def _close_turn_validation_payload(ctx: dict[str, Any], *, boundary: str) -> dic
         "strict_boundary_status": summary.get("strict_boundary_status"),
         "open_continuity_obligation_count": summary.get("open_continuity_obligation_count") or 0,
         "blocker_continuity_obligation_count": summary.get("blocker_continuity_obligation_count") or 0,
+        "import_review_required_count": summary.get("import_review_required_count") or 0,
         "recent_open_continuity_obligation_details": list(summary.get("recent_open_continuity_obligation_details") or []),
+        "recent_import_review_details": list(summary.get("recent_import_review_details") or []),
         "continuity_blockers": list(summary.get("continuity_blockers") or []),
         "continuity_warnings": list(summary.get("continuity_warnings") or []),
         "provenance_blockers": list(summary.get("blockers") or []),
@@ -1631,6 +1638,9 @@ def _snapshot_candidate_required_kinds(ctx: dict[str, Any]) -> list[str]:
         payload = manifold.get(key)
         return bool(str(dict(payload or {}).get("summary") or "").strip())
 
+    imported_delta = dict(manifold.get("current_imported_continuity_delta") or {})
+    imported_snapshot_eligible = bool(dict(imported_delta.get("metadata") or {}).get("snapshot_candidate_eligible"))
+
     required: list[str] = []
     if any(
         has_summary(key)
@@ -1640,7 +1650,7 @@ def _snapshot_candidate_required_kinds(ctx: dict[str, Any]) -> list[str]:
             "current_obligation_delta",
             "current_architecture_delta",
         )
-    ):
+    ) or imported_snapshot_eligible:
         required.append(EOD_KIND)
     if str(manifold.get("active_session_mode") or "").strip() == SessionMode.CONTROL_SYNC.value or any(
         has_summary(key)
@@ -1784,12 +1794,15 @@ def _refresh_snapshot_candidate_boundary(
             draftshot_error = str(exc)
 
     refresh_synthesis_projection(subject=ctx["subject"], data_root=data_root)
-    required_kinds = list(candidate_kinds or _snapshot_candidate_required_kinds(ctx))
+    if candidate_kinds is None:
+        required_kinds = list(_snapshot_candidate_required_kinds(ctx))
+    else:
+        required_kinds = list(candidate_kinds)
     payload = refresh_snapshot_candidates(
         subject=ctx["subject"],
         data_root=data_root,
         session_id=session_id,
-        candidate_kinds=required_kinds or None,
+        candidate_kinds=required_kinds if candidate_kinds is not None else (required_kinds or None),
         target_day=target_day,
         prefer_latest_active_draftshot=prefer_latest_active_draftshot,
     )
@@ -1831,6 +1844,143 @@ def _refresh_snapshot_candidate_boundary(
         "summary": summary,
         "projection": projection,
         **obligation_result,
+    }
+
+
+def _refresh_publication_candidate_boundary(
+    *,
+    ctx: dict[str, Any],
+    boundary: str,
+    candidate_kinds: list[str] | None = None,
+) -> dict[str, Any]:
+    data_root = Path(ctx["data_root"])
+    refresh_synthesis_projection(subject=ctx["subject"], data_root=data_root)
+    payload = refresh_publication_candidates(
+        subject=ctx["subject"],
+        data_root=data_root,
+        candidate_kinds=candidate_kinds,
+    )
+    projection = _sync_sidecar(
+        subject=ctx["subject"],
+        data_root=data_root,
+        active_run=_load_active_run_with_session_repair(ctx),
+        mutate_proposals=False,
+    )
+    summary = dict(payload.get("summary") or publication_candidate_summary(data_root))
+    return {
+        "boundary": boundary,
+        "publication_candidates": payload,
+        "summary": summary,
+        "projection": projection,
+    }
+
+
+def _publication_candidate_boundary_noop(
+    *,
+    data_root: Path,
+    boundary: str,
+    reason: str,
+) -> dict[str, Any]:
+    summary = publication_candidate_summary(data_root)
+    return {
+        "boundary": boundary,
+        "publication_candidates": {
+            "status": "noop",
+            "reason": reason,
+            "summary": summary,
+            "candidates": [],
+        },
+        "summary": summary,
+        "projection": None,
+    }
+
+
+def _orchestrate_import_continuity_followup(
+    *,
+    ctx: dict[str, Any],
+    parsed: dict[str, Any],
+    raw_payload: dict[str, Any],
+    session_id_override: str | None = None,
+    run_id_override: str | None = None,
+) -> dict[str, Any]:
+    data_root = Path(ctx["data_root"])
+    import_profile = imported_confidence_profile(parsed)
+    import_review_obligations: list[dict[str, Any]] = []
+    if import_profile.get("requires_review") and not str(parsed.get("extracted_text") or "").strip():
+        import_review_obligations.append(
+            open_obligation(
+                subject=ctx["subject"],
+                data_root=data_root,
+                recorded_at=kernel_now_iso(),
+                obligation_kind="import.review.required",
+                severity="warn",
+                summary="Imported continuity source could not be parsed confidently enough for automatic drafting and requires review.",
+                required_record_families=["IMPORTED_EVIDENCE"],
+                source_segment_ids=[],
+                source_semantic_event_ids=[],
+                source_refs=[
+                    {
+                        "kind": "raw_import_event",
+                        "id": raw_payload["raw_event_id"],
+                        "path": raw_payload["raw_event_path"],
+                        "source_kind": parsed.get("source_kind"),
+                        "parser_status": import_profile.get("parser_status"),
+                        "confidence_band": import_profile.get("confidence_band"),
+                    }
+                ],
+                metadata={
+                    "parser_status": import_profile.get("parser_status"),
+                    "confidence_band": import_profile.get("confidence_band"),
+                    "source_kind": parsed.get("source_kind"),
+                    "contradiction_refs": [],
+                },
+            )
+        )
+    if import_profile.get("snapshot_candidate_eligible"):
+        snapshot_candidate_result = _refresh_snapshot_candidate_boundary(
+            ctx=ctx,
+            boundary="import-continuity",
+            session_id_override=session_id_override,
+            run_id_override=run_id_override,
+        )
+    elif import_profile.get("draftshot_eligible"):
+        snapshot_candidate_result = _refresh_snapshot_candidate_boundary(
+            ctx=ctx,
+            boundary="import-continuity",
+            candidate_kinds=[],
+            obligation_fallback=False,
+            session_id_override=session_id_override,
+            run_id_override=run_id_override,
+        )
+    else:
+        snapshot_candidate_result = _snapshot_candidate_boundary_noop(
+            data_root=data_root,
+            boundary="import-continuity",
+            reason="import_confidence_not_permitted",
+        )
+    if import_profile.get("publication_candidate_eligible"):
+        publication_candidate_result = _refresh_publication_candidate_boundary(
+            ctx=ctx,
+            boundary="import-continuity",
+        )
+    else:
+        publication_candidate_result = _publication_candidate_boundary_noop(
+            data_root=data_root,
+            boundary="import-continuity",
+            reason="import_confidence_not_permitted",
+        )
+    projection = _sync_sidecar(
+        subject=ctx["subject"],
+        data_root=data_root,
+        active_run=_load_active_run_with_session_repair(ctx),
+        mutate_proposals=False,
+    )
+    return {
+        "import_profile": import_profile,
+        "snapshot_candidates": snapshot_candidate_result,
+        "publication_candidates": publication_candidate_result,
+        "opened_import_review_obligations": import_review_obligations,
+        "projection": projection,
     }
 
 
@@ -4069,7 +4219,11 @@ def cmd_session_start(args: argparse.Namespace) -> int:
                     run_id_override=result.get("run_id"),
                 )
         result["snapshot_candidates"] = snapshot_candidate_result
-    except (LiveMemoryError, SnapshotCandidateError) as exc:
+        result["publication_candidates"] = _refresh_publication_candidate_boundary(
+            ctx=ctx,
+            boundary="session-start",
+        )
+    except (LiveMemoryError, SnapshotCandidateError, PublicationCandidateError) as exc:
         print(f"FAIL: {exc}")
         return 2
 
@@ -4425,7 +4579,11 @@ def cmd_run_finalize(args: argparse.Namespace) -> int:
             session_id_override=session_id,
             run_id_override=result.get("run_id"),
         )
-    except SnapshotCandidateError as exc:
+        result["publication_candidates"] = _refresh_publication_candidate_boundary(
+            ctx=ctx,
+            boundary="run-finalize",
+        )
+    except (SnapshotCandidateError, PublicationCandidateError) as exc:
         print(f"FAIL: {exc}")
         return 2
 
@@ -6896,7 +7054,9 @@ def cmd_provenance_status(args: argparse.Namespace) -> int:
         "strict_boundary_status": summary.get("strict_boundary_status"),
         "open_continuity_obligation_count": summary.get("open_continuity_obligation_count") or 0,
         "blocker_continuity_obligation_count": summary.get("blocker_continuity_obligation_count") or 0,
+        "import_review_required_count": summary.get("import_review_required_count") or 0,
         "recent_open_continuity_obligation_details": list(summary.get("recent_open_continuity_obligation_details") or []),
+        "recent_import_review_details": list(summary.get("recent_import_review_details") or []),
         "continuity_blockers": list(summary.get("continuity_blockers") or []),
         "continuity_warnings": list(summary.get("continuity_warnings") or []),
         "current_wrapper_proof_status": summary.get("current_wrapper_proof_status"),
@@ -6921,6 +7081,7 @@ def cmd_provenance_status(args: argparse.Namespace) -> int:
         print(f"local_integration_health: {summary.get('local_integration_health')}")
         print(f"open_continuity_obligation_count: {summary.get('open_continuity_obligation_count') or 0}")
         print(f"blocker_continuity_obligation_count: {summary.get('blocker_continuity_obligation_count') or 0}")
+        print(f"import_review_required_count: {summary.get('import_review_required_count') or 0}")
         if summary.get("degraded_mode"):
             print(f"degraded_mode_reason: {summary.get('degraded_mode_reason')}")
         print(f"last_watch_at: {payload.get('last_watch_at')}")
@@ -7135,14 +7296,19 @@ def cmd_close_turn(args: argparse.Namespace) -> int:
             boundary=args.boundary,
             session_id_override=_resolved_session_id(args),
         )
+        publication_candidate_result = _refresh_publication_candidate_boundary(
+            ctx=ctx,
+            boundary=args.boundary,
+        )
         payload = _close_turn_validation_payload(ctx, boundary=args.boundary)
-    except SnapshotCandidateError as exc:
+    except (SnapshotCandidateError, PublicationCandidateError) as exc:
         print(f"FAIL: {exc}")
         return 2
     rendered = {
         "subject_context": ctx,
         "kernel_posture": _kernel_posture_payload(ctx),
         "snapshot_candidates": snapshot_candidate_result,
+        "publication_candidates": publication_candidate_result,
         **payload,
         "event": event_info.get("event"),
         "reducer": event_info.get("reducer"),
@@ -7247,29 +7413,23 @@ def cmd_import_continuity(args: argparse.Namespace) -> int:
         },
     )
     try:
-        parser_status = str(parsed.get("parser_status") or "").strip().lower()
-        confidence_band = str(parsed.get("confidence_band") or "").strip().lower()
-        if parser_status == "parsed" and confidence_band in {"medium", "high"}:
-            snapshot_candidate_result = _refresh_snapshot_candidate_boundary(
-                ctx=ctx,
-                boundary="import-continuity",
-                session_id_override=_resolved_session_id(args),
-                run_id_override=getattr(args, "run_id", None),
-            )
-        else:
-            snapshot_candidate_result = _snapshot_candidate_boundary_noop(
-                data_root=Path(ctx["data_root"]),
-                boundary="import-continuity",
-                reason="import_confidence_not_permitted",
-            )
-    except SnapshotCandidateError as exc:
+        followup = _orchestrate_import_continuity_followup(
+            ctx=ctx,
+            parsed=parsed,
+            raw_payload=payload,
+            session_id_override=_resolved_session_id(args),
+            run_id_override=getattr(args, "run_id", None),
+        )
+    except (SnapshotCandidateError, PublicationCandidateError) as exc:
         print(f"FAIL: {exc}")
         return 2
     rendered = {
         "subject_context": ctx,
         "kernel_posture": _kernel_posture_payload(ctx),
         "import_envelope": parsed,
-        "snapshot_candidates": snapshot_candidate_result,
+        "snapshot_candidates": followup["snapshot_candidates"],
+        "publication_candidates": followup["publication_candidates"],
+        "opened_import_review_obligations": followup["opened_import_review_obligations"],
         **payload,
         "event": event_info.get("event"),
         "reducer": event_info.get("reducer"),

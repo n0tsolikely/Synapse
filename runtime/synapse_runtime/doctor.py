@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 
 from synapse_runtime.automation_orchestrator import automation_policy_for_context
+from synapse_runtime.continuity_obligations import load_obligations
 from synapse_runtime.current_state_publication import PUBLICATION_FILENAMES, read_publication_metadata
 from synapse_runtime.cwt import detect_canonical_working_tree
 from synapse_runtime.event_log import validate_event_stream
@@ -259,12 +260,24 @@ def _check_subject_state(governance_root: Path, subject_receipt: dict) -> list[R
         obligations_root = str((data_root / ".synapse" / "CONTINUITY_OBLIGATIONS").resolve())
         blocker_count = int(kernel_posture.get("blocker_continuity_obligation_count") or 0)
         open_count = int(kernel_posture.get("open_continuity_obligation_count") or 0)
+        import_review_count = len(
+            [
+                item
+                for item in load_obligations(data_root)
+                if str(item.get("state") or "open").strip().lower() == "open"
+                and str(item.get("obligation_kind") or "").strip().lower() == "import.review.required"
+            ]
+        )
         if blocker_count:
             add(obligations_root, False, f"BLOCKER_CONTINUITY_OBLIGATIONS:{blocker_count}")
         elif open_count:
             add(obligations_root, True, f"OPEN_CONTINUITY_OBLIGATIONS:{open_count}")
         else:
             add(obligations_root, True, "NO_OPEN_CONTINUITY_OBLIGATIONS")
+        if import_review_count:
+            add("imported_continuity_review", True, f"OPEN_IMPORTED_CONTINUITY_REVIEW:{import_review_count}")
+        else:
+            add("imported_continuity_review", True, "NO_IMPORTED_CONTINUITY_REVIEW")
 
     try:
         automation_policy = automation_policy_for_context(data_root=data_root)

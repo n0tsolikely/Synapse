@@ -1,0 +1,9 @@
+runtime/synapse.py
+runtime/synapse_mcp/runtime_bridge.py
+runtime/synapse_runtime/continuity_obligations.py
+runtime/synapse_runtime/doctor.py
+runtime/synapse_runtime/provenance.py
+runtime/synapse_runtime/sidecar_projection.py
+tests/test_degraded_mode_enforcement.py
+tests/test_external_continuity_recovery.py
+tests/test_mcp_integration.py

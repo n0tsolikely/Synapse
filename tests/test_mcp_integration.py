@@ -494,6 +494,28 @@ class McpIntegrationTests(unittest.IsolatedAsyncioTestCase):
             self.assertGreaterEqual(summary["semantic_event_count"], 1)
             self.assertTrue(recent_events)
 
+    async def test_unsupported_import_surfaces_review_debt_in_current_context(self) -> None:
+        workspace = self._make_workspace("mcp-imported-review")
+        pdf = workspace / "brainstorm.pdf"
+        pdf.write_bytes(b"%PDF-1.7\n1 0 obj\n<<>>\nendobj\n")
+        async with self._session(workspace) as session:
+            await self._call(session, "bootstrap_session", {"title": "Imported review"})
+            imported = await self._call(
+                session,
+                "import_continuity",
+                {"source_file": str(pdf), "kind": "pdf"},
+            )
+            self.assertEqual(imported["status"], "ok")
+            self.assertEqual(imported["data"]["status"], "unsupported")
+
+            context = await self._call(session, "get_current_context")
+            provenance = context["data"]["context"]["provenance"]
+            self.assertEqual(provenance["import_review_required_count"], 1)
+            self.assertEqual(len(provenance["recent_import_review_details"]), 1)
+
+            status_text = await self._read_text_resource(session, "synapse://current/provenance-status")
+            self.assertIn("\"import_review_required_count\": 1", status_text)
+
     async def test_refresh_draftshot_tool_writes_active_draftshot_state(self) -> None:
         workspace = self._make_workspace("mcp-refresh-draftshot")
         async with self._session(workspace) as session:

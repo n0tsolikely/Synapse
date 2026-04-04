@@ -445,6 +445,7 @@ def build_current_context_bundle(
         "warning_count": len(list(manifold_payload.get("provenance_warnings") or [])),
         "open_continuity_obligation_count": state_payload.get("open_continuity_obligation_count") or 0,
         "blocker_continuity_obligation_count": state_payload.get("blocker_continuity_obligation_count") or 0,
+        "import_review_required_count": state_payload.get("import_review_required_count") or 0,
         "integration_posture": manifold_payload.get("integration_posture") or state_payload.get("integration_posture"),
         "local_integration_health": manifold_payload.get("local_integration_health") or state_payload.get("local_integration_health"),
         "local_integration_missing_assets": list(manifold_payload.get("local_integration_missing_assets") or []),
@@ -453,6 +454,7 @@ def build_current_context_bundle(
         "strict_boundary_status": manifold_payload.get("strict_boundary_status") or state_payload.get("strict_boundary_status"),
         "current_wrapper_proof_status": manifold_payload.get("current_wrapper_proof_status") or state_payload.get("current_wrapper_proof_status"),
         "git_hooks_status": manifold_payload.get("git_hooks_status") or state_payload.get("git_hooks_status"),
+        "recent_import_review_details": list(manifold_payload.get("recent_import_review_details") or []),
     }
     automation_summary = cli_runtime._readiness_payload(data_root)
     kernel_posture = inspect_engaged_kernel_posture(repo_root=Path(ctx["engine_root"]), data_root=data_root)
@@ -2067,9 +2069,21 @@ def import_continuity_tool(
             "import_confidence_band": parsed.get("confidence_band"),
         },
     )
+    followup = cli_runtime._orchestrate_import_continuity_followup(
+        ctx=ctx,
+        parsed=parsed,
+        raw_payload=result_payload,
+        session_id_override=ctx.get("session_id"),
+        run_id_override=run_id,
+    )
+    _, bundle = build_current_context_bundle(state=state, context=context, include_rehydrate=False, include_project_story=False)
     result = {
         **result_payload,
         "import_envelope": parsed,
+        "snapshot_candidates": followup["snapshot_candidates"],
+        "publication_candidates": followup["publication_candidates"],
+        "opened_import_review_obligations": followup["opened_import_review_obligations"],
+        "current_context": bundle["context"],
         "kernel_posture": inspect_engaged_kernel_posture(repo_root=Path(ctx["engine_root"]), data_root=Path(ctx["data_root"])),
         "event": event_info.get("event"),
         "reducer": event_info.get("reducer"),

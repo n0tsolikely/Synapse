@@ -699,6 +699,7 @@ def _apply_governed_promotion_projection(
     state["working_record_count"] = summary.get("working_record_count") or 0
     state["open_continuity_obligation_count"] = summary.get("open_count") or 0
     state["blocker_continuity_obligation_count"] = summary.get("blocker_count") or 0
+    state["import_review_required_count"] = summary.get("import_review_required_count") or 0
 
     manifold["recent_working_record_details"] = list(summary.get("recent_working_record_details") or [])
     manifold["working_record_family_counts"] = dict(summary.get("working_record_family_counts") or {})
@@ -711,6 +712,8 @@ def _apply_governed_promotion_projection(
     manifold["open_continuity_obligation_count"] = summary.get("open_count") or 0
     manifold["blocker_continuity_obligation_count"] = summary.get("blocker_count") or 0
     manifold["recent_open_continuity_obligation_details"] = list(summary.get("recent_open_obligation_details") or [])
+    manifold["import_review_required_count"] = summary.get("import_review_required_count") or 0
+    manifold["recent_import_review_details"] = list(summary.get("recent_import_review_details") or [])
 
     return {
         **summary,

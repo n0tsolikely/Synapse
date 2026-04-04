@@ -149,6 +149,8 @@ class DegradedModeEnforcementTests(unittest.TestCase):
         summary = payload["snapshot_candidates"]["summary"]
         self.assertTrue(summary["current_eod_candidate_path"])
         self.assertTrue(summary["current_control_sync_candidate_path"])
+        publication_summary = payload["publication_candidates"]["summary"]
+        self.assertTrue(publication_summary["current_story_candidate_path"])
 
 
 if __name__ == "__main__":

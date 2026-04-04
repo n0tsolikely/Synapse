@@ -143,9 +143,14 @@ def obligation_summary(data_root: Path) -> dict[str, Any]:
     obligations = load_obligations(data_root)
     open_items = [item for item in obligations if str(item.get("state") or "open").strip().lower() == "open"]
     blocker_items = [item for item in open_items if str(item.get("severity") or "warn").strip().lower() == "blocker"]
+    import_review_items = [
+        item for item in open_items
+        if str(item.get("obligation_kind") or "").strip().lower() == "import.review.required"
+    ]
     return {
         "open_count": len(open_items),
         "blocker_count": len(blocker_items),
+        "import_review_required_count": len(import_review_items),
         "recent_open_obligation_ids": [str(item.get("obligation_id")) for item in open_items[-10:]],
         "recent_open_obligation_details": [
             {
@@ -155,5 +160,14 @@ def obligation_summary(data_root: Path) -> dict[str, Any]:
                 "summary": item.get("summary"),
             }
             for item in open_items[-10:]
+        ],
+        "recent_import_review_details": [
+            {
+                "obligation_id": item.get("obligation_id"),
+                "summary": item.get("summary"),
+                "severity": item.get("severity"),
+                "metadata": dict(item.get("metadata") or {}),
+            }
+            for item in import_review_items[-10:]
         ],
     }
