@@ -1521,10 +1521,19 @@ class RepoOnboardingCommandTests(unittest.TestCase):
             extra_env=self.extra_env,
         )
         self.assertEqual(started.returncode, 0, started.stdout + started.stderr)
+        started_payload = json.loads(started.stdout)
+        self.assertTrue(
+            started_payload["run"]["publication_candidates"]["summary"]["current_story_candidate_path"],
+            started.stdout,
+        )
 
         refresh_synthesis_projection(subject=subject, data_root=data_root)
         refreshed = refresh_publication_candidates(subject=subject, data_root=data_root)
-        self.assertEqual(refreshed["status"], "written")
+        self.assertIn(refreshed["status"], {"written", "noop"})
+        if refreshed["status"] == "noop":
+            story_result = next(item for item in refreshed["candidates"] if item["candidate_kind"] == "STORY")
+            self.assertEqual(story_result["reason"], "unchanged_source_signature")
+            self.assertTrue(refreshed["summary"]["current_story_candidate_path"])
 
         result = run_synapse(
             ["formalize", "--candidate-handle", "story", "--json", *subject_args],
