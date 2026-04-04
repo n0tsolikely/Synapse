@@ -20,6 +20,7 @@ from synapse_runtime.draftshots import draftshot_summary, refresh_draftshot
 from synapse_runtime.live_journal import log_decision, log_disclosure
 from synapse_runtime.live_memory_common import LiveMemoryError
 from synapse_runtime.project_model import ProjectModelError
+from synapse_runtime.publication_candidates import publication_candidate_summary, refresh_publication_candidates
 from synapse_runtime.quest_acceptance import QuestAcceptanceError
 from synapse_runtime.quest_candidates import list_proposals, mark_proposal_state
 from synapse_runtime.reducer import ReducerError
@@ -425,6 +426,7 @@ def build_current_context_bundle(
         session_id=ctx.get("session_id") or active_run.get("session_id"),
     )
     snapshot_candidates_state = snapshot_candidate_summary(data_root)
+    publication_candidates_state = publication_candidate_summary(data_root)
     session_posture = {
         "active_session_mode": manifold_payload.get("active_session_mode") or state_payload.get("active_session_mode"),
         "active_session_mode_policy": manifold_payload.get("active_session_mode_policy"),
@@ -476,6 +478,7 @@ def build_current_context_bundle(
         "codex_packets": codex_packet_summary,
         "draftshot": draftshot_state,
         "snapshot_candidates": snapshot_candidates_state,
+        "publication_candidates": publication_candidates_state,
         "onboarding": onboarding_payload,
         "published_project_model_summary": {
             "path": str(project_model_path) if project_model_path.exists() else None,
@@ -553,6 +556,7 @@ def resource_catalog(*, state: ConnectionState) -> list[dict[str, Any]]:
         {"uri": "synapse://current/codex-packets.json", "mime_type": "application/json"},
         {"uri": "synapse://current/draftshot-state.json", "mime_type": "application/json"},
         {"uri": "synapse://current/snapshot-candidates.json", "mime_type": "application/json"},
+        {"uri": "synapse://current/publication-candidates.json", "mime_type": "application/json"},
         {"uri": "synapse://current/rehydrate.md", "mime_type": "text/markdown"},
         {"uri": "synapse://current/open-questions.md", "mime_type": "text/markdown"},
         {"uri": "synapse://current/onboarding/status.json", "mime_type": "application/json"},
@@ -639,6 +643,9 @@ def read_resource(*, state: ConnectionState, uri: str) -> tuple[dict[str, Any], 
     if uri == "synapse://current/snapshot-candidates.json":
         _, bundle = build_current_context_bundle(state=state, context=None, include_rehydrate=False, include_project_story=False)
         return ctx, json.dumps(bundle["context"]["snapshot_candidates"], indent=2, sort_keys=True) + "\n", "application/json"
+    if uri == "synapse://current/publication-candidates.json":
+        _, bundle = build_current_context_bundle(state=state, context=None, include_rehydrate=False, include_project_story=False)
+        return ctx, json.dumps(bundle["context"]["publication_candidates"], indent=2, sort_keys=True) + "\n", "application/json"
     if uri == "synapse://current/rehydrate.md":
         return ctx, _text_or_empty(rehydrate_path), "text/markdown"
     if uri == "synapse://current/open-questions.md":
@@ -2188,6 +2195,24 @@ def refresh_snapshot_candidates_tool(
         subject=ctx["subject"],
         data_root=Path(ctx["data_root"]),
         session_id=session_id,
+    )
+    refresh_synthesis_projection(subject=ctx["subject"], data_root=Path(ctx["data_root"]))
+    _, bundle = build_current_context_bundle(state=state, context=context, include_rehydrate=False, include_project_story=False)
+    result = dict(payload)
+    result["current_context"] = bundle["context"]
+    return ctx, result, None, STATUS_OK if payload.get("status") != "noop" else STATUS_NOOP
+
+
+def refresh_publication_candidates_tool(
+    *,
+    state: ConnectionState,
+    context: ContextInput | dict[str, Any] | None,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any] | None, str]:
+    ctx = _resolve_runtime_context(state=state, context=context, allow_attach_current_repo=False, requires_session=False)
+    refresh_synthesis_projection(subject=ctx["subject"], data_root=Path(ctx["data_root"]))
+    payload = refresh_publication_candidates(
+        subject=ctx["subject"],
+        data_root=Path(ctx["data_root"]),
     )
     refresh_synthesis_projection(subject=ctx["subject"], data_root=Path(ctx["data_root"]))
     _, bundle = build_current_context_bundle(state=state, context=context, include_rehydrate=False, include_project_story=False)

@@ -28,6 +28,13 @@ if str(RUNTIME_ROOT) not in sys.path:
 from synapse_runtime.repo_archaeology import evidence_ref
 from synapse_runtime.promotion_engine import promote_semantic_events
 from synapse_runtime.quest_plans import persist_execution_plan
+from synapse_runtime.repo_onboarding import (
+    canonical_codex_current_path,
+    canonical_codex_future_path,
+    canonical_project_model_path,
+    canonical_project_story_path,
+    canonical_vision_path,
+)
 from synapse_runtime.sidecar_store import canonical_open_questions_path, ensure_live_scaffold
 from synapse_runtime.subject_bootstrap import initialize_subject_state
 
@@ -44,6 +51,7 @@ FIXED_TOOL_CATALOG = [
     "record_raw_turn",
     "record_raw_execution",
     "refresh_snapshot_candidates",
+    "refresh_publication_candidates",
     "refresh_draftshot",
     "import_continuity",
     "record_decision",
@@ -75,6 +83,7 @@ FIXED_RESOURCES = {
     "synapse://current/plan-events.json",
     "synapse://current/draftshot-state.json",
     "synapse://current/snapshot-candidates.json",
+    "synapse://current/publication-candidates.json",
     "synapse://current/rehydrate.md",
     "synapse://current/open-questions.md",
     "synapse://current/onboarding/status.json",
@@ -602,6 +611,98 @@ class McpIntegrationTests(unittest.IsolatedAsyncioTestCase):
             )
             self.assertTrue(snapshot_candidates_payload["current_eod_candidate_path"])
             self.assertTrue(snapshot_candidates_payload["current_control_sync_candidate_path"])
+
+    async def test_refresh_publication_candidates_tool_writes_noncanonical_candidate_state(self) -> None:
+        workspace = self._make_workspace("mcp-refresh-publication-candidates")
+        async with self._session(workspace) as session:
+            bootstrap = await self._call(session, "bootstrap_session", {"title": "Publication candidates"})
+            self.assertEqual(bootstrap["status"], "ok")
+            subject_context = bootstrap["subject_context"]
+            subject = subject_context["subject"]
+            data_root = Path(subject_context["data_root"])
+
+            canonical_project_model_path(data_root).write_text(
+                yaml.safe_dump(
+                    {
+                        "project_identity": "Baseline installable website system",
+                        "purpose": "Help operators ship installable customer web systems.",
+                        "vision": "Become the reusable baseline for installable client delivery.",
+                        "confirmed_at": "2026-04-04T10:00:00-04:00",
+                        "implemented_truths": [{"summary": "The repo already tracks governed continuity."}],
+                        "partial_truths": [],
+                        "intended_capabilities": [],
+                        "future_ideas_needing_expansion": [],
+                        "superseded_directions": [],
+                        "constraints": [],
+                    },
+                    sort_keys=False,
+                ),
+                encoding="utf-8",
+            )
+            canonical_project_story_path(data_root).write_text("# Project Story\n\nBaseline story.\n", encoding="utf-8")
+            canonical_vision_path(data_root).write_text("# Vision\n\nBaseline vision.\n", encoding="utf-8")
+            canonical_codex_current_path(data_root).write_text("# Current Codex\n\nBaseline current codex.\n", encoding="utf-8")
+            canonical_codex_future_path(data_root).write_text("# Future Codex\n\nBaseline future codex.\n", encoding="utf-8")
+
+            persist_execution_plan(
+                subject=subject,
+                data_root=data_root,
+                title="Publication candidate foundation",
+                summary="Capture current continuity as publication candidates.",
+                origin="test-mcp-refresh-publication-candidates",
+                objective="Expose story, vision, and codex candidate state without mutating canon.",
+                coherent_outcome="Publication candidates exist as durable noncanonical records.",
+                closure_statement="Candidate state is readable and source-linked.",
+                out_of_scope="Canonical publication.",
+                dependencies=["Continuity synthesis"],
+                risk="R1",
+                verification_plan="Refresh publication candidates and inspect the current-context bundle.",
+                milestones=["Story candidate", "Vision candidate", "Codex candidate"],
+                split_triggers=["Split if publication candidate storage requires compatibility hardening."],
+                source_segment_ids=["SEG-PLAN"],
+                source_semantic_event_ids=["SEMEVT-PLAN"],
+                source_refs=[{"kind": "conversation_segment", "id": "SEG-PLAN", "path": "/tmp/SEG-PLAN.json"}],
+            )
+            promote_semantic_events(
+                subject=subject,
+                data_root=data_root,
+                semantic_events=[
+                    {
+                        "semantic_event_id": "SEMEVT-VISION",
+                        "schema_version": 1,
+                        "classifier_version": "v1-phase3",
+                        "recorded_at": "2026-04-04T12:00:00-04:00",
+                        "subject": subject,
+                        "class_label": "project.vision",
+                        "topic_key": "project.vision",
+                        "confidence_band": "high",
+                        "materiality_band": "high",
+                        "summary": "The product becomes a reusable website business system.",
+                        "transient_noise": False,
+                        "imported_limited": False,
+                        "source_segment_ids": ["SEG-VISION"],
+                        "source_refs": [{"kind": "conversation_segment", "id": "SEG-VISION", "path": "/tmp/SEG-VISION.json"}],
+                        "related_paths": [],
+                    }
+                ],
+            )
+
+            refreshed = await self._call(session, "refresh_publication_candidates")
+            self.assertEqual(refreshed["status"], "ok")
+            self.assertEqual(
+                {item["candidate_kind"] for item in refreshed["data"]["candidates"] if item["status"] == "written"},
+                {"STORY", "VISION", "CODEX"},
+            )
+            self.assertTrue(refreshed["data"]["current_context"]["publication_candidates"]["current_story_candidate_path"])
+            self.assertTrue(refreshed["data"]["current_context"]["publication_candidates"]["current_vision_candidate_path"])
+            self.assertTrue(refreshed["data"]["current_context"]["publication_candidates"]["current_codex_candidate_paths"])
+
+            publication_candidates_payload = json.loads(
+                await self._read_text_resource(session, "synapse://current/publication-candidates.json")
+            )
+            self.assertTrue(publication_candidates_payload["current_story_candidate_path"])
+            self.assertTrue(publication_candidates_payload["current_vision_candidate_path"])
+            self.assertTrue(publication_candidates_payload["current_codex_candidate_paths"])
 
     async def test_explicit_context_override_does_not_mutate_defaults(self) -> None:
         workspace = self._make_workspace("mcp-default-a")

@@ -34,6 +34,7 @@ from synapse_runtime.ledger_store import _classify_verification_status
 from synapse_runtime.live_memory_common import LiveMemoryError
 from synapse_runtime.provenance import compute_current_provenance_summary, projectable_provenance_summary
 from synapse_runtime.promotion_engine import promote_semantic_events, promotion_summary
+from synapse_runtime.publication_candidates import publication_candidate_summary
 from synapse_runtime.repo_onboarding import onboarding_projection
 from synapse_runtime.quest_candidates import (
     QUEST_PROPOSAL_KINDS,
@@ -795,6 +796,31 @@ def _apply_snapshot_candidate_projection(
     return summary
 
 
+def _apply_publication_candidate_projection(
+    *,
+    state: dict[str, Any],
+    manifold: dict[str, Any],
+    data_root: Path,
+) -> dict[str, Any]:
+    summary = publication_candidate_summary(data_root)
+
+    state["current_story_candidate_path"] = summary.get("current_story_candidate_path")
+    state["current_vision_candidate_path"] = summary.get("current_vision_candidate_path")
+    state["current_publication_candidate_refreshed_at"] = summary.get("current_publication_candidate_refreshed_at")
+
+    manifold["current_story_candidate_path"] = summary.get("current_story_candidate_path")
+    manifold["current_vision_candidate_path"] = summary.get("current_vision_candidate_path")
+    manifold["current_codex_candidate_paths"] = list(summary.get("current_codex_candidate_paths") or [])
+    manifold["current_story_candidate_summary"] = summary.get("current_story_candidate_summary")
+    manifold["current_vision_candidate_summary"] = summary.get("current_vision_candidate_summary")
+    manifold["current_codex_candidate_summary"] = summary.get("current_codex_candidate_summary")
+    manifold["current_publication_candidate_refreshed_at"] = summary.get("current_publication_candidate_refreshed_at")
+    manifold["recent_story_candidate_details"] = list(summary.get("recent_story_candidate_details") or [])
+    manifold["recent_vision_candidate_details"] = list(summary.get("recent_vision_candidate_details") or [])
+    manifold["recent_codex_candidate_details"] = list(summary.get("recent_codex_candidate_details") or [])
+    return summary
+
+
 def refresh_synthesis_projection(*, subject: str, data_root: Path) -> dict[str, Any]:
     live = live_root(data_root)
     state_path = live / "STATE.yaml"
@@ -818,6 +844,11 @@ def refresh_synthesis_projection(*, subject: str, data_root: Path) -> dict[str, 
         manifold=manifold,
         data_root=data_root,
     )
+    publication_candidates = _apply_publication_candidate_projection(
+        state=state,
+        manifold=manifold,
+        data_root=data_root,
+    )
     _write_yaml(state_path, state)
     manifold["last_updated_at"] = _now_iso()
     _write_yaml(manifold_path, manifold)
@@ -826,6 +857,7 @@ def refresh_synthesis_projection(*, subject: str, data_root: Path) -> dict[str, 
         "manifold_path": str(manifold_path),
         **projection,
         "snapshot_candidates": snapshot_candidates,
+        "publication_candidates": publication_candidates,
     }
 
 
@@ -1016,6 +1048,11 @@ def _sync_sidecar(
         manifold=manifold,
         data_root=data_root,
     )
+    publication_candidates_projection = _apply_publication_candidate_projection(
+        state=state,
+        manifold=manifold,
+        data_root=data_root,
+    )
 
     accepted_details = load_accepted_quest_details(subject, data_root)
     current_accepted = select_current_accepted_quest(accepted_details)
@@ -1191,6 +1228,7 @@ def _sync_sidecar(
         "derived_synthesis": derived_synthesis,
         "draftshot": draftshot_projection,
         "snapshot_candidates": snapshot_candidates_projection,
+        "publication_candidates": publication_candidates_projection,
         "interaction_mode": interaction_mode,
         "world_state": world_state.value,
         "active_onboarding_id": onboarding_state.get("active_onboarding_id"),

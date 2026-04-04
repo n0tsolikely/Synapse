@@ -128,6 +128,10 @@ from synapse_runtime.quest_board import (
     today_toronto as _today_toronto_impl,
     write_quest_document,
 )
+from synapse_runtime.publication_candidates import (
+    PublicationCandidateError,
+    refresh_publication_candidates,
+)
 from synapse_runtime.quest_plans import persist_execution_plan
 from synapse_runtime.subject_resolver import (
     SubjectResolutionError,
@@ -824,6 +828,18 @@ def build_parser() -> argparse.ArgumentParser:
     snapshot_candidates_parser.add_argument("--selected-by", default="Brains", help="Who made the selection (default: Brains)")
     snapshot_candidates_parser.add_argument("--no-home-lock", action="store_true", help="Do not write ~/.synapse/ACTIVE_SUBJECT.json")
     snapshot_candidates_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
+    publication_candidates_parser = subparsers.add_parser(
+        "refresh-publication-candidates",
+        help="Create or revise noncanonical story, vision, and codex publication candidates when continuity sources changed",
+    )
+    publication_candidates_parser.add_argument("--subject", help="Optional subject override")
+    publication_candidates_parser.add_argument("--data-root", help="Override data root path")
+    publication_candidates_parser.add_argument("--engine-root", help="Override engine root path")
+    publication_candidates_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    publication_candidates_parser.add_argument("--selected-by", default="Brains", help="Who made the selection (default: Brains)")
+    publication_candidates_parser.add_argument("--no-home-lock", action="store_true", help="Do not write ~/.synapse/ACTIVE_SUBJECT.json")
+    publication_candidates_parser.add_argument("--json", action="store_true", help="Print JSON output")
 
     return parser
 
@@ -7413,6 +7429,86 @@ def cmd_refresh_snapshot_candidates(args: argparse.Namespace) -> int:
     )
 
 
+def cmd_refresh_publication_candidates(args: argparse.Namespace) -> int:
+    ctx = _resolve_or_attach_subject_from_args(args)
+    if not ctx:
+        return 2
+    try:
+        refresh_synthesis_projection(subject=ctx["subject"], data_root=Path(ctx["data_root"]))
+        payload = refresh_publication_candidates(
+            subject=ctx["subject"],
+            data_root=Path(ctx["data_root"]),
+        )
+        refresh_synthesis_projection(subject=ctx["subject"], data_root=Path(ctx["data_root"]))
+    except (PublicationCandidateError, LiveMemoryError) as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    changed_files: list[str] = []
+    for item in list(payload.get("candidates") or []):
+        manifest_path = str(item.get("manifest_path") or "").strip()
+        body_path = str(item.get("body_path") or "").strip()
+        if manifest_path:
+            changed_files.append(manifest_path)
+        if body_path:
+            changed_files.append(body_path)
+    index_path = str(payload.get("index_path") or payload.get("summary", {}).get("index_path") or "").strip()
+    if index_path:
+        changed_files.append(index_path)
+
+    event_info = _event_pipeline(
+        ctx=ctx,
+        action_name="refresh-publication-candidates",
+        summary=f"Refreshed publication candidates for {ctx['subject']}.",
+        session_id=_resolved_session_id(args),
+        signals={
+            "changed_files": changed_files,
+            "verification_entries": [],
+            "related_quest_ids": [],
+            "related_sidequest_ids": [],
+            "accepted_context": _accepted_context_snapshot(Path(ctx["data_root"])),
+            **_current_session_mode_fields(ctx),
+        },
+        truth_flags={
+            "canon_mutated": False,
+            "derived_state_changed": True,
+            "governed": False,
+            "uncertainty_present": False,
+        },
+        outputs={
+            "publication_candidate_status": payload.get("status"),
+            "publication_candidate_paths": [str(item.get("body_path") or "") for item in list(payload.get("candidates") or [])],
+            "publication_candidate_manifest_paths": [
+                str(item.get("manifest_path") or "") for item in list(payload.get("candidates") or [])
+            ],
+        },
+    )
+    rendered = {
+        "subject_context": ctx,
+        "kernel_posture": _kernel_posture_payload(ctx),
+        **payload,
+        "event": event_info.get("event"),
+        "reducer": event_info.get("reducer"),
+    }
+
+    def _emit_publication_candidates(result_payload: dict[str, Any]) -> None:
+        summary = dict(result_payload.get("summary") or {})
+        print("=== PUBLICATION CANDIDATE RECEIPT ===")
+        print(f"subject: {result_payload['subject_context']['subject']}")
+        print(f"status: {result_payload.get('status')}")
+        print(f"current_story_candidate_path: {summary.get('current_story_candidate_path')}")
+        print(f"current_vision_candidate_path: {summary.get('current_vision_candidate_path')}")
+        print(f"current_codex_candidate_paths: {summary.get('current_codex_candidate_paths')}")
+        print(f"index_path: {summary.get('index_path')}")
+
+    return _finalize_mutation_result(
+        payload=rendered,
+        event_info=event_info,
+        json_mode=args.json,
+        text_emitter=_emit_publication_candidates,
+    )
+
+
 def cmd_install_hooks(args: argparse.Namespace) -> int:
     ctx = _resolve_or_attach_subject_from_args(args)
     if not ctx:
@@ -7984,6 +8080,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_refresh_draftshot(args)
     if args.command == "refresh-snapshot-candidates":
         return cmd_refresh_snapshot_candidates(args)
+    if args.command == "refresh-publication-candidates":
+        return cmd_refresh_publication_candidates(args)
     if args.command == "plan-quests":
         return cmd_plan_quests(args)
     if args.command == "plan-sidequests":
