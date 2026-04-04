@@ -13,6 +13,11 @@ from synapse_runtime.accepted_execution_view import (
 )
 from synapse_runtime.automation_orchestrator import automation_summary
 from synapse_runtime.conversation_ingest import load_raw_turn, load_raw_turn_text
+from synapse_runtime.draftshots import (
+    draftshot_source_refs_from_synthesis,
+    draftshot_source_signature,
+    draftshot_summary,
+)
 from synapse_runtime.execution_observer import load_raw_execution_event, load_raw_execution_payload
 from synapse_runtime.governance_model import (
     AmbientSignal,
@@ -714,6 +719,47 @@ def _apply_derived_synthesis_projection(
     return synthesis
 
 
+def _apply_draftshot_projection(
+    *,
+    state: dict[str, Any],
+    manifold: dict[str, Any],
+    synthesis: dict[str, Any] | None,
+    data_root: Path,
+) -> dict[str, Any]:
+    active_session_ids = list(manifold.get("active_session_ids") or [])
+    session_id = active_session_ids[0] if active_session_ids else None
+    current_signature = None
+    if isinstance(synthesis, dict):
+        source_refs = draftshot_source_refs_from_synthesis(synthesis)
+        if source_refs:
+            current_signature = draftshot_source_signature(source_refs)
+    summary = draftshot_summary(
+        data_root,
+        session_id=session_id,
+        current_source_signature=current_signature,
+    )
+
+    state["active_draftshot_count"] = int(summary.get("active_draftshot_count") or 0)
+    state["current_active_draftshot_revision_id"] = summary.get("current_active_draftshot_revision_id")
+    state["current_active_draftshot_path"] = summary.get("current_active_draftshot_path")
+    state["current_active_draftshot_session_id"] = summary.get("current_active_draftshot_session_id")
+    state["current_active_draftshot_status"] = summary.get("current_active_draftshot_status")
+    state["last_draftshot_refreshed_at"] = summary.get("last_draftshot_refreshed_at")
+    state["draftshot_stale"] = bool(summary.get("draftshot_stale"))
+
+    manifold["active_draftshot_count"] = int(summary.get("active_draftshot_count") or 0)
+    manifold["current_active_draftshot_family_id"] = summary.get("current_active_draftshot_family_id")
+    manifold["current_active_draftshot_revision_id"] = summary.get("current_active_draftshot_revision_id")
+    manifold["current_active_draftshot_path"] = summary.get("current_active_draftshot_path")
+    manifold["current_active_draftshot_session_id"] = summary.get("current_active_draftshot_session_id")
+    manifold["current_active_draftshot_status"] = summary.get("current_active_draftshot_status")
+    manifold["last_draftshot_refreshed_at"] = summary.get("last_draftshot_refreshed_at")
+    manifold["draftshot_stale"] = bool(summary.get("draftshot_stale"))
+    manifold["recent_draftshot_details"] = list(summary.get("recent_draftshot_details") or [])
+    manifold["draftshot_state_path"] = summary.get("state_path")
+    return summary
+
+
 def refresh_synthesis_projection(*, subject: str, data_root: Path) -> dict[str, Any]:
     live = live_root(data_root)
     state_path = live / "STATE.yaml"
@@ -725,6 +771,12 @@ def refresh_synthesis_projection(*, subject: str, data_root: Path) -> dict[str, 
         data_root=data_root,
         state=state,
         manifold=manifold,
+    )
+    _apply_draftshot_projection(
+        state=state,
+        manifold=manifold,
+        synthesis=projection,
+        data_root=data_root,
     )
     _write_yaml(state_path, state)
     manifold["last_updated_at"] = _now_iso()
@@ -912,6 +964,12 @@ def _sync_sidecar(
         state=state,
         manifold=manifold,
     )
+    draftshot_projection = _apply_draftshot_projection(
+        state=state,
+        manifold=manifold,
+        synthesis=derived_synthesis,
+        data_root=data_root,
+    )
 
     accepted_details = load_accepted_quest_details(subject, data_root)
     current_accepted = select_current_accepted_quest(accepted_details)
@@ -1081,6 +1139,7 @@ def _sync_sidecar(
         "normalized_semantic": normalized_semantic,
         "governed_promotion": governed_promotion,
         "derived_synthesis": derived_synthesis,
+        "draftshot": draftshot_projection,
         "interaction_mode": interaction_mode,
         "world_state": world_state.value,
         "active_onboarding_id": onboarding_state.get("active_onboarding_id"),

@@ -32,6 +32,7 @@ from synapse_runtime.automation_orchestrator import (
 )
 from synapse_runtime.conversation_ingest import ConversationIngestError, record_raw_turn
 from synapse_runtime.cwt import detect_canonical_working_tree
+from synapse_runtime.draftshots import DraftshotError, refresh_draftshot
 from synapse_runtime.doctor import run_doctor
 from synapse_runtime.event_log import (
     EventLogError,
@@ -105,7 +106,7 @@ from synapse_runtime.semantic_intake import (
     normalize_capture_source_role,
     write_capture_batch,
 )
-from synapse_runtime.sidecar_projection import _sync_sidecar, refresh_provenance_projection
+from synapse_runtime.sidecar_projection import _sync_sidecar, refresh_provenance_projection, refresh_synthesis_projection
 from synapse_runtime.sidecar_store import ensure_live_scaffold
 from synapse_runtime.subject_bootstrap import initialize_subject_state, repo_subject_defaults
 from synapse_runtime.subject_bridge import ensure_subject_repo_bridges, install_local_codex_integration
@@ -789,6 +790,19 @@ def build_parser() -> argparse.ArgumentParser:
     local_integration_parser.add_argument("--no-home-lock", action="store_true", help="Do not write ~/.synapse/ACTIVE_SUBJECT.json")
     local_integration_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
     local_integration_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
+    draftshot_parser = subparsers.add_parser(
+        "refresh-draftshot",
+        help="Create or revise the active noncanonical Draftshot for the current session when continuity sources changed",
+    )
+    draftshot_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
+    draftshot_parser.add_argument("--subject", help="Optional subject override")
+    draftshot_parser.add_argument("--data-root", help="Override data root path")
+    draftshot_parser.add_argument("--engine-root", help="Override engine root path")
+    draftshot_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    draftshot_parser.add_argument("--selected-by", default="Brains", help="Who made the selection (default: Brains)")
+    draftshot_parser.add_argument("--no-home-lock", action="store_true", help="Do not write ~/.synapse/ACTIVE_SUBJECT.json")
+    draftshot_parser.add_argument("--json", action="store_true", help="Print JSON output")
 
     return parser
 
@@ -6897,6 +6911,83 @@ def cmd_install_local_integration(args: argparse.Namespace) -> int:
     )
 
 
+def cmd_refresh_draftshot(args: argparse.Namespace) -> int:
+    ctx = _resolve_or_attach_subject_from_args(args)
+    if not ctx:
+        return 2
+    active_run = _load_active_run_with_session_repair(ctx)
+    session_id = _effective_session_id(ctx, active_run=active_run)
+    if not session_id:
+        print("FAIL: refresh-draftshot requires a session id or active run session context.")
+        return 2
+    try:
+        payload = refresh_draftshot(
+            subject=ctx["subject"],
+            data_root=Path(ctx["data_root"]),
+            session_id=session_id,
+            run_id=active_run.get("run_id"),
+        )
+        refresh_synthesis_projection(subject=ctx["subject"], data_root=Path(ctx["data_root"]))
+    except (DraftshotError, LiveMemoryError) as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    changed_files = [
+        str(payload.get("body_path") or ""),
+        str(payload.get("revision_path") or ""),
+        str(payload.get("draftshot", {}).get("state_path") or ""),
+    ]
+    event_info = _event_pipeline(
+        ctx=ctx,
+        action_name="refresh-draftshot",
+        summary=f"Refreshed Draftshot continuity for {ctx['subject']}.",
+        session_id=session_id,
+        signals={
+            "changed_files": [path for path in changed_files if path],
+            "verification_entries": [],
+            "related_quest_ids": [],
+            "related_sidequest_ids": [],
+            "accepted_context": _accepted_context_snapshot(Path(ctx["data_root"])),
+            **_current_session_mode_fields(ctx),
+        },
+        truth_flags={
+            "canon_mutated": False,
+            "derived_state_changed": True,
+            "governed": False,
+            "uncertainty_present": False,
+        },
+        outputs={
+            "draftshot_status": payload.get("status"),
+            "draftshot_revision_id": payload.get("revision_id"),
+            "draftshot_body_path": payload.get("body_path"),
+            "draftshot_revision_path": payload.get("revision_path"),
+        },
+    )
+    rendered = {
+        "subject_context": ctx,
+        "kernel_posture": _kernel_posture_payload(ctx),
+        **payload,
+        "event": event_info.get("event"),
+        "reducer": event_info.get("reducer"),
+    }
+
+    def _emit_draftshot(result_payload: dict[str, Any]) -> None:
+        print("=== DRAFTSHOT RECEIPT ===")
+        print(f"subject: {result_payload['subject_context']['subject']}")
+        print(f"session_id: {session_id}")
+        print(f"status: {result_payload.get('status')}")
+        print(f"revision_id: {result_payload.get('revision_id')}")
+        print(f"body_path: {result_payload.get('body_path')}")
+        print(f"state_path: {result_payload.get('draftshot', {}).get('state_path')}")
+
+    return _finalize_mutation_result(
+        payload=rendered,
+        event_info=event_info,
+        json_mode=args.json,
+        text_emitter=_emit_draftshot,
+    )
+
+
 def cmd_install_hooks(args: argparse.Namespace) -> int:
     ctx = _resolve_or_attach_subject_from_args(args)
     if not ctx:
@@ -7464,6 +7555,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_import_continuity(args)
     if args.command == "install-local-integration":
         return cmd_install_local_integration(args)
+    if args.command == "refresh-draftshot":
+        return cmd_refresh_draftshot(args)
     if args.command == "plan-quests":
         return cmd_plan_quests(args)
     if args.command == "plan-sidequests":

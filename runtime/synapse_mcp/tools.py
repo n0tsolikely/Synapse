@@ -31,6 +31,7 @@ from synapse_mcp.runtime_bridge import (
     record_disclosure,
     record_raw_execution_tool,
     record_raw_turn_tool,
+    refresh_draftshot_tool,
     refresh_continuity_tool,
     run_repo_onboarding_tool,
     submit_onboarding_draft,
@@ -256,6 +257,19 @@ def register_tools(mcp: FastMCP, state: ConnectionState) -> None:
                 metadata=metadata,
             )
             return _handle_mutation_result(ctx, result_payload, event_info, result_status)
+        except Exception as exc:
+            return _handle_exception(exc)
+
+    @mcp.tool(name="refresh_draftshot", structured_output=True)
+    def _refresh_draftshot(
+        context: ContextInput | None = None,
+    ) -> dict[str, Any]:
+        try:
+            ctx, payload, event_info, status = refresh_draftshot_tool(
+                state=state,
+                context=context,
+            )
+            return _handle_mutation_result(ctx, payload, event_info, status)
         except Exception as exc:
             return _handle_exception(exc)
 

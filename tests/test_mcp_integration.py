@@ -42,6 +42,7 @@ FIXED_TOOL_CATALOG = [
     "record_activity",
     "record_raw_turn",
     "record_raw_execution",
+    "refresh_draftshot",
     "import_continuity",
     "record_decision",
     "record_disclosure",
@@ -70,6 +71,7 @@ FIXED_RESOURCES = {
     "synapse://current/semantic-summary.json",
     "synapse://current/semantic-events.json",
     "synapse://current/plan-events.json",
+    "synapse://current/draftshot-state.json",
     "synapse://current/rehydrate.md",
     "synapse://current/open-questions.md",
     "synapse://current/onboarding/status.json",
@@ -479,6 +481,51 @@ class McpIntegrationTests(unittest.IsolatedAsyncioTestCase):
             self.assertGreaterEqual(summary["conversation_segment_count"], 1)
             self.assertGreaterEqual(summary["semantic_event_count"], 1)
             self.assertTrue(recent_events)
+
+    async def test_refresh_draftshot_tool_writes_active_draftshot_state(self) -> None:
+        workspace = self._make_workspace("mcp-refresh-draftshot")
+        async with self._session(workspace) as session:
+            bootstrap = await self._call(session, "bootstrap_session", {"title": "Draftshot refresh"})
+            self.assertEqual(bootstrap["status"], "ok")
+            subject_context = bootstrap["subject_context"]
+            subject = subject_context["subject"]
+            data_root = Path(subject_context["data_root"])
+            session_id = subject_context["session_id"]
+
+            persist_execution_plan(
+                subject=subject,
+                data_root=data_root,
+                title="Installable workflow foundation",
+                summary="Plan the installable workflow foundation.",
+                origin="test-mcp-refresh-draftshot",
+                objective="Support account-backed installable flows.",
+                coherent_outcome="A persisted installable workflow foundation exists.",
+                closure_statement="The installable workflow foundation is captured and testable.",
+                out_of_scope="Payments.",
+                dependencies=["Auth service"],
+                risk="R1",
+                verification_plan="Run installability and auth checks.",
+                milestones=["Installable shell", "Signed-in workflow"],
+                split_triggers=["Split when payments are introduced."],
+                source_segment_ids=["SEG-PLAN"],
+                source_semantic_event_ids=["SEMEVT-PLAN"],
+                source_refs=[{"kind": "conversation_segment", "id": "SEG-PLAN", "path": "/tmp/SEG-PLAN.json"}],
+            )
+
+            refreshed = await self._call(session, "refresh_draftshot")
+            self.assertEqual(refreshed["status"], "ok")
+            self.assertIn(refreshed["data"]["status"], {"written", "updated"})
+            self.assertEqual(
+                refreshed["data"]["draftshot"]["current_active_draftshot_session_id"],
+                session_id,
+            )
+            self.assertTrue(Path(refreshed["data"]["body_path"]).exists())
+
+            draftshot_payload = json.loads(
+                await self._read_text_resource(session, "synapse://current/draftshot-state.json")
+            )
+            self.assertEqual(draftshot_payload["current_active_draftshot_session_id"], session_id)
+            self.assertTrue(draftshot_payload["current_active_draftshot_path"])
 
     async def test_explicit_context_override_does_not_mutate_defaults(self) -> None:
         workspace = self._make_workspace("mcp-default-a")

@@ -1,9 +1,9 @@
-import importlib.util
-import json
 import tempfile
 from pathlib import Path
 import sys
 import unittest
+
+import yaml
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -11,12 +11,7 @@ RUNTIME_ROOT = REPO_ROOT / "runtime"
 if str(RUNTIME_ROOT) not in sys.path:
     sys.path.insert(0, str(RUNTIME_ROOT))
 
-PYDANTIC_AVAILABLE = importlib.util.find_spec("pydantic") is not None
-
-if PYDANTIC_AVAILABLE:
-    from synapse_mcp.connection_state import ConnectionState
-    from synapse_mcp.runtime_bridge import build_current_context_bundle, read_resource, resource_catalog
-from synapse_runtime.draftshots import refresh_draftshot
+from synapse_runtime.draftshots import draftshot_summary, refresh_draftshot
 from synapse_runtime.promotion_engine import promote_semantic_events
 from synapse_runtime.quest_plans import persist_execution_plan
 from synapse_runtime.sidecar_projection import refresh_synthesis_projection
@@ -24,24 +19,16 @@ from synapse_runtime.sidecar_store import ensure_live_scaffold
 from synapse_runtime.subject_bootstrap import initialize_subject_state
 
 
-@unittest.skipUnless(PYDANTIC_AVAILABLE, "pydantic is not installed in the active interpreter.")
-class CurrentContextProjectionTests(unittest.TestCase):
+class DraftshotRuntimeTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
-        self.subject = "ContextSubject"
+        self.subject = "DraftshotSubject"
         self.engine_root = self.root / self.subject
         self.engine_root.mkdir(parents=True, exist_ok=True)
         self.data_root = self.root / f"{self.subject}_Data"
         initialize_subject_state(self.subject, self.data_root, self.engine_root)
         ensure_live_scaffold(self.subject, self.data_root)
-        self.state = ConnectionState(workspace_root=str(self.engine_root))
-        self.state.update_subject_defaults(
-            subject=self.subject,
-            engine_root=str(self.engine_root),
-            data_root=str(self.data_root),
-        )
-        self.state.update_session_default("syn-context-001")
 
     def tearDown(self) -> None:
         self.tmp.cleanup()
@@ -51,7 +38,7 @@ class CurrentContextProjectionTests(unittest.TestCase):
             "semantic_event_id": semantic_event_id,
             "schema_version": 1,
             "classifier_version": "v1-phase1",
-            "recorded_at": "2026-04-01T12:00:00-04:00",
+            "recorded_at": "2026-04-04T12:00:00-04:00",
             "subject": self.subject,
             "class_label": topic_key,
             "topic_key": topic_key,
@@ -65,7 +52,7 @@ class CurrentContextProjectionTests(unittest.TestCase):
             "related_paths": [],
         }
 
-    def test_current_context_and_resources_expose_phase3_synthesis(self) -> None:
+    def test_refresh_draftshot_revisions_only_on_material_source_change(self) -> None:
         promote_semantic_events(
             subject=self.subject,
             data_root=self.data_root,
@@ -93,40 +80,76 @@ class CurrentContextProjectionTests(unittest.TestCase):
             source_semantic_event_ids=["SEMEVT-PLAN"],
             source_refs=[{"kind": "conversation_segment", "id": "SEG-PLAN", "path": "/tmp/SEG-PLAN.json"}],
         )
+
+        first = refresh_draftshot(
+            subject=self.subject,
+            data_root=self.data_root,
+            session_id="syn-draft-001",
+            run_id="RUN-001",
+        )
+        self.assertEqual(first["status"], "written")
+        first_body = Path(first["body_path"])
+        self.assertTrue(first_body.exists())
+        self.assertIn("- Status: ACTIVE", first_body.read_text(encoding="utf-8"))
+
+        second = refresh_draftshot(
+            subject=self.subject,
+            data_root=self.data_root,
+            session_id="syn-draft-001",
+            run_id="RUN-001",
+        )
+        self.assertEqual(second["status"], "noop")
+        self.assertEqual(second["draftshot"]["current_active_draftshot_revision_id"], first["revision_id"])
+
+        promote_semantic_events(
+            subject=self.subject,
+            data_root=self.data_root,
+            semantic_events=[self._event("SEMEVT-ARCH", "architecture.shape", "Switch to a web app plus API architecture.")],
+        )
+        third = refresh_draftshot(
+            subject=self.subject,
+            data_root=self.data_root,
+            session_id="syn-draft-001",
+            run_id="RUN-001",
+        )
+        self.assertEqual(third["status"], "updated")
+        self.assertNotEqual(third["revision_id"], first["revision_id"])
+        self.assertEqual(third["revision_number"], 2)
+        self.assertIn("- Status: REVISED", first_body.read_text(encoding="utf-8"))
+        self.assertIn("- Status: ACTIVE", Path(third["body_path"]).read_text(encoding="utf-8"))
+
+        fourth = refresh_draftshot(
+            subject=self.subject,
+            data_root=self.data_root,
+            session_id="syn-draft-002",
+            run_id="RUN-002",
+        )
+        self.assertEqual(fourth["status"], "written")
+        self.assertEqual(fourth["draftshot"]["active_draftshot_count"], 1)
+        self.assertIn("- Status: REVISED", Path(third["body_path"]).read_text(encoding="utf-8"))
+
+    def test_refresh_projection_surfaces_active_draftshot_state(self) -> None:
+        promote_semantic_events(
+            subject=self.subject,
+            data_root=self.data_root,
+            semantic_events=[self._event("SEMEVT-SCOPE", "project.scope", "Scope the system around authenticated intake.")],
+        )
         refresh_draftshot(
             subject=self.subject,
             data_root=self.data_root,
-            session_id="syn-context-001",
-            run_id="RUN-CONTEXT-001",
+            session_id="syn-draft-002",
+            run_id="RUN-002",
         )
         refresh_synthesis_projection(subject=self.subject, data_root=self.data_root)
 
-        _, bundle = build_current_context_bundle(state=self.state, context=None, include_rehydrate=False, include_project_story=False)
-        context = bundle["context"]
-        self.assertIn("derived_synthesis", context)
-        self.assertIn("codex_packets", context)
-        self.assertIn("draftshot", context)
-        self.assertEqual(context["codex_packets"]["codex_packet_count"], 4)
-        self.assertTrue(context["derived_synthesis"]["active_plan_delta"]["summary"])
-        self.assertTrue(context["derived_synthesis"]["identity_delta"]["summary"])
-        self.assertEqual(context["draftshot"]["current_active_draftshot_session_id"], "syn-context-001")
-        self.assertTrue(context["draftshot"]["current_active_draftshot_path"])
+        state = yaml.safe_load((self.data_root / ".synapse" / "STATE.yaml").read_text(encoding="utf-8"))
+        manifold = yaml.safe_load((self.data_root / ".synapse" / "MANIFOLD.yaml").read_text(encoding="utf-8"))
+        summary = draftshot_summary(self.data_root, session_id="syn-draft-002")
 
-        resources = {item["uri"] for item in resource_catalog(state=self.state)}
-        self.assertIn("synapse://current/synthesis-summary.json", resources)
-        self.assertIn("synapse://current/codex-packets.json", resources)
-        self.assertIn("synapse://current/draftshot-state.json", resources)
-
-        _, synthesis_text, _ = read_resource(state=self.state, uri="synapse://current/synthesis-summary.json")
-        _, packets_text, _ = read_resource(state=self.state, uri="synapse://current/codex-packets.json")
-        _, draftshot_text, _ = read_resource(state=self.state, uri="synapse://current/draftshot-state.json")
-        synthesis_payload = json.loads(synthesis_text)
-        packets_payload = json.loads(packets_text)
-        draftshot_payload = json.loads(draftshot_text)
-        self.assertEqual(synthesis_payload["active_plan_delta"]["summary"], "Plan the installable workflow foundation.")
-        self.assertEqual(packets_payload["codex_packet_count"], 4)
-        self.assertIn("ACTIVE_PLAN", packets_payload["packet_section_keys"])
-        self.assertEqual(draftshot_payload["current_active_draftshot_session_id"], "syn-context-001")
+        self.assertEqual(state["current_active_draftshot_revision_id"], summary["current_active_draftshot_revision_id"])
+        self.assertEqual(manifold["current_active_draftshot_path"], summary["current_active_draftshot_path"])
+        self.assertEqual(manifold["current_active_draftshot_session_id"], "syn-draft-002")
+        self.assertFalse(manifold["draftshot_stale"])
 
 
 if __name__ == "__main__":
