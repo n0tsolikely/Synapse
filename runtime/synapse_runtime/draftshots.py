@@ -17,6 +17,26 @@ from synapse_runtime.live_memory_common import _slugify
 DEFAULT_TIMEZONE = ZoneInfo("America/Toronto")
 DRAFTSHOT_SCHEMA_VERSION = 1
 _STATUS_LINE = re.compile(r"(?im)^(?:-\s*)?Status:\s*([A-Z_]+)\s*$")
+_DATE_LINE = re.compile(r"(?im)^(?:-\s*)?Date:\s*(\d{4}-\d{2}-\d{2})\s*$")
+_REVISION_LINE = re.compile(r"(?im)^(?:-\s*)?Revision:\s*(REV\d+)\s*$")
+
+_SECTION_HEADINGS = {
+    "CAPTURE_INDEX": "B) Capture Index",
+    "DECISIONS": "C) Decisions",
+    "FINDINGS": "D) Findings / Observations",
+    "TODO": "E) TODO / Follow-ups",
+    "RISKS": "F) Risks / Blockers",
+    "OPEN_QUESTIONS": "G) Open Questions",
+    "RUNNING_LOG": "H) Running Log",
+}
+
+_CAPTURE_PREFIX = {
+    "DECISIONS": "DECISION",
+    "FINDINGS": "DISCOVERY_CAPTURE",
+    "TODO": "FOLLOWUP_CAPTURE",
+    "RISKS": "RISK_CAPTURE",
+    "OPEN_QUESTIONS": "QUESTION_CAPTURE",
+}
 
 
 class DraftshotError(RuntimeError):
@@ -163,9 +183,9 @@ def _save_state(data_root: Path, payload: dict[str, Any]) -> None:
     _write_yaml(draftshot_state_path(data_root), payload)
 
 
-def _body_filename(*, refreshed_at: str, title: str, revision_number: int) -> str:
+def _body_filename(*, refreshed_at: str, context_token: str, revision_number: int) -> str:
     date_token = str(refreshed_at or "").split("T", 1)[0] or _now().date().isoformat()
-    slug = _slugify(title)[:64] or "draftshot"
+    slug = _slugify(context_token)[:64] or "general"
     return f"DRAFTSHOT__{date_token}__{slug}__REV{revision_number}.txt"
 
 
@@ -181,6 +201,56 @@ def _revision_path(data_root: Path, revision_id: str) -> Path:
     return draftshot_revision_root(data_root) / f"DRAFTSHOT_REV__{revision_id}.yaml"
 
 
+def _parse_body_status(text: str) -> str | None:
+    match = _STATUS_LINE.search(text)
+    return match.group(1).strip().upper() if match else None
+
+
+def _parse_body_revision_label(text: str, path: Path) -> str:
+    match = _REVISION_LINE.search(text)
+    if match:
+        return match.group(1).strip().upper()
+    filename_match = re.search(r"(?i)__?(REV\d+)\b", path.name)
+    if filename_match:
+        return filename_match.group(1).strip().upper()
+    return "REV?"
+
+
+def _body_contract_issues(text: str) -> list[str]:
+    issues: list[str] = []
+    if not _STATUS_LINE.search(text):
+        issues.append("missing_header_status")
+    if not _DATE_LINE.search(text):
+        issues.append("missing_header_date")
+    if not _REVISION_LINE.search(text):
+        issues.append("missing_header_revision")
+    for key, heading in _SECTION_HEADINGS.items():
+        if re.search(rf"(?m)^{re.escape(heading)}\s*$", text) is None:
+            issues.append(f"missing_section_{key.lower()}")
+    return issues
+
+
+def _body_integrity(*, path: Path, expected_status: str | None = None) -> dict[str, Any]:
+    if not path.exists():
+        return {
+            "integrity_ok": False,
+            "integrity_issues": ["missing_body_file"],
+            "body_status": None,
+            "revision_label": "REV?",
+        }
+    text = path.read_text(encoding="utf-8")
+    issues = _body_contract_issues(text)
+    body_status = _parse_body_status(text)
+    if expected_status and body_status and body_status != str(expected_status).strip().upper():
+        issues.append(f"status_mismatch:{body_status}!={str(expected_status).strip().upper()}")
+    return {
+        "integrity_ok": not issues,
+        "integrity_issues": issues,
+        "body_status": body_status,
+        "revision_label": _parse_body_revision_label(text, path),
+    }
+
+
 def _load_revision(path: Path | str | None) -> dict[str, Any] | None:
     if not path:
         return None
@@ -191,16 +261,296 @@ def _load_revision(path: Path | str | None) -> dict[str, Any] | None:
     return payload
 
 
-def _update_body_status(path: Path, status: str) -> None:
-    if not path.exists():
+def _load_revision_by_body_path(data_root: Path, body_path: Path) -> dict[str, Any] | None:
+    needle = str(body_path.resolve())
+    for revision in list_draftshot_revisions(data_root):
+        if str(revision.get("body_path") or "") == needle:
+            return revision
+    return None
+
+
+def _legacy_body_payload(data_root: Path, path: Path) -> dict[str, Any]:
+    integrity = _body_integrity(path=path)
+    return {
+        "schema_version": DRAFTSHOT_SCHEMA_VERSION,
+        "body_path": str(path.resolve()),
+        "status": integrity.get("body_status") or "UNKNOWN",
+        "revision_label": integrity.get("revision_label"),
+        "integrity_ok": integrity.get("integrity_ok"),
+        "integrity_issues": list(integrity.get("integrity_issues") or []),
+        "index_backed": False,
+        "rel_path": _rel_to_data_root(data_root, path),
+    }
+
+
+def _rel_to_data_root(data_root: Path, path: Path) -> str:
+    try:
+        return path.resolve().relative_to(data_root.resolve()).as_posix()
+    except Exception:
+        return str(path)
+
+
+def _consume_body_for_snapshot(path: Path, *, snapshot_path: Path, consumed_at_iso: str) -> None:
+    text = path.read_text(encoding="utf-8", errors="replace")
+
+    if re.search(r"(?im)^(?:-\s*)?Status:\s*CONSUMED\s*$", text):
         return
-    text = path.read_text(encoding="utf-8")
-    replacement = f"- Status: {status}"
-    if _STATUS_LINE.search(text):
-        updated = _STATUS_LINE.sub(replacement, text, count=1)
-    else:
-        updated = text + f"\n{replacement}\n"
-    path.write_text(updated, encoding="utf-8")
+
+    replaced, count = re.subn(
+        r"(?im)^(?:-\s*)?Status:\s*ACTIVE\s*$",
+        "- Status: CONSUMED",
+        text,
+        count=1,
+    )
+    if count == 0:
+        wrapper = (
+            "================================================================================\n"
+            "DRAFTSHOT CONSUMPTION WRAPPER (AI11)\n"
+            f"- Status: CONSUMED\n"
+            f"- Consumed At: {consumed_at_iso}\n"
+            f"- Consumed By Snapshot: {snapshot_path.name}\n"
+            "================================================================================\n\n"
+        )
+        replaced = wrapper + text
+
+    marker = (
+        "\n\n================================================================================\n"
+        "DRAFTSHOT CONSUMPTION MARKER (AI11)\n"
+        f"- Consumed At: {consumed_at_iso}\n"
+        f"- Consumed By Snapshot: {snapshot_path.name}\n"
+        "- Rule: Draftshot ACTIVE → CONSUMED on Snapshot mint\n"
+        "================================================================================\n"
+    )
+    if "DRAFTSHOT CONSUMPTION MARKER (AI11)" not in replaced:
+        replaced = replaced.rstrip("\n") + marker + "\n"
+    path.write_text(replaced, encoding="utf-8")
+
+
+def _capture_id(section_key: str, *parts: Any) -> str:
+    return stable_kernel_id(_CAPTURE_PREFIX.get(section_key, "DRAFT_CAPTURE"), *parts)
+
+
+def _append_capture_entry(
+    *,
+    section_key: str,
+    summary: str,
+    source_refs: Iterable[dict[str, Any]],
+    sections: dict[str, list[dict[str, Any]]],
+    capture_entries: list[dict[str, Any]],
+    seen_ids: set[str],
+    basis_parts: Iterable[Any],
+) -> None:
+    text = " ".join(str(summary or "").split()).strip()
+    if not text:
+        return
+    normalized_refs = _normalize_source_refs(source_refs)
+    capture_id = _capture_id(
+        section_key,
+        section_key,
+        *basis_parts,
+        *(
+            f"{ref.get('kind')}|{ref.get('id')}|{ref.get('path')}"
+            for ref in normalized_refs
+        ),
+    )
+    if capture_id in seen_ids:
+        return
+    seen_ids.add(capture_id)
+    entry = {
+        "capture_id": capture_id,
+        "section": section_key,
+        "summary": text,
+        "source_refs": normalized_refs,
+    }
+    sections.setdefault(section_key, []).append(entry)
+    capture_entries.append(entry)
+
+
+def _load_recent_family_records(data_root: Path, family: str, *, limit: int = 5) -> list[dict[str, Any]]:
+    from synapse_runtime.promotion_engine import load_working_records
+
+    records = [item for item in load_working_records(data_root, family) if isinstance(item, dict)]
+    return records[-limit:]
+
+
+def _open_question_lines(data_root: Path) -> list[str]:
+    from synapse_runtime.sidecar_store import load_open_questions_text
+
+    text = load_open_questions_text(data_root)
+    if not text.strip():
+        return []
+    questions: list[str] = []
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line.startswith("-"):
+            continue
+        question = line[1:].strip()
+        if not question or question.lower() == "none yet.":
+            continue
+        questions.append(question)
+    return _normalize_lines(questions)
+
+
+def _entries_from_delta(
+    *,
+    section_key: str,
+    delta_key: str,
+    payload: dict[str, Any] | None,
+    sections: dict[str, list[dict[str, Any]]],
+    capture_entries: list[dict[str, Any]],
+    seen_ids: set[str],
+) -> None:
+    if not isinstance(payload, dict):
+        return
+    summary = str(payload.get("summary") or "").strip()
+    source_refs = list(payload.get("source_refs") or [])
+    if summary:
+        _append_capture_entry(
+            section_key=section_key,
+            summary=summary,
+            source_refs=source_refs,
+            sections=sections,
+            capture_entries=capture_entries,
+            seen_ids=seen_ids,
+            basis_parts=(delta_key, "summary"),
+        )
+    for index, line in enumerate(list(payload.get("detail_lines") or [])[:6], start=1):
+        _append_capture_entry(
+            section_key=section_key,
+            summary=str(line),
+            source_refs=source_refs,
+            sections=sections,
+            capture_entries=capture_entries,
+            seen_ids=seen_ids,
+            basis_parts=(delta_key, "detail", index),
+        )
+
+
+def _entries_from_records(
+    *,
+    data_root: Path,
+    family: str,
+    section_key: str,
+    sections: dict[str, list[dict[str, Any]]],
+    capture_entries: list[dict[str, Any]],
+    seen_ids: set[str],
+) -> None:
+    for record in _load_recent_family_records(data_root, family):
+        summary = str(record.get("summary") or record.get("title") or "").strip()
+        if not summary:
+            continue
+        _append_capture_entry(
+            section_key=section_key,
+            summary=summary,
+            source_refs=[
+                {
+                    "kind": "governed_working_record",
+                    "id": str(record.get("record_id") or record.get("family_id") or summary),
+                    "path": str(record.get("path") or ""),
+                    "family": record.get("family"),
+                }
+            ],
+            sections=sections,
+            capture_entries=capture_entries,
+            seen_ids=seen_ids,
+            basis_parts=(family, str(record.get("record_id") or record.get("family_id") or summary)),
+        )
+
+
+def _build_draftshot_sections(*, data_root: Path, synthesis: dict[str, Any]) -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any]]]:
+    sections: dict[str, list[dict[str, Any]]] = {
+        "DECISIONS": [],
+        "FINDINGS": [],
+        "TODO": [],
+        "RISKS": [],
+        "OPEN_QUESTIONS": [],
+    }
+    capture_entries: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+
+    _entries_from_records(
+        data_root=data_root,
+        family="DECISION_GRAPH",
+        section_key="DECISIONS",
+        sections=sections,
+        capture_entries=capture_entries,
+        seen_ids=seen_ids,
+    )
+    _entries_from_delta(
+        section_key="FINDINGS",
+        delta_key="ACTIVE_SCOPE",
+        payload=synthesis.get("active_scope_delta"),
+        sections=sections,
+        capture_entries=capture_entries,
+        seen_ids=seen_ids,
+    )
+    _entries_from_delta(
+        section_key="FINDINGS",
+        delta_key="ARCHITECTURE",
+        payload=synthesis.get("architecture_delta"),
+        sections=sections,
+        capture_entries=capture_entries,
+        seen_ids=seen_ids,
+    )
+    _entries_from_delta(
+        section_key="FINDINGS",
+        delta_key="IDENTITY",
+        payload=synthesis.get("identity_delta"),
+        sections=sections,
+        capture_entries=capture_entries,
+        seen_ids=seen_ids,
+    )
+    _entries_from_delta(
+        section_key="FINDINGS",
+        delta_key="NARRATIVE",
+        payload=synthesis.get("narrative_delta"),
+        sections=sections,
+        capture_entries=capture_entries,
+        seen_ids=seen_ids,
+    )
+    _entries_from_delta(
+        section_key="TODO",
+        delta_key="ACTIVE_PLAN",
+        payload=synthesis.get("active_plan_delta"),
+        sections=sections,
+        capture_entries=capture_entries,
+        seen_ids=seen_ids,
+    )
+    _entries_from_delta(
+        section_key="RISKS",
+        delta_key="OPEN_OBLIGATIONS",
+        payload=synthesis.get("obligation_delta"),
+        sections=sections,
+        capture_entries=capture_entries,
+        seen_ids=seen_ids,
+    )
+    _entries_from_records(
+        data_root=data_root,
+        family="FAILURE_CHAINS",
+        section_key="RISKS",
+        sections=sections,
+        capture_entries=capture_entries,
+        seen_ids=seen_ids,
+    )
+
+    for index, question in enumerate(_open_question_lines(data_root), start=1):
+        _append_capture_entry(
+            section_key="OPEN_QUESTIONS",
+            summary=question,
+            source_refs=[],
+            sections=sections,
+            capture_entries=capture_entries,
+            seen_ids=seen_ids,
+            basis_parts=("OPEN_QUESTION", index, question),
+        )
+
+    return sections, capture_entries
+
+
+def _format_section_lines(entries: list[dict[str, Any]]) -> list[str]:
+    if not entries:
+        return ["- none"]
+    return [f"- [{item['capture_id']}] {item['summary']}" for item in entries]
 
 
 def _draftshot_body(
@@ -210,46 +560,66 @@ def _draftshot_body(
     run_id: str | None,
     revision_number: int,
     refreshed_at: str,
-    summary_lines: list[str],
-    source_refs: list[dict[str, Any]],
+    draftshot_context: str,
+    capture_entries: list[dict[str, Any]],
+    sections: dict[str, list[dict[str, Any]]],
+    running_log: list[dict[str, Any]],
 ) -> str:
-    headline = summary_lines[0] if summary_lines else "No material continuity delta captured."
     lines = [
         "================================================================================",
         "DRAFTSHOT",
         "================================================================================",
         "A) Header",
-        f"- Subject: {subject}",
-        f"- Session ID: {session_id}",
-        f"- Run ID: {run_id or 'none'}",
-        f"- Date: {str(refreshed_at).split('T', 1)[0]}",
         "- Status: ACTIVE",
+        f"- Date: {str(refreshed_at).split('T', 1)[0]}",
         f"- Revision: REV{revision_number}",
+        f"- Session Context: {draftshot_context}",
+        f"- Session ID: {session_id}",
+        f"- Subject: {subject}",
+        f"- Run ID: {run_id or 'none'}",
         "",
-        "B) Current Continuity Summary",
-        f"- Headline: {headline}",
+        _SECTION_HEADINGS["CAPTURE_INDEX"],
     ]
-    for item in summary_lines[:12]:
-        lines.append(f"- {item}")
-    lines.extend(["", "C) Source Refs"])
-    if source_refs:
-        for ref in source_refs[:12]:
-            lines.append(
-                f"- {ref.get('kind') or 'source'} :: {ref.get('id') or 'unknown'} :: {ref.get('path') or 'missing'}"
-            )
+    if capture_entries:
+        for entry in capture_entries:
+            lines.append(f"- {entry['capture_id']} :: {entry['section']} :: {entry['summary']}")
     else:
         lines.append("- none")
+
     lines.extend(
         [
             "",
-            "D) Notes",
-            "- Draftshot is a noncanonical living formalization.",
-            "- Canonical snapshots remain owned by the snapshot writer.",
+            _SECTION_HEADINGS["DECISIONS"],
+            *_format_section_lines(sections.get("DECISIONS") or []),
             "",
-            "END OF DRAFTSHOT",
+            _SECTION_HEADINGS["FINDINGS"],
+            *_format_section_lines(sections.get("FINDINGS") or []),
             "",
+            _SECTION_HEADINGS["TODO"],
+            *_format_section_lines(sections.get("TODO") or []),
+            "",
+            _SECTION_HEADINGS["RISKS"],
+            *_format_section_lines(sections.get("RISKS") or []),
+            "",
+            _SECTION_HEADINGS["OPEN_QUESTIONS"],
+            *_format_section_lines(sections.get("OPEN_QUESTIONS") or []),
+            "",
+            _SECTION_HEADINGS["RUNNING_LOG"],
         ]
     )
+    if running_log:
+        for entry in running_log:
+            revision_label = str(entry.get("revision_label") or f"REV{revision_number}")
+            refreshed_line = str(entry.get("refreshed_at") or refreshed_at)
+            change_type = str(entry.get("change_type") or "updated")
+            summary = str(entry.get("summary") or "").strip()
+            source_ref_count = int(entry.get("source_ref_count") or 0)
+            lines.append(
+                f"- {revision_label} @ {refreshed_line} :: {change_type} :: {source_ref_count} source refs :: {summary}"
+            )
+    else:
+        lines.append("- none")
+    lines.extend(["", "END OF DRAFTSHOT", ""])
     return "\n".join(lines)
 
 
@@ -276,6 +646,12 @@ def load_active_draftshot(data_root: Path, session_id: str | None = None) -> dic
     payload = _load_revision(pointer.get("revision_path"))
     if payload is None:
         return None
+    integrity = _body_integrity(path=Path(str(payload.get("body_path") or "")), expected_status=str(payload.get("status") or ""))
+    payload["integrity_ok"] = integrity.get("integrity_ok")
+    payload["integrity_issues"] = list(integrity.get("integrity_issues") or [])
+    payload["revision_label"] = integrity.get("revision_label") or f"REV{payload.get('revision_number') or '?'}"
+    payload["rel_path"] = _rel_to_data_root(data_root, Path(str(payload.get("body_path") or "")))
+    payload["index_backed"] = True
     return payload
 
 
@@ -331,6 +707,8 @@ def draftshot_summary(
         "current_active_draftshot_session_id": active.get("session_id") if active else None,
         "last_draftshot_refreshed_at": active.get("refreshed_at") if active else None,
         "draftshot_stale": stale,
+        "draftshot_integrity_ok": bool(active.get("integrity_ok")) if active else True,
+        "draftshot_integrity_issues": list(active.get("integrity_issues") or []) if active else [],
         "recent_draftshot_details": recent_details,
         "state_path": str(draftshot_state_path(data_root).resolve()),
     }
@@ -368,6 +746,15 @@ def refresh_draftshot(
     sessions = dict(state.get("active_sessions") or {})
     current_pointer = sessions.get(session_id) if isinstance(sessions.get(session_id), dict) else None
     current_active = _load_revision(current_pointer.get("revision_path")) if current_pointer else None
+    if current_active is not None:
+        integrity = _body_integrity(
+            path=Path(str(current_active.get("body_path") or "")),
+            expected_status=str(current_active.get("status") or ""),
+        )
+        if not integrity.get("integrity_ok"):
+            raise DraftshotError(
+                "active Draftshot integrity issue: " + ", ".join(str(item) for item in integrity.get("integrity_issues") or [])
+            )
     if current_active and str(current_active.get("source_signature") or "") == source_signature:
         return {
             "status": "noop",
@@ -379,43 +766,38 @@ def refresh_draftshot(
     revision_number = int(current_active.get("revision_number") or 0) + 1 if current_active else 1
     revision_id = _revision_id(subject, session_id, revision_number)
     refreshed_at = str(synthesis.get("refreshed_at") or _now_iso())
-    title_seed = summary_lines[0] if summary_lines else f"{subject} session"
+    draftshot_context = "GENERAL"
+    sections, capture_entries = _build_draftshot_sections(data_root=data_root, synthesis=synthesis)
+    headline = summary_lines[0] if summary_lines else "No material continuity delta captured."
+    running_log = list(current_active.get("running_log") or []) if current_active else []
+    running_log.append(
+        {
+            "revision_label": f"REV{revision_number}",
+            "refreshed_at": refreshed_at,
+            "change_type": "updated" if current_active else "written",
+            "summary": headline,
+            "source_ref_count": len(source_refs),
+        }
+    )
+    context_token = f"{draftshot_context}-{session_id}"
     body_path = draftshots_body_root(data_root) / _body_filename(
         refreshed_at=refreshed_at,
-        title=f"{session_id}-{title_seed}",
+        context_token=context_token,
         revision_number=revision_number,
     )
-    for other_session_id, pointer in list(sessions.items()):
-        if other_session_id == session_id or not isinstance(pointer, dict):
-            continue
-        if str(pointer.get("status") or "").strip().upper() != "ACTIVE":
-            continue
-        other_body = Path(str(pointer.get("body_path") or ""))
-        if other_body.exists():
-            _update_body_status(other_body, "REVISED")
-        other_revision = _load_revision(pointer.get("revision_path"))
-        if other_revision is not None:
-            other_revision["status"] = "REVISED"
-            _write_yaml(Path(str(other_revision["path"])), other_revision)
-        sessions[other_session_id] = {
-            **pointer,
-            "status": "REVISED",
-        }
-    if current_active and current_active.get("body_path"):
-        _update_body_status(Path(str(current_active["body_path"])), "REVISED")
-        current_active["status"] = "REVISED"
-        _write_yaml(Path(str(current_active["path"])), current_active)
-
     body_text = _draftshot_body(
         subject=subject,
         session_id=session_id,
         run_id=run_id,
         revision_number=revision_number,
         refreshed_at=refreshed_at,
-        summary_lines=summary_lines,
-        source_refs=source_refs,
+        draftshot_context=draftshot_context,
+        capture_entries=capture_entries,
+        sections=sections,
+        running_log=running_log,
     )
     body_path.write_text(body_text, encoding="utf-8")
+    integrity = _body_integrity(path=body_path, expected_status="ACTIVE")
     revision_path = _revision_path(data_root, revision_id)
     revision_payload = {
         "schema_version": DRAFTSHOT_SCHEMA_VERSION,
@@ -425,14 +807,20 @@ def refresh_draftshot(
         "draftshot_family_id": family_id,
         "revision_id": revision_id,
         "revision_number": revision_number,
+        "revision_label": f"REV{revision_number}",
         "status": "ACTIVE",
         "created_at": refreshed_at,
         "refreshed_at": refreshed_at,
+        "draftshot_context": draftshot_context,
         "body_path": str(body_path.resolve()),
         "source_signature": source_signature,
         "source_ref_count": len(source_refs),
         "source_refs": source_refs,
         "summary_lines": summary_lines,
+        "capture_index": capture_entries,
+        "running_log": running_log,
+        "integrity_ok": integrity.get("integrity_ok"),
+        "integrity_issues": list(integrity.get("integrity_issues") or []),
         "previous_revision_id": current_active.get("revision_id") if current_active else None,
         "previous_revision_path": current_active.get("path") if current_active else None,
     }
@@ -476,6 +864,95 @@ def refresh_draftshot(
     }
 
 
+def resolve_snapshot_draftshot(*, data_root: Path, explicit: str | None = None) -> dict[str, Any] | None:
+    ensure_draftshot_scaffold(data_root)
+    if explicit:
+        body_path = Path(explicit).expanduser()
+        if not body_path.is_absolute():
+            body_path = (data_root / body_path).resolve()
+        if not body_path.exists():
+            raise DraftshotError(f"Draftshot not found: {body_path}")
+        return _load_revision_by_body_path(data_root, body_path) or _legacy_body_payload(data_root, body_path)
+
+    state = _load_state(data_root)
+    active_payloads: list[dict[str, Any]] = []
+    for pointer in dict(state.get("active_sessions") or {}).values():
+        if not isinstance(pointer, dict):
+            continue
+        if str(pointer.get("status") or "").strip().upper() != "ACTIVE":
+            continue
+        payload = _load_revision(pointer.get("revision_path"))
+        if payload:
+            active_payloads.append(payload)
+    if active_payloads:
+        if len(active_payloads) > 1:
+            raise DraftshotError(
+                "multiple ACTIVE Draftshots found across sessions; pass --draftshot explicitly."
+            )
+        return active_payloads[0]
+
+    active_bodies: list[dict[str, Any]] = []
+    for path in sorted(draftshots_body_root(data_root).glob("DRAFTSHOT__*.txt")):
+        legacy = _legacy_body_payload(data_root, path)
+        if str(legacy.get("status") or "").strip().upper() == "ACTIVE":
+            active_bodies.append(legacy)
+    if not active_bodies:
+        return None
+    if len(active_bodies) > 1:
+        raise DraftshotError(
+            "multiple ACTIVE Draftshots found without runtime index support; pass --draftshot explicitly."
+        )
+    return active_bodies[0]
+
+
+def consume_draftshot_for_snapshot(
+    *,
+    data_root: Path,
+    explicit: str | None,
+    snapshot_path: str,
+    consumed_at_iso: str | None = None,
+) -> dict[str, Any] | None:
+    payload = resolve_snapshot_draftshot(data_root=data_root, explicit=explicit)
+    if payload is None:
+        return None
+    body_path = Path(str(payload.get("body_path") or "")).resolve()
+    consumed_at_text = str(consumed_at_iso or _now_iso())
+    _consume_body_for_snapshot(body_path, snapshot_path=Path(snapshot_path), consumed_at_iso=consumed_at_text)
+
+    if not bool(payload.get("index_backed", True)):
+        return {
+            **payload,
+            "status": "CONSUMED",
+            "consumed_at": consumed_at_text,
+            "consumed_by_snapshot_path": str(snapshot_path),
+        }
+
+    revision_path = Path(str(payload.get("path") or ""))
+    updated = dict(payload)
+    updated["status"] = "CONSUMED"
+    updated["consumed_at"] = consumed_at_text
+    updated["consumed_by_snapshot_path"] = str(snapshot_path)
+    integrity = _body_integrity(path=body_path, expected_status="CONSUMED")
+    updated["integrity_ok"] = integrity.get("integrity_ok")
+    updated["integrity_issues"] = list(integrity.get("integrity_issues") or [])
+    _write_yaml(revision_path, updated)
+
+    state = _load_state(data_root)
+    sessions = dict(state.get("active_sessions") or {})
+    session_id = str(payload.get("session_id") or "").strip()
+    if session_id and session_id in sessions:
+        sessions[session_id] = {
+            **dict(sessions[session_id]),
+            "status": "CONSUMED",
+            "consumed_at": consumed_at_text,
+            "consumed_by_snapshot_path": str(snapshot_path),
+        }
+        state["active_sessions"] = sessions
+        _save_state(data_root, state)
+
+    return {**updated, "path": str(revision_path.resolve())}
+
+
 def mark_draftshot_consumed(
     *,
     data_root: Path,
@@ -486,26 +963,9 @@ def mark_draftshot_consumed(
     active = load_active_draftshot(data_root, session_id=session_id)
     if active is None:
         return None
-    consumed_at_text = str(consumed_at or _now_iso())
-    body_path = Path(str(active.get("body_path") or ""))
-    if body_path.exists():
-        _update_body_status(body_path, "CONSUMED")
-    revision_path = Path(str(active.get("path") or ""))
-    payload = dict(active)
-    payload["status"] = "CONSUMED"
-    payload["consumed_at"] = consumed_at_text
-    payload["consumed_by_snapshot_path"] = str(snapshot_path)
-    _write_yaml(revision_path, payload)
-
-    state = _load_state(data_root)
-    sessions = dict(state.get("active_sessions") or {})
-    if session_id in sessions:
-        sessions[session_id] = {
-            **dict(sessions[session_id]),
-            "status": "CONSUMED",
-            "consumed_at": consumed_at_text,
-            "consumed_by_snapshot_path": str(snapshot_path),
-        }
-    state["active_sessions"] = sessions
-    _save_state(data_root, state)
-    return {**payload, "path": str(revision_path.resolve())}
+    return consume_draftshot_for_snapshot(
+        data_root=data_root,
+        explicit=str(active.get("body_path") or ""),
+        snapshot_path=snapshot_path,
+        consumed_at_iso=consumed_at,
+    )

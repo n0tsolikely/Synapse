@@ -746,6 +746,8 @@ def _apply_draftshot_projection(
     state["current_active_draftshot_status"] = summary.get("current_active_draftshot_status")
     state["last_draftshot_refreshed_at"] = summary.get("last_draftshot_refreshed_at")
     state["draftshot_stale"] = bool(summary.get("draftshot_stale"))
+    state["draftshot_integrity_ok"] = bool(summary.get("draftshot_integrity_ok"))
+    state["draftshot_integrity_issue_count"] = len(list(summary.get("draftshot_integrity_issues") or []))
 
     manifold["active_draftshot_count"] = int(summary.get("active_draftshot_count") or 0)
     manifold["current_active_draftshot_family_id"] = summary.get("current_active_draftshot_family_id")
@@ -755,6 +757,8 @@ def _apply_draftshot_projection(
     manifold["current_active_draftshot_status"] = summary.get("current_active_draftshot_status")
     manifold["last_draftshot_refreshed_at"] = summary.get("last_draftshot_refreshed_at")
     manifold["draftshot_stale"] = bool(summary.get("draftshot_stale"))
+    manifold["draftshot_integrity_ok"] = bool(summary.get("draftshot_integrity_ok"))
+    manifold["draftshot_integrity_issues"] = list(summary.get("draftshot_integrity_issues") or [])
     manifold["recent_draftshot_details"] = list(summary.get("recent_draftshot_details") or [])
     manifold["draftshot_state_path"] = summary.get("state_path")
     return summary

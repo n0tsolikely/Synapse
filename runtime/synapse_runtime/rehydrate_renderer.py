@@ -183,6 +183,25 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
                 lines.append(f"- Last session mode ended at: {state.get('last_session_mode_ended_at')}")
     lines.append("")
 
+    lines.append("## Draftshot state")
+    lines.append(f"- Active Draftshot count: {manifold.get('active_draftshot_count') or 0}")
+    if manifold.get("current_active_draftshot_path"):
+        lines.append(f"- Active Draftshot path: {manifold.get('current_active_draftshot_path')}")
+        lines.append(f"- Active Draftshot status: {manifold.get('current_active_draftshot_status') or 'unknown'}")
+        lines.append(f"- Active Draftshot session: {manifold.get('current_active_draftshot_session_id') or 'unknown'}")
+        lines.append(f"- Last refreshed at: {manifold.get('last_draftshot_refreshed_at') or 'unknown'}")
+        lines.append(f"- Stale against current synthesis: {'YES' if manifold.get('draftshot_stale') else 'NO'}")
+        integrity_issues = list(manifold.get("draftshot_integrity_issues") or [])
+        if integrity_issues:
+            lines.append(f"- Integrity: ISSUE ({len(integrity_issues)})")
+            for issue in integrity_issues[:5]:
+                lines.append(f"  - {issue}")
+        else:
+            lines.append("- Integrity: OK")
+    else:
+        lines.append("- Active Draftshot path: none")
+    lines.append("")
+
     if active_run_id:
         lines.append("## Active run")
         lines.append(f"- Run: {active_run_id} — {active_run.get('title')}")

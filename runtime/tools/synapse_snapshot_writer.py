@@ -43,6 +43,7 @@ if str(RUNTIME_ROOT) not in sys.path:
     sys.path.insert(0, str(RUNTIME_ROOT))
 
 from synapse_runtime.subject_resolver import SubjectResolutionError, resolve_subject
+from synapse_runtime.draftshots import DraftshotError, consume_draftshot_for_snapshot, resolve_snapshot_draftshot
 
 
 # -------------------------
@@ -188,86 +189,27 @@ def _parse_draftshot_meta(data_root: Path, path: Path) -> DraftshotMeta:
 
 
 def _resolve_active_draftshot(data_root: Path, explicit: Optional[str]) -> Optional[DraftshotMeta]:
-    """Return the single ACTIVE Draftshot meta, or None.
-
-    Rules:
-    - If --draftshot is provided, use it (no auto-detection).
-    - Otherwise, auto-detect exactly one ACTIVE Draftshot under Snapshots/Draft Shots.
-    - If multiple ACTIVE Draftshots exist: FAIL (governance violation).
-    """
-    if explicit:
-        p = Path(explicit).expanduser()
-        if not p.is_absolute():
-            p = (data_root / p).resolve()
-        if not p.exists():
-            raise RuntimeError(f"Draftshot not found: {p}")
-        return _parse_draftshot_meta(data_root, p)
-
-    ddir = _draftshot_dir(data_root)
-    if not ddir.exists():
+    """Return the resolved Draftshot meta, or None, via the runtime owner."""
+    try:
+        payload = resolve_snapshot_draftshot(data_root=data_root, explicit=explicit)
+    except DraftshotError as exc:
+        raise RuntimeError(str(exc)) from exc
+    if payload is None:
         return None
 
-    actives: list[DraftshotMeta] = []
-    for p in sorted(ddir.glob("DRAFTSHOT__*.txt")):
-        try:
-            meta = _parse_draftshot_meta(data_root, p)
-        except Exception:
-            continue
-        if meta.status == "ACTIVE":
-            actives.append(meta)
-
-    if not actives:
-        return None
-
-    if len(actives) > 1:
-        lines = ["FAIL: multiple ACTIVE Draftshots found (one-active rule violated):"]
-        for m in actives:
-            lines.append(f"- {m.rel_path} ({m.revision})")
-        raise RuntimeError("\n".join(lines))
-
-    return actives[0]
-
-
-def _consume_draftshot(meta: DraftshotMeta, *, snapshot_path: Path, consumed_at_iso: str) -> None:
-    """Mark the Draftshot CONSUMED (AI11 bridge), without restructuring its body."""
-    path = meta.path
-    text = path.read_text(encoding="utf-8", errors="replace")
-
-    # If already consumed, don't double-mark.
-    if re.search(r"(?im)^(?:-\s*)?Status:\s*CONSUMED\s*$", text):
-        return
-
-    replaced, n = re.subn(
-        r"(?im)^(?:-\s*)?Status:\s*ACTIVE\s*$",
-        "Status: CONSUMED",
-        text,
-        count=1,
+    path = Path(str(payload.get("body_path") or "")).resolve()
+    revision_number = payload.get("revision_number")
+    revision = (
+        f"REV{int(revision_number)}"
+        if isinstance(revision_number, int) or str(revision_number or "").isdigit()
+        else str(payload.get("revision_label") or "REV?")
     )
-    if n == 0:
-        # Can't find Status line; prepend a wrapper that declares consumed state.
-        wrapper = (
-            "================================================================================\n"
-            "DRAFTSHOT CONSUMPTION WRAPPER (AI11)\n"
-            f"- Status: CONSUMED\n"
-            f"- Consumed At: {consumed_at_iso}\n"
-            f"- Consumed By Snapshot: {snapshot_path.name}\n"
-            "================================================================================\n\n"
-        )
-        replaced = wrapper + text
-
-    marker = (
-        "\n\n================================================================================\n"
-        "DRAFTSHOT CONSUMPTION MARKER (AI11)\n"
-        f"- Consumed At: {consumed_at_iso}\n"
-        f"- Consumed By Snapshot: {snapshot_path.name}\n"
-        "- Rule: Draftshot ACTIVE → CONSUMED on Snapshot mint\n"
-        "================================================================================\n"
+    return DraftshotMeta(
+        path=path,
+        rel_path=_rel_to_data_root(data_root, path),
+        revision=revision,
+        status=str(payload.get("status") or "UNKNOWN").strip().upper(),
     )
-
-    if "DRAFTSHOT CONSUMPTION MARKER (AI11)" not in replaced:
-        replaced = replaced.rstrip("\n") + marker + "\n"
-
-    path.write_text(replaced, encoding="utf-8")
 
 
 def _draftshot_header_block(meta: DraftshotMeta, *, consume: bool) -> list[str]:
@@ -591,7 +533,16 @@ def cmd_control_close(args: argparse.Namespace) -> int:
     )
 
     if draftshot_meta is not None and consume_draftshot:
-        _consume_draftshot(draftshot_meta, snapshot_path=snap, consumed_at_iso=now.isoformat())
+        try:
+            consume_draftshot_for_snapshot(
+                data_root=data_root,
+                explicit=str(draftshot_meta.path),
+                snapshot_path=str(snap),
+                consumed_at_iso=now.isoformat(),
+            )
+        except DraftshotError as exc:
+            print(f"FAIL: {exc}")
+            return 2
 
     _save_state(state_path, {"active": False, "last_closed_snapshot": str(snap), "closed_at": now.isoformat(), "subject": subject})
 
@@ -653,7 +604,16 @@ def cmd_eod(args: argparse.Namespace) -> int:
     )
 
     if draftshot_meta is not None and consume_draftshot:
-        _consume_draftshot(draftshot_meta, snapshot_path=snap, consumed_at_iso=now.isoformat())
+        try:
+            consume_draftshot_for_snapshot(
+                data_root=data_root,
+                explicit=str(draftshot_meta.path),
+                snapshot_path=str(snap),
+                consumed_at_iso=now.isoformat(),
+            )
+        except DraftshotError as exc:
+            print(f"FAIL: {exc}")
+            return 2
 
     print("OK: EOD snapshot written.")
     print(f"- snapshot: {snap}")
@@ -704,7 +664,16 @@ def cmd_general(args: argparse.Namespace) -> int:
     )
 
     if draftshot_meta is not None and consume_draftshot:
-        _consume_draftshot(draftshot_meta, snapshot_path=snap, consumed_at_iso=now.isoformat())
+        try:
+            consume_draftshot_for_snapshot(
+                data_root=data_root,
+                explicit=str(draftshot_meta.path),
+                snapshot_path=str(snap),
+                consumed_at_iso=now.isoformat(),
+            )
+        except DraftshotError as exc:
+            print(f"FAIL: {exc}")
+            return 2
 
     print("OK: General snapshot written.")
     print(f"- snapshot: {snap}")

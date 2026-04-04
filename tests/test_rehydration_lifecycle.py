@@ -16,6 +16,9 @@ RUNTIME_ROOT = REPO_ROOT / "runtime"
 if str(RUNTIME_ROOT) not in sys.path:
     sys.path.insert(0, str(RUNTIME_ROOT))
 
+from synapse_runtime.draftshots import refresh_draftshot
+from synapse_runtime.promotion_engine import promote_semantic_events
+from synapse_runtime.rehydrate_renderer import render_rehydrate
 from synapse_runtime.rehydration_pack import refresh_rehydration_pack
 from synapse_runtime.subject_bootstrap import initialize_subject_state
 
@@ -70,6 +73,25 @@ class RehydrationLifecycleTests(unittest.TestCase):
 
     def _load_subject_state(self) -> dict:
         return yaml.safe_load((self.data_root / "SUBJECT_STATE.yaml").read_text(encoding="utf-8"))
+
+    def _event(self, semantic_event_id: str, topic_key: str, summary: str) -> dict:
+        return {
+            "semantic_event_id": semantic_event_id,
+            "schema_version": 1,
+            "classifier_version": "v1-phase1b",
+            "recorded_at": "2026-04-04T12:00:00-04:00",
+            "subject": self.subject,
+            "class_label": topic_key,
+            "topic_key": topic_key,
+            "confidence_band": "high",
+            "materiality_band": "high",
+            "summary": summary,
+            "transient_noise": False,
+            "imported_limited": False,
+            "source_segment_ids": [f"SEG-{semantic_event_id}"],
+            "source_refs": [{"kind": "conversation_segment", "id": f"SEG-{semantic_event_id}", "path": f"/tmp/{semantic_event_id}.json"}],
+            "related_paths": [],
+        }
 
     def test_refresh_is_idempotent_without_material_change(self) -> None:
         first = refresh_rehydration_pack(subject=self.subject, data_root=self.data_root, engine_root=self.engine_root)
@@ -202,6 +224,25 @@ class RehydrationLifecycleTests(unittest.TestCase):
         self.assertIn(Path(baseline["continuity_lock_path"]).name, archived_names)
         self.assertEqual(len(list(self._pack_dir().glob("*BOOTSTRAP_PROMPT*.txt"))), 1)
         self.assertEqual(len(list(self._pack_dir().glob("*CONTINUITY_LOCK*.txt"))), 1)
+
+    def test_render_rehydrate_surfaces_active_draftshot_state(self) -> None:
+        promote_semantic_events(
+            subject=self.subject,
+            data_root=self.data_root,
+            semantic_events=[self._event("SEMEVT-SCOPE", "project.scope", "Scope the system around authenticated intake.")],
+        )
+        draftshot = refresh_draftshot(
+            subject=self.subject,
+            data_root=self.data_root,
+            session_id="rehydrate-draftshot-001",
+            run_id="RUN-REHYDRATE-001",
+        )
+        rendered = render_rehydrate(subject=self.subject, data_root=self.data_root)
+        rehydrate_text = Path(str(rendered["rehydrate_path"])).read_text(encoding="utf-8")
+
+        self.assertIn("## Draftshot state", rehydrate_text)
+        self.assertIn(draftshot["body_path"], rehydrate_text)
+        self.assertIn("Integrity: OK", rehydrate_text)
 
 
 if __name__ == "__main__":

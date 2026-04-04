@@ -1,3 +1,6 @@
+import os
+import re
+import subprocess
 import tempfile
 from pathlib import Path
 import sys
@@ -17,6 +20,8 @@ from synapse_runtime.quest_plans import persist_execution_plan
 from synapse_runtime.sidecar_projection import refresh_synthesis_projection
 from synapse_runtime.sidecar_store import ensure_live_scaffold
 from synapse_runtime.subject_bootstrap import initialize_subject_state
+
+SNAPSHOT_WRITER = REPO_ROOT / "runtime" / "tools" / "synapse_snapshot_writer.py"
 
 
 class DraftshotRuntimeTests(unittest.TestCase):
@@ -115,7 +120,7 @@ class DraftshotRuntimeTests(unittest.TestCase):
         self.assertEqual(third["status"], "updated")
         self.assertNotEqual(third["revision_id"], first["revision_id"])
         self.assertEqual(third["revision_number"], 2)
-        self.assertIn("- Status: REVISED", first_body.read_text(encoding="utf-8"))
+        self.assertIn("- Status: ACTIVE", first_body.read_text(encoding="utf-8"))
         self.assertIn("- Status: ACTIVE", Path(third["body_path"]).read_text(encoding="utf-8"))
 
         fourth = refresh_draftshot(
@@ -125,8 +130,70 @@ class DraftshotRuntimeTests(unittest.TestCase):
             run_id="RUN-002",
         )
         self.assertEqual(fourth["status"], "written")
-        self.assertEqual(fourth["draftshot"]["active_draftshot_count"], 1)
-        self.assertIn("- Status: REVISED", Path(third["body_path"]).read_text(encoding="utf-8"))
+        self.assertEqual(fourth["draftshot"]["active_draftshot_count"], 2)
+        self.assertIn("- Status: ACTIVE", Path(third["body_path"]).read_text(encoding="utf-8"))
+        self.assertTrue(fourth["draftshot"]["draftshot_integrity_ok"])
+        draftshot_text = Path(fourth["body_path"]).read_text(encoding="utf-8")
+        for heading in (
+            "B) Capture Index",
+            "C) Decisions",
+            "D) Findings / Observations",
+            "E) TODO / Follow-ups",
+            "F) Risks / Blockers",
+            "G) Open Questions",
+            "H) Running Log",
+        ):
+            self.assertIn(heading, draftshot_text)
+        self.assertRegex(
+            draftshot_text,
+            r"(?:DECISION|DISCOVERY_CAPTURE|FOLLOWUP_CAPTURE|RISK_CAPTURE|QUESTION_CAPTURE)-[A-F0-9]{16}",
+        )
+
+        auto_detect = subprocess.run(
+            [
+                sys.executable,
+                str(SNAPSHOT_WRITER),
+                "--subject",
+                self.subject,
+                "--data-root",
+                str(self.data_root),
+                "--allow-switch",
+                "eod",
+            ],
+            cwd=REPO_ROOT,
+            env=os.environ.copy(),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(auto_detect.returncode, 2, auto_detect.stdout + auto_detect.stderr)
+        self.assertIn("multiple ACTIVE Draftshots found across sessions", auto_detect.stdout + auto_detect.stderr)
+
+        explicit = subprocess.run(
+            [
+                sys.executable,
+                str(SNAPSHOT_WRITER),
+                "--subject",
+                self.subject,
+                "--data-root",
+                str(self.data_root),
+                "--allow-switch",
+                "--draftshot",
+                fourth["body_path"],
+                "eod",
+            ],
+            cwd=REPO_ROOT,
+            env=os.environ.copy(),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(explicit.returncode, 0, explicit.stdout + explicit.stderr)
+        consumed_text = Path(fourth["body_path"]).read_text(encoding="utf-8")
+        self.assertIn("DRAFTSHOT CONSUMPTION MARKER (AI11)", consumed_text)
+        self.assertRegex(consumed_text, r"(?m)^- Status: CONSUMED$")
+        self.assertIn("B) Capture Index", consumed_text)
+        self.assertEqual(draftshot_summary(self.data_root)["active_draftshot_count"], 1)
 
     def test_refresh_projection_surfaces_active_draftshot_state(self) -> None:
         promote_semantic_events(
@@ -150,6 +217,8 @@ class DraftshotRuntimeTests(unittest.TestCase):
         self.assertEqual(manifold["current_active_draftshot_path"], summary["current_active_draftshot_path"])
         self.assertEqual(manifold["current_active_draftshot_session_id"], "syn-draft-002")
         self.assertFalse(manifold["draftshot_stale"])
+        self.assertTrue(manifold["draftshot_integrity_ok"])
+        self.assertEqual(manifold["draftshot_integrity_issues"], [])
 
 
 if __name__ == "__main__":
