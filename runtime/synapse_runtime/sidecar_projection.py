@@ -1057,6 +1057,9 @@ def _sync_sidecar(
             promotions = evaluate_promotion(signal, data_root)
         else:
             promotions = []
+        typed_snapshot_candidates_enabled = (live / "SNAPSHOT_CANDIDATES").exists()
+        if typed_snapshot_candidates_enabled:
+            promotions = [promotion for promotion in promotions if promotion.kind != ProposalKind.SNAPSHOT]
         if (
             (allowed_proposal_kinds is None or ProposalKind.QUEST in allowed_proposal_kinds)
             and not any(promotion.kind in QUEST_PROPOSAL_KINDS for promotion in promotions)
@@ -1149,10 +1152,11 @@ def _sync_sidecar(
             (path for path in proposal_paths if "/disclosures/" in path),
             disclosure_candidate_path,
         )
-        snapshot_candidate_path = next(
-            (path for path in proposal_paths if "/snapshots/" in path),
-            snapshot_candidate_path,
-        )
+        if not str(manifold.get("current_snapshot_candidate_path") or "").strip():
+            snapshot_candidate_path = next(
+                (path for path in proposal_paths if "/snapshots/" in path),
+                snapshot_candidate_path,
+            )
     manifold["current_build_manual_candidate_path"] = build_manual_candidate_path
     manifold["current_disclosure_candidate_path"] = disclosure_candidate_path
     manifold["current_snapshot_candidate_path"] = snapshot_candidate_path

@@ -11,11 +11,12 @@ RUNTIME_ROOT = REPO_ROOT / "runtime"
 if str(RUNTIME_ROOT) not in sys.path:
     sys.path.insert(0, str(RUNTIME_ROOT))
 
+from synapse_runtime.governance_model import AmbientSignal
 from synapse_runtime.draftshots import refresh_draftshot
 from synapse_runtime.promotion_engine import promote_semantic_events
 from synapse_runtime.quest_plans import persist_execution_plan
-from synapse_runtime.sidecar_projection import refresh_synthesis_projection
-from synapse_runtime.sidecar_store import ensure_live_scaffold
+from synapse_runtime.sidecar_projection import _sync_sidecar, refresh_synthesis_projection
+from synapse_runtime.sidecar_store import _default_active_run, ensure_live_scaffold
 from synapse_runtime.snapshot_candidates import refresh_snapshot_candidates, snapshot_candidate_summary
 from synapse_runtime.subject_bootstrap import initialize_subject_state
 
@@ -124,6 +125,77 @@ class SnapshotCandidateTests(unittest.TestCase):
             "Control Sync Snapshot Candidate",
             Path(summary["current_control_sync_candidate_path"]).read_text(encoding="utf-8"),
         )
+
+    def test_typed_candidates_prevent_new_generic_snapshot_proposal_alias_drift(self) -> None:
+        promote_semantic_events(
+            subject=self.subject,
+            data_root=self.data_root,
+            semantic_events=[
+                self._event("SEMEVT-SCOPE", "project.scope", "Scope the closeout around typed candidate continuity."),
+            ],
+        )
+        persist_execution_plan(
+            subject=self.subject,
+            data_root=self.data_root,
+            title="Typed alias hardening",
+            summary="Keep the legacy alias pointed at typed candidates.",
+            origin="test",
+            objective="Prevent generic snapshot proposals from reclaiming the alias path once typed candidates exist.",
+            coherent_outcome="The compatibility alias still points at the typed candidate path after closeout-style projection updates.",
+            closure_statement="Typed candidates remain authoritative for the alias path and no new generic snapshot proposal is written.",
+            out_of_scope="Canonical snapshots.",
+            dependencies=["None"],
+            risk="R1",
+            verification_plan="Refresh typed candidates, then run a closeout-style sidecar sync.",
+            milestones=["Write typed candidates", "Verify alias remains typed"],
+            split_triggers=["Split if compatibility requires a dedicated migration artifact."],
+            source_segment_ids=["SEG-PLAN"],
+            source_semantic_event_ids=["SEMEVT-PLAN"],
+            source_refs=[{"kind": "conversation_segment", "id": "SEG-PLAN", "path": "/tmp/SEG-PLAN.json"}],
+        )
+        refresh_draftshot(
+            subject=self.subject,
+            data_root=self.data_root,
+            session_id="syn-snap-002",
+            run_id="RUN-SNAP-002",
+        )
+        refresh_synthesis_projection(subject=self.subject, data_root=self.data_root)
+        refresh_snapshot_candidates(
+            subject=self.subject,
+            data_root=self.data_root,
+            session_id="syn-snap-002",
+        )
+
+        active_run = _default_active_run(self.subject)
+        active_run.update(
+            {
+                "active": True,
+                "run_id": "RUN-CLOSEOUT-001",
+                "session_mode": "closeout",
+                "session_mode_source": "test",
+                "session_mode_policy_version": 1,
+                "interaction_mode": "closeout",
+            }
+        )
+        _sync_sidecar(
+            subject=self.subject,
+            data_root=self.data_root,
+            active_run=active_run,
+            signal=AmbientSignal(
+                source="run-finalize",
+                subject=self.subject,
+                title="Closeout",
+                summary="Session closeout stays on the typed candidate lane.",
+                status="completed",
+            ),
+            mutate_proposals=True,
+        )
+
+        summary = snapshot_candidate_summary(self.data_root)
+        manifold = yaml.safe_load((self.data_root / ".synapse" / "MANIFOLD.yaml").read_text(encoding="utf-8"))
+        self.assertTrue(summary["current_snapshot_candidate_path"])
+        self.assertEqual(manifold["current_snapshot_candidate_path"], summary["current_snapshot_candidate_path"])
+        self.assertFalse(list((self.data_root / ".synapse" / "PROPOSALS" / "snapshots").glob("*.yaml")))
 
 
 if __name__ == "__main__":
