@@ -261,6 +261,7 @@ def _load_continuity_inputs(data_root: Path) -> dict[str, Any]:
         "architecture_delta": dict(manifold.get("current_architecture_delta") or {}),
         "identity_delta": dict(manifold.get("current_identity_delta") or {}),
         "narrative_delta": dict(manifold.get("current_narrative_delta") or {}),
+        "imported_continuity_delta": dict(manifold.get("current_imported_continuity_delta") or {}),
         "last_synthesis_refresh_at": manifold.get("last_synthesis_refresh_at"),
     }
 
@@ -277,6 +278,9 @@ def _candidate_model(data_root: Path, continuity: dict[str, Any], packets: list[
     architecture = _delta_summary(continuity.get("architecture_delta") or {})
     identity = _delta_summary(continuity.get("identity_delta") or {})
     narrative = _delta_summary(continuity.get("narrative_delta") or {})
+    imported_continuity = dict(continuity.get("imported_continuity_delta") or {})
+    imported_summary = _delta_summary(imported_continuity)
+    imported_metadata = dict(imported_continuity.get("metadata") or {})
 
     implemented = list(baseline_model.get("implemented_truths") or baseline_model.get("confirmed_capabilities") or [])
     partial = list(baseline_model.get("partial_truths") or [])
@@ -295,6 +299,8 @@ def _candidate_model(data_root: Path, continuity: dict[str, Any], packets: list[
         future.append(_summary_item(narrative))
     if obligation:
         constraints.append(_summary_item(obligation))
+    if imported_summary and bool(imported_metadata.get("publication_candidate_eligible")):
+        future.append(_summary_item(imported_summary))
 
     for packet in packets:
         summary = _normalize_text(packet.get("summary"))
@@ -328,6 +334,7 @@ def _candidate_model(data_root: Path, continuity: dict[str, Any], packets: list[
         or baseline_model.get("vision")
         or baseline_model.get("current_vision")
         or baseline_model.get("vision_hypothesis")
+        or (imported_summary if bool(imported_metadata.get("publication_candidate_eligible")) else "")
         or identity
     ) or "Vision candidate still depends on current continuity evidence."
 
@@ -370,6 +377,9 @@ def _story_source_refs(continuity: dict[str, Any]) -> list[dict[str, Any]]:
     refs: list[dict[str, Any]] = []
     for key in ("identity_delta", "narrative_delta", "active_scope_delta", "architecture_delta", "active_plan_delta"):
         refs.extend(list(dict(continuity.get(key) or {}).get("source_refs") or []))
+    imported_delta = dict(continuity.get("imported_continuity_delta") or {})
+    if bool(dict(imported_delta.get("metadata") or {}).get("publication_candidate_eligible")):
+        refs.extend(list(imported_delta.get("source_refs") or []))
     return _normalize_refs(refs)
 
 
@@ -396,6 +406,18 @@ def _codex_summary(packets: list[dict[str, Any]], model: dict[str, Any]) -> str:
     return _normalize_text(model.get("project_identity") or model.get("purpose")) or "Codex candidate pending."
 
 
+def _imported_candidate_metadata(continuity: dict[str, Any]) -> dict[str, Any]:
+    imported_delta = dict(continuity.get("imported_continuity_delta") or {})
+    metadata = dict(imported_delta.get("metadata") or {})
+    return {
+        "imported_evidence_refs": list(imported_delta.get("source_refs") or []),
+        "imported_confidence_band": metadata.get("imported_confidence_band"),
+        "requires_import_review": bool(metadata.get("requires_import_review")),
+        "imported_source_count": int(metadata.get("imported_source_count") or 0),
+        "publication_candidate_eligible": bool(metadata.get("publication_candidate_eligible")),
+    }
+
+
 def _candidate_signature(kind: str, source_refs: list[dict[str, Any]], baseline_refs: list[dict[str, Any]]) -> str:
     def _signature_entry(item: dict[str, Any]) -> str:
         return "|".join(
@@ -419,7 +441,7 @@ def _candidate_signature(kind: str, source_refs: list[dict[str, Any]], baseline_
 def _candidate_allowed(kind: str, *, continuity: dict[str, Any], packets: list[dict[str, Any]]) -> bool:
     normalized = _normalize_kind(kind)
     if normalized == CODEX_KIND:
-        return bool(packets)
+        return bool(packets) or bool(dict(dict(continuity.get("imported_continuity_delta") or {}).get("metadata") or {}).get("publication_candidate_eligible"))
     relevant = (
         _delta_summary(continuity.get("identity_delta") or {}),
         _delta_summary(continuity.get("narrative_delta") or {}),
@@ -427,7 +449,8 @@ def _candidate_allowed(kind: str, *, continuity: dict[str, Any], packets: list[d
         _delta_summary(continuity.get("active_plan_delta") or {}),
         _delta_summary(continuity.get("architecture_delta") or {}),
     )
-    return any(relevant) or bool(packets)
+    imported_allowed = bool(dict(dict(continuity.get("imported_continuity_delta") or {}).get("metadata") or {}).get("publication_candidate_eligible"))
+    return any(relevant) or bool(packets) or imported_allowed
 
 
 def _frontmatter_text(manifest: dict[str, Any], body: str) -> str:
@@ -477,6 +500,9 @@ def _candidate_detail(manifest: dict[str, Any]) -> dict[str, Any]:
         "baseline_ref_count": len(list(manifest.get("baseline_refs") or [])),
         "baseline_refs": list(manifest.get("baseline_refs") or []),
         "source_refs": list(manifest.get("source_refs") or []),
+        "imported_confidence_band": manifest.get("imported_confidence_band"),
+        "requires_import_review": manifest.get("requires_import_review"),
+        "imported_source_count": manifest.get("imported_source_count"),
     }
 
 
@@ -782,8 +808,11 @@ def refresh_publication_candidates(
             continue
 
         baseline_refs = _baseline_refs(data_root, kind)
+        imported_metadata = _imported_candidate_metadata(continuity)
         if kind == CODEX_KIND:
             source_refs = _codex_source_refs(packets)
+            if not source_refs and imported_metadata.get("publication_candidate_eligible"):
+                source_refs = _normalize_refs(imported_metadata.get("imported_evidence_refs") or [])
             summary = _codex_summary(packets, model)
         else:
             source_refs = _story_source_refs(continuity)
@@ -834,6 +863,10 @@ def refresh_publication_candidates(
             "source_signature": source_signature,
             "source_refs": source_refs,
             "baseline_refs": baseline_refs,
+            "imported_evidence_refs": list(imported_metadata.get("imported_evidence_refs") or []),
+            "imported_confidence_band": imported_metadata.get("imported_confidence_band"),
+            "requires_import_review": bool(imported_metadata.get("requires_import_review")),
+            "imported_source_count": int(imported_metadata.get("imported_source_count") or 0),
             "candidate_model": model,
         }
 

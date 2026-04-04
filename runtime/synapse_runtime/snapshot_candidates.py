@@ -196,6 +196,7 @@ def _load_synthesis_from_projection(data_root: Path) -> dict[str, Any]:
         "architecture_delta": dict(manifold.get("current_architecture_delta") or {}),
         "identity_delta": dict(manifold.get("current_identity_delta") or {}),
         "narrative_delta": dict(manifold.get("current_narrative_delta") or {}),
+        "imported_continuity_delta": dict(manifold.get("current_imported_continuity_delta") or {}),
     }
 
 
@@ -203,12 +204,29 @@ def _load_active_run(data_root: Path) -> dict[str, Any]:
     return _read_yaml(live_root(data_root) / "ACTIVE_RUN.yaml", default={})
 
 
+def _imported_candidate_metadata(payload: dict[str, Any] | None) -> dict[str, Any]:
+    data = dict(payload or {})
+    metadata = dict(data.get("metadata") or {})
+    source_refs = [
+        dict(item)
+        for item in data.get("source_refs") or []
+        if isinstance(item, dict) and bool(item.get("requires_import_review")) is not None
+    ]
+    return {
+        "imported_evidence_refs": source_refs,
+        "imported_confidence_band": metadata.get("imported_confidence_band"),
+        "requires_import_review": bool(metadata.get("requires_import_review")),
+        "imported_source_count": int(metadata.get("imported_source_count") or 0),
+        "snapshot_candidate_eligible": bool(metadata.get("snapshot_candidate_eligible")),
+    }
+
+
 def _collect_candidate_sources(
     *,
     kind: str,
     draftshot: dict[str, Any],
     synthesis: dict[str, Any],
-) -> tuple[list[dict[str, Any]], list[str], str]:
+) -> tuple[list[dict[str, Any]], list[str], str, dict[str, Any]]:
     refs: list[dict[str, Any]] = []
     detail_lines: list[str] = []
 
@@ -254,8 +272,22 @@ def _collect_candidate_sources(
 
     if not summary_parts:
         summary_parts.append("Draftshot continuity is present but synthesis deltas are still thin.")
+
+    imported_delta = dict(synthesis.get("imported_continuity_delta") or {})
+    imported_metadata = _imported_candidate_metadata(imported_delta)
+    if imported_metadata.get("snapshot_candidate_eligible"):
+        imported_summary = " ".join(str(imported_delta.get("summary") or "").split()).strip()
+        if imported_summary:
+            summary_parts.append(f"Imported Continuity: {imported_summary}")
+            detail_lines.append(f"Imported Continuity: {imported_summary}")
+        for line in list(imported_delta.get("detail_lines") or [])[:4]:
+            text = " ".join(str(line or "").split()).strip()
+            if text:
+                detail_lines.append(f"Imported Continuity: {text}")
+        refs.extend(imported_metadata.get("imported_evidence_refs") or [])
+
     summary = summary_parts[0] if len(summary_parts) == 1 else " | ".join(summary_parts[:3])
-    return _normalize_source_refs(refs), _normalize_lines(detail_lines), summary
+    return _normalize_source_refs(refs), _normalize_lines(detail_lines), summary, imported_metadata
 
 
 def _eod_body(
@@ -421,14 +453,14 @@ def _candidate_allowed(kind: str, synthesis: dict[str, Any], active_run: dict[st
         return any(
             str(dict(synthesis.get(key) or {}).get("summary") or "").strip()
             for key in ("active_plan_delta", "active_scope_delta", "obligation_delta", "architecture_delta")
-        )
+        ) or bool(dict(dict(synthesis.get("imported_continuity_delta") or {}).get("metadata") or {}).get("snapshot_candidate_eligible"))
     session_mode = str(active_run.get("session_mode") or "").strip()
     if session_mode == "control_sync":
         return True
     return any(
         str(dict(synthesis.get(key) or {}).get("summary") or "").strip()
         for key in ("active_scope_delta", "architecture_delta", "identity_delta", "narrative_delta", "obligation_delta")
-    )
+    ) or bool(dict(dict(synthesis.get("imported_continuity_delta") or {}).get("metadata") or {}).get("snapshot_candidate_eligible"))
 
 
 def _candidate_detail(manifest: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -447,6 +479,9 @@ def _candidate_detail(manifest: dict[str, Any] | None) -> dict[str, Any] | None:
         "body_path": manifest.get("body_path"),
         "draftshot_revision_id": manifest.get("draftshot_revision_id"),
         "source_ref_count": manifest.get("source_ref_count"),
+        "imported_confidence_band": manifest.get("imported_confidence_band"),
+        "requires_import_review": manifest.get("requires_import_review"),
+        "imported_source_count": manifest.get("imported_source_count"),
     }
 
 
@@ -564,7 +599,7 @@ def refresh_snapshot_candidates(
             candidate_results.append({"candidate_kind": kind, "status": "noop", "reason": "threshold_not_met"})
             continue
 
-        source_refs, detail_lines, summary = _collect_candidate_sources(
+        source_refs, detail_lines, summary, imported_metadata = _collect_candidate_sources(
             kind=kind,
             draftshot=draftshot,
             synthesis=synthesis_payload,
@@ -623,6 +658,10 @@ def refresh_snapshot_candidates(
             "source_signature": source_signature,
             "source_ref_count": len(source_refs),
             "source_refs": source_refs,
+            "imported_evidence_refs": list(imported_metadata.get("imported_evidence_refs") or []),
+            "imported_confidence_band": imported_metadata.get("imported_confidence_band"),
+            "requires_import_review": bool(imported_metadata.get("requires_import_review")),
+            "imported_source_count": int(imported_metadata.get("imported_source_count") or 0),
             "summary": summary,
             "detail_lines": detail_lines,
             "draftshot_revision_id": draftshot.get("revision_id"),

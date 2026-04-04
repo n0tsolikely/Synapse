@@ -61,6 +61,19 @@ class PublicationCandidateTests(unittest.TestCase):
             "related_paths": [],
         }
 
+    def _imported_event(self, semantic_event_id: str, topic_key: str, summary: str, *, confidence_band: str = "medium") -> dict:
+        return {
+            **self._event(semantic_event_id, topic_key, summary),
+            "confidence_band": confidence_band,
+            "imported_source": True,
+            "imported_limited": True,
+            "import_id": f"IMPORT-{semantic_event_id}",
+            "import_source_kind": "transcript",
+            "import_parser_status": "parsed",
+            "import_confidence_band": confidence_band,
+            "import_requires_review": False,
+        }
+
     def _write_canonical_baseline(self) -> None:
         canonical_project_model_path(self.data_root).write_text(
             yaml.safe_dump(
@@ -232,6 +245,27 @@ class PublicationCandidateTests(unittest.TestCase):
         self.assertEqual(second["candidates"][0]["reason"], "already_canonical")
         self.assertIsNone(second["summary"]["current_story_candidate_path"])
         self.assertEqual(story_candidate["revision_id"], published["candidate_revision_id"])
+
+    def test_parsed_imported_evidence_can_seed_noncanonical_publication_candidates(self) -> None:
+        promote_semantic_events(
+            subject=self.subject,
+            data_root=self.data_root,
+            semantic_events=[
+                self._imported_event(
+                    "SEMEVT-IMP-VISION",
+                    "project.vision",
+                    "Imported continuity frames the project as a reusable installable website business system.",
+                )
+            ],
+        )
+        refresh_synthesis_projection(subject=self.subject, data_root=self.data_root)
+
+        payload = refresh_publication_candidates(subject=self.subject, data_root=self.data_root, candidate_kinds=["story", "vision"])
+        self.assertEqual(payload["status"], "written")
+        story_candidate = resolve_publication_candidate(self.data_root, "story")
+        self.assertEqual(story_candidate["imported_confidence_band"], "medium")
+        self.assertEqual(story_candidate["imported_source_count"], 1)
+        self.assertFalse(story_candidate["requires_import_review"])
 
 
 if __name__ == "__main__":

@@ -419,6 +419,7 @@ def build_current_context_bundle(
         "architecture_delta": dict(manifold_payload.get("current_architecture_delta") or {}),
         "identity_delta": dict(manifold_payload.get("current_identity_delta") or {}),
         "narrative_delta": dict(manifold_payload.get("current_narrative_delta") or {}),
+        "imported_continuity_delta": dict(manifold_payload.get("current_imported_continuity_delta") or {}),
     }
     codex_packet_summary = {
         "codex_packet_count": state_payload.get("codex_packet_count") or 0,

@@ -1,0 +1,14 @@
+runtime/synapse_mcp/runtime_bridge.py
+runtime/synapse_runtime/draftshots.py
+runtime/synapse_runtime/imported_continuity.py
+runtime/synapse_runtime/promotion_engine.py
+runtime/synapse_runtime/publication_candidates.py
+runtime/synapse_runtime/semantic_classifier.py
+runtime/synapse_runtime/sidecar_projection.py
+runtime/synapse_runtime/snapshot_candidates.py
+runtime/synapse_runtime/synthesis_refresh.py
+tests/test_publication_candidates.py
+tests/test_snapshot_candidates.py
+tests/test_synthesis_refresh.py
+workspace/phase4_receipts/baseline_receipt.txt
+workspace/phase4_receipts/baseline_scope.txt

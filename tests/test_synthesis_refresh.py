@@ -105,10 +105,12 @@ class SynthesisRefreshTests(unittest.TestCase):
         self.assertTrue(projection["architecture_delta"]["summary"])
         self.assertTrue(projection["identity_delta"]["summary"])
         self.assertTrue(projection["narrative_delta"]["summary"])
+        self.assertTrue(projection["imported_continuity_delta"]["summary"])
         self.assertIn("open continuity obligations", projection["obligation_delta"]["summary"])
         self.assertGreaterEqual(state["codex_packet_count"], 5)
         self.assertEqual(state["codex_packet_count"], manifold["codex_packet_count"])
         self.assertTrue(manifold["current_active_plan_delta"]["source_refs"])
+        self.assertTrue(manifold["current_imported_continuity_delta"]["source_refs"])
         self.assertTrue(manifold["recent_codex_packet_details"])
 
         render_rehydrate(subject=self.subject, data_root=self.data_root)

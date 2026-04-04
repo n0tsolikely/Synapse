@@ -91,6 +91,33 @@ def parse_imported_continuity_source(*, source_path: Path, source_kind: str | No
     return envelope.to_dict()
 
 
+def imported_confidence_profile(envelope: dict[str, Any]) -> dict[str, Any]:
+    parser_status = str(envelope.get("parser_status") or ImportedContinuityParseStatus.UNSUPPORTED.value).strip().lower()
+    confidence_band = str(envelope.get("confidence_band") or "low").strip().lower()
+    extracted_text = str(envelope.get("extracted_text") or "").strip()
+    requires_review = parser_status in {
+        ImportedContinuityParseStatus.LIMITED.value,
+        ImportedContinuityParseStatus.UNSUPPORTED.value,
+    } or confidence_band == "low"
+    has_text = bool(extracted_text)
+    publication_candidate_eligible = (
+        parser_status == ImportedContinuityParseStatus.PARSED.value
+        and confidence_band in {"medium", "high"}
+        and has_text
+    )
+    snapshot_candidate_eligible = publication_candidate_eligible
+    draftshot_eligible = has_text and parser_status != ImportedContinuityParseStatus.UNSUPPORTED.value
+    return {
+        "parser_status": parser_status,
+        "confidence_band": confidence_band,
+        "requires_review": requires_review,
+        "draftshot_eligible": draftshot_eligible,
+        "snapshot_candidate_eligible": snapshot_candidate_eligible,
+        "publication_candidate_eligible": publication_candidate_eligible,
+        "warning_count": len(list(envelope.get("warnings") or [])),
+    }
+
+
 def imported_segments_from_envelope(
     envelope: dict[str, Any],
     *,

@@ -229,6 +229,77 @@ def _obligation_delta(data_root: Path, refreshed_at: str) -> dict[str, Any] | No
     )
 
 
+def _import_confidence_rank(value: str | None) -> int:
+    return {"low": 0, "medium": 1, "high": 2}.get(str(value or "").strip().lower(), -1)
+
+
+def _imported_continuity_delta(data_root: Path, refreshed_at: str) -> dict[str, Any] | None:
+    records = _family_records(data_root, "IMPORTED_EVIDENCE")
+    if not records:
+        return None
+    recent = records[-5:]
+    review_required = [
+        item for item in recent
+        if bool(dict(item.get("metadata") or {}).get("requires_import_review"))
+    ]
+    eligible_for_candidates = [
+        item for item in recent
+        if bool(dict(item.get("metadata") or {}).get("publication_candidate_eligible"))
+    ]
+    highest_confidence = "low"
+    for item in recent:
+        band = str(dict(item.get("metadata") or {}).get("imported_confidence_band") or item.get("confidence_band") or "low")
+        if _import_confidence_rank(band) > _import_confidence_rank(highest_confidence):
+            highest_confidence = band
+
+    summary = f"{len(recent)} imported continuity records available"
+    if review_required:
+        summary += f" ({len(review_required)} require review)"
+    else:
+        summary += f" (highest confidence: {highest_confidence})"
+
+    detail_lines: list[str] = []
+    source_refs: list[dict[str, Any]] = []
+    for item in recent:
+        metadata = dict(item.get("metadata") or {})
+        line = str(item.get("summary") or item.get("title") or "").strip()
+        if not line:
+            continue
+        parser_status = str(metadata.get("parser_status") or "limited")
+        confidence_band = str(metadata.get("imported_confidence_band") or item.get("confidence_band") or "low")
+        review_marker = " review-required" if metadata.get("requires_import_review") else ""
+        detail_lines.append(f"{line} [{parser_status}/{confidence_band}{review_marker}]")
+        source_refs.append(
+            {
+                "kind": "governed_working_record",
+                "id": str(item.get("record_id") or item.get("family_id") or line),
+                "path": str(item.get("path") or ""),
+                "family": item.get("family"),
+                "parser_status": parser_status,
+                "imported_confidence_band": confidence_band,
+                "requires_import_review": bool(metadata.get("requires_import_review")),
+            }
+        )
+
+    return _delta_payload(
+        key="IMPORTED_CONTINUITY",
+        refreshed_at=refreshed_at,
+        summary=summary,
+        detail_lines=detail_lines,
+        source_refs=source_refs,
+        metadata={
+            "imported_source_count": len(recent),
+            "imported_review_required_count": len(review_required),
+            "requires_import_review": bool(review_required),
+            "imported_confidence_band": highest_confidence,
+            "publication_candidate_eligible": bool(eligible_for_candidates),
+            "snapshot_candidate_eligible": bool(
+                [item for item in recent if bool(dict(item.get("metadata") or {}).get("snapshot_candidate_eligible"))]
+            ),
+        },
+    )
+
+
 def _family_delta(
     *,
     data_root: Path,
@@ -313,6 +384,7 @@ def refresh_synthesis(*, subject: str, data_root: Path) -> dict[str, Any]:
         baseline_time=baseline_time,
         baseline_ref=baseline_ref,
     )
+    imported_continuity = _imported_continuity_delta(data_root, refreshed_at)
 
     deltas = {
         "active_plan_delta": active_plan,
@@ -321,6 +393,7 @@ def refresh_synthesis(*, subject: str, data_root: Path) -> dict[str, Any]:
         "architecture_delta": architecture,
         "identity_delta": identity,
         "narrative_delta": narrative,
+        "imported_continuity_delta": imported_continuity,
     }
 
     packets = []

@@ -574,29 +574,32 @@ def classify_execution_segment(segment: ExecutionSegmentEnvelope) -> list[Semant
 
 
 def plan_events_from_semantic_events(
-    semantic_events: list[SemanticEventEnvelope],
+    semantic_events: list[Any],
     *,
     subject: str,
     recorded_at: str,
 ) -> list[PlanEventEnvelope]:
     plan_events: list[PlanEventEnvelope] = []
     for event in semantic_events:
-        if event.class_label != SemanticClassLabel.BUILD_PLAN_SIGNAL.value:
+        payload = event.to_dict() if isinstance(event, SemanticEventEnvelope) else dict(event)
+        if str(payload.get("class_label") or "") != SemanticClassLabel.BUILD_PLAN_SIGNAL.value:
+            continue
+        if bool(payload.get("imported_source")):
             continue
         plan_events.append(
             PlanEventEnvelope(
-                plan_event_id=stable_kernel_id("PLANEV", event.semantic_event_id),
+                plan_event_id=stable_kernel_id("PLANEV", payload.get("semantic_event_id")),
                 schema_version=KERNEL_SCHEMA_VERSION,
                 classifier_version=SEMANTIC_CLASSIFIER_VERSION,
                 recorded_at=recorded_at,
                 subject=subject,
-                topic_key=event.topic_key,
-                confidence_band=event.confidence_band,
-                materiality_band=event.materiality_band,
-                summary=event.summary,
-                source_segment_ids=list(event.source_segment_ids),
-                source_semantic_event_ids=[event.semantic_event_id],
-                source_refs=list(event.source_refs),
+                topic_key=str(payload.get("topic_key") or ""),
+                confidence_band=str(payload.get("confidence_band") or ""),
+                materiality_band=str(payload.get("materiality_band") or ""),
+                summary=str(payload.get("summary") or ""),
+                source_segment_ids=list(payload.get("source_segment_ids") or []),
+                source_semantic_event_ids=[str(payload.get("semantic_event_id") or "")],
+                source_refs=list(payload.get("source_refs") or []),
                 authoritative_plan_store=AUTHORITATIVE_PLAN_STORE,
             )
         )
@@ -623,11 +626,11 @@ def persist_execution_segments(data_root: Path, segments: list[ExecutionSegmentE
     return receipts
 
 
-def persist_semantic_events(data_root: Path, semantic_events: list[SemanticEventEnvelope]) -> list[dict[str, Any]]:
+def persist_semantic_events(data_root: Path, semantic_events: list[Any]) -> list[dict[str, Any]]:
     ensure_semantic_scaffold(data_root)
     receipts: list[dict[str, Any]] = []
     for event in semantic_events:
-        payload = event.to_dict()
+        payload = event.to_dict() if isinstance(event, SemanticEventEnvelope) else dict(event)
         path = _record_path(semantic_events_dir(data_root), payload["recorded_at"])
         receipts.append(_append_jsonl_unique(path, record_id_key="semantic_event_id", payload=payload))
     return receipts

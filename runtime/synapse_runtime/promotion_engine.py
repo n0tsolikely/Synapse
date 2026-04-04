@@ -235,8 +235,12 @@ def _group_recorded_at(events: list[dict[str, Any]]) -> str:
     return ""
 
 
+def _is_imported_event(event: dict[str, Any]) -> bool:
+    return bool(event.get("imported_source")) or bool(event.get("imported_limited"))
+
+
 def _non_imported_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [event for event in events if not bool(event.get("imported_limited"))]
+    return [event for event in events if not _is_imported_event(event)]
 
 
 def _group_topics(events: list[dict[str, Any]]) -> list[str]:
@@ -302,11 +306,11 @@ def _persist_plan_revision(
     events: list[dict[str, Any]],
     scope_record_ids: list[str],
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
-    plan_events = [event for event in events if str(event.get("topic_key") or "") == "build.plan" and not bool(event.get("imported_limited"))]
+    plan_events = [event for event in events if str(event.get("topic_key") or "") == "build.plan" and not _is_imported_event(event)]
     if not plan_events:
         return None, None
     primary = plan_events[0]
-    support_events = [event for event in events if str(event.get("topic_key") or "") in {"project.scope", "architecture.shape", "decision.locked"} and not bool(event.get("imported_limited"))]
+    support_events = [event for event in events if str(event.get("topic_key") or "") in {"project.scope", "architecture.shape", "decision.locked"} and not _is_imported_event(event)]
     summary = str(primary.get("summary") or "").strip()
     support = str((support_events[0].get("summary") if support_events else summary) or summary).strip()
     family_id = stable_kernel_id(
@@ -385,7 +389,7 @@ def _persist_records_for_topics(
     )
     for topic_key, family in mapping:
         for event in events:
-            if str(event.get("topic_key") or "") != topic_key or bool(event.get("imported_limited")):
+            if str(event.get("topic_key") or "") != topic_key or _is_imported_event(event):
                 continue
             promoted.append(
                 persist_working_record(
@@ -402,7 +406,7 @@ def _persist_records_for_topics(
     identity_candidates = [
         event for event in events
         if str(event.get("topic_key") or "") in {"project.scope", "project.vision"}
-        and not bool(event.get("imported_limited"))
+        and not _is_imported_event(event)
         and _is_identity_like(str(event.get("summary") or ""))
     ]
     if identity_candidates:
@@ -423,6 +427,9 @@ def _persist_records_for_topics(
 
 
 def _persist_imported_record(*, subject: str, data_root: Path, recorded_at: str, event: dict[str, Any]) -> dict[str, Any]:
+    parser_status = str(event.get("import_parser_status") or "limited").strip().lower() or "limited"
+    imported_confidence_band = str(event.get("import_confidence_band") or event.get("confidence_band") or "low").strip().lower() or "low"
+    requires_review = bool(event.get("import_requires_review")) or parser_status in {"limited", "unsupported"} or imported_confidence_band == "low"
     return persist_working_record(
         data_root,
         _make_record(
@@ -430,7 +437,20 @@ def _persist_imported_record(*, subject: str, data_root: Path, recorded_at: str,
             recorded_at=recorded_at,
             family=GovernedRecordFamily.IMPORTED_EVIDENCE.value,
             event=event,
-            metadata={"promotion_origin": "phase2_semantic_promotion", "imported_limited": True},
+            metadata={
+                "promotion_origin": "phase4_imported_continuity",
+                "imported_source": True,
+                "imported_limited": bool(event.get("imported_limited")),
+                "parser_status": parser_status,
+                "imported_confidence_band": imported_confidence_band,
+                "requires_import_review": requires_review,
+                "import_source_kind": str(event.get("import_source_kind") or "").strip() or None,
+                "import_id": str(event.get("import_id") or "").strip() or None,
+                "draftshot_eligible": parser_status != "unsupported",
+                "snapshot_candidate_eligible": parser_status == "parsed" and imported_confidence_band in {"medium", "high"},
+                "publication_candidate_eligible": parser_status == "parsed" and imported_confidence_band in {"medium", "high"},
+                "contradiction_refs": list(event.get("import_contradiction_refs") or []),
+            },
         ),
     )
 
@@ -464,26 +484,32 @@ def promote_semantic_events(
         created_for_group: list[dict[str, Any]] = []
         prior_architecture_records = load_working_records(data_root, GovernedRecordFamily.ARCHITECTURE_EVOLUTION.value)
 
-        imported_events = [event for event in group if bool(event.get("imported_limited"))]
+        imported_events = [event for event in group if _is_imported_event(event)]
         if imported_events:
             imported_record = _persist_imported_record(subject=subject, data_root=data_root, recorded_at=recorded_at, event=imported_events[0])
             created_for_group.append(imported_record)
             promoted_records.append(imported_record)
-            opened_obligations.append(
-                open_obligation(
-                    subject=subject,
-                    data_root=data_root,
-                    recorded_at=recorded_at,
-                    obligation_kind="import.review.required",
-                    severity="warn",
-                    summary="Imported continuity was preserved with limited confidence and requires human review before stronger governed promotion.",
-                    required_record_families=[GovernedRecordFamily.IMPORTED_EVIDENCE.value],
-                    source_segment_ids=imported_events[0].get("source_segment_ids") or [],
-                    source_semantic_event_ids=[imported_events[0].get("semantic_event_id")],
-                    source_refs=imported_events[0].get("source_refs") or [],
-                    metadata={"topic_key": imported_events[0].get("topic_key")},
+            if bool(imported_record.get("metadata", {}).get("requires_import_review")):
+                opened_obligations.append(
+                    open_obligation(
+                        subject=subject,
+                        data_root=data_root,
+                        recorded_at=recorded_at,
+                        obligation_kind="import.review.required",
+                        severity="warn",
+                        summary="Imported continuity was preserved with limited confidence and requires human review before stronger governed promotion.",
+                        required_record_families=[GovernedRecordFamily.IMPORTED_EVIDENCE.value],
+                        source_segment_ids=imported_events[0].get("source_segment_ids") or [],
+                        source_semantic_event_ids=[imported_events[0].get("semantic_event_id")],
+                        source_refs=imported_events[0].get("source_refs") or [],
+                        metadata={
+                            "topic_key": imported_events[0].get("topic_key"),
+                            "parser_status": imported_record.get("metadata", {}).get("parser_status"),
+                            "confidence_band": imported_record.get("metadata", {}).get("imported_confidence_band"),
+                            "contradiction_refs": list(imported_record.get("metadata", {}).get("contradiction_refs") or []),
+                        },
+                    )
                 )
-            )
             lineage_edges.append(
                 build_lineage_edge(
                     subject=subject,

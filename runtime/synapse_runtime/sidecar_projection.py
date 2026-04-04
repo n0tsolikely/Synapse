@@ -29,7 +29,7 @@ from synapse_runtime.governance_model import (
     evaluate_promotion,
     infer_interaction_mode,
 )
-from synapse_runtime.imported_continuity import imported_segments_from_envelope
+from synapse_runtime.imported_continuity import imported_confidence_profile, imported_segments_from_envelope
 from synapse_runtime.ledger_store import _classify_verification_status
 from synapse_runtime.live_memory_common import LiveMemoryError
 from synapse_runtime.provenance import compute_current_provenance_summary, projectable_provenance_summary
@@ -549,6 +549,18 @@ def _apply_normalized_semantic_projection(
                             "mime_type": raw_event["payload_blob"].get("mime_type"),
                         }
                     )
+                import_profile = imported_confidence_profile(payload)
+                source_refs.append(
+                    {
+                        "kind": "import_envelope",
+                        "id": payload.get("import_id"),
+                        "path": raw_event.get("raw_event_path"),
+                        "source_path": payload.get("source_path"),
+                        "source_kind": payload.get("source_kind"),
+                        "parser_status": import_profile.get("parser_status"),
+                        "confidence_band": import_profile.get("confidence_band"),
+                    }
+                )
                 imported_segments = imported_segments_from_envelope(
                     payload,
                     subject=str(raw_event.get("subject") or "").strip(),
@@ -561,12 +573,25 @@ def _apply_normalized_semantic_projection(
                 persist_conversation_segments(data_root, imported_segments)
                 imported_events = []
                 for segment, block in zip(imported_segments, conversation_blocks(str(payload.get("extracted_text") or ""))):
-                    imported_events.extend(
-                        classify_conversation_segment(
+                    classified = classify_conversation_segment(
                             segment,
                             text=block,
                             imported_limited=True,
-                        )
+                    )
+                    imported_events.extend(
+                        [
+                            {
+                                **event.to_dict(),
+                                "imported_source": True,
+                                "import_id": payload.get("import_id"),
+                                "import_source_kind": payload.get("source_kind"),
+                                "import_parser_status": import_profile.get("parser_status"),
+                                "import_confidence_band": import_profile.get("confidence_band"),
+                                "import_requires_review": bool(import_profile.get("requires_review")),
+                                "import_warning_count": int(import_profile.get("warning_count") or 0),
+                            }
+                            for event in classified
+                        ]
                     )
                 persist_semantic_events(data_root, imported_events)
                 imported_plan_events = plan_events_from_semantic_events(
@@ -575,7 +600,7 @@ def _apply_normalized_semantic_projection(
                     recorded_at=str(raw_event.get("recorded_at") or "").strip(),
                 )
                 persist_plan_events(data_root, imported_plan_events)
-                emitted_semantic_events.extend(event.to_dict() for event in imported_events)
+                emitted_semantic_events.extend(dict(event) for event in imported_events)
                 emitted_plan_events.extend(event.to_dict() for event in imported_plan_events)
         else:
             execution_segment = execution_segment_from_raw_event(
@@ -713,6 +738,7 @@ def _apply_derived_synthesis_projection(
     manifold["current_architecture_delta"] = dict(synthesis.get("architecture_delta") or {})
     manifold["current_identity_delta"] = dict(synthesis.get("identity_delta") or {})
     manifold["current_narrative_delta"] = dict(synthesis.get("narrative_delta") or {})
+    manifold["current_imported_continuity_delta"] = dict(synthesis.get("imported_continuity_delta") or {})
     manifold["codex_packet_count"] = int(packet_summary.get("codex_packet_count") or 0)
     manifold["last_codex_packet_refreshed_at"] = packet_summary.get("last_codex_packet_refreshed_at")
     manifold["recent_codex_packet_details"] = list(packet_summary.get("recent_codex_packet_details") or [])

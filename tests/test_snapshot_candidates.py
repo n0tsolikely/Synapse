@@ -54,6 +54,19 @@ class SnapshotCandidateTests(unittest.TestCase):
             "related_paths": [],
         }
 
+    def _imported_event(self, semantic_event_id: str, topic_key: str, summary: str, *, confidence_band: str = "medium") -> dict:
+        return {
+            **self._event(semantic_event_id, topic_key, summary),
+            "confidence_band": confidence_band,
+            "imported_source": True,
+            "imported_limited": True,
+            "import_id": f"IMPORT-{semantic_event_id}",
+            "import_source_kind": "transcript",
+            "import_parser_status": "parsed",
+            "import_confidence_band": confidence_band,
+            "import_requires_review": False,
+        }
+
     def test_refresh_snapshot_candidates_writes_typed_families_and_projection(self) -> None:
         promote_semantic_events(
             subject=self.subject,
@@ -196,6 +209,39 @@ class SnapshotCandidateTests(unittest.TestCase):
         self.assertTrue(summary["current_snapshot_candidate_path"])
         self.assertEqual(manifold["current_snapshot_candidate_path"], summary["current_snapshot_candidate_path"])
         self.assertFalse(list((self.data_root / ".synapse" / "PROPOSALS" / "snapshots").glob("*.yaml")))
+
+    def test_parsed_imported_evidence_can_feed_snapshot_candidates_noncanonically(self) -> None:
+        promote_semantic_events(
+            subject=self.subject,
+            data_root=self.data_root,
+            semantic_events=[
+                self._imported_event(
+                    "SEMEVT-IMP-SCOPE",
+                    "project.scope",
+                    "Imported continuity says the installable product must support separate user accounts.",
+                )
+            ],
+        )
+        refresh_synthesis_projection(subject=self.subject, data_root=self.data_root)
+        refresh_draftshot(
+            subject=self.subject,
+            data_root=self.data_root,
+            session_id="syn-snap-import-001",
+            run_id="RUN-SNAP-IMPORT-001",
+        )
+
+        payload = refresh_snapshot_candidates(
+            subject=self.subject,
+            data_root=self.data_root,
+            session_id="syn-snap-import-001",
+            candidate_kinds=["EOD"],
+        )
+        self.assertEqual(payload["status"], "written")
+        manifest_path = Path(payload["candidates"][0]["manifest_path"])
+        manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+        self.assertEqual(manifest["imported_confidence_band"], "medium")
+        self.assertEqual(manifest["imported_source_count"], 1)
+        self.assertFalse(manifest["requires_import_review"])
 
 
 if __name__ == "__main__":

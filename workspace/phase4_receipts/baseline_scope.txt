@@ -1,3 +1,24 @@
-Phase 4 goal: honest warn/block/backstop enforcement only.
-In scope: hook entrypoints, repo_state, doctor, provenance, git_hooks, strict hook templates, sidecar projection posture visibility, MCP exposure, docs that match actual Phase 4 behavior.
-Out of scope: new semantic promotion owners, new canonical writers, new sidecar roots, phase 5 whole-system changes.
+In scope:
+- runtime/synapse.py
+- runtime/synapse_runtime/imported_continuity.py
+- runtime/synapse_runtime/promotion_engine.py
+- runtime/synapse_runtime/continuity_obligations.py
+- runtime/synapse_runtime/draftshots.py
+- runtime/synapse_runtime/snapshot_candidates.py
+- runtime/synapse_runtime/publication_candidates.py
+- runtime/synapse_runtime/doctor.py
+- runtime/synapse_runtime/provenance.py
+- runtime/synapse_runtime/sidecar_projection.py
+- runtime/synapse_mcp/runtime_bridge.py
+- tests/test_imported_continuity.py
+- tests/test_degraded_mode_enforcement.py
+- tests/test_missed_capture_detection.py
+- tests/test_snapshot_candidates.py
+- tests/test_publication_candidates.py
+- tests/test_external_continuity_recovery.py
+
+Out of scope:
+- OCR / better PDF extraction
+- new canonical owners
+- timer daemons
+- non-import Phase 1-3 redesigns

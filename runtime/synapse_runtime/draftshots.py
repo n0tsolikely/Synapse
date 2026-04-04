@@ -126,6 +126,7 @@ def draftshot_source_refs_from_synthesis(synthesis: dict[str, Any]) -> list[dict
         "architecture_delta",
         "identity_delta",
         "narrative_delta",
+        "imported_continuity_delta",
     ):
         payload = synthesis.get(key)
         if not isinstance(payload, dict):
@@ -143,6 +144,7 @@ def draftshot_detail_lines_from_synthesis(synthesis: dict[str, Any]) -> list[str
         ("Architecture Delta", synthesis.get("architecture_delta")),
         ("Identity Delta", synthesis.get("identity_delta")),
         ("Narrative Delta", synthesis.get("narrative_delta")),
+        ("Imported Continuity", synthesis.get("imported_continuity_delta")),
     )
     for label, payload in mapping:
         if not isinstance(payload, dict):
@@ -509,6 +511,14 @@ def _build_draftshot_sections(*, data_root: Path, synthesis: dict[str, Any]) -> 
         seen_ids=seen_ids,
     )
     _entries_from_delta(
+        section_key="FINDINGS",
+        delta_key="IMPORTED_CONTINUITY",
+        payload=synthesis.get("imported_continuity_delta"),
+        sections=sections,
+        capture_entries=capture_entries,
+        seen_ids=seen_ids,
+    )
+    _entries_from_delta(
         section_key="TODO",
         delta_key="ACTIVE_PLAN",
         payload=synthesis.get("active_plan_delta"),
@@ -532,6 +542,15 @@ def _build_draftshot_sections(*, data_root: Path, synthesis: dict[str, Any]) -> 
         capture_entries=capture_entries,
         seen_ids=seen_ids,
     )
+    if bool(dict(synthesis.get("imported_continuity_delta") or {}).get("metadata", {}).get("requires_import_review")):
+        _entries_from_delta(
+            section_key="RISKS",
+            delta_key="IMPORTED_CONTINUITY_REVIEW",
+            payload=synthesis.get("imported_continuity_delta"),
+            sections=sections,
+            capture_entries=capture_entries,
+            seen_ids=seen_ids,
+        )
 
     for index, question in enumerate(_open_question_lines(data_root), start=1):
         _append_capture_entry(
