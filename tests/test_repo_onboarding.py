@@ -17,12 +17,18 @@ if str(RUNTIME_ROOT) not in sys.path:
     sys.path.insert(0, str(RUNTIME_ROOT))
 
 from synapse_runtime.project_model import ProjectModelError, compute_revision_delta, validate_draft_revision, validate_question_set
+from synapse_runtime.promotion_engine import promote_semantic_events
+from synapse_runtime.publication_candidates import refresh_publication_candidates
+from synapse_runtime.quest_plans import persist_execution_plan
 from synapse_runtime.reducer import ReducerError, reduce_after_event
 from synapse_runtime.repo_archaeology import ScanDepth, evidence_ref, run_repo_archaeology, stable_scan_item_id
 from synapse_runtime.repo_onboarding import (
     RepoOnboardingError,
     canonical_codex_current_path,
     canonical_codex_future_path,
+    canonical_project_model_path,
+    canonical_project_story_path,
+    canonical_vision_path,
     current_onboarding_session,
     default_onboarding_session,
     default_onboarding_pointer,
@@ -35,7 +41,9 @@ from synapse_runtime.repo_onboarding import (
     save_onboarding_session,
     transition_onboarding_state,
 )
+from synapse_runtime.sidecar_projection import refresh_synthesis_projection
 from synapse_runtime.sidecar_store import ensure_live_scaffold
+from synapse_runtime.subject_bootstrap import initialize_subject_state
 
 SYNAPSE = [sys.executable, str(REPO_ROOT / "runtime" / "synapse.py")]
 
@@ -1427,6 +1435,117 @@ class RepoOnboardingCommandTests(unittest.TestCase):
         self.assertIn("## Published project model", text)
         self.assertIn("Current codex path:", text)
         self.assertIn("Future codex path:", text)
+
+    def test_formalize_candidate_handle_publishes_story_candidate_via_repo_onboarding_owner(self) -> None:
+        subject = "PUBLICATION-CMD"
+        data_root = (self.root / f"{subject}_Data").resolve()
+        initialize_subject_state(subject, data_root, self.repo)
+        ensure_live_scaffold(subject, data_root)
+        subject_args = [
+            "--subject",
+            subject,
+            "--engine-root",
+            str(self.repo),
+            "--data-root",
+            str(data_root),
+        ]
+        canonical_project_model_path(data_root).write_text(
+            yaml.safe_dump(
+                {
+                    "project_identity": "Baseline installable website system",
+                    "purpose": "Help operators ship installable client websites cleanly.",
+                    "vision": "Become the reusable baseline for installable customer-facing web systems.",
+                    "confirmed_at": "2026-04-04T10:00:00-04:00",
+                    "implemented_truths": [{"summary": "The repo already tracks governed continuity."}],
+                    "partial_truths": [],
+                    "intended_capabilities": [],
+                    "future_ideas_needing_expansion": [],
+                    "superseded_directions": [],
+                    "constraints": [],
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+        canonical_project_story_path(data_root).write_text("# Project Story\n\nBaseline story.\n", encoding="utf-8")
+        canonical_vision_path(data_root).write_text("# Vision\n\nBaseline vision.\n", encoding="utf-8")
+        canonical_codex_current_path(data_root).write_text("# Current Codex\n\nBaseline current codex.\n", encoding="utf-8")
+        canonical_codex_future_path(data_root).write_text("# Future Codex\n\nBaseline future codex.\n", encoding="utf-8")
+
+        promote_semantic_events(
+            subject=subject,
+            data_root=data_root,
+            semantic_events=[
+                {
+                    "semantic_event_id": "SEMEVT-VISION",
+                    "schema_version": 1,
+                    "classifier_version": "v1-phase3",
+                    "recorded_at": "2026-04-04T12:00:00-04:00",
+                    "subject": subject,
+                    "class_label": "project.vision",
+                    "topic_key": "project.vision",
+                    "confidence_band": "high",
+                    "materiality_band": "high",
+                    "summary": "The product becomes a reusable website business system.",
+                    "transient_noise": False,
+                    "imported_limited": False,
+                    "source_segment_ids": ["SEG-VISION"],
+                    "source_refs": [{"kind": "conversation_segment", "id": "SEG-VISION", "path": "/tmp/SEG-VISION.json"}],
+                    "related_paths": [],
+                }
+            ],
+        )
+        persist_execution_plan(
+            subject=subject,
+            data_root=data_root,
+            title="Publication candidate publish path",
+            summary="Refresh then publish a publication candidate canonically.",
+            origin="test",
+            objective="Verify the formalize command can publish current story candidate state canonically.",
+            coherent_outcome="Canonical story updates through the existing onboarding owner.",
+            closure_statement="Story publish happens via formalize without bypassing repo_onboarding.py.",
+            out_of_scope="Automatic canonical publication.",
+            dependencies=["Continuity synthesis"],
+            risk="R1",
+            verification_plan="Refresh publication candidates and formalize the story candidate.",
+            milestones=["Candidate refresh", "Formalize publish"],
+            split_triggers=["Split if publication handoff needs separate compatibility work."],
+            source_segment_ids=["SEG-PLAN"],
+            source_semantic_event_ids=["SEMEVT-PLAN"],
+            source_refs=[{"kind": "conversation_segment", "id": "SEG-PLAN", "path": "/tmp/SEG-PLAN.json"}],
+        )
+        started = run_synapse(
+            ["session-start", "--title", "Publication candidate formalize", "--session-mode", "scope_planning", "--json", *subject_args],
+            cwd=self.repo,
+            home=self.home,
+            extra_env=self.extra_env,
+        )
+        self.assertEqual(started.returncode, 0, started.stdout + started.stderr)
+
+        refresh_synthesis_projection(subject=subject, data_root=data_root)
+        refreshed = refresh_publication_candidates(subject=subject, data_root=data_root)
+        self.assertEqual(refreshed["status"], "written")
+
+        result = run_synapse(
+            ["formalize", "--candidate-handle", "story", "--json", *subject_args],
+            cwd=self.repo,
+            home=self.home,
+            extra_env=self.extra_env,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["result"]["candidate_kind"], "STORY")
+        self.assertTrue(Path(payload["result"]["publication_receipt_path"]).exists())
+        self.assertEqual(
+            Path(payload["result"]["canonical_paths"]["PROJECT_STORY"]).resolve(),
+            canonical_project_story_path(data_root).resolve(),
+        )
+        self.assertIn(
+            "Baseline installable website system",
+            canonical_project_story_path(data_root).read_text(encoding="utf-8"),
+        )
+        summary = yaml.safe_load((data_root / ".synapse" / "MANIFOLD.yaml").read_text(encoding="utf-8"))
+        self.assertIsNone(summary.get("current_story_candidate_path"))
 
     def test_onboarding_confirm_partial_when_post_publication_compile_fails(self) -> None:
         first = self._start_onboarding()

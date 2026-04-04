@@ -550,7 +550,8 @@ def register_tools(mcp: FastMCP, state: ConnectionState) -> None:
 
     @mcp.tool(name="formalize_candidate", structured_output=True)
     def _formalize_candidate(
-        proposal_id: str,
+        proposal_id: str | None = None,
+        candidate_handle: str | None = None,
         context: ContextInput | None = None,
         dry_run: bool = False,
     ) -> dict[str, Any]:
@@ -559,6 +560,7 @@ def register_tools(mcp: FastMCP, state: ConnectionState) -> None:
                 state=state,
                 context=context,
                 proposal_id=proposal_id,
+                candidate_handle=candidate_handle,
                 dry_run=dry_run,
             )
             return _handle_mutation_result(ctx, payload, event_info, status)

@@ -492,6 +492,44 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
                 lines.append(f"  packet={item.get('path')}")
         lines.append("")
 
+    publication_story_summary = str(manifold.get("current_story_candidate_summary") or "").strip()
+    publication_vision_summary = str(manifold.get("current_vision_candidate_summary") or "").strip()
+    publication_codex_summary = str(manifold.get("current_codex_candidate_summary") or "").strip()
+    publication_story_path = str(manifold.get("current_story_candidate_path") or "").strip()
+    publication_vision_path = str(manifold.get("current_vision_candidate_path") or "").strip()
+    publication_codex_paths = [str(item) for item in list(manifold.get("current_codex_candidate_paths") or []) if str(item).strip()]
+    publication_refresh = str(manifold.get("current_publication_candidate_refreshed_at") or "").strip()
+    if any(
+        [
+            publication_story_summary,
+            publication_vision_summary,
+            publication_codex_summary,
+            publication_story_path,
+            publication_vision_path,
+            publication_codex_paths,
+        ]
+    ):
+        lines.append("## Publication candidates")
+        lines.append(f"- Last publication candidate refresh: {publication_refresh or 'none'}")
+        if publication_story_path:
+            lines.append(f"- Story candidate: {publication_story_summary or 'pending'}")
+            lines.append(f"  path={publication_story_path}")
+        else:
+            lines.append("- Story candidate: none")
+        if publication_vision_path:
+            lines.append(f"- Vision candidate: {publication_vision_summary or 'pending'}")
+            lines.append(f"  path={publication_vision_path}")
+        else:
+            lines.append("- Vision candidate: none")
+        if publication_codex_paths:
+            lines.append(f"- Codex candidate: {publication_codex_summary or 'pending'}")
+            for path in publication_codex_paths:
+                lines.append(f"  path={path}")
+        else:
+            lines.append("- Codex candidate: none")
+        lines.append("- Review / publish path: formalize --candidate-handle {story|vision|codex}")
+        lines.append("")
+
     semantic_sections = [
         ("Ideas", manifold.get("recent_idea_details") or []),
         ("Constraints", manifold.get("recent_constraint_details") or []),

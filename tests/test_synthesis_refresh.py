@@ -12,8 +12,16 @@ if str(RUNTIME_ROOT) not in sys.path:
     sys.path.insert(0, str(RUNTIME_ROOT))
 
 from synapse_runtime.promotion_engine import promote_semantic_events
+from synapse_runtime.publication_candidates import refresh_publication_candidates
 from synapse_runtime.quest_plans import persist_execution_plan
 from synapse_runtime.rehydrate_renderer import render_rehydrate
+from synapse_runtime.repo_onboarding import (
+    canonical_codex_current_path,
+    canonical_codex_future_path,
+    canonical_project_model_path,
+    canonical_project_story_path,
+    canonical_vision_path,
+)
 from synapse_runtime.sidecar_projection import refresh_synthesis_projection
 from synapse_runtime.sidecar_store import ensure_live_scaffold
 from synapse_runtime.subject_bootstrap import initialize_subject_state
@@ -110,6 +118,37 @@ class SynthesisRefreshTests(unittest.TestCase):
         self.assertIn("Ship the installable web app foundation.", rendered)
         self.assertIn("Scope the installable web app around separate user accounts.", rendered)
         self.assertIn("The product becomes a reusable website business system.", rendered)
+
+        canonical_project_model_path(self.data_root).write_text(
+            yaml.safe_dump(
+                {
+                    "project_identity": "Baseline installable website system",
+                    "purpose": "Help operators ship installable client websites cleanly.",
+                    "vision": "Become the reusable baseline for installable customer-facing web systems.",
+                    "confirmed_at": "2026-04-04T10:00:00-04:00",
+                    "implemented_truths": [{"summary": "The repo already tracks governed continuity."}],
+                    "partial_truths": [],
+                    "intended_capabilities": [],
+                    "future_ideas_needing_expansion": [],
+                    "superseded_directions": [],
+                    "constraints": [],
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+        canonical_project_story_path(self.data_root).write_text("# Project Story\n\nBaseline story.\n", encoding="utf-8")
+        canonical_vision_path(self.data_root).write_text("# Vision\n\nBaseline vision.\n", encoding="utf-8")
+        canonical_codex_current_path(self.data_root).write_text("# Current Codex\n\nBaseline current codex.\n", encoding="utf-8")
+        canonical_codex_future_path(self.data_root).write_text("# Future Codex\n\nBaseline future codex.\n", encoding="utf-8")
+        refresh_publication_candidates(subject=self.subject, data_root=self.data_root)
+        render_rehydrate(subject=self.subject, data_root=self.data_root)
+        rendered = (self.data_root / ".synapse" / "REHYDRATE.md").read_text(encoding="utf-8")
+        self.assertIn("## Publication candidates", rendered)
+        self.assertIn("Story candidate:", rendered)
+        self.assertIn("Vision candidate:", rendered)
+        self.assertIn("Codex candidate:", rendered)
+        self.assertIn("formalize --candidate-handle {story|vision|codex}", rendered)
 
 
 if __name__ == "__main__":

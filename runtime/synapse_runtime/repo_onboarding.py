@@ -11,6 +11,7 @@ import yaml
 
 from synapse_runtime.accepted_execution_view import load_accepted_quest_details, select_current_accepted_quest
 from synapse_runtime.governance_model import AmbientSignal, PromotionRecord, ProposalKind, ProposalState
+from synapse_runtime.lineage_store import build_lineage_edge, persist_lineage_edges
 from synapse_runtime.live_memory_common import LiveMemoryError, _slugify
 from synapse_runtime.project_model import (
     ProjectModelError,
@@ -1306,6 +1307,139 @@ def onboarding_confirm(
         "compiled_at": receipt["compiled_at"] or None,
         "truth_compile": compile_result,
         "compile_error_message": compile_error_message,
+    }
+
+
+def publish_publication_candidate(
+    *,
+    subject: str,
+    data_root: Path,
+    active_run: dict[str, Any],
+    candidate_handle: str,
+) -> dict[str, Any]:
+    from synapse_runtime.publication_candidates import (
+        PublicationCandidateError,
+        clear_current_publication_candidate,
+        load_publication_candidate_body,
+        resolve_publication_candidate,
+    )
+
+    try:
+        candidate = resolve_publication_candidate(data_root, candidate_handle)
+    except PublicationCandidateError as exc:
+        raise RepoOnboardingError(str(exc)) from exc
+
+    candidate_kind = str(candidate.get("candidate_kind") or "").strip().upper()
+    if not candidate_kind:
+        raise RepoOnboardingError("Publication candidate is missing candidate_kind.")
+
+    model = dict(candidate.get("candidate_model") or {})
+    if not model:
+        raise RepoOnboardingError("Publication candidate is missing candidate_model required for canonical publication.")
+
+    published_at = _now_iso()
+    published_by = str(active_run.get("session_id") or "").strip() or "unknown_session"
+    publication_id = _opaque_id("PUBLICATION")
+    archive_receipt = publication_receipt_path(data_root, publication_id)
+    archive_paths: dict[str, str] = {}
+    canonical_paths: dict[str, str] = {}
+    lineage_edges: list[dict[str, Any]] = []
+
+    def _record_publication(*, archive_path: Path, canonical_path: Path, body: str, canonical_key: str) -> None:
+        archive_path.parent.mkdir(parents=True, exist_ok=True)
+        archive_path.write_text(body, encoding="utf-8")
+        _atomic_publish_copy(archive_path, canonical_path)
+        archive_paths[canonical_key] = str(archive_path.resolve())
+        canonical_paths[canonical_key] = str(canonical_path.resolve())
+        lineage_edges.append(
+            build_lineage_edge(
+                subject=subject,
+                recorded_at=published_at,
+                source_kind="publication_candidate",
+                source_id=str(candidate.get("revision_id") or ""),
+                target_kind="canonical_publication",
+                target_id=canonical_key,
+                relation="published_as",
+                metadata={
+                    "candidate_kind": candidate_kind,
+                    "candidate_handle": candidate_handle,
+                    "candidate_body_path": str(candidate.get("body_path") or ""),
+                    "candidate_manifest_path": str(candidate.get("path") or ""),
+                    "archive_path": str(archive_path.resolve()),
+                    "canonical_path": str(canonical_path.resolve()),
+                    "publication_id": publication_id,
+                },
+            ).to_dict()
+        )
+
+    if candidate_kind == "STORY":
+        _record_publication(
+            archive_path=archived_project_story_path(data_root, publication_id),
+            canonical_path=canonical_project_story_path(data_root),
+            body=render_project_story(model),
+            canonical_key="PROJECT_STORY",
+        )
+    elif candidate_kind == "VISION":
+        _record_publication(
+            archive_path=archived_vision_path(data_root, publication_id),
+            canonical_path=canonical_vision_path(data_root),
+            body=render_published_vision(model),
+            canonical_key="VISION",
+        )
+    elif candidate_kind == "CODEX":
+        _record_publication(
+            archive_path=archived_codex_current_path(data_root, publication_id),
+            canonical_path=canonical_codex_current_path(data_root),
+            body=render_published_codex_current(model),
+            canonical_key="CODEX_CURRENT",
+        )
+        _record_publication(
+            archive_path=archived_codex_future_path(data_root, publication_id),
+            canonical_path=canonical_codex_future_path(data_root),
+            body=render_published_codex_future(model),
+            canonical_key="CODEX_FUTURE",
+        )
+    else:
+        raise RepoOnboardingError(f"Unsupported publication candidate kind: {candidate_kind}")
+
+    receipt = {
+        "publication_id": publication_id,
+        "publication_source": "publication_candidate",
+        "candidate_handle": candidate_handle,
+        "candidate_kind": candidate_kind,
+        "candidate_family_id": candidate.get("candidate_family_id"),
+        "candidate_revision_id": candidate.get("revision_id"),
+        "candidate_body_path": candidate.get("body_path"),
+        "candidate_manifest_path": candidate.get("path"),
+        "candidate_summary": candidate.get("summary"),
+        "published_at": published_at,
+        "published_by": published_by,
+        "archive_paths": archive_paths,
+        "canonical_paths": canonical_paths,
+        "baseline_refs": list(candidate.get("baseline_refs") or []),
+        "source_refs": list(candidate.get("source_refs") or []),
+    }
+    archive_receipt.parent.mkdir(parents=True, exist_ok=True)
+    _write_publication_receipt(archive_receipt, receipt)
+    persisted_edges = persist_lineage_edges(data_root, lineage_edges)
+    receipt["lineage_edges"] = [dict(item) for item in persisted_edges]
+    _write_publication_receipt(archive_receipt, receipt)
+    clear_current_publication_candidate(
+        data_root,
+        candidate_kind,
+        expected_revision_id=str(candidate.get("revision_id") or ""),
+    )
+    return {
+        "publication_id": publication_id,
+        "candidate_handle": candidate_handle,
+        "candidate_kind": candidate_kind,
+        "candidate_revision_id": candidate.get("revision_id"),
+        "candidate_body_path": candidate.get("body_path"),
+        "candidate_body_text": load_publication_candidate_body(candidate),
+        "publication_receipt_path": str(archive_receipt.resolve()),
+        "archive_paths": archive_paths,
+        "canonical_paths": canonical_paths,
+        "lineage_edges": persisted_edges,
     }
 
 

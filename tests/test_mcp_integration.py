@@ -703,6 +703,124 @@ class McpIntegrationTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(publication_candidates_payload["current_story_candidate_path"])
             self.assertTrue(publication_candidates_payload["current_vision_candidate_path"])
             self.assertTrue(publication_candidates_payload["current_codex_candidate_paths"])
+            resources = await session.list_resources()
+            uris = {str(item.uri) for item in resources.resources}
+            self.assertIn("synapse://current/publication-candidates/story.md", uris)
+            self.assertIn("synapse://current/publication-candidates/vision.md", uris)
+            self.assertIn("synapse://current/publication-candidates/codex.md", uris)
+            self.assertIn("# Project Story Candidate", await self._read_text_resource(session, "synapse://current/publication-candidates/story.md"))
+            self.assertIn("# Vision Candidate", await self._read_text_resource(session, "synapse://current/publication-candidates/vision.md"))
+            self.assertIn("# Codex Candidate", await self._read_text_resource(session, "synapse://current/publication-candidates/codex.md"))
+
+    async def test_formalize_candidate_tool_publishes_story_candidate_via_candidate_handle(self) -> None:
+        workspace = self._make_workspace("mcp-formalize-publication-candidate")
+        subject = "PublicationFormalizeSubject"
+        data_root = self.root / f"{subject}_Data"
+        initialize_subject_state(subject, data_root, workspace)
+        ensure_live_scaffold(subject, data_root)
+        async with self._session(workspace) as session:
+            bootstrap = await self._call(
+                session,
+                "bootstrap_session",
+                {
+                    "title": "Formalize publication candidate",
+                    "session_mode": "scope_planning",
+                    "adopt_current_repo": False,
+                    "context": {
+                        "subject": subject,
+                        "engine_root": str(workspace),
+                        "data_root": str(data_root),
+                    },
+                },
+            )
+            self.assertEqual(bootstrap["status"], "ok")
+            subject_context = bootstrap["subject_context"]
+            data_root = Path(subject_context["data_root"])
+
+            canonical_project_model_path(data_root).write_text(
+                yaml.safe_dump(
+                    {
+                        "project_identity": "Baseline installable website system",
+                        "purpose": "Help operators ship installable client websites cleanly.",
+                        "vision": "Become the reusable baseline for installable customer-facing web systems.",
+                        "confirmed_at": "2026-04-04T10:00:00-04:00",
+                        "implemented_truths": [{"summary": "The repo already tracks governed continuity."}],
+                        "partial_truths": [],
+                        "intended_capabilities": [],
+                        "future_ideas_needing_expansion": [],
+                        "superseded_directions": [],
+                        "constraints": [],
+                    },
+                    sort_keys=False,
+                ),
+                encoding="utf-8",
+            )
+            canonical_project_story_path(data_root).write_text("# Project Story\n\nBaseline story.\n", encoding="utf-8")
+            canonical_vision_path(data_root).write_text("# Vision\n\nBaseline vision.\n", encoding="utf-8")
+            canonical_codex_current_path(data_root).write_text("# Current Codex\n\nBaseline current codex.\n", encoding="utf-8")
+            canonical_codex_future_path(data_root).write_text("# Future Codex\n\nBaseline future codex.\n", encoding="utf-8")
+
+            persist_execution_plan(
+                subject=subject,
+                data_root=data_root,
+                title="Publication candidate publish path",
+                summary="Refresh then publish a publication candidate canonically.",
+                origin="test-mcp-formalize-publication-candidate",
+                objective="Verify formalize_candidate can publish a story candidate through the canonical owner.",
+                coherent_outcome="Canonical story updates while pending publication candidate state clears.",
+                closure_statement="Story publish happens without bypassing repo_onboarding.py.",
+                out_of_scope="Automatic canonical publication.",
+                dependencies=["Continuity synthesis"],
+                risk="R1",
+                verification_plan="Refresh publication candidates and formalize the story candidate handle.",
+                milestones=["Candidate refresh", "Story publish"],
+                split_triggers=["Split if publication handoff needs separate compatibility work."],
+                source_segment_ids=["SEG-PLAN"],
+                source_semantic_event_ids=["SEMEVT-PLAN"],
+                source_refs=[{"kind": "conversation_segment", "id": "SEG-PLAN", "path": "/tmp/SEG-PLAN.json"}],
+            )
+            promote_semantic_events(
+                subject=subject,
+                data_root=data_root,
+                semantic_events=[
+                    {
+                        "semantic_event_id": "SEMEVT-VISION",
+                        "schema_version": 1,
+                        "classifier_version": "v1-phase3",
+                        "recorded_at": "2026-04-04T12:00:00-04:00",
+                        "subject": subject,
+                        "class_label": "project.vision",
+                        "topic_key": "project.vision",
+                        "confidence_band": "high",
+                        "materiality_band": "high",
+                        "summary": "The product becomes a reusable website business system.",
+                        "transient_noise": False,
+                        "imported_limited": False,
+                        "source_segment_ids": ["SEG-VISION"],
+                        "source_refs": [{"kind": "conversation_segment", "id": "SEG-VISION", "path": "/tmp/SEG-VISION.json"}],
+                        "related_paths": [],
+                    }
+                ],
+            )
+
+            refreshed = await self._call(session, "refresh_publication_candidates")
+            self.assertEqual(refreshed["status"], "ok")
+            self.assertTrue(refreshed["data"]["current_context"]["publication_candidates"]["current_story_candidate_path"])
+
+            dry_run = await self._call(session, "formalize_candidate", {"candidate_handle": "story", "dry_run": True})
+            self.assertEqual(dry_run["status"], "ok")
+            self.assertEqual(dry_run["data"]["publication_candidate"]["candidate_kind"], "STORY")
+
+            formalized = await self._call(session, "formalize_candidate", {"candidate_handle": "story"})
+            self.assertEqual(formalized["status"], "ok")
+            self.assertEqual(formalized["data"]["result"]["candidate_kind"], "STORY")
+            self.assertTrue(Path(formalized["data"]["result"]["publication_receipt_path"]).exists())
+            self.assertIn(
+                "Baseline installable website system",
+                canonical_project_story_path(data_root).read_text(encoding="utf-8"),
+            )
+            after = await self._call(session, "get_current_context")
+            self.assertIsNone(after["data"]["context"]["publication_candidates"]["current_story_candidate_path"])
 
     async def test_explicit_context_override_does_not_mutate_defaults(self) -> None:
         workspace = self._make_workspace("mcp-default-a")

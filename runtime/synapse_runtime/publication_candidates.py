@@ -13,6 +13,8 @@ from synapse_runtime.kernel_types import stable_kernel_id
 from synapse_runtime.project_model import (
     render_draft_codex_current,
     render_draft_codex_future,
+    render_published_codex_current,
+    render_published_codex_future,
     render_project_story,
     render_published_vision,
 )
@@ -395,13 +397,22 @@ def _codex_summary(packets: list[dict[str, Any]], model: dict[str, Any]) -> str:
 
 
 def _candidate_signature(kind: str, source_refs: list[dict[str, Any]], baseline_refs: list[dict[str, Any]]) -> str:
+    def _signature_entry(item: dict[str, Any]) -> str:
+        return "|".join(
+            [
+                str(item.get("kind") or ""),
+                str(item.get("baseline_kind") or ""),
+                str(item.get("section_key") or ""),
+                str(item.get("id") or ""),
+                str(item.get("path") or item.get("body_path") or ""),
+                str(item.get("confirmed_at") or ""),
+            ]
+        )
+
     return stable_kernel_id(
         "PUBSIG",
         _normalize_kind(kind),
-        *(
-            f"{item.get('kind')}|{item.get('id')}|{item.get('path') or item.get('body_path')}"
-            for item in _normalize_refs(list(source_refs) + list(baseline_refs))
-        ),
+        *(_signature_entry(item) for item in _normalize_refs(list(source_refs) + list(baseline_refs))),
     )
 
 
@@ -683,6 +694,73 @@ def _write_story_or_vision_candidate(
     path.write_text(_frontmatter_text(manifest, body), encoding="utf-8")
 
 
+def _canonical_targets(data_root: Path, kind: str, model: dict[str, Any]) -> list[tuple[Path, str]]:
+    normalized = _normalize_kind(kind)
+    if normalized == STORY_KIND:
+        return [(canonical_project_story_path(data_root), render_project_story(model))]
+    if normalized == VISION_KIND:
+        return [(canonical_vision_path(data_root), render_published_vision(model))]
+    return [
+        (canonical_codex_current_path(data_root), render_published_codex_current(model)),
+        (canonical_codex_future_path(data_root), render_published_codex_future(model)),
+    ]
+
+
+def _already_canonical(data_root: Path, kind: str, model: dict[str, Any]) -> bool:
+    targets = _canonical_targets(data_root, kind, model)
+    return bool(targets) and all(path.exists() and path.read_text(encoding="utf-8") == text for path, text in targets)
+
+
+def load_publication_candidate_body(candidate: dict[str, Any]) -> str:
+    body_path = str(candidate.get("body_path") or "").strip()
+    if not body_path:
+        raise PublicationCandidateError("Publication candidate is missing body_path.")
+    path = Path(body_path)
+    if not path.exists():
+        raise PublicationCandidateError(f"Publication candidate body is missing: {path}")
+    if str(candidate.get("candidate_kind") or "").strip().upper() == CODEX_KIND:
+        return path.read_text(encoding="utf-8")
+    _, body = _split_frontmatter(path.read_text(encoding="utf-8"))
+    return body
+
+
+def resolve_publication_candidate(data_root: Path, handle: str) -> dict[str, Any]:
+    token = str(handle or "").strip()
+    if not token:
+        raise PublicationCandidateError("Publication candidate handle is required.")
+    normalized = token.replace("-", "_").replace(" ", "_").upper()
+    if normalized.startswith("CURRENT:"):
+        normalized = normalized.split(":", 1)[1]
+    if normalized in PUBLICATION_CANDIDATE_KINDS:
+        candidate = load_current_publication_candidate(data_root, normalized)
+        if candidate is None:
+            raise PublicationCandidateError(f"No current publication candidate exists for {normalized}.")
+        return candidate
+    matches = [
+        item
+        for item in list_publication_candidate_revisions(data_root)
+        if str(item.get("revision_id") or "").strip() == token or str(item.get("candidate_family_id") or "").strip() == token
+    ]
+    if not matches:
+        raise PublicationCandidateError(f"Publication candidate not found: {token}")
+    matches.sort(key=lambda item: int(item.get("revision_number") or 0))
+    return matches[-1]
+
+
+def clear_current_publication_candidate(data_root: Path, kind: str, *, expected_revision_id: str | None = None) -> Path:
+    normalized = _normalize_kind(kind)
+    index = _load_index(data_root)
+    current = dict(index.get("current") or {})
+    entry = dict(current.get(normalized) or {})
+    if not entry:
+        return publication_candidate_index_path(data_root)
+    if expected_revision_id and str(entry.get("revision_id") or "").strip() != str(expected_revision_id).strip():
+        return publication_candidate_index_path(data_root)
+    current.pop(normalized, None)
+    index["current"] = current
+    return _write_index(data_root, index)
+
+
 def refresh_publication_candidates(
     *,
     subject: str,
@@ -713,6 +791,11 @@ def refresh_publication_candidates(
 
         if not source_refs:
             results.append({"candidate_kind": kind, "status": "noop", "reason": "no_material_sources"})
+            continue
+
+        if _already_canonical(data_root, kind, model):
+            current.pop(kind, None)
+            results.append({"candidate_kind": kind, "status": "noop", "reason": "already_canonical"})
             continue
 
         source_signature = _candidate_signature(kind, source_refs, baseline_refs)
@@ -751,6 +834,7 @@ def refresh_publication_candidates(
             "source_signature": source_signature,
             "source_refs": source_refs,
             "baseline_refs": baseline_refs,
+            "candidate_model": model,
         }
 
         if kind == STORY_KIND:

@@ -73,6 +73,7 @@ from synapse_runtime.repo_onboarding import (
     onboarding_respond,
     onboarding_status_payload,
     onboarding_update,
+    publish_publication_candidate,
 )
 from synapse_runtime.quest_candidates import list_proposals, mark_proposal_state
 from synapse_runtime.reducer import ReducerError, reduce_after_event, reducer_mode
@@ -131,6 +132,7 @@ from synapse_runtime.quest_board import (
 from synapse_runtime.publication_candidates import (
     PublicationCandidateError,
     refresh_publication_candidates,
+    resolve_publication_candidate,
 )
 from synapse_runtime.quest_plans import persist_execution_plan
 from synapse_runtime.subject_resolver import (
@@ -643,6 +645,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     formalize_parser = subparsers.add_parser("formalize", help="Formalize ambient proposals into canonical artifacts")
     formalize_parser.add_argument("--proposal-id", help="Proposal id to formalize")
+    formalize_parser.add_argument(
+        "--candidate-handle",
+        help="Publication candidate handle to publish canonically (story, vision, codex, or a candidate revision/family id)",
+    )
     formalize_parser.add_argument(
         "--kind",
         choices=[kind.value for kind in ProposalKind],
@@ -3484,7 +3490,7 @@ def cmd_live_bootstrap(args: argparse.Namespace) -> int:
                 result["rehydrate"] = event_info["reducer"]["rehydrate"]
             if event_info["reducer"].get("continuity") is not None:
                 result["continuity"] = event_info["reducer"]["continuity"]
-    except LiveMemoryError as exc:
+    except (LiveMemoryError, PublicationCandidateError) as exc:
         print(f"FAIL: {exc}")
         return 2
 
@@ -6466,10 +6472,23 @@ def _formalize_disclosure(ctx: dict[str, Any], proposal: dict[str, Any]) -> dict
 
 def _formalize_candidate_dry_run(
     ctx: dict[str, Any],
-    proposal_id: str,
+    proposal_id: str | None = None,
     *,
+    candidate_handle: str | None = None,
     topic: str | None = None,
 ) -> dict[str, Any]:
+    if candidate_handle:
+        candidate = resolve_publication_candidate(Path(ctx["data_root"]), candidate_handle)
+        return {
+            "subject": ctx,
+            "candidate_handle": candidate_handle,
+            "publication_candidate": candidate,
+            "would_formalize_as": f"canonical_{str(candidate.get('candidate_kind') or '').lower()}",
+            "topic": topic,
+            "dry_run": True,
+        }
+    if not proposal_id:
+        raise LiveMemoryError("formalize requires --proposal-id or --candidate-handle.")
     proposal = _proposal_by_id(Path(ctx["data_root"]), proposal_id)
     kind = ProposalKind(str(proposal.get("kind")))
     return {
@@ -6483,16 +6502,75 @@ def _formalize_candidate_dry_run(
 
 def _formalize_candidate_mutation(
     ctx: dict[str, Any],
-    proposal_id: str,
+    proposal_id: str | None = None,
     *,
+    candidate_handle: str | None = None,
     topic: str | None = None,
     active_run: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     data_root = Path(ctx["data_root"])
-    proposal = _proposal_by_id(data_root, proposal_id)
-    kind = ProposalKind(str(proposal.get("kind")))
     active_run = active_run or _active_session_policy(ctx)[0]
     session_id = _effective_session_id(ctx, active_run=active_run)
+
+    if candidate_handle:
+        result = publish_publication_candidate(
+            subject=ctx["subject"],
+            data_root=data_root,
+            active_run=active_run,
+            candidate_handle=candidate_handle,
+        )
+        changed_files = [
+            str(path)
+            for path in [
+                result.get("publication_receipt_path"),
+                *list(dict(result.get("archive_paths") or {}).values()),
+                *list(dict(result.get("canonical_paths") or {}).values()),
+            ]
+            if path
+        ]
+        event_info = _event_pipeline(
+            ctx=ctx,
+            action_name="formalize",
+            summary=f"Published publication candidate {candidate_handle} as canonical {result.get('candidate_kind')}.",
+            session_id=session_id,
+            signals={
+                "publication_candidate_handle": candidate_handle,
+                "publication_candidate_kind": result.get("candidate_kind"),
+                "changed_files": changed_files,
+                "verification_entries": [],
+                "accepted_context": _accepted_context_snapshot(data_root),
+                **session_mode_signal_fields(active_run),
+            },
+            truth_flags={
+                "canon_mutated": True,
+                "derived_state_changed": True,
+                "governed": False,
+                "uncertainty_present": False,
+            },
+            outputs={
+                "publication_candidate_handle": candidate_handle,
+                "candidate_kind": result.get("candidate_kind"),
+                "publication_receipt_path": result.get("publication_receipt_path"),
+                "canonical_paths": result.get("canonical_paths"),
+            },
+        )
+        return {
+            "subject": ctx,
+            "result": result,
+            "proposal": None,
+            "proposal_kind": None,
+            "candidate_handle": candidate_handle,
+            "candidate_kind": result.get("candidate_kind"),
+            "event": event_info["event"],
+            "reducer": event_info["reducer"],
+            "rehydrate": event_info["reducer"]["rehydrate"],
+            "continuity": event_info["reducer"]["continuity"],
+        }
+
+    if not proposal_id:
+        raise LiveMemoryError("formalize requires --proposal-id or --candidate-handle.")
+    proposal = _proposal_by_id(data_root, proposal_id)
+    kind = ProposalKind(str(proposal.get("kind")))
 
     if kind == ProposalKind.SNAPSHOT:
         result = _formalize_snapshot(ctx, proposal, control_sync=False)
@@ -6559,10 +6637,13 @@ def cmd_formalize(args: argparse.Namespace) -> int:
     if not ctx:
         return 2
     data_root = Path(ctx["data_root"])
+    if args.proposal_id and args.candidate_handle:
+        print("FAIL: formalize accepts either --proposal-id or --candidate-handle, not both.")
+        return 2
     kind_filter = ProposalKind(args.kind) if args.kind else None
     state_filter = ProposalState(args.state) if args.state else None
 
-    if args.list or not args.proposal_id:
+    if args.list or (not args.proposal_id and not args.candidate_handle):
         proposals = list_proposals(data_root=data_root, kind=kind_filter, state=state_filter)
         if args.json:
             print(json.dumps({"subject": ctx, "proposals": proposals}, indent=2, sort_keys=True))
@@ -6577,14 +6658,26 @@ def cmd_formalize(args: argparse.Namespace) -> int:
 
     try:
         if args.dry_run:
-            payload = _formalize_candidate_dry_run(ctx, args.proposal_id, topic=args.topic)
+            payload = _formalize_candidate_dry_run(
+                ctx,
+                args.proposal_id,
+                candidate_handle=args.candidate_handle,
+                topic=args.topic,
+            )
             if args.json:
                 print(json.dumps(payload, indent=2, sort_keys=True))
             else:
                 print("=== FORMALIZE DRY RUN ===")
-                print(f"proposal_id: {payload['proposal'].get('proposal_id')}")
-                print(f"kind: {payload.get('would_formalize_as')}")
-                print(f"title: {payload['proposal'].get('title')}")
+                if payload.get("proposal"):
+                    print(f"proposal_id: {payload['proposal'].get('proposal_id')}")
+                    print(f"kind: {payload.get('would_formalize_as')}")
+                    print(f"title: {payload['proposal'].get('title')}")
+                else:
+                    candidate = dict(payload.get("publication_candidate") or {})
+                    print(f"candidate_handle: {payload.get('candidate_handle')}")
+                    print(f"kind: {payload.get('would_formalize_as')}")
+                    print(f"revision_id: {candidate.get('revision_id')}")
+                    print(f"summary: {candidate.get('summary')}")
             return 0
         active_run, session_policy = _active_session_policy(ctx)
         if session_policy is not None and not session_policy.manual_formalize_allowed:
@@ -6593,7 +6686,13 @@ def cmd_formalize(args: argparse.Namespace) -> int:
                 active_run=active_run,
                 json_mode=args.json,
             )
-        payload = _formalize_candidate_mutation(ctx, args.proposal_id, topic=args.topic, active_run=active_run)
+        payload = _formalize_candidate_mutation(
+            ctx,
+            args.proposal_id,
+            candidate_handle=args.candidate_handle,
+            topic=args.topic,
+            active_run=active_run,
+        )
         event_info = {"event": payload["event"], "reducer": payload["reducer"]}
     except LiveMemoryError as exc:
         print(f"FAIL: {exc}")
@@ -6601,8 +6700,14 @@ def cmd_formalize(args: argparse.Namespace) -> int:
 
     def _emit_formalize(rendered_payload: dict[str, Any]) -> None:
         print("=== FORMALIZATION RECEIPT ===")
-        print(f"proposal_id: {args.proposal_id}")
-        print(f"artifact_path: {rendered_payload['result'].get('artifact_path')}")
+        if args.proposal_id:
+            print(f"proposal_id: {args.proposal_id}")
+            print(f"artifact_path: {rendered_payload['result'].get('artifact_path')}")
+            return
+        print(f"candidate_handle: {args.candidate_handle}")
+        print(f"candidate_kind: {rendered_payload['result'].get('candidate_kind')}")
+        print(f"publication_receipt_path: {rendered_payload['result'].get('publication_receipt_path')}")
+        print(f"canonical_paths: {rendered_payload['result'].get('canonical_paths')}")
 
     return _finalize_mutation_result(
         payload=payload,

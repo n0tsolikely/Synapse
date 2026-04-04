@@ -137,12 +137,18 @@ class CurrentContextProjectionTests(unittest.TestCase):
         self.assertIn("synapse://current/draftshot-state.json", resources)
         self.assertIn("synapse://current/snapshot-candidates.json", resources)
         self.assertIn("synapse://current/publication-candidates.json", resources)
+        self.assertIn("synapse://current/publication-candidates/story.md", resources)
+        self.assertIn("synapse://current/publication-candidates/vision.md", resources)
+        self.assertIn("synapse://current/publication-candidates/codex.md", resources)
 
         _, synthesis_text, _ = read_resource(state=self.state, uri="synapse://current/synthesis-summary.json")
         _, packets_text, _ = read_resource(state=self.state, uri="synapse://current/codex-packets.json")
         _, draftshot_text, _ = read_resource(state=self.state, uri="synapse://current/draftshot-state.json")
         _, snapshot_candidates_text, _ = read_resource(state=self.state, uri="synapse://current/snapshot-candidates.json")
         _, publication_candidates_text, _ = read_resource(state=self.state, uri="synapse://current/publication-candidates.json")
+        _, story_candidate_text, _ = read_resource(state=self.state, uri="synapse://current/publication-candidates/story.md")
+        _, vision_candidate_text, _ = read_resource(state=self.state, uri="synapse://current/publication-candidates/vision.md")
+        _, codex_candidate_text, _ = read_resource(state=self.state, uri="synapse://current/publication-candidates/codex.md")
         synthesis_payload = json.loads(synthesis_text)
         packets_payload = json.loads(packets_text)
         draftshot_payload = json.loads(draftshot_text)
@@ -157,6 +163,9 @@ class CurrentContextProjectionTests(unittest.TestCase):
         self.assertTrue(publication_candidates_payload["current_story_candidate_path"])
         self.assertTrue(publication_candidates_payload["current_vision_candidate_path"])
         self.assertTrue(publication_candidates_payload["current_codex_candidate_paths"])
+        self.assertIn("# Project Story Candidate", story_candidate_text)
+        self.assertIn("# Vision Candidate", vision_candidate_text)
+        self.assertIn("# Codex Candidate", codex_candidate_text)
 
 
 if __name__ == "__main__":

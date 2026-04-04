@@ -214,8 +214,15 @@ class FormalizeCandidateInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     context: ContextInput | None = None
-    proposal_id: str
+    proposal_id: str | None = None
+    candidate_handle: str | None = None
     dry_run: bool = False
+
+    @model_validator(mode="after")
+    def validate_one_of(self) -> "FormalizeCandidateInput":
+        if bool(self.proposal_id) == bool(self.candidate_handle):
+            raise ValueError("Provide exactly one of proposal_id or candidate_handle.")
+        return self
 
 
 class AcceptQuestInput(BaseModel):

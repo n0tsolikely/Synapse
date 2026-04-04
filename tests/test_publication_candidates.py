@@ -12,7 +12,7 @@ if str(RUNTIME_ROOT) not in sys.path:
     sys.path.insert(0, str(RUNTIME_ROOT))
 
 from synapse_runtime.promotion_engine import promote_semantic_events
-from synapse_runtime.publication_candidates import refresh_publication_candidates
+from synapse_runtime.publication_candidates import refresh_publication_candidates, resolve_publication_candidate
 from synapse_runtime.quest_plans import persist_execution_plan
 from synapse_runtime.repo_onboarding import (
     canonical_codex_current_path,
@@ -20,6 +20,7 @@ from synapse_runtime.repo_onboarding import (
     canonical_project_model_path,
     canonical_project_story_path,
     canonical_vision_path,
+    publish_publication_candidate,
 )
 from synapse_runtime.sidecar_projection import refresh_synthesis_projection
 from synapse_runtime.sidecar_store import ensure_live_scaffold
@@ -179,6 +180,58 @@ class PublicationCandidateTests(unittest.TestCase):
         self.assertEqual(first["status"], "written")
         self.assertEqual(second["status"], "noop")
         self.assertTrue(all(item["reason"] == "unchanged_source_signature" for item in second["candidates"]))
+
+    def test_publish_publication_candidate_clears_pending_state_and_prevents_immediate_redraft(self) -> None:
+        promote_semantic_events(
+            subject=self.subject,
+            data_root=self.data_root,
+            semantic_events=[self._event("SEMEVT-VISION", "project.vision", "The product becomes a reusable website business system.")],
+        )
+        persist_execution_plan(
+            subject=self.subject,
+            data_root=self.data_root,
+            title="Publication candidate publish path",
+            summary="Refresh then publish a publication candidate canonically.",
+            origin="test",
+            objective="Verify owner-gated publication clears pending state without re-drafting immediately.",
+            coherent_outcome="Publishing a candidate updates canon and resolves the pending candidate.",
+            closure_statement="Canon updates while pending candidate state clears cleanly.",
+            out_of_scope="Onboarding confirmation.",
+            dependencies=["Continuity synthesis"],
+            risk="R1",
+            verification_plan="Refresh candidates, publish story, then refresh again.",
+            milestones=["Candidate refresh", "Canonical publish", "No-op refresh after publish"],
+            split_triggers=["Split if publication handoff needs owner-boundary hardening."],
+            source_segment_ids=["SEG-PLAN"],
+            source_semantic_event_ids=["SEMEVT-PLAN"],
+            source_refs=[{"kind": "conversation_segment", "id": "SEG-PLAN", "path": "/tmp/SEG-PLAN.json"}],
+        )
+        refresh_synthesis_projection(subject=self.subject, data_root=self.data_root)
+
+        first = refresh_publication_candidates(subject=self.subject, data_root=self.data_root)
+        self.assertEqual(first["status"], "written")
+        story_candidate = resolve_publication_candidate(self.data_root, "story")
+        published = publish_publication_candidate(
+            subject=self.subject,
+            data_root=self.data_root,
+            active_run={"session_id": "SESSION-PUBLISH-001", "run_id": "RUN-PUBLISH-001"},
+            candidate_handle="story",
+        )
+
+        self.assertEqual(published["candidate_kind"], "STORY")
+        self.assertTrue(Path(published["publication_receipt_path"]).exists())
+        self.assertTrue(published["canonical_paths"]["PROJECT_STORY"])
+        self.assertNotEqual(
+            canonical_project_story_path(self.data_root).read_text(encoding="utf-8"),
+            "# Project Story\n\nBaseline story.\n",
+        )
+        self.assertIn("Baseline installable website system", canonical_project_story_path(self.data_root).read_text(encoding="utf-8"))
+
+        second = refresh_publication_candidates(subject=self.subject, data_root=self.data_root, candidate_kinds=["story"])
+        self.assertEqual(second["status"], "noop")
+        self.assertEqual(second["candidates"][0]["reason"], "already_canonical")
+        self.assertIsNone(second["summary"]["current_story_candidate_path"])
+        self.assertEqual(story_candidate["revision_id"], published["candidate_revision_id"])
 
 
 if __name__ == "__main__":

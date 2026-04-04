@@ -20,7 +20,12 @@ from synapse_runtime.draftshots import draftshot_summary, refresh_draftshot
 from synapse_runtime.live_journal import log_decision, log_disclosure
 from synapse_runtime.live_memory_common import LiveMemoryError
 from synapse_runtime.project_model import ProjectModelError
-from synapse_runtime.publication_candidates import publication_candidate_summary, refresh_publication_candidates
+from synapse_runtime.publication_candidates import (
+    load_publication_candidate_body,
+    publication_candidate_summary,
+    refresh_publication_candidates,
+    resolve_publication_candidate,
+)
 from synapse_runtime.quest_acceptance import QuestAcceptanceError
 from synapse_runtime.quest_candidates import list_proposals, mark_proposal_state
 from synapse_runtime.reducer import ReducerError
@@ -600,6 +605,13 @@ def resource_catalog(*, state: ConnectionState) -> list[dict[str, Any]]:
         resources.append({"uri": "synapse://current/codex-current.md", "mime_type": "text/markdown"})
     if canonical_codex_future_path(data_root).exists():
         resources.append({"uri": "synapse://current/codex-future.md", "mime_type": "text/markdown"})
+    publication_summary = publication_candidate_summary(data_root)
+    if publication_summary.get("current_story_candidate_path"):
+        resources.append({"uri": "synapse://current/publication-candidates/story.md", "mime_type": "text/markdown"})
+    if publication_summary.get("current_vision_candidate_path"):
+        resources.append({"uri": "synapse://current/publication-candidates/vision.md", "mime_type": "text/markdown"})
+    if publication_summary.get("current_codex_candidate_paths"):
+        resources.append({"uri": "synapse://current/publication-candidates/codex.md", "mime_type": "text/markdown"})
     return resources
 
 
@@ -646,6 +658,12 @@ def read_resource(*, state: ConnectionState, uri: str) -> tuple[dict[str, Any], 
     if uri == "synapse://current/publication-candidates.json":
         _, bundle = build_current_context_bundle(state=state, context=None, include_rehydrate=False, include_project_story=False)
         return ctx, json.dumps(bundle["context"]["publication_candidates"], indent=2, sort_keys=True) + "\n", "application/json"
+    if uri == "synapse://current/publication-candidates/story.md":
+        return ctx, load_publication_candidate_body(resolve_publication_candidate(data_root, "story")), "text/markdown"
+    if uri == "synapse://current/publication-candidates/vision.md":
+        return ctx, load_publication_candidate_body(resolve_publication_candidate(data_root, "vision")), "text/markdown"
+    if uri == "synapse://current/publication-candidates/codex.md":
+        return ctx, load_publication_candidate_body(resolve_publication_candidate(data_root, "codex")), "text/markdown"
     if uri == "synapse://current/rehydrate.md":
         return ctx, _text_or_empty(rehydrate_path), "text/markdown"
     if uri == "synapse://current/open-questions.md":
@@ -1626,13 +1644,35 @@ def list_formalization_candidates_tool(*, state: ConnectionState, context: Conte
     return ctx, {"proposals": proposals}
 
 
-def formalize_candidate_tool(*, state: ConnectionState, context: ContextInput | dict[str, Any] | None, proposal_id: str, dry_run: bool) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any] | None, str]:
+def formalize_candidate_tool(
+    *,
+    state: ConnectionState,
+    context: ContextInput | dict[str, Any] | None,
+    proposal_id: str | None,
+    candidate_handle: str | None,
+    dry_run: bool,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any] | None, str]:
     ctx = _resolve_runtime_context(state=state, context=context, allow_attach_current_repo=False, requires_session=False)
     data_root = Path(ctx["data_root"])
+    if bool(str(proposal_id or "").strip()) == bool(str(candidate_handle or "").strip()):
+        raise BridgeFailure(
+            code="FORMALIZATION_INPUT_INVALID",
+            message="Provide exactly one of proposal_id or candidate_handle.",
+        )
     if dry_run:
-        return ctx, cli_runtime._formalize_candidate_dry_run(ctx, proposal_id), None, STATUS_OK
-    proposal = cli_runtime._proposal_by_id(data_root, proposal_id)
-    kind = ProposalKind(str(proposal.get("kind")))
+        return (
+            ctx,
+            cli_runtime._formalize_candidate_dry_run(
+                ctx,
+                proposal_id,
+                candidate_handle=candidate_handle,
+            ),
+            None,
+            STATUS_OK,
+        )
+    if proposal_id:
+        proposal = cli_runtime._proposal_by_id(data_root, proposal_id)
+        kind = ProposalKind(str(proposal.get("kind")))
     active_run, session_policy = cli_runtime._active_session_policy(ctx)
     if session_policy is not None and not session_policy.manual_formalize_allowed:
         raise BridgeFailure(
@@ -1642,7 +1682,12 @@ def formalize_candidate_tool(*, state: ConnectionState, context: ContextInput | 
             recovery_hint="Transition session posture first.",
             data={"active_run_id": active_run.get("run_id"), "active_session_mode": active_run.get("session_mode")},
         )
-    payload = cli_runtime._formalize_candidate_mutation(ctx, proposal_id, active_run=active_run)
+    payload = cli_runtime._formalize_candidate_mutation(
+        ctx,
+        proposal_id,
+        candidate_handle=candidate_handle,
+        active_run=active_run,
+    )
     event_info = {"event": payload.get("event"), "reducer": payload.get("reducer")}
     return ctx, payload, event_info, STATUS_OK
 
