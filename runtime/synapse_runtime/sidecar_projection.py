@@ -84,6 +84,7 @@ from synapse_runtime.sidecar_store import (
     ensure_live_scaffold,
     live_root,
 )
+from synapse_runtime.snapshot_candidates import snapshot_candidate_summary
 from synapse_runtime.synthesis_refresh import refresh_synthesis
 
 
@@ -764,6 +765,36 @@ def _apply_draftshot_projection(
     return summary
 
 
+def _apply_snapshot_candidate_projection(
+    *,
+    state: dict[str, Any],
+    manifold: dict[str, Any],
+    data_root: Path,
+) -> dict[str, Any]:
+    summary = snapshot_candidate_summary(data_root)
+
+    state["current_eod_candidate_path"] = summary.get("current_eod_candidate_path")
+    state["current_control_sync_candidate_path"] = summary.get("current_control_sync_candidate_path")
+    state["current_eod_candidate_refreshed_at"] = summary.get("current_eod_candidate_refreshed_at")
+    state["current_control_sync_candidate_refreshed_at"] = summary.get("current_control_sync_candidate_refreshed_at")
+    state["stale_prior_day_candidate_required"] = bool(summary.get("stale_prior_day_candidate_required"))
+    state["candidate_obligation_count"] = int(summary.get("candidate_obligation_count") or 0)
+
+    manifold["current_snapshot_candidate_path"] = summary.get("current_snapshot_candidate_path")
+    manifold["current_snapshot_candidate_kind"] = summary.get("current_snapshot_candidate_kind")
+    manifold["current_eod_candidate_path"] = summary.get("current_eod_candidate_path")
+    manifold["current_control_sync_candidate_path"] = summary.get("current_control_sync_candidate_path")
+    manifold["current_eod_candidate_refreshed_at"] = summary.get("current_eod_candidate_refreshed_at")
+    manifold["current_control_sync_candidate_refreshed_at"] = summary.get("current_control_sync_candidate_refreshed_at")
+    manifold["current_eod_candidate_summary"] = summary.get("current_eod_candidate_summary")
+    manifold["current_control_sync_candidate_summary"] = summary.get("current_control_sync_candidate_summary")
+    manifold["stale_prior_day_candidate_required"] = bool(summary.get("stale_prior_day_candidate_required"))
+    manifold["candidate_obligation_count"] = int(summary.get("candidate_obligation_count") or 0)
+    manifold["recent_eod_candidate_details"] = list(summary.get("recent_eod_candidate_details") or [])
+    manifold["recent_control_sync_candidate_details"] = list(summary.get("recent_control_sync_candidate_details") or [])
+    return summary
+
+
 def refresh_synthesis_projection(*, subject: str, data_root: Path) -> dict[str, Any]:
     live = live_root(data_root)
     state_path = live / "STATE.yaml"
@@ -782,6 +813,11 @@ def refresh_synthesis_projection(*, subject: str, data_root: Path) -> dict[str, 
         synthesis=projection,
         data_root=data_root,
     )
+    snapshot_candidates = _apply_snapshot_candidate_projection(
+        state=state,
+        manifold=manifold,
+        data_root=data_root,
+    )
     _write_yaml(state_path, state)
     manifold["last_updated_at"] = _now_iso()
     _write_yaml(manifold_path, manifold)
@@ -789,6 +825,7 @@ def refresh_synthesis_projection(*, subject: str, data_root: Path) -> dict[str, 
         "state_path": str(state_path),
         "manifold_path": str(manifold_path),
         **projection,
+        "snapshot_candidates": snapshot_candidates,
     }
 
 
@@ -974,6 +1011,11 @@ def _sync_sidecar(
         synthesis=derived_synthesis,
         data_root=data_root,
     )
+    snapshot_candidates_projection = _apply_snapshot_candidate_projection(
+        state=state,
+        manifold=manifold,
+        data_root=data_root,
+    )
 
     accepted_details = load_accepted_quest_details(subject, data_root)
     current_accepted = select_current_accepted_quest(accepted_details)
@@ -1144,6 +1186,7 @@ def _sync_sidecar(
         "governed_promotion": governed_promotion,
         "derived_synthesis": derived_synthesis,
         "draftshot": draftshot_projection,
+        "snapshot_candidates": snapshot_candidates_projection,
         "interaction_mode": interaction_mode,
         "world_state": world_state.value,
         "active_onboarding_id": onboarding_state.get("active_onboarding_id"),

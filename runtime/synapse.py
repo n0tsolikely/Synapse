@@ -108,6 +108,7 @@ from synapse_runtime.semantic_intake import (
 )
 from synapse_runtime.sidecar_projection import _sync_sidecar, refresh_provenance_projection, refresh_synthesis_projection
 from synapse_runtime.sidecar_store import ensure_live_scaffold
+from synapse_runtime.snapshot_candidates import SnapshotCandidateError, refresh_snapshot_candidates
 from synapse_runtime.subject_bootstrap import initialize_subject_state, repo_subject_defaults
 from synapse_runtime.subject_bridge import ensure_subject_repo_bridges, install_local_codex_integration
 from synapse_runtime.quest_acceptance import QuestAcceptanceError, accept_quest, parse_quest_document
@@ -803,6 +804,19 @@ def build_parser() -> argparse.ArgumentParser:
     draftshot_parser.add_argument("--selected-by", default="Brains", help="Who made the selection (default: Brains)")
     draftshot_parser.add_argument("--no-home-lock", action="store_true", help="Do not write ~/.synapse/ACTIVE_SUBJECT.json")
     draftshot_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
+    snapshot_candidates_parser = subparsers.add_parser(
+        "refresh-snapshot-candidates",
+        help="Create or revise typed noncanonical EOD and Control Sync snapshot candidates when continuity sources changed",
+    )
+    snapshot_candidates_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
+    snapshot_candidates_parser.add_argument("--subject", help="Optional subject override")
+    snapshot_candidates_parser.add_argument("--data-root", help="Override data root path")
+    snapshot_candidates_parser.add_argument("--engine-root", help="Override engine root path")
+    snapshot_candidates_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    snapshot_candidates_parser.add_argument("--selected-by", default="Brains", help="Who made the selection (default: Brains)")
+    snapshot_candidates_parser.add_argument("--no-home-lock", action="store_true", help="Do not write ~/.synapse/ACTIVE_SUBJECT.json")
+    snapshot_candidates_parser.add_argument("--json", action="store_true", help="Print JSON output")
 
     return parser
 
@@ -6988,6 +7002,89 @@ def cmd_refresh_draftshot(args: argparse.Namespace) -> int:
     )
 
 
+def cmd_refresh_snapshot_candidates(args: argparse.Namespace) -> int:
+    ctx = _resolve_or_attach_subject_from_args(args)
+    if not ctx:
+        return 2
+    active_run = _load_active_run_with_session_repair(ctx)
+    session_id = _effective_session_id(ctx, active_run=active_run)
+    try:
+        refresh_synthesis_projection(subject=ctx["subject"], data_root=Path(ctx["data_root"]))
+        payload = refresh_snapshot_candidates(
+            subject=ctx["subject"],
+            data_root=Path(ctx["data_root"]),
+            session_id=session_id,
+        )
+        refresh_synthesis_projection(subject=ctx["subject"], data_root=Path(ctx["data_root"]))
+    except (SnapshotCandidateError, LiveMemoryError) as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    changed_files: list[str] = []
+    for item in list(payload.get("candidates") or []):
+        manifest_path = str(item.get("manifest_path") or "").strip()
+        body_path = str(item.get("body_path") or "").strip()
+        if manifest_path:
+            changed_files.append(manifest_path)
+        if body_path:
+            changed_files.append(body_path)
+    index_path = str(payload.get("summary", {}).get("index_path") or "").strip()
+    if index_path:
+        changed_files.append(index_path)
+
+    event_info = _event_pipeline(
+        ctx=ctx,
+        action_name="refresh-snapshot-candidates",
+        summary=f"Refreshed typed snapshot candidates for {ctx['subject']}.",
+        session_id=session_id,
+        signals={
+            "changed_files": changed_files,
+            "verification_entries": [],
+            "related_quest_ids": [],
+            "related_sidequest_ids": [],
+            "accepted_context": _accepted_context_snapshot(Path(ctx["data_root"])),
+            **_current_session_mode_fields(ctx),
+        },
+        truth_flags={
+            "canon_mutated": False,
+            "derived_state_changed": True,
+            "governed": False,
+            "uncertainty_present": False,
+        },
+        outputs={
+            "snapshot_candidate_status": payload.get("status"),
+            "snapshot_candidate_paths": [str(item.get("body_path") or "") for item in list(payload.get("candidates") or [])],
+            "snapshot_candidate_manifest_paths": [
+                str(item.get("manifest_path") or "") for item in list(payload.get("candidates") or [])
+            ],
+        },
+    )
+    rendered = {
+        "subject_context": ctx,
+        "kernel_posture": _kernel_posture_payload(ctx),
+        **payload,
+        "event": event_info.get("event"),
+        "reducer": event_info.get("reducer"),
+    }
+
+    def _emit_snapshot_candidates(result_payload: dict[str, Any]) -> None:
+        summary = dict(result_payload.get("summary") or {})
+        print("=== SNAPSHOT CANDIDATE RECEIPT ===")
+        print(f"subject: {result_payload['subject_context']['subject']}")
+        print(f"session_id: {result_payload.get('session_id') or 'none'}")
+        print(f"status: {result_payload.get('status')}")
+        print(f"current_eod_candidate_path: {summary.get('current_eod_candidate_path')}")
+        print(f"current_control_sync_candidate_path: {summary.get('current_control_sync_candidate_path')}")
+        print(f"index_path: {summary.get('index_path')}")
+
+    return _finalize_mutation_result(
+        payload=rendered,
+        event_info=event_info,
+        json_mode=args.json,
+        text_emitter=_emit_snapshot_candidates,
+    )
+
+
 def cmd_install_hooks(args: argparse.Namespace) -> int:
     ctx = _resolve_or_attach_subject_from_args(args)
     if not ctx:
@@ -7557,6 +7654,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_install_local_integration(args)
     if args.command == "refresh-draftshot":
         return cmd_refresh_draftshot(args)
+    if args.command == "refresh-snapshot-candidates":
+        return cmd_refresh_snapshot_candidates(args)
     if args.command == "plan-quests":
         return cmd_plan_quests(args)
     if args.command == "plan-sidequests":

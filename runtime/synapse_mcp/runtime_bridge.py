@@ -66,6 +66,7 @@ from synapse_runtime.semantic_intake import (
 from synapse_runtime.session_modes import SessionMode, policy_for_run, session_mode_signal_fields
 from synapse_runtime.sidecar_projection import _sync_sidecar, refresh_synthesis_projection
 from synapse_runtime.sidecar_store import _load_manifold, _load_state, _read_yaml, canonical_open_questions_path, ensure_live_scaffold, live_root
+from synapse_runtime.snapshot_candidates import refresh_snapshot_candidates, snapshot_candidate_summary
 from synapse_runtime.subject_bootstrap import initialize_subject_state, repo_subject_defaults
 from synapse_runtime.subject_resolver import SubjectResolutionError, resolve_subject, write_focus_lock
 
@@ -423,6 +424,7 @@ def build_current_context_bundle(
         data_root,
         session_id=ctx.get("session_id") or active_run.get("session_id"),
     )
+    snapshot_candidates_state = snapshot_candidate_summary(data_root)
     session_posture = {
         "active_session_mode": manifold_payload.get("active_session_mode") or state_payload.get("active_session_mode"),
         "active_session_mode_policy": manifold_payload.get("active_session_mode_policy"),
@@ -473,6 +475,7 @@ def build_current_context_bundle(
         "derived_synthesis": synthesis_summary,
         "codex_packets": codex_packet_summary,
         "draftshot": draftshot_state,
+        "snapshot_candidates": snapshot_candidates_state,
         "onboarding": onboarding_payload,
         "published_project_model_summary": {
             "path": str(project_model_path) if project_model_path.exists() else None,
@@ -549,6 +552,7 @@ def resource_catalog(*, state: ConnectionState) -> list[dict[str, Any]]:
         {"uri": "synapse://current/synthesis-summary.json", "mime_type": "application/json"},
         {"uri": "synapse://current/codex-packets.json", "mime_type": "application/json"},
         {"uri": "synapse://current/draftshot-state.json", "mime_type": "application/json"},
+        {"uri": "synapse://current/snapshot-candidates.json", "mime_type": "application/json"},
         {"uri": "synapse://current/rehydrate.md", "mime_type": "text/markdown"},
         {"uri": "synapse://current/open-questions.md", "mime_type": "text/markdown"},
         {"uri": "synapse://current/onboarding/status.json", "mime_type": "application/json"},
@@ -632,6 +636,9 @@ def read_resource(*, state: ConnectionState, uri: str) -> tuple[dict[str, Any], 
     if uri == "synapse://current/draftshot-state.json":
         _, bundle = build_current_context_bundle(state=state, context=None, include_rehydrate=False, include_project_story=False)
         return ctx, json.dumps(bundle["context"]["draftshot"], indent=2, sort_keys=True) + "\n", "application/json"
+    if uri == "synapse://current/snapshot-candidates.json":
+        _, bundle = build_current_context_bundle(state=state, context=None, include_rehydrate=False, include_project_story=False)
+        return ctx, json.dumps(bundle["context"]["snapshot_candidates"], indent=2, sort_keys=True) + "\n", "application/json"
     if uri == "synapse://current/rehydrate.md":
         return ctx, _text_or_empty(rehydrate_path), "text/markdown"
     if uri == "synapse://current/open-questions.md":
@@ -2160,6 +2167,27 @@ def refresh_draftshot_tool(*, state: ConnectionState, context: ContextInput | di
         data_root=Path(ctx["data_root"]),
         session_id=session_id,
         run_id=active_run.get("run_id"),
+    )
+    refresh_synthesis_projection(subject=ctx["subject"], data_root=Path(ctx["data_root"]))
+    _, bundle = build_current_context_bundle(state=state, context=context, include_rehydrate=False, include_project_story=False)
+    result = dict(payload)
+    result["current_context"] = bundle["context"]
+    return ctx, result, None, STATUS_OK if payload.get("status") != "noop" else STATUS_NOOP
+
+
+def refresh_snapshot_candidates_tool(
+    *,
+    state: ConnectionState,
+    context: ContextInput | dict[str, Any] | None,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any] | None, str]:
+    ctx = _resolve_runtime_context(state=state, context=context, allow_attach_current_repo=False, requires_session=False)
+    active_run = cli_runtime._load_active_run_with_session_repair(ctx)
+    session_id = cli_runtime._effective_session_id(ctx, active_run=active_run)
+    refresh_synthesis_projection(subject=ctx["subject"], data_root=Path(ctx["data_root"]))
+    payload = refresh_snapshot_candidates(
+        subject=ctx["subject"],
+        data_root=Path(ctx["data_root"]),
+        session_id=session_id,
     )
     refresh_synthesis_projection(subject=ctx["subject"], data_root=Path(ctx["data_root"]))
     _, bundle = build_current_context_bundle(state=state, context=context, include_rehydrate=False, include_project_story=False)

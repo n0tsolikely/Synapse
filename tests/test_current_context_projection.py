@@ -21,6 +21,7 @@ from synapse_runtime.promotion_engine import promote_semantic_events
 from synapse_runtime.quest_plans import persist_execution_plan
 from synapse_runtime.sidecar_projection import refresh_synthesis_projection
 from synapse_runtime.sidecar_store import ensure_live_scaffold
+from synapse_runtime.snapshot_candidates import refresh_snapshot_candidates
 from synapse_runtime.subject_bootstrap import initialize_subject_state
 
 
@@ -100,33 +101,47 @@ class CurrentContextProjectionTests(unittest.TestCase):
             run_id="RUN-CONTEXT-001",
         )
         refresh_synthesis_projection(subject=self.subject, data_root=self.data_root)
+        refresh_snapshot_candidates(
+            subject=self.subject,
+            data_root=self.data_root,
+            session_id="syn-context-001",
+        )
+        refresh_synthesis_projection(subject=self.subject, data_root=self.data_root)
 
         _, bundle = build_current_context_bundle(state=self.state, context=None, include_rehydrate=False, include_project_story=False)
         context = bundle["context"]
         self.assertIn("derived_synthesis", context)
         self.assertIn("codex_packets", context)
         self.assertIn("draftshot", context)
+        self.assertIn("snapshot_candidates", context)
         self.assertEqual(context["codex_packets"]["codex_packet_count"], 4)
         self.assertTrue(context["derived_synthesis"]["active_plan_delta"]["summary"])
         self.assertTrue(context["derived_synthesis"]["identity_delta"]["summary"])
         self.assertEqual(context["draftshot"]["current_active_draftshot_session_id"], "syn-context-001")
         self.assertTrue(context["draftshot"]["current_active_draftshot_path"])
+        self.assertTrue(context["snapshot_candidates"]["current_eod_candidate_path"])
+        self.assertTrue(context["snapshot_candidates"]["current_control_sync_candidate_path"])
 
         resources = {item["uri"] for item in resource_catalog(state=self.state)}
         self.assertIn("synapse://current/synthesis-summary.json", resources)
         self.assertIn("synapse://current/codex-packets.json", resources)
         self.assertIn("synapse://current/draftshot-state.json", resources)
+        self.assertIn("synapse://current/snapshot-candidates.json", resources)
 
         _, synthesis_text, _ = read_resource(state=self.state, uri="synapse://current/synthesis-summary.json")
         _, packets_text, _ = read_resource(state=self.state, uri="synapse://current/codex-packets.json")
         _, draftshot_text, _ = read_resource(state=self.state, uri="synapse://current/draftshot-state.json")
+        _, snapshot_candidates_text, _ = read_resource(state=self.state, uri="synapse://current/snapshot-candidates.json")
         synthesis_payload = json.loads(synthesis_text)
         packets_payload = json.loads(packets_text)
         draftshot_payload = json.loads(draftshot_text)
+        snapshot_candidates_payload = json.loads(snapshot_candidates_text)
         self.assertEqual(synthesis_payload["active_plan_delta"]["summary"], "Plan the installable workflow foundation.")
         self.assertEqual(packets_payload["codex_packet_count"], 4)
         self.assertIn("ACTIVE_PLAN", packets_payload["packet_section_keys"])
         self.assertEqual(draftshot_payload["current_active_draftshot_session_id"], "syn-context-001")
+        self.assertTrue(snapshot_candidates_payload["current_eod_candidate_path"])
+        self.assertTrue(snapshot_candidates_payload["current_control_sync_candidate_path"])
 
 
 if __name__ == "__main__":
