@@ -7475,6 +7475,8 @@ def cmd_install_local_integration(args: argparse.Namespace) -> int:
 
     changed_files = [
         str(payload.get("manifest_path") or ""),
+        str(payload.get("config_path") or ""),
+        str(payload.get("hooks_config_path") or ""),
         str(payload.get("mcp_config_path") or ""),
         str(payload.get("readme_path") or ""),
         *[str(path) for path in (payload.get("hook_paths") or {}).values()],
@@ -7503,6 +7505,8 @@ def cmd_install_local_integration(args: argparse.Namespace) -> int:
             "integration_health": payload.get("integration_health"),
             "integration_dir": payload.get("integration_dir"),
             "manifest_path": payload.get("manifest_path"),
+            "config_path": payload.get("config_path"),
+            "hooks_config_path": payload.get("hooks_config_path"),
             "mcp_config_path": payload.get("mcp_config_path"),
             "readme_path": payload.get("readme_path"),
             "hook_paths": payload.get("hook_paths"),
@@ -7524,6 +7528,8 @@ def cmd_install_local_integration(args: argparse.Namespace) -> int:
         print(f"integration_health: {result_payload.get('integration_health')}")
         print(f"integration_dir: {result_payload.get('integration_dir')}")
         print(f"manifest_path: {result_payload.get('manifest_path')}")
+        print(f"config_path: {result_payload.get('config_path')}")
+        print(f"hooks_config_path: {result_payload.get('hooks_config_path')}")
         print(f"mcp_config_path: {result_payload.get('mcp_config_path')}")
 
     return _finalize_mutation_result(

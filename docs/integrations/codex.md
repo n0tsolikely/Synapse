@@ -52,6 +52,28 @@ Phase 0 truth:
 - repo-local `.codex` assets are optional and explicitly installed
 - repos surface `hooked` vs `degraded` posture through doctor/current-context instead of pretending hook mediation always exists
 
+Current Codex client shape:
+
+- repo-local project overrides live in `.codex/config.toml`
+- lifecycle hooks are loaded from `.codex/hooks.json`
+- wrapper scripts still live under `.codex/hooks/`
+- legacy `.codex/mcp.json` may be kept as a compatibility hint, but current Codex integration should not rely on it
+
+That means a healthy local install should include at least:
+
+- `.codex/config.toml`
+- `.codex/hooks.json`
+- `.codex/hooks/user_prompt_submit.sh`
+- `.codex/hooks/pre_tool.sh`
+- `.codex/hooks/post_tool.sh`
+- `.codex/hooks/stop.sh`
+- `.codex/synapse_local_integration.json`
+
+Practical consequence:
+
+- if those assets exist and the client trusts the project, Codex can invoke Synapse automatically at prompt/tool/stop boundaries
+- if the client does not load them, Synapse must report degraded posture honestly instead of pretending chat capture happened
+
 Phase 4 truth:
 
 - the optional `Stop` hook can run `close-turn` validation automatically when the local integration assets are installed and the Codex client actually invokes that boundary

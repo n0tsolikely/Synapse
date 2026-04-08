@@ -73,6 +73,30 @@ class HookEntrypointTests(unittest.TestCase):
         self.assertEqual(payload["role"], "user")
         self.assertEqual(payload["source_surface"], "codex_hook_user_prompt_submit")
 
+    def test_user_prompt_submit_hook_accepts_codex_json_stdin(self) -> None:
+        hook_payload = {
+            "session_id": "sess-123",
+            "turn_id": "turn-123",
+            "transcript_path": None,
+            "cwd": str(self.engine_root),
+            "hook_event_name": "UserPromptSubmit",
+            "model": "gpt-5.4",
+            "prompt": "Need to support separate user accounts.",
+        }
+        result = run_hook(
+            USER_PROMPT_HOOK + ["--codex-hook-json-stdin"],
+            cwd=self.engine_root,
+            home=self.home,
+            stdin=json.dumps(hook_payload),
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        records = self._raw_files("CONVERSATION_TURNS")
+        self.assertEqual(len(records), 1)
+        payload = json.loads(records[0].read_text(encoding="utf-8"))
+        self.assertEqual(payload["role"], "user")
+        self.assertEqual(payload["session_id"], "sess-123")
+        self.assertEqual(payload["source_surface"], "codex_hook_user_prompt_submit")
+
     def test_tool_and_stop_hooks_record_raw_execution(self) -> None:
         pre = run_hook(
             PRE_TOOL_HOOK + ["--repo-root", str(self.engine_root), "--tool-name", "exec_command", "--command-text", "pytest -q"],
@@ -113,3 +137,64 @@ class HookEntrypointTests(unittest.TestCase):
         self.assertEqual({payload["tool_name"] for payload in payloads}, {"exec_command"})
         self.assertEqual({payload["phase"] for payload in payloads}, {"pre_tool_use", "post_tool_use"})
         self.assertIn("ok", {payload["status"] for payload in payloads})
+
+    def test_codex_json_tool_and_stop_hooks_record_raw_execution(self) -> None:
+        pre_payload = {
+            "session_id": "sess-123",
+            "turn_id": "turn-123",
+            "tool_use_id": "tool-123",
+            "transcript_path": None,
+            "cwd": str(self.engine_root),
+            "hook_event_name": "PreToolUse",
+            "model": "gpt-5.4",
+            "tool_name": "Bash",
+            "tool_input": {"command": "pytest -q"},
+        }
+        pre = run_hook(
+            PRE_TOOL_HOOK + ["--codex-hook-json-stdin"],
+            cwd=self.engine_root,
+            home=self.home,
+            stdin=json.dumps(pre_payload),
+        )
+        self.assertEqual(pre.returncode, 0, pre.stdout + pre.stderr)
+
+        post_payload = {
+            **pre_payload,
+            "hook_event_name": "PostToolUse",
+            "tool_response": {"stdout": "green", "stderr": "", "exit_code": 0},
+        }
+        post = run_hook(
+            POST_TOOL_HOOK + ["--codex-hook-json-stdin"],
+            cwd=self.engine_root,
+            home=self.home,
+            stdin=json.dumps(post_payload),
+        )
+        self.assertEqual(post.returncode, 0, post.stdout + post.stderr)
+
+        stop_payload = {
+            "session_id": "sess-123",
+            "turn_id": "turn-123",
+            "transcript_path": None,
+            "cwd": str(self.engine_root),
+            "hook_event_name": "Stop",
+            "model": "gpt-5.4",
+            "stop_hook_active": False,
+            "last_assistant_message": "Done.",
+        }
+        stop = run_hook(
+            STOP_HOOK + ["--codex-hook-json-stdin"],
+            cwd=self.engine_root,
+            home=self.home,
+            stdin=json.dumps(stop_payload),
+        )
+        self.assertEqual(stop.returncode, 0, stop.stdout + stop.stderr)
+        stop_output = json.loads(stop.stdout)
+        self.assertTrue(stop_output.get("continue", False))
+
+        tool_records = self._raw_files("TOOL_EVENTS")
+        execution_records = self._raw_files("EXECUTION_EVENTS")
+        self.assertEqual(len(tool_records), 2)
+        self.assertEqual(len(execution_records), 1)
+        tool_payloads = [json.loads(path.read_text(encoding="utf-8")) for path in tool_records]
+        self.assertEqual({payload["tool_name"] for payload in tool_payloads}, {"Bash"})
+        self.assertEqual({payload["session_id"] for payload in tool_payloads}, {"sess-123"})

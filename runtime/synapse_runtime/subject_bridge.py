@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import shlex
 import stat
 from typing import Any
 
@@ -20,6 +21,8 @@ BRIDGE_END = "<!-- SYNAPSE SUBJECT BRIDGE: END -->"
 SHIM_FILENAMES = ("AGENTS.md", "CLAUDE.md")
 LOCAL_CODEX_DIRNAME = ".codex"
 LOCAL_CODEX_MANIFEST = "synapse_local_integration.json"
+LOCAL_CODEX_CONFIG = "config.toml"
+LOCAL_CODEX_HOOKS_CONFIG = "hooks.json"
 LOCAL_CODEX_MCP = "mcp.json"
 LOCAL_CODEX_HOOK_DIR = "hooks"
 LOCAL_CODEX_HOOKS = {
@@ -136,18 +139,27 @@ def local_codex_mcp_config_path(repo_root: Path) -> Path:
     return local_codex_dir(repo_root) / LOCAL_CODEX_MCP
 
 
+def local_codex_config_path(repo_root: Path) -> Path:
+    return local_codex_dir(repo_root) / LOCAL_CODEX_CONFIG
+
+
+def local_codex_hooks_config_path(repo_root: Path) -> Path:
+    return local_codex_dir(repo_root) / LOCAL_CODEX_HOOKS_CONFIG
+
+
 def local_codex_hook_dir(repo_root: Path) -> Path:
     return local_codex_dir(repo_root) / LOCAL_CODEX_HOOK_DIR
 
 
-def _hook_wrapper_source(hook_name: str) -> str:
+def _hook_wrapper_source(hook_name: str, *, synapse_root: Path) -> str:
     runtime_hook = f"synapse_hook_{hook_name}.py"
     return "\n".join(
         [
             "#!/usr/bin/env bash",
             "set -euo pipefail",
             'REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"',
-            'export SYNAPSE_ROOT="${SYNAPSE_ROOT:-$HOME/Synapse}"',
+            f'DEFAULT_SYNAPSE_ROOT="{synapse_root.resolve()}"',
+            'export SYNAPSE_ROOT="${SYNAPSE_ROOT:-$DEFAULT_SYNAPSE_ROOT}"',
             'exec python3 "$SYNAPSE_ROOT/runtime/tools/%s" --repo-root "$REPO_ROOT" "$@"' % runtime_hook,
             "",
         ]
@@ -168,11 +180,14 @@ def _write_text_if_changed(path: Path, text: str, *, executable: bool = False) -
     return "updated" if path.exists() else "written"
 
 
-def _local_codex_manifest(subject: str, data_root: Path) -> dict[str, Any]:
+def _local_codex_manifest(subject: str, data_root: Path, *, synapse_root: Path) -> dict[str, Any]:
     hook_entries = {
         name: {
             "script": f"{LOCAL_CODEX_DIRNAME}/{LOCAL_CODEX_HOOK_DIR}/{filename}",
-            "runtime_entrypoint": f"${{SYNAPSE_ROOT:-$HOME/Synapse}}/runtime/tools/synapse_hook_{filename.replace('.sh', '.py')}",
+            "runtime_entrypoint": str(
+                (synapse_root.resolve() / "runtime" / "tools" / f"synapse_hook_{filename.replace('.sh', '.py')}").resolve()
+            ),
+            "command_mode": "codex_hooks_json_stdin",
         }
         for name, filename in LOCAL_CODEX_HOOKS.items()
     }
@@ -182,14 +197,97 @@ def _local_codex_manifest(subject: str, data_root: Path) -> dict[str, Any]:
         "subject": subject,
         "data_root": str(data_root.resolve()),
         "synapse_root_env": "SYNAPSE_ROOT",
-        "default_synapse_root": "$HOME/Synapse",
+        "default_synapse_root": str(synapse_root.resolve()),
+        "codex_config_path": f"{LOCAL_CODEX_DIRNAME}/{LOCAL_CODEX_CONFIG}",
+        "hooks_config_path": f"{LOCAL_CODEX_DIRNAME}/{LOCAL_CODEX_HOOKS_CONFIG}",
+        "legacy_mcp_config_path": f"{LOCAL_CODEX_DIRNAME}/{LOCAL_CODEX_MCP}",
         "mcp": {
             "command": "python3",
-            "args": ["${SYNAPSE_ROOT:-$HOME/Synapse}/runtime/synapse_mcp/server.py"],
+            "args": [str((synapse_root.resolve() / "runtime" / "synapse_mcp" / "server.py").resolve())],
             "cwd": "${REPO_ROOT:-.}",
-            "env": {"SYNAPSE_ROOT": "${SYNAPSE_ROOT:-$HOME/Synapse}"},
+            "env": {"SYNAPSE_ROOT": str(synapse_root.resolve())},
         },
         "hooks": hook_entries,
+    }
+
+
+def _local_codex_config(*, repo_root: Path, synapse_root: Path) -> str:
+    mcp_server = (synapse_root.resolve() / "runtime" / "synapse_mcp" / "server.py").resolve()
+    lines = [
+        "#:schema https://developers.openai.com/codex/config-schema.json",
+        "# Synapse-managed repo-local Codex integration.",
+        "[features]",
+        "codex_hooks = true",
+        "",
+        "[mcp_servers.synapse]",
+        'command = "python3"',
+        f"args = [{json.dumps(str(mcp_server))}]",
+        f"cwd = {json.dumps(str(repo_root.resolve()))}",
+        "startup_timeout_sec = 15",
+        "",
+        "[mcp_servers.synapse.env]",
+        f"SYNAPSE_ROOT = {json.dumps(str(synapse_root.resolve()))}",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def _local_codex_hook_command(path: Path) -> str:
+    return f"{shlex.quote('/bin/bash')} {shlex.quote(str(path.resolve()))} --codex-hook-json-stdin"
+
+
+def _local_codex_hooks_config(*, repo_root: Path) -> dict[str, Any]:
+    hook_dir = local_codex_hook_dir(repo_root)
+    return {
+        "hooks": {
+            "UserPromptSubmit": [
+                {
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": _local_codex_hook_command(hook_dir / LOCAL_CODEX_HOOKS["UserPromptSubmit"]),
+                            "statusMessage": "Synapse raw prompt capture",
+                        }
+                    ]
+                }
+            ],
+            "PreToolUse": [
+                {
+                    "matcher": "Bash",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": _local_codex_hook_command(hook_dir / LOCAL_CODEX_HOOKS["PreToolUse"]),
+                            "statusMessage": "Synapse pre-tool capture",
+                        }
+                    ],
+                }
+            ],
+            "PostToolUse": [
+                {
+                    "matcher": "Bash",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": _local_codex_hook_command(hook_dir / LOCAL_CODEX_HOOKS["PostToolUse"]),
+                            "statusMessage": "Synapse post-tool capture",
+                        }
+                    ],
+                }
+            ],
+            "Stop": [
+                {
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": _local_codex_hook_command(hook_dir / LOCAL_CODEX_HOOKS["Stop"]),
+                            "statusMessage": "Synapse close-turn validation",
+                            "timeout": 30,
+                        }
+                    ]
+                }
+            ],
+        }
     }
 
 
@@ -204,10 +302,13 @@ def _local_codex_readme(subject: str) -> str:
             f"Subject: {subject}",
             "",
             "Contents:",
-            f"- `{LOCAL_CODEX_MANIFEST}`: local MCP + hook manifest with env-based path resolution",
-            f"- `{LOCAL_CODEX_MCP}`: thin MCP config hint for Synapse runtime transport",
+            f"- `{LOCAL_CODEX_MANIFEST}`: local integration manifest and asset receipt",
+            f"- `{LOCAL_CODEX_CONFIG}`: repo-local Codex config enabling hooks and the Synapse MCP server",
+            f"- `{LOCAL_CODEX_HOOKS_CONFIG}`: Codex lifecycle hook registration for raw capture and close-turn validation",
             f"- `{LOCAL_CODEX_HOOK_DIR}/`: wrapper scripts for UserPromptSubmit, PreToolUse, PostToolUse, and Stop",
+            f"- `{LOCAL_CODEX_MCP}`: legacy MCP config hint kept only for backwards compatibility",
             "",
+            "Current Codex clients load repo-local lifecycle hooks from `hooks.json` and project-scoped settings from `config.toml`.",
             "If the local client does not load these assets, Synapse must run in degraded posture rather than pretending hooks are active.",
             "",
         ]
@@ -227,6 +328,8 @@ def install_local_codex_integration(
     codex_dir = local_codex_dir(repo_root)
     hook_dir = local_codex_hook_dir(repo_root)
     manifest_path = local_codex_manifest_path(repo_root)
+    config_path = local_codex_config_path(repo_root)
+    hooks_config_path = local_codex_hooks_config_path(repo_root)
     mcp_path = local_codex_mcp_config_path(repo_root)
     readme_path = codex_dir / LOCAL_CODEX_README
 
@@ -235,7 +338,15 @@ def install_local_codex_integration(
 
     manifest_status = _write_text_if_changed(
         manifest_path,
-        json.dumps(_local_codex_manifest(subject, data_root), indent=2, sort_keys=True) + "\n",
+        json.dumps(_local_codex_manifest(subject, data_root, synapse_root=synapse_root), indent=2, sort_keys=True) + "\n",
+    )
+    config_status = _write_text_if_changed(
+        config_path,
+        _local_codex_config(repo_root=repo_root, synapse_root=synapse_root),
+    )
+    hooks_config_status = _write_text_if_changed(
+        hooks_config_path,
+        json.dumps(_local_codex_hooks_config(repo_root=repo_root), indent=2, sort_keys=True) + "\n",
     )
     mcp_status = _write_text_if_changed(
         mcp_path,
@@ -261,19 +372,24 @@ def install_local_codex_integration(
         source_name = filename.replace(".sh", "")
         hook_statuses[hook_name] = _write_text_if_changed(
             hook_path,
-            _hook_wrapper_source(source_name),
+            _hook_wrapper_source(source_name, synapse_root=synapse_root),
             executable=True,
         )
 
     exclude_status = _ensure_git_exclude_entries(repo_root, entries=[f"/{LOCAL_CODEX_DIRNAME}"])
     inspection = inspect_local_codex_integration(repo_root, synapse_root=synapse_root)
     overall = LocalIntegrationHealth.NOOP.value
-    if any(status != "noop" for status in [manifest_status, mcp_status, readme_status, *hook_statuses.values()]):
+    if any(
+        status != "noop"
+        for status in [manifest_status, config_status, hooks_config_status, mcp_status, readme_status, *hook_statuses.values()]
+    ):
         overall = LocalIntegrationHealth.INSTALLED.value if inspection["integration_health"] == LocalIntegrationHealth.INSTALLED.value else LocalIntegrationHealth.UPDATED.value
     inspection.update(
         {
             "integration_status": overall,
             "manifest_write_status": manifest_status,
+            "config_write_status": config_status,
+            "hooks_config_write_status": hooks_config_status,
             "mcp_config_write_status": mcp_status,
             "readme_write_status": readme_status,
             "hook_write_statuses": hook_statuses,
@@ -288,6 +404,8 @@ def inspect_local_codex_integration(repo_root: Path, *, synapse_root: Path | Non
     synapse_root = (synapse_root or resolve_synapse_root()).resolve()
     codex_dir = local_codex_dir(repo_root)
     manifest_path = local_codex_manifest_path(repo_root)
+    config_path = local_codex_config_path(repo_root)
+    hooks_config_path = local_codex_hooks_config_path(repo_root)
     mcp_path = local_codex_mcp_config_path(repo_root)
     readme_path = codex_dir / LOCAL_CODEX_README
     hook_dir = local_codex_hook_dir(repo_root)
@@ -301,8 +419,12 @@ def inspect_local_codex_integration(repo_root: Path, *, synapse_root: Path | Non
             missing.append(f"hooks/{filename}")
     if not manifest_path.exists():
         missing.append(LOCAL_CODEX_MANIFEST)
+    if not config_path.exists():
+        missing.append(LOCAL_CODEX_CONFIG)
+    if not hooks_config_path.exists():
+        missing.append(LOCAL_CODEX_HOOKS_CONFIG)
     if not mcp_path.exists():
-        missing.append(LOCAL_CODEX_MCP)
+        pass
     if not readme_path.exists():
         missing.append(LOCAL_CODEX_README)
 
@@ -317,7 +439,7 @@ def inspect_local_codex_integration(repo_root: Path, *, synapse_root: Path | Non
         except Exception:
             integration_health = LocalIntegrationHealth.STALE.value
             missing.append("manifest_parse")
-    elif len(missing) < (len(LOCAL_CODEX_HOOKS) + 3):
+    elif len(missing) < (len(LOCAL_CODEX_HOOKS) + 4):
         integration_health = LocalIntegrationHealth.PARTIAL.value
 
     posture = (
@@ -330,10 +452,13 @@ def inspect_local_codex_integration(repo_root: Path, *, synapse_root: Path | Non
         "integration_health": integration_health,
         "integration_dir": str(codex_dir.resolve()),
         "manifest_path": str(manifest_path.resolve()),
+        "config_path": str(config_path.resolve()),
+        "hooks_config_path": str(hooks_config_path.resolve()),
         "mcp_config_path": str(mcp_path.resolve()),
         "readme_path": str(readme_path.resolve()),
         "hook_paths": hook_paths,
         "missing_assets": missing,
+        "legacy_mcp_config_present": mcp_path.exists(),
         "synapse_root": str(synapse_root),
     }
 

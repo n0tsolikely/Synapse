@@ -2100,6 +2100,8 @@ def install_local_integration_tool(
     payload = cli_runtime._install_local_integration_receipt(ctx)
     changed_files = [
         str(payload.get("manifest_path") or ""),
+        str(payload.get("config_path") or ""),
+        str(payload.get("hooks_config_path") or ""),
         str(payload.get("mcp_config_path") or ""),
         str(payload.get("readme_path") or ""),
         *[str(path) for path in (payload.get("hook_paths") or {}).values()],
@@ -2128,6 +2130,8 @@ def install_local_integration_tool(
             "integration_health": payload.get("integration_health"),
             "integration_dir": payload.get("integration_dir"),
             "manifest_path": payload.get("manifest_path"),
+            "config_path": payload.get("config_path"),
+            "hooks_config_path": payload.get("hooks_config_path"),
             "mcp_config_path": payload.get("mcp_config_path"),
             "readme_path": payload.get("readme_path"),
             "hook_paths": payload.get("hook_paths"),
