@@ -75,6 +75,7 @@ from synapse_runtime.sidecar_store import _load_manifold, _load_state, _read_yam
 from synapse_runtime.snapshot_candidates import refresh_snapshot_candidates, snapshot_candidate_summary
 from synapse_runtime.subject_bootstrap import initialize_subject_state, repo_subject_defaults
 from synapse_runtime.subject_resolver import SubjectResolutionError, resolve_subject, write_focus_lock
+from synapse_runtime.truth_drafts import truth_draft_summary
 
 
 def _generated_session_id() -> str:
@@ -433,6 +434,17 @@ def build_current_context_bundle(
     )
     snapshot_candidates_state = snapshot_candidate_summary(data_root)
     publication_candidates_state = publication_candidate_summary(data_root)
+    truth_drafts_state = truth_draft_summary(data_root)
+    operational_proposals = {
+        "guild_order_candidate_details": list(manifold_payload.get("guild_order_candidate_details") or []),
+        "codex_candidate_details": list(manifold_payload.get("codex_candidate_details") or []),
+        "build_manual_candidate_details": list(manifold_payload.get("build_manual_candidate_details") or []),
+        "disclosure_candidate_details": list(manifold_payload.get("disclosure_candidate_details") or []),
+        "guild_order_candidate_count": state_payload.get("guild_order_candidate_count") or 0,
+        "codex_candidate_count": state_payload.get("codex_candidate_count") or 0,
+        "build_manual_candidate_count": state_payload.get("build_manual_candidate_count") or 0,
+        "disclosure_candidate_count": state_payload.get("disclosure_candidate_count") or 0,
+    }
     session_posture = {
         "active_session_mode": manifold_payload.get("active_session_mode") or state_payload.get("active_session_mode"),
         "active_session_mode_policy": manifold_payload.get("active_session_mode_policy"),
@@ -487,6 +499,8 @@ def build_current_context_bundle(
         "draftshot": draftshot_state,
         "snapshot_candidates": snapshot_candidates_state,
         "publication_candidates": publication_candidates_state,
+        "truth_drafts": truth_drafts_state,
+        "operational_proposals": operational_proposals,
         "onboarding": onboarding_payload,
         "published_project_model_summary": {
             "path": str(project_model_path) if project_model_path.exists() else None,

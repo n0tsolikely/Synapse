@@ -530,6 +530,73 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
         lines.append("- Review / publish path: formalize --candidate-handle {story|vision|codex}")
         lines.append("")
 
+    snapshot_eod_summary = str(manifold.get("current_eod_candidate_summary") or "").strip()
+    snapshot_control_sync_summary = str(manifold.get("current_control_sync_candidate_summary") or "").strip()
+    snapshot_eod_path = str(manifold.get("current_eod_candidate_path") or "").strip()
+    snapshot_control_sync_path = str(manifold.get("current_control_sync_candidate_path") or "").strip()
+    if any([snapshot_eod_summary, snapshot_control_sync_summary, snapshot_eod_path, snapshot_control_sync_path]):
+        lines.append("## Snapshot candidates")
+        lines.append(
+            f"- Last snapshot candidate refresh: {manifold.get('current_control_sync_candidate_refreshed_at') or manifold.get('current_eod_candidate_refreshed_at') or 'none'}"
+        )
+        if snapshot_eod_path:
+            lines.append(f"- EOD candidate: {snapshot_eod_summary or 'pending'}")
+            lines.append(f"  path={snapshot_eod_path}")
+            lines.append(
+                f"  truth_state_counts={dict(manifold.get('current_eod_candidate_truth_state_counts') or {})}"
+            )
+        else:
+            lines.append("- EOD candidate: none")
+        if snapshot_control_sync_path:
+            lines.append(f"- Control Sync candidate: {snapshot_control_sync_summary or 'pending'}")
+            lines.append(f"  path={snapshot_control_sync_path}")
+            lines.append(
+                "  truth_state_counts="
+                + str(dict(manifold.get("current_control_sync_candidate_truth_state_counts") or {}))
+            )
+        else:
+            lines.append("- Control Sync candidate: none")
+        lines.append("- Formalization path: formalize --candidate-handle {eod|control-sync}")
+        lines.append("")
+
+    operational_sections = [
+        ("Guild Orders proposals", list(manifold.get("guild_order_candidate_details") or [])),
+        ("Codex proposals", list(manifold.get("codex_candidate_details") or [])),
+        ("Build Manual proposals", list(manifold.get("build_manual_candidate_details") or [])),
+        ("Disclosure proposals", list(manifold.get("disclosure_candidate_details") or [])),
+    ]
+    if any(details for _, details in operational_sections):
+        lines.append("## Operational proposals")
+        for title, details in operational_sections:
+            if not details:
+                continue
+            lines.append(f"- {title}:")
+            for item in details[:4]:
+                lines.append(
+                    f"  - [{item.get('state')}] {item.get('title')} ({item.get('proposal_id')})"
+                )
+                lines.append(
+                    "    truth_state_counts="
+                    + str(dict(item.get("truth_state_counts") or {}))
+                    + f" evidence={', '.join(item.get('evidence_sources') or []) or 'none'}"
+                )
+                if item.get("formalized_artifact_path"):
+                    lines.append(f"    formalized={item.get('formalized_artifact_path')}")
+        lines.append("")
+
+    truth_draft_details = list(manifold.get("recent_truth_draft_details") or [])
+    if truth_draft_details:
+        lines.append("## Truth drafts")
+        lines.append(f"- Truth draft count: {manifold.get('truth_draft_count') or 0}")
+        lines.append(f"- Truth draft index: {manifold.get('truth_draft_index_path') or 'none'}")
+        for item in truth_draft_details[:5]:
+            lines.append(
+                f"- {item.get('title')}: statements={item.get('statement_count')} source_refs={item.get('source_ref_count')}"
+            )
+            if item.get("path"):
+                lines.append(f"  path={item.get('path')}")
+        lines.append("")
+
     semantic_sections = [
         ("Ideas", manifold.get("recent_idea_details") or []),
         ("Constraints", manifold.get("recent_constraint_details") or []),

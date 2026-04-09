@@ -88,6 +88,7 @@ from synapse_runtime.sidecar_store import (
 )
 from synapse_runtime.snapshot_candidates import snapshot_candidate_summary
 from synapse_runtime.synthesis_refresh import refresh_synthesis
+from synapse_runtime.truth_drafts import truth_draft_summary
 
 
 def _latest_finalized_run(*, subject: str, data_root: Path) -> dict[str, Any]:
@@ -857,6 +858,44 @@ def _apply_publication_candidate_projection(
     return summary
 
 
+def _apply_truth_draft_projection(
+    *,
+    state: dict[str, Any],
+    manifold: dict[str, Any],
+    data_root: Path,
+) -> dict[str, Any]:
+    summary = truth_draft_summary(data_root)
+    state["truth_draft_count"] = int(summary.get("truth_draft_count") or 0)
+    state["current_truth_draft_paths"] = list(summary.get("current_truth_draft_paths") or [])
+
+    manifold["truth_draft_count"] = int(summary.get("truth_draft_count") or 0)
+    manifold["current_truth_draft_paths"] = list(summary.get("current_truth_draft_paths") or [])
+    manifold["recent_truth_draft_details"] = list(summary.get("recent_truth_draft_details") or [])
+    manifold["truth_draft_index_path"] = summary.get("index_path")
+    return summary
+
+
+def _apply_operational_proposal_projection(
+    *,
+    state: dict[str, Any],
+    manifold: dict[str, Any],
+    data_root: Path,
+) -> dict[str, Any]:
+    proposal_records = _load_proposal_records(live_root(data_root))
+    _sync_candidate_backlog(manifold, proposal_records)
+    summary = {
+        "guild_order_candidate_details": list(manifold.get("guild_order_candidate_details") or []),
+        "codex_candidate_details": list(manifold.get("codex_candidate_details") or []),
+        "build_manual_candidate_details": list(manifold.get("build_manual_candidate_details") or []),
+        "disclosure_candidate_details": list(manifold.get("disclosure_candidate_details") or []),
+    }
+    state["guild_order_candidate_count"] = len(summary["guild_order_candidate_details"])
+    state["codex_candidate_count"] = len(summary["codex_candidate_details"])
+    state["build_manual_candidate_count"] = len(summary["build_manual_candidate_details"])
+    state["disclosure_candidate_count"] = len(summary["disclosure_candidate_details"])
+    return summary
+
+
 def refresh_synthesis_projection(*, subject: str, data_root: Path) -> dict[str, Any]:
     live = live_root(data_root)
     state_path = live / "STATE.yaml"
@@ -885,6 +924,16 @@ def refresh_synthesis_projection(*, subject: str, data_root: Path) -> dict[str, 
         manifold=manifold,
         data_root=data_root,
     )
+    truth_drafts = _apply_truth_draft_projection(
+        state=state,
+        manifold=manifold,
+        data_root=data_root,
+    )
+    operational_proposals = _apply_operational_proposal_projection(
+        state=state,
+        manifold=manifold,
+        data_root=data_root,
+    )
     _write_yaml(state_path, state)
     manifold["last_updated_at"] = _now_iso()
     _write_yaml(manifold_path, manifold)
@@ -894,6 +943,8 @@ def refresh_synthesis_projection(*, subject: str, data_root: Path) -> dict[str, 
         **projection,
         "snapshot_candidates": snapshot_candidates,
         "publication_candidates": publication_candidates,
+        "truth_drafts": truth_drafts,
+        "operational_proposals": operational_proposals,
     }
 
 
@@ -1089,6 +1140,16 @@ def _sync_sidecar(
         manifold=manifold,
         data_root=data_root,
     )
+    truth_drafts_projection = _apply_truth_draft_projection(
+        state=state,
+        manifold=manifold,
+        data_root=data_root,
+    )
+    operational_proposals_projection = _apply_operational_proposal_projection(
+        state=state,
+        manifold=manifold,
+        data_root=data_root,
+    )
 
     accepted_details = load_accepted_quest_details(subject, data_root)
     current_accepted = select_current_accepted_quest(accepted_details)
@@ -1261,6 +1322,8 @@ def _sync_sidecar(
         "draftshot": draftshot_projection,
         "snapshot_candidates": snapshot_candidates_projection,
         "publication_candidates": publication_candidates_projection,
+        "truth_drafts": truth_drafts_projection,
+        "operational_proposals": operational_proposals_projection,
         "interaction_mode": interaction_mode,
         "world_state": world_state.value,
         "active_onboarding_id": onboarding_state.get("active_onboarding_id"),

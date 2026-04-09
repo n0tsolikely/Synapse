@@ -13,6 +13,7 @@ if str(RUNTIME_ROOT) not in sys.path:
     sys.path.insert(0, str(RUNTIME_ROOT))
 
 from synapse_runtime.live_journal import record_quest_acceptance
+from synapse_runtime.truth_drafts import write_truth_draft
 
 SYNAPSE = [sys.executable, str(REPO_ROOT / "runtime" / "synapse.py")]
 
@@ -346,13 +347,39 @@ class LiveMemoryFlowTests(unittest.TestCase):
         self.assertIn("canonizer_sections", guild_orders_payload)
         self.assertTrue(guild_orders_payload["coherent_outcome"])
         self.assertTrue(guild_orders_payload["closure_statement"])
+        write_truth_draft(
+            subject="TestSubject",
+            data_root=self.data_root,
+            title="Operational backlog truth draft",
+            summary="Capture operational canon truth inputs.",
+            statements=[
+                {
+                    "statement_kind": "current_focus",
+                    "summary": "Operational proposal backlog exists with evidence-backed authored payloads.",
+                    "truth_layer": "partial",
+                    "confidence": "medium",
+                    "topic_key": "operational-proposal-backlog",
+                }
+            ],
+            source_refs=[{"kind": "conversation_segment", "id": "SEG-TRUTH", "path": "/tmp/SEG-TRUTH.json"}],
+        )
+        result = run_cmd(["render-rehydrate", *self.subject_args])
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        state = yaml.safe_load((self.data_root / ".synapse" / "STATE.yaml").read_text(encoding="utf-8"))
         manifold = yaml.safe_load((self.data_root / ".synapse" / "MANIFOLD.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(state.get("truth_draft_count"), 1)
         self.assertTrue(manifold.get("quest_candidate_details"))
         self.assertTrue(manifold.get("codex_candidate_details"))
         self.assertTrue(manifold.get("guild_order_candidate_details"))
+        self.assertEqual(state.get("codex_candidate_count"), len(manifold.get("codex_candidate_details") or []))
+        self.assertEqual(state.get("guild_order_candidate_count"), len(manifold.get("guild_order_candidate_details") or []))
+        self.assertEqual(manifold.get("truth_draft_count"), 1)
+        self.assertTrue(manifold.get("recent_truth_draft_details"))
         self.assertEqual(manifold.get("current_verification_status"), "PASS")
         rehydrate = (self.data_root / ".synapse" / "REHYDRATE.md").read_text(encoding="utf-8")
         self.assertIn("## Quest candidates", rehydrate)
+        self.assertIn("## Operational proposals", rehydrate)
+        self.assertIn("## Truth drafts", rehydrate)
         self.assertIn("## Recent verification", rehydrate)
         self.assertIn("unit tests passed", rehydrate)
 

@@ -24,6 +24,7 @@ from synapse_runtime.sidecar_projection import refresh_synthesis_projection
 from synapse_runtime.sidecar_store import ensure_live_scaffold
 from synapse_runtime.snapshot_candidates import refresh_snapshot_candidates
 from synapse_runtime.subject_bootstrap import initialize_subject_state
+from synapse_runtime.truth_drafts import write_truth_draft
 
 
 @unittest.skipUnless(PYDANTIC_AVAILABLE, "pydantic is not installed in the active interpreter.")
@@ -111,6 +112,22 @@ class CurrentContextProjectionTests(unittest.TestCase):
             subject=self.subject,
             data_root=self.data_root,
         )
+        write_truth_draft(
+            subject=self.subject,
+            data_root=self.data_root,
+            title="Current context truth draft",
+            summary="Capture current truth draft inputs for projection.",
+            statements=[
+                {
+                    "statement_kind": "current_focus",
+                    "summary": "Installable workflow foundation exists as active work.",
+                    "truth_layer": "partial",
+                    "confidence": "medium",
+                    "topic_key": "installable-workflow-foundation",
+                }
+            ],
+            source_refs=[{"kind": "conversation_segment", "id": "SEG-TRUTH", "path": "/tmp/SEG-TRUTH.json"}],
+        )
         refresh_synthesis_projection(subject=self.subject, data_root=self.data_root)
 
         _, bundle = build_current_context_bundle(state=self.state, context=None, include_rehydrate=False, include_project_story=False)
@@ -120,6 +137,8 @@ class CurrentContextProjectionTests(unittest.TestCase):
         self.assertIn("draftshot", context)
         self.assertIn("snapshot_candidates", context)
         self.assertIn("publication_candidates", context)
+        self.assertIn("truth_drafts", context)
+        self.assertIn("operational_proposals", context)
         self.assertEqual(context["codex_packets"]["codex_packet_count"], 4)
         self.assertTrue(context["derived_synthesis"]["active_plan_delta"]["summary"])
         self.assertTrue(context["derived_synthesis"]["identity_delta"]["summary"])
@@ -130,6 +149,9 @@ class CurrentContextProjectionTests(unittest.TestCase):
         self.assertTrue(context["publication_candidates"]["current_story_candidate_path"])
         self.assertTrue(context["publication_candidates"]["current_vision_candidate_path"])
         self.assertTrue(context["publication_candidates"]["current_codex_candidate_paths"])
+        self.assertEqual(context["truth_drafts"]["truth_draft_count"], 1)
+        self.assertTrue(context["truth_drafts"]["current_truth_draft_paths"])
+        self.assertIn("codex_candidate_details", context["operational_proposals"])
 
         resources = {item["uri"] for item in resource_catalog(state=self.state)}
         self.assertIn("synapse://current/synthesis-summary.json", resources)
@@ -163,6 +185,7 @@ class CurrentContextProjectionTests(unittest.TestCase):
         self.assertTrue(publication_candidates_payload["current_story_candidate_path"])
         self.assertTrue(publication_candidates_payload["current_vision_candidate_path"])
         self.assertTrue(publication_candidates_payload["current_codex_candidate_paths"])
+        self.assertEqual(context["truth_drafts"]["truth_draft_count"], 1)
         self.assertIn("# Project Story Candidate", story_candidate_text)
         self.assertIn("# Vision Candidate", vision_candidate_text)
         self.assertIn("# Codex Candidate", codex_candidate_text)

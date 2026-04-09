@@ -534,6 +534,11 @@ class SessionModeLifecycleTests(unittest.TestCase):
         summary = payload["snapshot_candidates"]["summary"]
         self.assertTrue(summary["current_eod_candidate_path"])
         self.assertFalse(summary["current_control_sync_candidate_path"])
+        result = run_synapse(["render-rehydrate", "--json", *self.subject_args], cwd=REPO_ROOT, home=self.home)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        rehydrate = self._read_rehydrate()
+        self.assertIn("## Snapshot candidates", rehydrate)
+        self.assertIn("EOD candidate:", rehydrate)
 
     def test_session_mode_inspect_returns_active_posture(self) -> None:
         self._start_brainstorm_session()
