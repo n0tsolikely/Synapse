@@ -1703,6 +1703,7 @@ class RepoOnboardingCommandTests(unittest.TestCase):
         canonical_project_model_path(data_root).write_text(
             yaml.safe_dump(
                 {
+                    "onboarding_id": "ONBOARDING-PUBLISHED",
                     "project_identity": "Baseline installable website system",
                     "purpose": "Help operators ship installable client websites cleanly.",
                     "vision": "Become the reusable baseline for installable customer-facing web systems.",
@@ -1796,6 +1797,9 @@ class RepoOnboardingCommandTests(unittest.TestCase):
         payload = json.loads(result.stdout)
         self.assertEqual(payload["result"]["candidate_kind"], "STORY")
         self.assertTrue(Path(payload["result"]["publication_receipt_path"]).exists())
+        self.assertIn("truth_compile", payload)
+        self.assertTrue(Path(payload["truth_compile"]["compiler_report_path"]).exists())
+        self.assertTrue(Path(payload["truth_compile"]["publication_paths"]["current_state"]).exists())
         self.assertEqual(
             Path(payload["result"]["canonical_paths"]["PROJECT_STORY"]).resolve(),
             canonical_project_story_path(data_root).resolve(),

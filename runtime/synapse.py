@@ -157,6 +157,7 @@ from synapse_runtime.truth_compiler import (
     compile_current_state,
     refresh_truth_status,
 )
+from synapse_runtime.truth_sources import TruthSourceError
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1880,6 +1881,10 @@ def _run_truth_compile(
         )
     except TruthCompilerError as exc:
         return None, None, exc
+    except TruthSourceError as exc:
+        return None, None, TruthCompilerError(str(exc))
+    except RuntimeError as exc:
+        return None, None, TruthCompilerError(str(exc))
     signals, outputs = _compile_current_state_event_payload(ctx=ctx, compile_result=result, session_id=session_id)
     event_info = _event_pipeline(
         ctx=ctx,
@@ -7117,6 +7122,12 @@ def _formalize_candidate_mutation(
                 "canonical_paths": result.get("canonical_paths"),
             },
         )
+        event_info, truth_compile = _merge_truth_compile_follow_on(
+            ctx=ctx,
+            session_id=session_id,
+            event_info=event_info,
+            primary_action_label=f"Publication candidate formalization ({candidate_handle})",
+        )
         return {
             "subject": ctx,
             "result": result,
@@ -7128,6 +7139,7 @@ def _formalize_candidate_mutation(
             "reducer": event_info["reducer"],
             "rehydrate": event_info["reducer"]["rehydrate"],
             "continuity": event_info["reducer"]["continuity"],
+            "truth_compile": truth_compile,
         }
 
     if not proposal_id:
