@@ -418,10 +418,94 @@ def build_published_project_model(
     return project_model
 
 
+def _normalize_authored_draft_inputs(raw_inputs: Any) -> list[dict[str, Any]]:
+    if not isinstance(raw_inputs, list):
+        return []
+    normalized: list[dict[str, Any]] = []
+    for item in raw_inputs:
+        if not isinstance(item, dict):
+            continue
+        normalized.append(
+            {
+                "source_kind": str(item.get("source_kind") or "").strip() or "publication_candidate",
+                "candidate_kind": str(item.get("candidate_kind") or "").strip().upper(),
+                "candidate_handle": str(item.get("candidate_handle") or "").strip().lower(),
+                "candidate_family_id": str(item.get("candidate_family_id") or "").strip() or None,
+                "revision_id": str(item.get("revision_id") or "").strip() or None,
+                "revision_number": item.get("revision_number"),
+                "summary": str(item.get("summary") or "").strip() or None,
+                "body_path": str(item.get("body_path") or "").strip() or None,
+                "manifest_path": str(item.get("manifest_path") or "").strip() or None,
+                "refreshed_at": str(item.get("refreshed_at") or "").strip() or None,
+                "noncanonical": bool(item.get("noncanonical", True)),
+                "source_refs": list(item.get("source_refs") or []),
+                "baseline_refs": list(item.get("baseline_refs") or []),
+                "truth_state_counts": dict(item.get("truth_state_counts") or {}),
+                "canonizer_schema_version": item.get("canonizer_schema_version"),
+                "body_text": str(item.get("body_text") or "").strip() or None,
+            }
+        )
+    return normalized
+
+
+def _demote_markdown_headings(text: str, *, minimum_level: int = 4) -> str:
+    lines: list[str] = []
+    for raw_line in str(text or "").splitlines():
+        stripped = raw_line.lstrip()
+        if stripped.startswith("#"):
+            hash_count = len(stripped) - len(stripped.lstrip("#"))
+            content = stripped[hash_count:].lstrip()
+            lines.append(("#" * max(minimum_level, hash_count + 2)) + (f" {content}" if content else ""))
+        else:
+            lines.append(raw_line)
+    return "\n".join(lines).rstrip()
+
+
+def _append_authored_input_section(base_text: str, model: dict[str, Any], *, candidate_kind: str) -> str:
+    authored_inputs = [
+        item
+        for item in _normalize_authored_draft_inputs(model.get("authored_draft_inputs"))
+        if str(item.get("candidate_kind") or "").strip().upper() == candidate_kind
+    ]
+    if not authored_inputs:
+        return base_text.rstrip() + "\n"
+
+    lines = [base_text.rstrip(), "", "## Upstream Noncanonical Authored Inputs", ""]
+    for item in authored_inputs:
+        truth_counts = dict(item.get("truth_state_counts") or {})
+        truth_counts_text = ", ".join(f"{key.lower()}={value}" for key, value in truth_counts.items() if int(value or 0) > 0) or "none recorded"
+        lines.extend(
+            [
+                f"### {candidate_kind} Publication Candidate",
+                f"- Candidate revision: {item.get('revision_id') or 'unknown'}",
+                f"- Candidate summary: {item.get('summary') or 'None recorded.'}",
+                f"- Candidate body path: {item.get('body_path') or 'None recorded.'}",
+                f"- Candidate manifest path: {item.get('manifest_path') or item.get('body_path') or 'None recorded.'}",
+                f"- Candidate noncanonical: {bool(item.get('noncanonical', True))}",
+                f"- Source ref count: {len(list(item.get('source_refs') or []))}",
+                f"- Baseline ref count: {len(list(item.get('baseline_refs') or []))}",
+                f"- Truth-state counts: {truth_counts_text}",
+                "",
+            ]
+        )
+        body_text = str(item.get("body_text") or "").strip()
+        if body_text:
+            lines.extend(
+                [
+                    "#### Candidate Body",
+                    "",
+                    _demote_markdown_headings(body_text),
+                    "",
+                ]
+            )
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def build_draft_publication_view(
     *,
     draft: dict[str, Any],
     question_set: dict[str, Any] | None,
+    authored_inputs: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     return {
         "project_identity": str(draft.get("summary_hypothesis") or "").strip(),
@@ -454,23 +538,40 @@ def build_draft_publication_view(
             for question in (question_set or {}).get("questions") or []
             if question.get("status") == "open" and question.get("priority") != "blocking"
         ],
+        "authored_draft_inputs": _normalize_authored_draft_inputs(
+            authored_inputs if authored_inputs is not None else draft.get("authored_draft_inputs")
+        ),
     }
 
 
-def render_draft_story(draft: dict[str, Any], question_set: dict[str, Any] | None = None) -> str:
-    return render_project_story(build_draft_publication_view(draft=draft, question_set=question_set)).replace(
+def render_draft_story(
+    draft: dict[str, Any],
+    question_set: dict[str, Any] | None = None,
+    *,
+    authored_inputs: list[dict[str, Any]] | None = None,
+) -> str:
+    model = build_draft_publication_view(draft=draft, question_set=question_set, authored_inputs=authored_inputs)
+    body = render_project_story(model).replace(
         "# Project Story",
         "# Project Story Draft",
         1,
     )
+    return _append_authored_input_section(body, model, candidate_kind="STORY")
 
 
-def render_draft_vision(draft: dict[str, Any], question_set: dict[str, Any] | None = None) -> str:
-    return render_published_vision(build_draft_publication_view(draft=draft, question_set=question_set)).replace(
+def render_draft_vision(
+    draft: dict[str, Any],
+    question_set: dict[str, Any] | None = None,
+    *,
+    authored_inputs: list[dict[str, Any]] | None = None,
+) -> str:
+    model = build_draft_publication_view(draft=draft, question_set=question_set, authored_inputs=authored_inputs)
+    body = render_published_vision(model).replace(
         "# Vision (Published)",
         "# Vision Draft",
         1,
     )
+    return _append_authored_input_section(body, model, candidate_kind="VISION")
 
 
 def render_project_story(model: dict[str, Any]) -> str:
@@ -568,8 +669,12 @@ def render_published_vision(model: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def render_draft_codex_current(model: dict[str, Any]) -> str:
-    model = build_draft_publication_view(draft=model, question_set=None)
+def render_draft_codex_current(
+    model: dict[str, Any],
+    *,
+    authored_inputs: list[dict[str, Any]] | None = None,
+) -> str:
+    model = build_draft_publication_view(draft=model, question_set=None, authored_inputs=authored_inputs)
     stable_current = [f"- {item.get('summary')}" for item in model.get("implemented_truths") or model.get("confirmed_capabilities") or []]
     partial_current = [f"- {item.get('summary')}" for item in model.get("partial_truths") or []]
     constraints = [f"- {item.get('summary')}" for item in model.get("constraints") or []]
@@ -589,11 +694,15 @@ def render_draft_codex_current(model: dict[str, Any]) -> str:
         *(constraints or ["- None recorded."]),
         "",
     ]
-    return "\n".join(lines).rstrip() + "\n"
+    return _append_authored_input_section("\n".join(lines).rstrip() + "\n", model, candidate_kind="CODEX")
 
 
-def render_draft_codex_future(model: dict[str, Any]) -> str:
-    model = build_draft_publication_view(draft=model, question_set=None)
+def render_draft_codex_future(
+    model: dict[str, Any],
+    *,
+    authored_inputs: list[dict[str, Any]] | None = None,
+) -> str:
+    model = build_draft_publication_view(draft=model, question_set=None, authored_inputs=authored_inputs)
     intended = [f"- {item.get('summary')}" for item in model.get("intended_capabilities") or []]
     expansion = [f"- {item.get('summary')}" for item in model.get("future_ideas_needing_expansion") or []]
     superseded = [
@@ -613,7 +722,7 @@ def render_draft_codex_future(model: dict[str, Any]) -> str:
         *(superseded or ["- None recorded."]),
         "",
     ]
-    return "\n".join(lines).rstrip() + "\n"
+    return _append_authored_input_section("\n".join(lines).rstrip() + "\n", model, candidate_kind="CODEX")
 
 
 def render_published_codex_current(model: dict[str, Any]) -> str:

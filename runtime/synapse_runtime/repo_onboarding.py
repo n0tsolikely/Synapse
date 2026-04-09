@@ -909,6 +909,9 @@ def onboarding_update(
         linked_capture_batch_ids=list(session.get("clarification_batch_ids") or session.get("clarification_capture_batch_ids") or []),
         prior_question_set=prior_questions,
     )
+    authored_render_inputs, authored_stored_inputs = _load_authored_draft_inputs(data_root)
+    stored_draft = dict(normalized_draft)
+    stored_draft["authored_draft_inputs"] = authored_stored_inputs
     revision_path = onboarding_draft_path(data_root, str(normalized_draft["revision_id"]))
     question_path = onboarding_question_set_path(data_root, str(normalized_questions["question_set_id"]))
     story_path = onboarding_story_draft_path(data_root, str(normalized_draft["revision_id"]))
@@ -921,13 +924,13 @@ def onboarding_update(
     if delta is not None:
         delta_id = str(delta["revision_id"])
         delta_path = onboarding_delta_path(data_root, delta_id)
-    draft_story = render_draft_story(normalized_draft, normalized_questions)
-    draft_vision = render_draft_vision(normalized_draft, normalized_questions)
-    draft_codex_current = render_draft_codex_current(normalized_draft)
-    draft_codex_future = render_draft_codex_future(normalized_draft)
+    draft_story = render_draft_story(stored_draft, normalized_questions, authored_inputs=authored_render_inputs)
+    draft_vision = render_draft_vision(stored_draft, normalized_questions, authored_inputs=authored_render_inputs)
+    draft_codex_current = render_draft_codex_current(stored_draft, authored_inputs=authored_render_inputs)
+    draft_codex_future = render_draft_codex_future(stored_draft, authored_inputs=authored_render_inputs)
     _write_artifact_family(
         {
-            revision_path: yaml.safe_dump(normalized_draft, sort_keys=False),
+            revision_path: yaml.safe_dump(stored_draft, sort_keys=False),
             question_path: yaml.safe_dump(normalized_questions, sort_keys=False),
             story_path: draft_story,
             vision_path: draft_vision,
@@ -1040,6 +1043,8 @@ def onboarding_update(
         "draft_vision_path": str(vision_path.resolve()),
         "draft_codex_current_path": str(codex_current_path.resolve()),
         "draft_codex_future_path": str(codex_future_path.resolve()),
+        "authored_draft_input_count": len(authored_stored_inputs),
+        "authored_draft_input_kinds": [str(item.get("candidate_kind") or "") for item in authored_stored_inputs],
         "workplan_path": workplan_path,
         "readiness": readiness,
     }
@@ -1962,6 +1967,16 @@ def _normalize_onboarding_session(session: dict[str, Any]) -> dict[str, Any]:
     normalized.setdefault("published_codex_current_path", None)
     normalized.setdefault("published_codex_future_path", None)
     return normalized
+
+
+def _load_authored_draft_inputs(data_root: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    from synapse_runtime.publication_candidates import publication_candidate_draft_inputs
+
+    rendered_inputs = publication_candidate_draft_inputs(data_root, include_body_text=True)
+    stored_inputs: list[dict[str, Any]] = []
+    for item in rendered_inputs:
+        stored_inputs.append({key: value for key, value in item.items() if key != "body_text"})
+    return rendered_inputs, stored_inputs
 
 
 def _write_artifact_family(artifacts: dict[Path, str]) -> None:

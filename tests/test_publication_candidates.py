@@ -12,7 +12,7 @@ if str(RUNTIME_ROOT) not in sys.path:
     sys.path.insert(0, str(RUNTIME_ROOT))
 
 from synapse_runtime.promotion_engine import promote_semantic_events
-from synapse_runtime.publication_candidates import refresh_publication_candidates, resolve_publication_candidate
+from synapse_runtime.publication_candidates import publication_candidate_draft_inputs, refresh_publication_candidates, resolve_publication_candidate
 from synapse_runtime.quest_plans import persist_execution_plan
 from synapse_runtime.repo_onboarding import (
     canonical_codex_current_path,
@@ -223,6 +223,55 @@ class PublicationCandidateTests(unittest.TestCase):
         self.assertEqual(first_story["revision_number"], 1)
         self.assertEqual(first_vision["revision_number"], 1)
         self.assertEqual(first_codex["revision_number"], 1)
+
+    def test_publication_candidate_draft_inputs_preserve_noncanonical_handoff_metadata(self) -> None:
+        promote_semantic_events(
+            subject=self.subject,
+            data_root=self.data_root,
+            semantic_events=[
+                self._event("SEMEVT-SCOPE", "project.scope", "Scope the product around installable account-backed workflows."),
+                self._event("SEMEVT-VISION", "project.vision", "The product becomes a reusable website business system."),
+            ],
+        )
+        persist_execution_plan(
+            subject=self.subject,
+            data_root=self.data_root,
+            title="Publication candidate draft handoff",
+            summary="Produce current candidates that onboarding can consume as noncanonical inputs.",
+            origin="test",
+            objective="Keep candidate/body/source metadata intact at the onboarding handoff seam.",
+            coherent_outcome="Current candidate handoff preserves source refs, baseline refs, and authored body text.",
+            closure_statement="Onboarding can consume authored candidate inputs without publishing them.",
+            out_of_scope="Canonical publication.",
+            dependencies=["Continuity synthesis"],
+            risk="R1",
+            verification_plan="Refresh synthesis, generate publication candidates, then inspect the handoff payload.",
+            milestones=["Candidate refresh", "Draft handoff inspection"],
+            split_triggers=["Split if onboarding needs a new parallel publication store."],
+            source_segment_ids=["SEG-PLAN"],
+            source_semantic_event_ids=["SEMEVT-PLAN"],
+            source_refs=[{"kind": "conversation_segment", "id": "SEG-PLAN", "path": "/tmp/SEG-PLAN.json"}],
+        )
+        refresh_synthesis_projection(subject=self.subject, data_root=self.data_root)
+        refresh_publication_candidates(subject=self.subject, data_root=self.data_root)
+
+        inputs = publication_candidate_draft_inputs(self.data_root, include_body_text=True)
+        self.assertEqual({item["candidate_kind"] for item in inputs}, {"STORY", "VISION", "CODEX"})
+
+        story_input = next(item for item in inputs if item["candidate_kind"] == "STORY")
+        story_candidate = resolve_publication_candidate(self.data_root, "story")
+        self.assertTrue(story_input["noncanonical"])
+        self.assertEqual(story_input["revision_id"], story_candidate["revision_id"])
+        self.assertEqual(story_input["source_refs"], story_candidate["source_refs"])
+        self.assertEqual(story_input["baseline_refs"], story_candidate["baseline_refs"])
+        self.assertEqual(story_input["truth_state_counts"], story_candidate["canonizer_sections"]["truth_state_counts"])
+        self.assertIn("## Truths In Hand", story_input["body_text"])
+
+        codex_input = next(item for item in inputs if item["candidate_kind"] == "CODEX")
+        codex_candidate = resolve_publication_candidate(self.data_root, "codex")
+        self.assertEqual(codex_input["manifest_path"], codex_candidate["path"])
+        self.assertEqual(codex_input["source_refs"], codex_candidate["source_refs"])
+        self.assertIn("## Truths In Hand", codex_input["body_text"])
 
     def test_publish_publication_candidate_clears_pending_state_and_prevents_immediate_redraft(self) -> None:
         promote_semantic_events(

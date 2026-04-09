@@ -584,6 +584,41 @@ def publication_candidate_summary(data_root: Path) -> dict[str, Any]:
     }
 
 
+def publication_candidate_draft_inputs(
+    data_root: Path,
+    *,
+    include_body_text: bool = False,
+) -> list[dict[str, Any]]:
+    """Return current noncanonical candidate data for onboarding/publication draft handoff."""
+
+    inputs: list[dict[str, Any]] = []
+    for kind in PUBLICATION_CANDIDATE_KINDS:
+        candidate = load_current_publication_candidate(data_root, kind)
+        if candidate is None:
+            continue
+        payload: dict[str, Any] = {
+            "source_kind": "publication_candidate",
+            "candidate_kind": kind,
+            "candidate_handle": kind.lower(),
+            "candidate_family_id": candidate.get("candidate_family_id"),
+            "revision_id": candidate.get("revision_id"),
+            "revision_number": candidate.get("revision_number"),
+            "summary": candidate.get("summary"),
+            "body_path": candidate.get("body_path"),
+            "manifest_path": candidate.get("path"),
+            "refreshed_at": candidate.get("refreshed_at"),
+            "noncanonical": True,
+            "source_refs": list(candidate.get("source_refs") or []),
+            "baseline_refs": list(candidate.get("baseline_refs") or []),
+            "truth_state_counts": dict(dict(candidate.get("canonizer_sections") or {}).get("truth_state_counts") or {}),
+            "canonizer_schema_version": candidate.get("canonizer_schema_version"),
+        }
+        if include_body_text:
+            payload["body_text"] = load_publication_candidate_body(candidate)
+        inputs.append(payload)
+    return inputs
+
+
 def _summary_items(items: Iterable[dict[str, Any]]) -> list[str]:
     normalized: list[str] = []
     seen: set[str] = set()

@@ -599,6 +599,31 @@ class RepoOnboardingCommandTests(unittest.TestCase):
             "questions": questions,
         }
 
+    def _write_publication_baseline(self) -> None:
+        data_root = self._data_root()
+        canonical_project_model_path(data_root).write_text(
+            yaml.safe_dump(
+                {
+                    "project_identity": "Project onboard baseline",
+                    "purpose": "Exercise onboarding publication flows safely.",
+                    "vision": "Track repo story without bypassing confirmation.",
+                    "confirmed_at": "2026-04-09T09:00:00-04:00",
+                    "implemented_truths": [{"summary": "The repo already records governed continuity."}],
+                    "partial_truths": [],
+                    "intended_capabilities": [],
+                    "future_ideas_needing_expansion": [],
+                    "superseded_directions": [],
+                    "constraints": [],
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
+        canonical_project_story_path(data_root).write_text("# Project Story\n\nBaseline story.\n", encoding="utf-8")
+        canonical_vision_path(data_root).write_text("# Vision\n\nBaseline vision.\n", encoding="utf-8")
+        canonical_codex_current_path(data_root).write_text("# Current Codex\n\nBaseline current codex.\n", encoding="utf-8")
+        canonical_codex_future_path(data_root).write_text("# Future Codex\n\nBaseline future codex.\n", encoding="utf-8")
+
     def test_onboard_repo_creates_session_and_scan_then_resume_and_rescan_behave_deterministically(self) -> None:
         first = self._start_onboarding()
         self.assertTrue(Path(first["scan_artifact_path"]).exists())
@@ -624,6 +649,129 @@ class RepoOnboardingCommandTests(unittest.TestCase):
         session = self._session_payload(first["onboarding_id"])
         self.assertEqual(session["state"], "needs_draft_submission")
         self.assertEqual(len(session["scan_ids"]), 2)
+
+    def test_onboarding_update_includes_noncanonical_publication_candidate_inputs_without_publishing(self) -> None:
+        first = self._start_onboarding()
+        self._write_publication_baseline()
+        subject = "PROJECT-ONBOARD"
+        data_root = self._data_root()
+
+        promote_semantic_events(
+            subject=subject,
+            data_root=data_root,
+            semantic_events=[
+                {
+                    "semantic_event_id": "SEMEVT-STORY",
+                    "schema_version": 1,
+                    "classifier_version": "v1-phase3",
+                    "recorded_at": "2026-04-09T10:00:00-04:00",
+                    "subject": subject,
+                    "class_label": "project.scope",
+                    "topic_key": "project.scope",
+                    "confidence_band": "high",
+                    "materiality_band": "high",
+                    "summary": "The repo should preserve authored publication inputs during onboarding draft review.",
+                    "transient_noise": False,
+                    "imported_limited": False,
+                    "source_segment_ids": ["SEG-STORY"],
+                    "source_refs": [{"kind": "conversation_segment", "id": "SEG-STORY", "path": "/tmp/SEG-STORY.json"}],
+                    "related_paths": [],
+                },
+                {
+                    "semantic_event_id": "SEMEVT-VISION",
+                    "schema_version": 1,
+                    "classifier_version": "v1-phase3",
+                    "recorded_at": "2026-04-09T10:01:00-04:00",
+                    "subject": subject,
+                    "class_label": "project.vision",
+                    "topic_key": "project.vision",
+                    "confidence_band": "high",
+                    "materiality_band": "high",
+                    "summary": "The repo story and codex should remain reviewable before confirmation.",
+                    "transient_noise": False,
+                    "imported_limited": False,
+                    "source_segment_ids": ["SEG-VISION"],
+                    "source_refs": [{"kind": "conversation_segment", "id": "SEG-VISION", "path": "/tmp/SEG-VISION.json"}],
+                    "related_paths": [],
+                },
+            ],
+        )
+        persist_execution_plan(
+            subject=subject,
+            data_root=data_root,
+            title="Onboarding authored draft handoff",
+            summary="Use current publication candidates as upstream authored onboarding draft inputs.",
+            origin="test",
+            objective="Improve onboarding draft review surfaces without mutating canon before confirmation.",
+            coherent_outcome="Onboarding draft artifacts embed current noncanonical publication candidate context.",
+            closure_statement="Current publication candidates stay noncanonical and confirmation stays owner-gated.",
+            out_of_scope="Canonical publication before confirmation.",
+            dependencies=["Continuity synthesis"],
+            risk="R1",
+            verification_plan="Refresh publication candidates, run onboarding-update, then inspect draft artifacts and canonical files.",
+            milestones=["Candidate refresh", "Onboarding update"],
+            split_triggers=["Split if onboarding starts drafting publication candidates itself."],
+            source_segment_ids=["SEG-PLAN"],
+            source_semantic_event_ids=["SEMEVT-PLAN"],
+            source_refs=[{"kind": "conversation_segment", "id": "SEG-PLAN", "path": "/tmp/SEG-PLAN.json"}],
+        )
+        refresh_synthesis_projection(subject=subject, data_root=data_root)
+        refreshed = refresh_publication_candidates(subject=subject, data_root=data_root)
+        self.assertIn(refreshed["status"], {"written", "noop"})
+
+        baseline_story = canonical_project_story_path(data_root).read_text(encoding="utf-8")
+        baseline_vision = canonical_vision_path(data_root).read_text(encoding="utf-8")
+        baseline_codex_current = canonical_codex_current_path(data_root).read_text(encoding="utf-8")
+        baseline_codex_future = canonical_codex_future_path(data_root).read_text(encoding="utf-8")
+
+        draft = self._confirmation_ready_draft(first["onboarding_id"], first["scan_id"])
+        questions = self._question_set(first["onboarding_id"], first["scan_id"], include_question=False)
+        update = run_synapse(
+            [
+                "onboarding-update",
+                "--draft-json",
+                json.dumps(draft),
+                "--questions-json",
+                json.dumps(questions),
+                "--json",
+            ],
+            cwd=self.repo,
+            home=self.home,
+            extra_env=self.extra_env,
+        )
+        self.assertEqual(update.returncode, 0, update.stdout + update.stderr)
+        payload = json.loads(update.stdout)
+        self.assertEqual(payload["onboarding_state"], "awaiting_confirmation")
+        self.assertEqual(payload["authored_draft_input_count"], 3)
+        self.assertEqual(set(payload["authored_draft_input_kinds"]), {"STORY", "VISION", "CODEX"})
+
+        stored_draft = yaml.safe_load(Path(payload["draft_path"]).read_text(encoding="utf-8"))
+        self.assertEqual(len(stored_draft["authored_draft_inputs"]), 3)
+        self.assertFalse(any("body_text" in item for item in stored_draft["authored_draft_inputs"]))
+        self.assertTrue(all(item["noncanonical"] for item in stored_draft["authored_draft_inputs"]))
+        self.assertTrue(all(item["source_refs"] for item in stored_draft["authored_draft_inputs"]))
+
+        story_text = Path(payload["draft_story_path"]).read_text(encoding="utf-8")
+        vision_text = Path(payload["draft_vision_path"]).read_text(encoding="utf-8")
+        codex_current_text = Path(payload["draft_codex_current_path"]).read_text(encoding="utf-8")
+        codex_future_text = Path(payload["draft_codex_future_path"]).read_text(encoding="utf-8")
+        self.assertIn("## Upstream Noncanonical Authored Inputs", story_text)
+        self.assertIn("### STORY Publication Candidate", story_text)
+        self.assertIn("#### Candidate Body", story_text)
+        self.assertIn("## Truths In Hand", story_text)
+        self.assertIn("## Upstream Noncanonical Authored Inputs", vision_text)
+        self.assertIn("### VISION Publication Candidate", vision_text)
+        self.assertIn("## Source Refs", vision_text)
+        self.assertIn("## Upstream Noncanonical Authored Inputs", codex_current_text)
+        self.assertIn("### CODEX Publication Candidate", codex_current_text)
+        self.assertIn("# Current Codex Draft", codex_current_text)
+        self.assertIn("## Upstream Noncanonical Authored Inputs", codex_future_text)
+        self.assertIn("# Future Codex Draft", codex_future_text)
+
+        self.assertEqual(canonical_project_story_path(data_root).read_text(encoding="utf-8"), baseline_story)
+        self.assertEqual(canonical_vision_path(data_root).read_text(encoding="utf-8"), baseline_vision)
+        self.assertEqual(canonical_codex_current_path(data_root).read_text(encoding="utf-8"), baseline_codex_current)
+        self.assertEqual(canonical_codex_future_path(data_root).read_text(encoding="utf-8"), baseline_codex_future)
 
     def test_rehydrate_marks_draft_stale_after_rescan_even_without_new_clarifications(self) -> None:
         first = self._start_onboarding()
