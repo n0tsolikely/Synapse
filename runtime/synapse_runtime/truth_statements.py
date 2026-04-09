@@ -41,6 +41,7 @@ PROVENANCE_SOURCE_TYPES = {
     "semantic_capture",
     "decision",
     "disclosure",
+    "truth_draft",
     "receipt",
     "audit_bundle",
     "onboarding_publication",

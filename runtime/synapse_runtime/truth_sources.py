@@ -24,6 +24,7 @@ from synapse_runtime.repo_onboarding import (
 from synapse_runtime.repo_state import _run_git
 from synapse_runtime.semantic_intake import load_capture_batches
 from synapse_runtime.sidecar_store import live_root
+from synapse_runtime.truth_drafts import load_current_truth_drafts
 from synapse_runtime.truth_statements import StatementKind, TruthLayer, normalize_confidence, normalize_summary_text, normalize_topic_key
 
 
@@ -285,6 +286,61 @@ def disclosure_evidence(*, data_root: Path) -> tuple[list[EvidenceRecord], list[
             )
         )
     return records, []
+
+
+def truth_draft_evidence(*, data_root: Path) -> tuple[list[EvidenceRecord], list[EvidenceWarning]]:
+    records: list[EvidenceRecord] = []
+    warnings: list[EvidenceWarning] = []
+    for draft in load_current_truth_drafts(data_root):
+        draft_path = str(draft.get("path") or "").strip()
+        drafted_at = _parse_time(draft.get("drafted_at"), fallback=_file_time(Path(draft_path))) if draft_path else _parse_time(draft.get("drafted_at"))
+        source_refs = list(draft.get("source_refs") or [])
+        for item in draft.get("statements") or []:
+            if not isinstance(item, dict):
+                raise TruthSourceError(
+                    "Truth draft statement must be an object.",
+                    canonical=False,
+                    source_type="truth_draft",
+                    path=draft_path or None,
+                )
+            statement_kind = str(item.get("statement_kind") or "").strip()
+            summary = str(item.get("summary") or "").strip()
+            if not statement_kind or not summary:
+                raise TruthSourceError(
+                    "Truth draft statement missing statement_kind or summary.",
+                    canonical=False,
+                    source_type="truth_draft",
+                    path=draft_path or None,
+                )
+            records.append(
+                _make_evidence(
+                    source_type="truth_draft",
+                    source_id=f"{draft.get('revision_id') or draft.get('truth_draft_family_id') or 'draft'}:{item.get('statement_ref') or item.get('topic_key') or summary}",
+                    statement_kind_hint=StatementKind(statement_kind),
+                    summary=summary,
+                    detail=str(item.get("detail") or draft.get("summary") or "").strip(),
+                    confidence_hint=str(item.get("confidence") or "medium"),
+                    operator_confirmed=bool(item.get("operator_confirmed")),
+                    effective_time=drafted_at,
+                    topic_key_hint=str(item.get("topic_key") or summary),
+                    truth_layer_hint=TruthLayer(str(item.get("truth_layer") or TruthLayer.PARTIAL.value)),
+                    path_ref=draft_path,
+                    implemented_hint=str(item.get("truth_layer") or "") == TruthLayer.IMPLEMENTED.value,
+                    needs_expansion_hint=bool(item.get("needs_expansion")),
+                    metadata={
+                        "truth_draft_family_id": draft.get("truth_draft_family_id"),
+                        "revision_id": draft.get("revision_id"),
+                        "revision_number": draft.get("revision_number"),
+                        "family_key": draft.get("family_key"),
+                        "draft_title": draft.get("title"),
+                        "draft_summary": draft.get("summary"),
+                        "statement_ref": item.get("statement_ref"),
+                        "noncanonical": True,
+                        "source_refs": source_refs,
+                    },
+                )
+            )
+    return records, warnings
 
 
 def onboarding_publication_evidence(*, data_root: Path) -> tuple[list[EvidenceRecord], list[EvidenceWarning]]:
@@ -663,6 +719,10 @@ def collect_evidence(*, subject: str, data_root: Path, engine_root: Path) -> dic
     disclosures, disclosure_warnings = disclosure_evidence(data_root=data_root)
     evidence_records.extend(disclosures)
     warnings.extend(disclosure_warnings)
+
+    truth_drafts, truth_draft_warnings = truth_draft_evidence(data_root=data_root)
+    evidence_records.extend(truth_drafts)
+    warnings.extend(truth_draft_warnings)
 
     onboarding, onboarding_warnings = onboarding_publication_evidence(data_root=data_root)
     evidence_records.extend(onboarding)

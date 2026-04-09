@@ -52,12 +52,14 @@ from synapse_runtime.truth_compiler import (
     statements_path,
     truth_publications_dir,
 )
+from synapse_runtime.truth_drafts import write_truth_draft
 from synapse_runtime.truth_sources import (
     EvidenceRecord,
     TruthSourceError,
     decision_evidence,
     onboarding_publication_evidence,
     semantic_capture_evidence,
+    truth_draft_evidence,
     workspace_receipt_evidence,
 )
 from synapse_runtime.truth_statements import (
@@ -487,8 +489,76 @@ class TruthSourceAdapterTests(TruthCompilerFixture):
         self.assertEqual(len(warnings), 1)
         self.assertIn("skipped", warnings[0].message.lower())
 
+    def test_truth_draft_adapter_normalization(self) -> None:
+        write_truth_draft(
+            subject=self.subject,
+            data_root=self.data_root,
+            title="Compiler truth draft",
+            family_key="current-state",
+            statements=[
+                {
+                    "statement_kind": StatementKind.CAPABILITY.value,
+                    "summary": "Truth drafts feed the compiler as noncanonical evidence.",
+                    "detail": "Stored upstream of compiled truth publications.",
+                    "truth_layer": TruthLayer.PARTIAL.value,
+                    "confidence": "medium",
+                    "topic_key": "truth-draft-input",
+                }
+            ],
+            source_refs=[{"kind": "conversation_segment", "id": "SEG-TRUTH", "path": "/tmp/SEG-TRUTH.json"}],
+        )
+        records, warnings = truth_draft_evidence(data_root=self.data_root)
+        self.assertFalse(warnings)
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0].source_type, "truth_draft")
+        self.assertEqual(records[0].statement_kind_hint, StatementKind.CAPABILITY.value)
+        self.assertEqual(records[0].truth_layer_hint, TruthLayer.PARTIAL.value)
+        self.assertTrue(records[0].metadata["noncanonical"])
+
 
 class TruthCompilerBehaviorTests(TruthCompilerFixture):
+    def test_receipt_precedence_over_truth_draft_for_same_capability(self) -> None:
+        records = [
+            EvidenceRecord(
+                evidence_id="EVID-truth-draft",
+                source_type="truth_draft",
+                statement_kind_hint=StatementKind.CAPABILITY.value,
+                summary="Compiled truth is exposed to operators.",
+                detail="Drafted operational truth.",
+                confidence_hint="medium",
+                operator_confirmed=False,
+                effective_time="2026-03-24T09:00:00-04:00",
+                topic_key_hint="truth-operator-surface",
+                truth_layer_hint=TruthLayer.PARTIAL.value,
+                path_ref="/tmp/truth-draft.yaml",
+                supersession_hint=None,
+                implemented_hint=False,
+                needs_expansion_hint=False,
+                metadata={"noncanonical": True},
+            ),
+            EvidenceRecord(
+                evidence_id="EVID-receipt",
+                source_type="receipt",
+                statement_kind_hint=StatementKind.CAPABILITY.value,
+                summary="Compiled truth is exposed to operators.",
+                detail="Completed and verified.",
+                confidence_hint="high",
+                operator_confirmed=True,
+                effective_time="2026-03-24T10:00:00-04:00",
+                topic_key_hint="truth-operator-surface",
+                truth_layer_hint=TruthLayer.IMPLEMENTED.value,
+                path_ref="/tmp/receipt.md",
+                supersession_hint=None,
+                implemented_hint=True,
+                needs_expansion_hint=False,
+                metadata={"completion_like": True},
+            ),
+        ]
+        statements, statement_meta = _build_statements(data_root=self.data_root, records=records, compiled_at="2026-03-24T10:30:00-04:00")
+        resolved = _apply_supersession_and_contradictions(statements, statement_meta=statement_meta)["statements"]
+        self.assertEqual(resolved[0]["truth_layer"], TruthLayer.IMPLEMENTED.value)
+        self.assertEqual(resolved[0]["confidence"], "high")
+
     def test_implemented_precedence_over_intended_for_capability_claim(self) -> None:
         records = [
             EvidenceRecord(
