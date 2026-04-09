@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import datetime as dt
 from pathlib import Path
 from typing import Any, Iterable
 
 from synapse_runtime.continuity_obligations import load_obligations
+from synapse_runtime.draftshots import list_draftshot_revisions
+from synapse_runtime.kernel_types import stable_kernel_id
 from synapse_runtime.lineage_store import load_lineage_edges
+from synapse_runtime.publication_candidates import list_publication_candidate_revisions
+from synapse_runtime.snapshot_candidates import list_snapshot_candidate_revisions
 
 
 COMPACTION_POLICY_SCHEMA_VERSION = 1
@@ -15,6 +20,33 @@ ALLOWED_TARGET_TEMPERATURES = {"warm", "cold"}
 
 class CompactionPolicyError(RuntimeError):
     """Raised when a compaction decision cannot be evaluated safely."""
+
+
+def _now_iso() -> str:
+    return dt.datetime.now(tz=dt.timezone.utc).astimezone().isoformat()
+
+
+def compaction_root(data_root: Path) -> Path:
+    return data_root / ".synapse" / "COMPACTION"
+
+
+def compaction_manifest_dir(data_root: Path, artifact_family: str) -> Path:
+    return compaction_root(data_root) / str(artifact_family or "unknown").strip().lower()
+
+
+def ensure_compaction_scaffold(data_root: Path) -> list[str]:
+    root = compaction_root(data_root)
+    if root.exists():
+        return []
+    root.mkdir(parents=True, exist_ok=True)
+    return [str(root.resolve())]
+
+
+def _write_yaml(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    import yaml
+
+    path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
 
 
 def _normalize_refs(items: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -174,4 +206,153 @@ def evaluate_compaction_candidate(
         "open_obligation_hits": obligation_hits,
         "stronger_successor_ids": successor_ids,
         "source_ref_paths": [str(item.get("path") or "") for item in source_ref_payload if str(item.get("path") or "").strip()],
+    }
+
+
+def _latest_revision_by_family(revisions: Iterable[dict[str, Any]], family_key: str) -> dict[str, dict[str, Any]]:
+    latest: dict[str, dict[str, Any]] = {}
+    for item in revisions:
+        family_id = str(item.get(family_key) or "").strip()
+        if not family_id:
+            continue
+        current = latest.get(family_id)
+        if current is None or int(item.get("revision_number") or 0) > int(current.get("revision_number") or 0):
+            latest[family_id] = item
+    return latest
+
+
+def _manifest_path(data_root: Path, artifact_family: str, artifact_id: str) -> Path:
+    manifest_id = stable_kernel_id("COMPACTION", artifact_family, artifact_id)
+    return compaction_manifest_dir(data_root, artifact_family) / f"COMPACTION__{manifest_id}.yaml"
+
+
+def _record_manifest(
+    *,
+    data_root: Path,
+    artifact_family: str,
+    artifact_id: str,
+    artifact_path: str,
+    companion_paths: Iterable[str],
+    stronger_successor_ids: Iterable[str],
+    stronger_successor_paths: Iterable[str],
+    source_refs: Iterable[dict[str, Any]],
+) -> dict[str, Any]:
+    ensure_compaction_scaffold(data_root)
+    decision = evaluate_compaction_candidate(
+        data_root=data_root,
+        artifact_family=artifact_family,
+        artifact_id=artifact_id,
+        artifact_path=artifact_path,
+        target_temperature="cold",
+        source_refs=source_refs,
+        stronger_successor_ids=stronger_successor_ids,
+    )
+    payload = {
+        "schema_version": COMPACTION_POLICY_SCHEMA_VERSION,
+        "recorded_at": _now_iso(),
+        "artifact_family": artifact_family,
+        "artifact_id": artifact_id,
+        "artifact_path": artifact_path,
+        "companion_paths": _normalize_ids(companion_paths),
+        "target_temperature": decision["target_temperature"],
+        "decision_status": "eligible" if decision["allowed_to_cool"] else "blocked",
+        "decision": decision,
+        "stronger_successor_ids": _normalize_ids(stronger_successor_ids),
+        "stronger_successor_paths": _normalize_ids(stronger_successor_paths),
+    }
+    path = _manifest_path(data_root, artifact_family, artifact_id)
+    _write_yaml(path, payload)
+    return {**payload, "manifest_path": str(path.resolve())}
+
+
+def refresh_superseded_revision_manifests(data_root: Path) -> dict[str, Any]:
+    draftshot_revisions = list_draftshot_revisions(data_root)
+    snapshot_revisions = list_snapshot_candidate_revisions(data_root)
+    publication_revisions = list_publication_candidate_revisions(data_root)
+    receipts: list[dict[str, Any]] = []
+
+    latest_draftshots = _latest_revision_by_family(draftshot_revisions, "draftshot_family_id")
+    for revision in draftshot_revisions:
+        family_id = str(revision.get("draftshot_family_id") or "").strip()
+        latest = latest_draftshots.get(family_id)
+        if not latest or str(latest.get("revision_id") or "") == str(revision.get("revision_id") or ""):
+            continue
+        companion_paths = [str(revision.get("body_path") or "")]
+        receipts.append(
+            _record_manifest(
+                data_root=data_root,
+                artifact_family="draftshot_revision",
+                artifact_id=str(revision.get("revision_id") or ""),
+                artifact_path=str(revision.get("path") or ""),
+                companion_paths=companion_paths,
+                stronger_successor_ids=[str(latest.get("revision_id") or "")],
+                stronger_successor_paths=[str(latest.get("path") or ""), str(latest.get("body_path") or "")],
+                source_refs=[
+                    {
+                        "kind": "draftshot_body",
+                        "id": str(revision.get("revision_id") or ""),
+                        "path": str(revision.get("body_path") or ""),
+                    }
+                ],
+            )
+        )
+
+    latest_snapshots = _latest_revision_by_family(snapshot_revisions, "candidate_family_id")
+    for revision in snapshot_revisions:
+        family_id = str(revision.get("candidate_family_id") or "").strip()
+        latest = latest_snapshots.get(family_id)
+        if not latest or str(latest.get("revision_id") or "") == str(revision.get("revision_id") or ""):
+            continue
+        receipts.append(
+            _record_manifest(
+                data_root=data_root,
+                artifact_family="snapshot_candidate_revision",
+                artifact_id=str(revision.get("revision_id") or ""),
+                artifact_path=str(revision.get("path") or revision.get("manifest_path") or ""),
+                companion_paths=[str(revision.get("body_path") or "")],
+                stronger_successor_ids=[str(latest.get("revision_id") or "")],
+                stronger_successor_paths=[str(latest.get("path") or latest.get("manifest_path") or ""), str(latest.get("body_path") or "")],
+                source_refs=[
+                    {
+                        "kind": "snapshot_candidate_body",
+                        "id": str(revision.get("revision_id") or ""),
+                        "path": str(revision.get("body_path") or ""),
+                    }
+                ],
+            )
+        )
+
+    latest_publications = _latest_revision_by_family(publication_revisions, "candidate_family_id")
+    for revision in publication_revisions:
+        family_id = str(revision.get("candidate_family_id") or "").strip()
+        latest = latest_publications.get(family_id)
+        if not latest or str(latest.get("revision_id") or "") == str(revision.get("revision_id") or ""):
+            continue
+        primary_path = str(revision.get("path") or revision.get("manifest_path") or revision.get("body_path") or "")
+        latest_primary_path = str(latest.get("path") or latest.get("manifest_path") or latest.get("body_path") or "")
+        body_path = str(revision.get("body_path") or "")
+        receipts.append(
+            _record_manifest(
+                data_root=data_root,
+                artifact_family="publication_candidate_revision",
+                artifact_id=str(revision.get("revision_id") or ""),
+                artifact_path=primary_path,
+                companion_paths=[body_path] if body_path and body_path != primary_path else [],
+                stronger_successor_ids=[str(latest.get("revision_id") or "")],
+                stronger_successor_paths=[latest_primary_path, str(latest.get("body_path") or "")],
+                source_refs=[
+                    {
+                        "kind": "publication_candidate_body",
+                        "id": str(revision.get("revision_id") or ""),
+                        "path": body_path or primary_path,
+                    }
+                ],
+            )
+        )
+
+    return {
+        "schema_version": COMPACTION_POLICY_SCHEMA_VERSION,
+        "manifest_count": len(receipts),
+        "manifest_paths": [str(item.get("manifest_path") or "") for item in receipts],
+        "receipts": receipts,
     }
