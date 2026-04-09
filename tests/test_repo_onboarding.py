@@ -773,6 +773,109 @@ class RepoOnboardingCommandTests(unittest.TestCase):
         self.assertEqual(canonical_codex_current_path(data_root).read_text(encoding="utf-8"), baseline_codex_current)
         self.assertEqual(canonical_codex_future_path(data_root).read_text(encoding="utf-8"), baseline_codex_future)
 
+    def test_onboarding_confirm_receipt_tracks_noncanonical_input_review_state(self) -> None:
+        first = self._start_onboarding()
+        self._write_publication_baseline()
+        subject = "PROJECT-ONBOARD"
+        data_root = self._data_root()
+
+        promote_semantic_events(
+            subject=subject,
+            data_root=data_root,
+            semantic_events=[
+                {
+                    "semantic_event_id": "SEMEVT-STORY",
+                    "schema_version": 1,
+                    "classifier_version": "v1-phase3",
+                    "recorded_at": "2026-04-09T10:00:00-04:00",
+                    "subject": subject,
+                    "class_label": "project.scope",
+                    "topic_key": "project.scope",
+                    "confidence_band": "high",
+                    "materiality_band": "high",
+                    "summary": "The repo should preserve authored publication inputs during onboarding draft review.",
+                    "transient_noise": False,
+                    "imported_limited": False,
+                    "source_segment_ids": ["SEG-STORY"],
+                    "source_refs": [{"kind": "conversation_segment", "id": "SEG-STORY", "path": "/tmp/SEG-STORY.json"}],
+                    "related_paths": [],
+                },
+                {
+                    "semantic_event_id": "SEMEVT-VISION",
+                    "schema_version": 1,
+                    "classifier_version": "v1-phase3",
+                    "recorded_at": "2026-04-09T10:01:00-04:00",
+                    "subject": subject,
+                    "class_label": "project.vision",
+                    "topic_key": "project.vision",
+                    "confidence_band": "high",
+                    "materiality_band": "high",
+                    "summary": "The repo story and codex should remain reviewable before confirmation.",
+                    "transient_noise": False,
+                    "imported_limited": False,
+                    "source_segment_ids": ["SEG-VISION"],
+                    "source_refs": [{"kind": "conversation_segment", "id": "SEG-VISION", "path": "/tmp/SEG-VISION.json"}],
+                    "related_paths": [],
+                },
+            ],
+        )
+        persist_execution_plan(
+            subject=subject,
+            data_root=data_root,
+            title="Onboarding publish receipt review state",
+            summary="Confirm onboarding after candidate-backed draft generation.",
+            origin="test",
+            objective="Receipt must record gate ownership and noncanonical candidate inputs.",
+            coherent_outcome="Confirmation receipt exposes noncanonical input counts and review state.",
+            closure_statement="Publish law stays explicit while receipts become reviewable.",
+            out_of_scope="Automatic canonical publication.",
+            dependencies=["Continuity synthesis"],
+            risk="R1",
+            verification_plan="Refresh publication candidates, update onboarding draft, confirm, then inspect the receipt.",
+            milestones=["Candidate refresh", "Draft update", "Confirm publish"],
+            split_triggers=["Split if confirm starts using a new publisher."],
+            source_segment_ids=["SEG-PLAN"],
+            source_semantic_event_ids=["SEMEVT-PLAN"],
+            source_refs=[{"kind": "conversation_segment", "id": "SEG-PLAN", "path": "/tmp/SEG-PLAN.json"}],
+        )
+        refresh_synthesis_projection(subject=subject, data_root=data_root)
+        refresh_publication_candidates(subject=subject, data_root=data_root)
+
+        draft = self._confirmation_ready_draft(first["onboarding_id"], first["scan_id"])
+        questions = self._question_set(first["onboarding_id"], first["scan_id"], include_question=False)
+        update = run_synapse(
+            [
+                "onboarding-update",
+                "--draft-json",
+                json.dumps(draft),
+                "--questions-json",
+                json.dumps(questions),
+                "--json",
+            ],
+            cwd=self.repo,
+            home=self.home,
+            extra_env=self.extra_env,
+        )
+        self.assertEqual(update.returncode, 0, update.stdout + update.stderr)
+
+        confirm = run_synapse(
+            ["onboarding-confirm", "--yes-i-confirm", "--json"],
+            cwd=self.repo,
+            home=self.home,
+            extra_env=self.extra_env,
+        )
+        self.assertEqual(confirm.returncode, 0, confirm.stdout + confirm.stderr)
+        payload = json.loads(confirm.stdout)
+        receipt = yaml.safe_load(Path(payload["publication_receipt_path"]).read_text(encoding="utf-8"))
+        self.assertEqual(receipt["publication_source"], "onboarding_confirm")
+        self.assertEqual(receipt["publish_gate_owner"], "repo_onboarding.onboarding_confirm")
+        self.assertTrue(receipt["confirmation_required"])
+        self.assertEqual(receipt["noncanonical_input_count"], 3)
+        self.assertEqual(set(receipt["noncanonical_input_kinds"]), {"STORY", "VISION", "CODEX"})
+        self.assertFalse(receipt["review_required"])
+        self.assertEqual(receipt["review_reasons"], [])
+        self.assertEqual(len(receipt["noncanonical_input_paths"]), 3)
+
     def test_rehydrate_marks_draft_stale_after_rescan_even_without_new_clarifications(self) -> None:
         first = self._start_onboarding()
         draft = self._confirmation_ready_draft(first["onboarding_id"], first["scan_id"])
@@ -1697,6 +1800,13 @@ class RepoOnboardingCommandTests(unittest.TestCase):
             Path(payload["result"]["canonical_paths"]["PROJECT_STORY"]).resolve(),
             canonical_project_story_path(data_root).resolve(),
         )
+        receipt = yaml.safe_load(Path(payload["result"]["publication_receipt_path"]).read_text(encoding="utf-8"))
+        self.assertEqual(receipt["publication_source"], "publication_candidate")
+        self.assertEqual(receipt["publish_gate_owner"], "repo_onboarding.publish_publication_candidate")
+        self.assertTrue(receipt["candidate_noncanonical"])
+        self.assertFalse(receipt["review_required"])
+        self.assertEqual(receipt["review_reasons"], [])
+        self.assertTrue(receipt["truth_state_counts"])
         self.assertIn(
             "Baseline installable website system",
             canonical_project_story_path(data_root).read_text(encoding="utf-8"),

@@ -1183,6 +1183,8 @@ def onboarding_confirm(
     archive_codex_current = archived_codex_current_path(data_root, onboarding_id)
     archive_codex_future = archived_codex_future_path(data_root, onboarding_id)
     archive_receipt = publication_receipt_path(data_root, onboarding_id)
+    authored_inputs = [dict(item) for item in list(draft.get("authored_draft_inputs") or []) if isinstance(item, dict)]
+    review_state = _publication_review_state(authored_inputs)
     archive_model.write_text(yaml.safe_dump(published_model, sort_keys=False), encoding="utf-8")
     archive_story.write_text(project_story, encoding="utf-8")
     archive_vision.write_text(vision_text, encoding="utf-8")
@@ -1190,10 +1192,18 @@ def onboarding_confirm(
     archive_codex_future.write_text(codex_future_text, encoding="utf-8")
     receipt = {
         "onboarding_id": onboarding_id,
+        "publication_source": "onboarding_confirm",
+        "publish_gate_owner": "repo_onboarding.onboarding_confirm",
+        "confirmation_required": True,
         "confirmed_at": confirmed_at,
         "confirmed_by": confirmed_by,
         "draft_revision_id": draft.get("revision_id"),
         "question_set_id": question_set.get("question_set_id"),
+        "noncanonical_input_count": review_state["noncanonical_input_count"],
+        "noncanonical_input_kinds": review_state["noncanonical_input_kinds"],
+        "noncanonical_input_paths": review_state["noncanonical_input_paths"],
+        "review_required": review_state["review_required"],
+        "review_reasons": review_state["review_reasons"],
         "published_project_model_path": str(archive_model.resolve()),
         "published_project_story_path": str(archive_story.resolve()),
         "published_vision_path": str(archive_vision.resolve()),
@@ -1410,13 +1420,22 @@ def publish_publication_candidate(
     receipt = {
         "publication_id": publication_id,
         "publication_source": "publication_candidate",
+        "publish_gate_owner": "repo_onboarding.publish_publication_candidate",
         "candidate_handle": candidate_handle,
         "candidate_kind": candidate_kind,
+        "candidate_noncanonical": True,
         "candidate_family_id": candidate.get("candidate_family_id"),
         "candidate_revision_id": candidate.get("revision_id"),
         "candidate_body_path": candidate.get("body_path"),
         "candidate_manifest_path": candidate.get("path"),
         "candidate_summary": candidate.get("summary"),
+        "canonizer_schema_version": candidate.get("canonizer_schema_version"),
+        "truth_state_counts": dict(dict(candidate.get("canonizer_sections") or {}).get("truth_state_counts") or {}),
+        "requires_import_review": bool(candidate.get("requires_import_review")),
+        "imported_confidence_band": candidate.get("imported_confidence_band"),
+        "imported_source_count": int(candidate.get("imported_source_count") or 0),
+        "review_required": bool(candidate.get("requires_import_review")),
+        "review_reasons": ["candidate_requires_import_review"] if bool(candidate.get("requires_import_review")) else [],
         "published_at": published_at,
         "published_by": published_by,
         "archive_paths": archive_paths,
@@ -1977,6 +1996,22 @@ def _load_authored_draft_inputs(data_root: Path) -> tuple[list[dict[str, Any]], 
     for item in rendered_inputs:
         stored_inputs.append({key: value for key, value in item.items() if key != "body_text"})
     return rendered_inputs, stored_inputs
+
+
+def _publication_review_state(authored_inputs: list[dict[str, Any]]) -> dict[str, Any]:
+    normalized_inputs = [dict(item) for item in authored_inputs if isinstance(item, dict)]
+    review_reasons = [
+        f"{str(item.get('candidate_kind') or '').strip().upper()} requires import review"
+        for item in normalized_inputs
+        if bool(item.get("requires_import_review"))
+    ]
+    return {
+        "noncanonical_input_count": len(normalized_inputs),
+        "noncanonical_input_kinds": [str(item.get("candidate_kind") or "").strip().upper() for item in normalized_inputs if str(item.get("candidate_kind") or "").strip()],
+        "noncanonical_input_paths": [str(item.get("body_path") or "").strip() for item in normalized_inputs if str(item.get("body_path") or "").strip()],
+        "review_required": bool(review_reasons),
+        "review_reasons": review_reasons,
+    }
 
 
 def _write_artifact_family(artifacts: dict[Path, str]) -> None:

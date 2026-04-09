@@ -610,6 +610,9 @@ def publication_candidate_draft_inputs(
             "noncanonical": True,
             "source_refs": list(candidate.get("source_refs") or []),
             "baseline_refs": list(candidate.get("baseline_refs") or []),
+            "requires_import_review": bool(candidate.get("requires_import_review")),
+            "imported_confidence_band": candidate.get("imported_confidence_band"),
+            "imported_source_count": int(candidate.get("imported_source_count") or 0),
             "truth_state_counts": dict(dict(candidate.get("canonizer_sections") or {}).get("truth_state_counts") or {}),
             "canonizer_schema_version": candidate.get("canonizer_schema_version"),
         }
