@@ -148,6 +148,13 @@ class DraftshotRuntimeTests(unittest.TestCase):
             draftshot_text,
             r"(?:DECISION|DISCOVERY_CAPTURE|FOLLOWUP_CAPTURE|RISK_CAPTURE|QUESTION_CAPTURE)-[A-F0-9]{16}",
         )
+        self.assertIn("[TRUTH]", draftshot_text)
+        self.assertIn("[VISION]", draftshot_text)
+        self.assertIn("[UNRESOLVED]", draftshot_text)
+        revision_payload = yaml.safe_load(Path(fourth["revision_path"]).read_text(encoding="utf-8"))
+        self.assertEqual(revision_payload["canonizer_schema_version"], 1)
+        self.assertIn("capture_truth_state_counts", revision_payload)
+        self.assertGreaterEqual(revision_payload["capture_truth_state_counts"]["TRUTH"], 1)
 
         auto_detect = subprocess.run(
             [
@@ -216,6 +223,14 @@ class DraftshotRuntimeTests(unittest.TestCase):
         self.assertEqual(state["current_active_draftshot_revision_id"], summary["current_active_draftshot_revision_id"])
         self.assertEqual(manifold["current_active_draftshot_path"], summary["current_active_draftshot_path"])
         self.assertEqual(manifold["current_active_draftshot_session_id"], "syn-draft-002")
+        self.assertEqual(
+            state["current_active_draftshot_truth_state_counts"],
+            summary["current_active_draftshot_truth_state_counts"],
+        )
+        self.assertEqual(
+            manifold["current_active_draftshot_truth_state_counts"],
+            summary["current_active_draftshot_truth_state_counts"],
+        )
         self.assertFalse(manifold["draftshot_stale"])
         self.assertTrue(manifold["draftshot_integrity_ok"])
         self.assertEqual(manifold["draftshot_integrity_issues"], [])

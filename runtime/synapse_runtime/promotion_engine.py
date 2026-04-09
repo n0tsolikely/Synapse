@@ -7,6 +7,7 @@ from typing import Any, Iterable
 
 import yaml
 
+from synapse_runtime.canonizer import working_record_authoring_metadata
 from synapse_runtime.continuity_obligations import obligation_summary, open_obligation, resolve_matching_obligations
 from synapse_runtime.kernel_types import (
     GovernedRecordFamily,
@@ -191,6 +192,16 @@ def _make_record(
     detail: str | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    rendered_detail = str(detail or event.get("summary") or "").strip()
+    rendered_metadata = dict(metadata or {})
+    rendered_metadata.update(
+        working_record_authoring_metadata(
+            family=family,
+            summary=str(event.get("summary") or "").strip(),
+            detail=rendered_detail,
+            source_refs=[dict(item) for item in event.get("source_refs") or [] if isinstance(item, dict)],
+        )
+    )
     return GovernedWorkingRecordEnvelope(
         record_id=_record_id(subject, family, event),
         schema_version=WORKING_RECORD_SCHEMA_VERSION,
@@ -200,7 +211,7 @@ def _make_record(
         family_id=_family_id(subject, family, event),
         title=_event_title(event),
         summary=str(event.get("summary") or "").strip(),
-        detail=str(detail or event.get("summary") or "").strip(),
+        detail=rendered_detail,
         confidence_band=str(event.get("confidence_band") or "low").strip(),
         materiality_band=str(event.get("materiality_band") or "low").strip(),
         source_segment_ids=[str(item) for item in event.get("source_segment_ids") or [] if str(item).strip()],
@@ -208,7 +219,7 @@ def _make_record(
         source_refs=[dict(item) for item in event.get("source_refs") or [] if isinstance(item, dict)],
         related_paths=[str(item) for item in event.get("related_paths") or [] if str(item).strip()],
         status="active",
-        metadata=dict(metadata or {}),
+        metadata=rendered_metadata,
     ).to_dict()
 
 

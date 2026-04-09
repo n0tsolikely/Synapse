@@ -187,7 +187,21 @@ def _active_scope_delta(data_root: Path, refreshed_at: str) -> dict[str, Any] | 
         )
         for item in recent
     ]
-    detail_lines = [item for item in summaries if item]
+    detail_lines: list[str] = []
+    for item in recent:
+        metadata = dict(item.get("metadata") or {})
+        canonizer = dict(metadata.get("canonizer") or {})
+        authored_lines = [
+            " ".join(str(line or "").split()).strip()
+            for line in canonizer.get("truth_state_lines") or []
+            if " ".join(str(line or "").split()).strip()
+        ]
+        if authored_lines:
+            detail_lines.extend(authored_lines)
+            continue
+        rendered = str(item.get("summary") or item.get("title") or "").strip()
+        if rendered:
+            detail_lines.append(rendered)
     return _delta_payload(
         key="ACTIVE_SCOPE",
         refreshed_at=refreshed_at,
@@ -334,7 +348,21 @@ def _family_delta(
                 "baseline_confirmed_at": baseline_ref.get("confirmed_at"),
             }
         )
-    detail_lines = [str(item.get("summary") or item.get("title") or "").strip() for item in records]
+    detail_lines: list[str] = []
+    for item in records:
+        metadata = dict(item.get("metadata") or {})
+        canonizer = dict(metadata.get("canonizer") or {})
+        authored_lines = [
+            " ".join(str(line or "").split()).strip()
+            for line in canonizer.get("truth_state_lines") or []
+            if " ".join(str(line or "").split()).strip()
+        ]
+        if authored_lines:
+            detail_lines.extend(authored_lines)
+            continue
+        rendered = str(item.get("summary") or item.get("title") or "").strip()
+        if rendered:
+            detail_lines.append(rendered)
     metadata = {
         "family": family,
         "record_ids": [item.get("record_id") for item in records if item.get("record_id")],

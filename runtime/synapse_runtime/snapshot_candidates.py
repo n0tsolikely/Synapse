@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 
 import yaml
 
+from synapse_runtime.canonizer import CANONIZER_SCHEMA_VERSION, render_snapshot_candidate_body
 from synapse_runtime.draftshots import load_active_draftshot
 from synapse_runtime.kernel_types import stable_kernel_id
 from synapse_runtime.sidecar_store import live_root
@@ -226,9 +227,14 @@ def _collect_candidate_sources(
     kind: str,
     draftshot: dict[str, Any],
     synthesis: dict[str, Any],
-) -> tuple[list[dict[str, Any]], list[str], str, dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], list[str], str, dict[str, Any], dict[str, list[str]]]:
     refs: list[dict[str, Any]] = []
     detail_lines: list[str] = []
+    authored_sections = {
+        "truths": [],
+        "visions": [],
+        "unresolved": [],
+    }
 
     draftshot_ref = {
         "kind": "draftshot_revision",
@@ -264,10 +270,22 @@ def _collect_candidate_sources(
         if summary:
             summary_parts.append(f"{label}: {summary}")
             detail_lines.append(f"{label}: {summary}")
+            if label in {"Identity", "Narrative"}:
+                authored_sections["visions"].append(f"{label}: {summary}")
+            elif label in {"Obligations", "Governance"}:
+                authored_sections["unresolved"].append(f"{label}: {summary}")
+            else:
+                authored_sections["truths"].append(f"{label}: {summary}")
         for line in list(payload.get("detail_lines") or [])[:4]:
             text = " ".join(str(line or "").split()).strip()
             if text:
                 detail_lines.append(f"{label}: {text}")
+                if label in {"Identity", "Narrative"}:
+                    authored_sections["visions"].append(f"{label}: {text}")
+                elif label in {"Obligations", "Governance"}:
+                    authored_sections["unresolved"].append(f"{label}: {text}")
+                else:
+                    authored_sections["truths"].append(f"{label}: {text}")
         refs.extend(payload.get("source_refs") or [])
 
     if not summary_parts:
@@ -280,158 +298,18 @@ def _collect_candidate_sources(
         if imported_summary:
             summary_parts.append(f"Imported Continuity: {imported_summary}")
             detail_lines.append(f"Imported Continuity: {imported_summary}")
+            target = "unresolved" if imported_metadata.get("requires_import_review") else "truths"
+            authored_sections[target].append(f"Imported Continuity: {imported_summary}")
         for line in list(imported_delta.get("detail_lines") or [])[:4]:
             text = " ".join(str(line or "").split()).strip()
             if text:
                 detail_lines.append(f"Imported Continuity: {text}")
+                target = "unresolved" if imported_metadata.get("requires_import_review") else "truths"
+                authored_sections[target].append(f"Imported Continuity: {text}")
         refs.extend(imported_metadata.get("imported_evidence_refs") or [])
 
     summary = summary_parts[0] if len(summary_parts) == 1 else " | ".join(summary_parts[:3])
-    return _normalize_source_refs(refs), _normalize_lines(detail_lines), summary, imported_metadata
-
-
-def _eod_body(
-    *,
-    subject: str,
-    session_id: str | None,
-    target_day: str,
-    revision_number: int,
-    refreshed_at: str,
-    summary: str,
-    detail_lines: list[str],
-    draftshot: dict[str, Any],
-    source_refs: list[dict[str, Any]],
-) -> str:
-    work_lines = [line for line in detail_lines if line.startswith(("Plan:", "Scope:", "Architecture:"))]
-    risk_lines = [line for line in detail_lines if line.startswith(("Obligations:", "Governance:"))]
-    carry_lines = [line for line in detail_lines if line.startswith(("Plan:", "Scope:"))]
-    lines = [
-        "# End Of Day Snapshot Candidate",
-        "",
-        f"- Status: DRAFT",
-        f"- Candidate Kind: {EOD_KIND}",
-        f"- Target Day: {target_day}",
-        f"- Revision: REV{revision_number}",
-        f"- Subject: {subject}",
-        f"- Session ID: {session_id or 'none'}",
-        f"- Refreshed At: {refreshed_at}",
-        f"- Draftshot Revision: {draftshot.get('revision_id') or 'none'}",
-        f"- Draftshot Body: {draftshot.get('body_path') or 'none'}",
-        "",
-        "## Candidate Summary",
-        summary,
-        "",
-        "## Work Progress",
-        *([f"- {line}" for line in work_lines] or ["- none"]),
-        "",
-        "## Risks / Blockers",
-        *([f"- {line}" for line in risk_lines] or ["- none"]),
-        "",
-        "## Carry Forward",
-        *([f"- {line}" for line in carry_lines] or ["- none"]),
-        "",
-        "## Source Refs",
-    ]
-    lines.extend(
-        [
-            f"- [{item.get('kind')}] {item.get('id')} :: {item.get('path') or item.get('body_path') or 'n/a'}"
-            for item in source_refs
-        ]
-        or ["- none"]
-    )
-    lines.append("")
-    return "\n".join(lines)
-
-
-def _control_sync_body(
-    *,
-    subject: str,
-    session_id: str | None,
-    target_day: str,
-    revision_number: int,
-    refreshed_at: str,
-    summary: str,
-    detail_lines: list[str],
-    draftshot: dict[str, Any],
-    source_refs: list[dict[str, Any]],
-) -> str:
-    direction_lines = [line for line in detail_lines if line.startswith(("Identity:", "Narrative:"))]
-    scope_lines = [line for line in detail_lines if line.startswith(("Scope:", "Architecture:"))]
-    governance_lines = [line for line in detail_lines if line.startswith(("Governance:", "Obligations:", "Plan:"))]
-    lines = [
-        "# Control Sync Snapshot Candidate",
-        "",
-        f"- Status: DRAFT",
-        f"- Candidate Kind: {CONTROL_SYNC_KIND}",
-        f"- Target Day: {target_day}",
-        f"- Revision: REV{revision_number}",
-        f"- Subject: {subject}",
-        f"- Session ID: {session_id or 'none'}",
-        f"- Refreshed At: {refreshed_at}",
-        f"- Draftshot Revision: {draftshot.get('revision_id') or 'none'}",
-        f"- Draftshot Body: {draftshot.get('body_path') or 'none'}",
-        "",
-        "## Control Sync Summary",
-        summary,
-        "",
-        "## Project Direction",
-        *([f"- {line}" for line in direction_lines] or ["- none"]),
-        "",
-        "## Scope And Architecture",
-        *([f"- {line}" for line in scope_lines] or ["- none"]),
-        "",
-        "## Governance And Handoff",
-        *([f"- {line}" for line in governance_lines] or ["- none"]),
-        "",
-        "## Source Refs",
-    ]
-    lines.extend(
-        [
-            f"- [{item.get('kind')}] {item.get('id')} :: {item.get('path') or item.get('body_path') or 'n/a'}"
-            for item in source_refs
-        ]
-        or ["- none"]
-    )
-    lines.append("")
-    return "\n".join(lines)
-
-
-def _render_body(
-    *,
-    kind: str,
-    subject: str,
-    session_id: str | None,
-    target_day: str,
-    revision_number: int,
-    refreshed_at: str,
-    summary: str,
-    detail_lines: list[str],
-    draftshot: dict[str, Any],
-    source_refs: list[dict[str, Any]],
-) -> str:
-    if _normalize_kind(kind) == EOD_KIND:
-        return _eod_body(
-            subject=subject,
-            session_id=session_id,
-            target_day=target_day,
-            revision_number=revision_number,
-            refreshed_at=refreshed_at,
-            summary=summary,
-            detail_lines=detail_lines,
-            draftshot=draftshot,
-            source_refs=source_refs,
-        )
-    return _control_sync_body(
-        subject=subject,
-        session_id=session_id,
-        target_day=target_day,
-        revision_number=revision_number,
-        refreshed_at=refreshed_at,
-        summary=summary,
-        detail_lines=detail_lines,
-        draftshot=draftshot,
-        source_refs=source_refs,
-    )
+    return _normalize_source_refs(refs), _normalize_lines(detail_lines), summary, imported_metadata, authored_sections
 
 
 def _candidate_signature(kind: str, target_day: str, source_refs: Iterable[dict[str, Any]]) -> str:
@@ -482,6 +360,7 @@ def _candidate_detail(manifest: dict[str, Any] | None) -> dict[str, Any] | None:
         "imported_confidence_band": manifest.get("imported_confidence_band"),
         "requires_import_review": manifest.get("requires_import_review"),
         "imported_source_count": manifest.get("imported_source_count"),
+        "truth_state_counts": dict(dict(manifest.get("canonizer_sections") or {}).get("truth_state_counts") or {}),
     }
 
 
@@ -527,6 +406,8 @@ def snapshot_candidate_summary(data_root: Path) -> dict[str, Any]:
         "current_control_sync_candidate_target_day": current_control_sync_target_day,
         "current_eod_candidate_summary": eod.get("summary") if eod else None,
         "current_control_sync_candidate_summary": control_sync.get("summary") if control_sync else None,
+        "current_eod_candidate_truth_state_counts": dict(dict(eod.get("canonizer_sections") or {}).get("truth_state_counts") or {}) if eod else {},
+        "current_control_sync_candidate_truth_state_counts": dict(dict(control_sync.get("canonizer_sections") or {}).get("truth_state_counts") or {}) if control_sync else {},
         "current_snapshot_candidate_path": latest_manifest.get("body_path") if latest_manifest else None,
         "current_snapshot_candidate_manifest_path": latest_manifest.get("path") if latest_manifest else None,
         "current_snapshot_candidate_kind": latest_manifest.get("candidate_kind") if latest_manifest else None,
@@ -599,7 +480,7 @@ def refresh_snapshot_candidates(
             candidate_results.append({"candidate_kind": kind, "status": "noop", "reason": "threshold_not_met"})
             continue
 
-        source_refs, detail_lines, summary, imported_metadata = _collect_candidate_sources(
+        source_refs, detail_lines, summary, imported_metadata, authored_sections = _collect_candidate_sources(
             kind=kind,
             draftshot=draftshot,
             synthesis=synthesis_payload,
@@ -628,7 +509,7 @@ def refresh_snapshot_candidates(
         revision_id = _revision_id(subject, kind, target_day, revision_number)
         manifest_path = _manifest_path(data_root, kind, family_id, revision_number)
         body_path = _body_path(data_root, kind, family_id, revision_number)
-        body_text = _render_body(
+        body_text, canonizer_sections = render_snapshot_candidate_body(
             kind=kind,
             subject=subject,
             session_id=effective_session_id,
@@ -636,7 +517,9 @@ def refresh_snapshot_candidates(
             revision_number=revision_number,
             refreshed_at=refreshed_at,
             summary=summary,
-            detail_lines=detail_lines,
+            truths=authored_sections["truths"],
+            visions=authored_sections["visions"],
+            unresolved=authored_sections["unresolved"],
             draftshot=draftshot,
             source_refs=source_refs,
         )
@@ -664,6 +547,8 @@ def refresh_snapshot_candidates(
             "imported_source_count": int(imported_metadata.get("imported_source_count") or 0),
             "summary": summary,
             "detail_lines": detail_lines,
+            "canonizer_schema_version": CANONIZER_SCHEMA_VERSION,
+            "canonizer_sections": canonizer_sections,
             "draftshot_revision_id": draftshot.get("revision_id"),
             "draftshot_body_path": draftshot.get("body_path"),
             "draftshot_session_id": draftshot.get("session_id"),

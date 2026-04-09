@@ -133,11 +133,24 @@ class SnapshotCandidateTests(unittest.TestCase):
         self.assertEqual(state["current_eod_candidate_path"], summary["current_eod_candidate_path"])
         self.assertEqual(manifold["current_control_sync_candidate_path"], summary["current_control_sync_candidate_path"])
         self.assertEqual(manifold["current_snapshot_candidate_path"], summary["current_snapshot_candidate_path"])
-        self.assertIn("End Of Day Snapshot Candidate", Path(summary["current_eod_candidate_path"]).read_text(encoding="utf-8"))
-        self.assertIn(
-            "Control Sync Snapshot Candidate",
-            Path(summary["current_control_sync_candidate_path"]).read_text(encoding="utf-8"),
+        self.assertEqual(
+            state["current_control_sync_candidate_truth_state_counts"],
+            summary["current_control_sync_candidate_truth_state_counts"],
         )
+        self.assertEqual(
+            manifold["current_eod_candidate_truth_state_counts"],
+            summary["current_eod_candidate_truth_state_counts"],
+        )
+        eod_text = Path(summary["current_eod_candidate_path"]).read_text(encoding="utf-8")
+        control_text = Path(summary["current_control_sync_candidate_path"]).read_text(encoding="utf-8")
+        self.assertIn("End Of Day Snapshot Candidate", eod_text)
+        self.assertIn("## Truths In Hand", eod_text)
+        self.assertIn("## Unresolved / Review", eod_text)
+        self.assertIn("Control Sync Snapshot Candidate", control_text)
+        self.assertIn("## Intended Direction", control_text)
+        control_manifest = yaml.safe_load(Path(summary["current_control_sync_candidate_manifest_path"]).read_text(encoding="utf-8"))
+        self.assertEqual(control_manifest["canonizer_schema_version"], 1)
+        self.assertIn("canonizer_sections", control_manifest)
 
     def test_typed_candidates_prevent_new_generic_snapshot_proposal_alias_drift(self) -> None:
         promote_semantic_events(

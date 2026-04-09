@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 
 import yaml
 
+from synapse_runtime.canonizer import CANONIZER_SCHEMA_VERSION, render_draftshot_body
 from synapse_runtime.kernel_types import stable_kernel_id
 from synapse_runtime.live_memory_common import _slugify
 
@@ -341,6 +342,7 @@ def _append_capture_entry(
     capture_entries: list[dict[str, Any]],
     seen_ids: set[str],
     basis_parts: Iterable[Any],
+    truth_state: str,
 ) -> None:
     text = " ".join(str(summary or "").split()).strip()
     if not text:
@@ -363,6 +365,7 @@ def _append_capture_entry(
         "section": section_key,
         "summary": text,
         "source_refs": normalized_refs,
+        "truth_state": str(truth_state or "TRUTH").strip().upper(),
     }
     sections.setdefault(section_key, []).append(entry)
     capture_entries.append(entry)
@@ -401,6 +404,7 @@ def _entries_from_delta(
     sections: dict[str, list[dict[str, Any]]],
     capture_entries: list[dict[str, Any]],
     seen_ids: set[str],
+    truth_state: str,
 ) -> None:
     if not isinstance(payload, dict):
         return
@@ -415,6 +419,7 @@ def _entries_from_delta(
             capture_entries=capture_entries,
             seen_ids=seen_ids,
             basis_parts=(delta_key, "summary"),
+            truth_state=truth_state,
         )
     for index, line in enumerate(list(payload.get("detail_lines") or [])[:6], start=1):
         _append_capture_entry(
@@ -425,6 +430,7 @@ def _entries_from_delta(
             capture_entries=capture_entries,
             seen_ids=seen_ids,
             basis_parts=(delta_key, "detail", index),
+            truth_state=truth_state,
         )
 
 
@@ -436,6 +442,7 @@ def _entries_from_records(
     sections: dict[str, list[dict[str, Any]]],
     capture_entries: list[dict[str, Any]],
     seen_ids: set[str],
+    truth_state: str,
 ) -> None:
     for record in _load_recent_family_records(data_root, family):
         summary = str(record.get("summary") or record.get("title") or "").strip()
@@ -456,6 +463,7 @@ def _entries_from_records(
             capture_entries=capture_entries,
             seen_ids=seen_ids,
             basis_parts=(family, str(record.get("record_id") or record.get("family_id") or summary)),
+            truth_state=truth_state,
         )
 
 
@@ -477,6 +485,7 @@ def _build_draftshot_sections(*, data_root: Path, synthesis: dict[str, Any]) -> 
         sections=sections,
         capture_entries=capture_entries,
         seen_ids=seen_ids,
+        truth_state="TRUTH",
     )
     _entries_from_delta(
         section_key="FINDINGS",
@@ -485,6 +494,7 @@ def _build_draftshot_sections(*, data_root: Path, synthesis: dict[str, Any]) -> 
         sections=sections,
         capture_entries=capture_entries,
         seen_ids=seen_ids,
+        truth_state="TRUTH",
     )
     _entries_from_delta(
         section_key="FINDINGS",
@@ -493,6 +503,7 @@ def _build_draftshot_sections(*, data_root: Path, synthesis: dict[str, Any]) -> 
         sections=sections,
         capture_entries=capture_entries,
         seen_ids=seen_ids,
+        truth_state="TRUTH",
     )
     _entries_from_delta(
         section_key="FINDINGS",
@@ -501,6 +512,7 @@ def _build_draftshot_sections(*, data_root: Path, synthesis: dict[str, Any]) -> 
         sections=sections,
         capture_entries=capture_entries,
         seen_ids=seen_ids,
+        truth_state="VISION",
     )
     _entries_from_delta(
         section_key="FINDINGS",
@@ -509,6 +521,7 @@ def _build_draftshot_sections(*, data_root: Path, synthesis: dict[str, Any]) -> 
         sections=sections,
         capture_entries=capture_entries,
         seen_ids=seen_ids,
+        truth_state="VISION",
     )
     _entries_from_delta(
         section_key="FINDINGS",
@@ -517,6 +530,7 @@ def _build_draftshot_sections(*, data_root: Path, synthesis: dict[str, Any]) -> 
         sections=sections,
         capture_entries=capture_entries,
         seen_ids=seen_ids,
+        truth_state="UNRESOLVED" if bool(dict(synthesis.get("imported_continuity_delta") or {}).get("metadata", {}).get("requires_import_review")) else "TRUTH",
     )
     _entries_from_delta(
         section_key="TODO",
@@ -525,6 +539,7 @@ def _build_draftshot_sections(*, data_root: Path, synthesis: dict[str, Any]) -> 
         sections=sections,
         capture_entries=capture_entries,
         seen_ids=seen_ids,
+        truth_state="UNRESOLVED",
     )
     _entries_from_delta(
         section_key="RISKS",
@@ -533,6 +548,7 @@ def _build_draftshot_sections(*, data_root: Path, synthesis: dict[str, Any]) -> 
         sections=sections,
         capture_entries=capture_entries,
         seen_ids=seen_ids,
+        truth_state="UNRESOLVED",
     )
     _entries_from_records(
         data_root=data_root,
@@ -541,6 +557,7 @@ def _build_draftshot_sections(*, data_root: Path, synthesis: dict[str, Any]) -> 
         sections=sections,
         capture_entries=capture_entries,
         seen_ids=seen_ids,
+        truth_state="UNRESOLVED",
     )
     if bool(dict(synthesis.get("imported_continuity_delta") or {}).get("metadata", {}).get("requires_import_review")):
         _entries_from_delta(
@@ -550,6 +567,7 @@ def _build_draftshot_sections(*, data_root: Path, synthesis: dict[str, Any]) -> 
             sections=sections,
             capture_entries=capture_entries,
             seen_ids=seen_ids,
+            truth_state="UNRESOLVED",
         )
 
     for index, question in enumerate(_open_question_lines(data_root), start=1):
@@ -561,85 +579,10 @@ def _build_draftshot_sections(*, data_root: Path, synthesis: dict[str, Any]) -> 
             capture_entries=capture_entries,
             seen_ids=seen_ids,
             basis_parts=("OPEN_QUESTION", index, question),
+            truth_state="UNRESOLVED",
         )
 
     return sections, capture_entries
-
-
-def _format_section_lines(entries: list[dict[str, Any]]) -> list[str]:
-    if not entries:
-        return ["- none"]
-    return [f"- [{item['capture_id']}] {item['summary']}" for item in entries]
-
-
-def _draftshot_body(
-    *,
-    subject: str,
-    session_id: str,
-    run_id: str | None,
-    revision_number: int,
-    refreshed_at: str,
-    draftshot_context: str,
-    capture_entries: list[dict[str, Any]],
-    sections: dict[str, list[dict[str, Any]]],
-    running_log: list[dict[str, Any]],
-) -> str:
-    lines = [
-        "================================================================================",
-        "DRAFTSHOT",
-        "================================================================================",
-        "A) Header",
-        "- Status: ACTIVE",
-        f"- Date: {str(refreshed_at).split('T', 1)[0]}",
-        f"- Revision: REV{revision_number}",
-        f"- Session Context: {draftshot_context}",
-        f"- Session ID: {session_id}",
-        f"- Subject: {subject}",
-        f"- Run ID: {run_id or 'none'}",
-        "",
-        _SECTION_HEADINGS["CAPTURE_INDEX"],
-    ]
-    if capture_entries:
-        for entry in capture_entries:
-            lines.append(f"- {entry['capture_id']} :: {entry['section']} :: {entry['summary']}")
-    else:
-        lines.append("- none")
-
-    lines.extend(
-        [
-            "",
-            _SECTION_HEADINGS["DECISIONS"],
-            *_format_section_lines(sections.get("DECISIONS") or []),
-            "",
-            _SECTION_HEADINGS["FINDINGS"],
-            *_format_section_lines(sections.get("FINDINGS") or []),
-            "",
-            _SECTION_HEADINGS["TODO"],
-            *_format_section_lines(sections.get("TODO") or []),
-            "",
-            _SECTION_HEADINGS["RISKS"],
-            *_format_section_lines(sections.get("RISKS") or []),
-            "",
-            _SECTION_HEADINGS["OPEN_QUESTIONS"],
-            *_format_section_lines(sections.get("OPEN_QUESTIONS") or []),
-            "",
-            _SECTION_HEADINGS["RUNNING_LOG"],
-        ]
-    )
-    if running_log:
-        for entry in running_log:
-            revision_label = str(entry.get("revision_label") or f"REV{revision_number}")
-            refreshed_line = str(entry.get("refreshed_at") or refreshed_at)
-            change_type = str(entry.get("change_type") or "updated")
-            summary = str(entry.get("summary") or "").strip()
-            source_ref_count = int(entry.get("source_ref_count") or 0)
-            lines.append(
-                f"- {revision_label} @ {refreshed_line} :: {change_type} :: {source_ref_count} source refs :: {summary}"
-            )
-    else:
-        lines.append("- none")
-    lines.extend(["", "END OF DRAFTSHOT", ""])
-    return "\n".join(lines)
 
 
 def load_active_draftshot(data_root: Path, session_id: str | None = None) -> dict[str, Any] | None:
@@ -708,6 +651,7 @@ def draftshot_summary(
             "status": item.get("status"),
             "refreshed_at": item.get("refreshed_at"),
             "body_path": item.get("body_path"),
+            "truth_state_counts": dict(item.get("capture_truth_state_counts") or {}),
         }
         for item in revisions[-5:]
     ]
@@ -724,6 +668,7 @@ def draftshot_summary(
         "current_active_draftshot_path": active.get("body_path") if active else None,
         "current_active_draftshot_status": active.get("status") if active else None,
         "current_active_draftshot_session_id": active.get("session_id") if active else None,
+        "current_active_draftshot_truth_state_counts": dict(active.get("capture_truth_state_counts") or {}) if active else {},
         "last_draftshot_refreshed_at": active.get("refreshed_at") if active else None,
         "draftshot_stale": stale,
         "draftshot_integrity_ok": bool(active.get("integrity_ok")) if active else True,
@@ -804,7 +749,7 @@ def refresh_draftshot(
         context_token=context_token,
         revision_number=revision_number,
     )
-    body_text = _draftshot_body(
+    body_text = render_draftshot_body(
         subject=subject,
         session_id=session_id,
         run_id=run_id,
@@ -837,6 +782,12 @@ def refresh_draftshot(
         "source_refs": source_refs,
         "summary_lines": summary_lines,
         "capture_index": capture_entries,
+        "capture_truth_state_counts": {
+            "TRUTH": sum(1 for item in capture_entries if str(item.get("truth_state") or "").upper() == "TRUTH"),
+            "VISION": sum(1 for item in capture_entries if str(item.get("truth_state") or "").upper() == "VISION"),
+            "UNRESOLVED": sum(1 for item in capture_entries if str(item.get("truth_state") or "").upper() == "UNRESOLVED"),
+        },
+        "canonizer_schema_version": CANONIZER_SCHEMA_VERSION,
         "running_log": running_log,
         "integrity_ok": integrity.get("integrity_ok"),
         "integrity_issues": list(integrity.get("integrity_issues") or []),
