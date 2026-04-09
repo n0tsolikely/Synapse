@@ -6,7 +6,11 @@ import json
 from pathlib import Path
 import shlex
 import stat
+import subprocess
+import sys
 from typing import Any
+
+from synapse_runtime.live_memory_common import LiveMemoryError
 
 from synapse_runtime.governance_pack import resolve_synapse_root
 from synapse_runtime.kernel_types import (
@@ -32,11 +36,13 @@ LOCAL_CODEX_HOOKS = {
     "Stop": "stop.sh",
 }
 LOCAL_CODEX_README = "README.md"
+RUNTIME_REQUIRED_MODULES = ("yaml", "jsonschema", "mcp", "pydantic")
 
 
 def _managed_bridge_block(*, subject: str, data_root: Path, synapse_root: Path, shim_filename: str) -> str:
     executor_path = (synapse_root / "EXECUTOR.md").resolve()
     runtime_path = (synapse_root / "runtime" / "synapse.py").resolve()
+    synapse_python = _preferred_synapse_python_path(synapse_root)
     lines = [
         BRIDGE_START,
         f"# Synapse Subject Bridge ({shim_filename})",
@@ -65,7 +71,8 @@ def _managed_bridge_block(*, subject: str, data_root: Path, synapse_root: Path, 
         "5. If onboarding or readiness gates fail, do not bypass them.",
         "",
         "Bootstrap:",
-        f"- `python3 {runtime_path} engage --adopt-current-repo --shell`",
+        f"- `{synapse_python} {runtime_path} engage --adopt-current-repo --shell`",
+        f"- if `{synapse_python}` is not ready yet, bootstrap the Synapse engine env under `{_synapse_venv_dir(synapse_root)}` and install `runtime/requirements.txt` there before relying on local integration",
         "",
         f"Canonical contract: now open `{executor_path}` and follow it exactly.",
         BRIDGE_END,
@@ -151,7 +158,155 @@ def local_codex_hook_dir(repo_root: Path) -> Path:
     return local_codex_dir(repo_root) / LOCAL_CODEX_HOOK_DIR
 
 
-def _hook_wrapper_source(hook_name: str, *, synapse_root: Path) -> str:
+def _absolute_path(path: Path) -> Path:
+    path = path.expanduser()
+    return path if path.is_absolute() else Path.cwd() / path
+
+
+def _synapse_venv_dir(synapse_root: Path) -> Path:
+    return synapse_root.resolve() / ".venv"
+
+
+def _synapse_python_candidates(synapse_root: Path) -> list[Path]:
+    venv_root = _synapse_venv_dir(synapse_root)
+    return [
+        venv_root / "bin" / "python",
+        venv_root / "Scripts" / "python.exe",
+    ]
+
+
+def _preferred_synapse_python_path(synapse_root: Path) -> Path:
+    for candidate in _synapse_python_candidates(synapse_root):
+        if candidate.exists():
+            return _absolute_path(candidate)
+    return _synapse_python_candidates(synapse_root)[0]
+
+
+def _probe_synapse_runtime_python(python_path: Path) -> dict[str, Any]:
+    resolved = _absolute_path(python_path)
+    if not resolved.exists():
+        return {
+            "python_path": str(resolved),
+            "runtime_ready": False,
+            "missing_modules": list(RUNTIME_REQUIRED_MODULES),
+            "probe_error": "engine runtime python is missing",
+        }
+
+    probe = subprocess.run(
+        [
+            str(resolved),
+            "-c",
+            (
+                "import importlib.util, json; "
+                f"mods={list(RUNTIME_REQUIRED_MODULES)!r}; "
+                "missing=[m for m in mods if importlib.util.find_spec(m) is None]; "
+                "print(json.dumps({'missing': missing}))"
+            ),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if probe.returncode != 0:
+        error = (probe.stderr or probe.stdout or "").strip() or f"runtime probe failed with exit code {probe.returncode}"
+        return {
+            "python_path": str(resolved),
+            "runtime_ready": False,
+            "missing_modules": list(RUNTIME_REQUIRED_MODULES),
+            "probe_error": error,
+        }
+    try:
+        payload = json.loads((probe.stdout or "").strip() or "{}")
+    except Exception as exc:
+        return {
+            "python_path": str(resolved),
+            "runtime_ready": False,
+            "missing_modules": list(RUNTIME_REQUIRED_MODULES),
+            "probe_error": f"invalid runtime probe payload: {exc}",
+        }
+    missing = [str(item).strip() for item in payload.get("missing") or [] if str(item).strip()]
+    return {
+        "python_path": str(resolved),
+        "runtime_ready": not missing,
+        "missing_modules": missing,
+        "probe_error": None,
+    }
+
+
+def ensure_synapse_runtime_environment(synapse_root: Path) -> dict[str, Any]:
+    synapse_root = synapse_root.resolve()
+    python_path = _preferred_synapse_python_path(synapse_root)
+    requirements_path = (synapse_root / "runtime" / "requirements.txt").resolve()
+    if not requirements_path.exists():
+        raise LiveMemoryError(f"Synapse runtime requirements are missing: {requirements_path}")
+
+    bootstrap_actions: list[str] = []
+    venv_root = _synapse_venv_dir(synapse_root)
+    if not python_path.exists():
+        created = subprocess.run(
+            [sys.executable, "-m", "venv", str(venv_root.resolve())],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if created.returncode != 0:
+            details = (created.stderr or created.stdout or "").strip() or "venv creation failed"
+            raise LiveMemoryError(f"Could not create Synapse engine venv at {venv_root}: {details}")
+        bootstrap_actions.append("created_venv")
+        python_path = _preferred_synapse_python_path(synapse_root)
+
+    probe = _probe_synapse_runtime_python(python_path)
+    if not probe["runtime_ready"]:
+        installed = subprocess.run(
+            [str(python_path), "-m", "pip", "install", "-r", str(requirements_path)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if installed.returncode != 0:
+            details = (installed.stderr or installed.stdout or "").strip() or "pip install failed"
+            raise LiveMemoryError(f"Could not install Synapse runtime requirements into {python_path}: {details}")
+        bootstrap_actions.append("installed_runtime_requirements")
+        probe = _probe_synapse_runtime_python(python_path)
+
+    if not probe["runtime_ready"]:
+        missing = ",".join(probe.get("missing_modules") or []) or "unknown"
+        details = probe.get("probe_error") or "runtime imports remain unresolved"
+        raise LiveMemoryError(
+            f"Synapse engine runtime is not ready at {python_path}. Missing modules: {missing}. {details}"
+        )
+
+    if "created_venv" in bootstrap_actions:
+        bootstrap_status = "created"
+    elif bootstrap_actions:
+        bootstrap_status = "repaired"
+    else:
+        bootstrap_status = "noop"
+    return {
+        "engine_python_path": str(_absolute_path(Path(probe["python_path"]))),
+        "engine_runtime_ready": True,
+        "engine_runtime_missing_modules": [],
+        "engine_runtime_probe_error": None,
+        "engine_runtime_bootstrap_status": bootstrap_status,
+        "engine_runtime_requirements_path": str(requirements_path),
+    }
+
+
+def inspect_synapse_runtime_environment(synapse_root: Path) -> dict[str, Any]:
+    synapse_root = synapse_root.resolve()
+    python_path = _preferred_synapse_python_path(synapse_root)
+    probe = _probe_synapse_runtime_python(python_path)
+    return {
+        "engine_python_path": str(_absolute_path(python_path)),
+        "engine_runtime_ready": bool(probe.get("runtime_ready")),
+        "engine_runtime_missing_modules": list(probe.get("missing_modules") or []),
+        "engine_runtime_probe_error": probe.get("probe_error"),
+        "engine_runtime_bootstrap_status": "unknown",
+        "engine_runtime_requirements_path": str((synapse_root / "runtime" / "requirements.txt").resolve()),
+    }
+
+
+def _hook_wrapper_source(hook_name: str, *, synapse_root: Path, synapse_python: Path) -> str:
     runtime_hook = f"synapse_hook_{hook_name}.py"
     return "\n".join(
         [
@@ -159,8 +314,10 @@ def _hook_wrapper_source(hook_name: str, *, synapse_root: Path) -> str:
             "set -euo pipefail",
             'REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"',
             f'DEFAULT_SYNAPSE_ROOT="{synapse_root.resolve()}"',
+            f'DEFAULT_SYNAPSE_PYTHON="{_absolute_path(synapse_python)}"',
             'export SYNAPSE_ROOT="${SYNAPSE_ROOT:-$DEFAULT_SYNAPSE_ROOT}"',
-            'exec python3 "$SYNAPSE_ROOT/runtime/tools/%s" --repo-root "$REPO_ROOT" "$@"' % runtime_hook,
+            'export SYNAPSE_PYTHON="${SYNAPSE_PYTHON:-$DEFAULT_SYNAPSE_PYTHON}"',
+            'exec "$SYNAPSE_PYTHON" "$SYNAPSE_ROOT/runtime/tools/%s" --repo-root "$REPO_ROOT" "$@"' % runtime_hook,
             "",
         ]
     )
@@ -180,7 +337,7 @@ def _write_text_if_changed(path: Path, text: str, *, executable: bool = False) -
     return "updated" if path.exists() else "written"
 
 
-def _local_codex_manifest(subject: str, data_root: Path, *, synapse_root: Path) -> dict[str, Any]:
+def _local_codex_manifest(subject: str, data_root: Path, *, synapse_root: Path, synapse_python: Path) -> dict[str, Any]:
     hook_entries = {
         name: {
             "script": f"{LOCAL_CODEX_DIRNAME}/{LOCAL_CODEX_HOOK_DIR}/{filename}",
@@ -197,21 +354,26 @@ def _local_codex_manifest(subject: str, data_root: Path, *, synapse_root: Path) 
         "subject": subject,
         "data_root": str(data_root.resolve()),
         "synapse_root_env": "SYNAPSE_ROOT",
+        "synapse_python_env": "SYNAPSE_PYTHON",
         "default_synapse_root": str(synapse_root.resolve()),
+        "default_synapse_python": str(_absolute_path(synapse_python)),
         "codex_config_path": f"{LOCAL_CODEX_DIRNAME}/{LOCAL_CODEX_CONFIG}",
         "hooks_config_path": f"{LOCAL_CODEX_DIRNAME}/{LOCAL_CODEX_HOOKS_CONFIG}",
         "legacy_mcp_config_path": f"{LOCAL_CODEX_DIRNAME}/{LOCAL_CODEX_MCP}",
         "mcp": {
-            "command": "python3",
+            "command": str(_absolute_path(synapse_python)),
             "args": [str((synapse_root.resolve() / "runtime" / "synapse_mcp" / "server.py").resolve())],
             "cwd": "${REPO_ROOT:-.}",
-            "env": {"SYNAPSE_ROOT": str(synapse_root.resolve())},
+            "env": {
+                "SYNAPSE_ROOT": str(synapse_root.resolve()),
+                "SYNAPSE_PYTHON": str(_absolute_path(synapse_python)),
+            },
         },
         "hooks": hook_entries,
     }
 
 
-def _local_codex_config(*, repo_root: Path, synapse_root: Path) -> str:
+def _local_codex_config(*, repo_root: Path, synapse_root: Path, synapse_python: Path) -> str:
     mcp_server = (synapse_root.resolve() / "runtime" / "synapse_mcp" / "server.py").resolve()
     lines = [
         "#:schema https://developers.openai.com/codex/config-schema.json",
@@ -220,13 +382,14 @@ def _local_codex_config(*, repo_root: Path, synapse_root: Path) -> str:
         "codex_hooks = true",
         "",
         "[mcp_servers.synapse]",
-        'command = "python3"',
+        f"command = {json.dumps(str(_absolute_path(synapse_python)))}",
         f"args = [{json.dumps(str(mcp_server))}]",
         f"cwd = {json.dumps(str(repo_root.resolve()))}",
         "startup_timeout_sec = 15",
         "",
         "[mcp_servers.synapse.env]",
         f"SYNAPSE_ROOT = {json.dumps(str(synapse_root.resolve()))}",
+        f"SYNAPSE_PYTHON = {json.dumps(str(_absolute_path(synapse_python)))}",
         "",
     ]
     return "\n".join(lines)
@@ -298,6 +461,8 @@ def _local_codex_readme(subject: str) -> str:
             "",
             "This directory contains optional local integration assets for repo-level Synapse engagement.",
             "It is intentionally excluded from git because it may rely on local runtime paths and client support.",
+            "The generated MCP bridge and hook wrappers pin the Synapse engine interpreter instead of relying on a random `python3` on PATH.",
+            "That interpreter belongs to the Synapse engine install and stays separate from the subject repo's own app/test environment.",
             "",
             f"Subject: {subject}",
             "",
@@ -325,6 +490,8 @@ def install_local_codex_integration(
     repo_root = repo_root.resolve()
     data_root = data_root.resolve()
     synapse_root = (synapse_root or resolve_synapse_root()).resolve()
+    runtime_env = ensure_synapse_runtime_environment(synapse_root)
+    synapse_python = _absolute_path(Path(str(runtime_env["engine_python_path"])))
     codex_dir = local_codex_dir(repo_root)
     hook_dir = local_codex_hook_dir(repo_root)
     manifest_path = local_codex_manifest_path(repo_root)
@@ -338,11 +505,16 @@ def install_local_codex_integration(
 
     manifest_status = _write_text_if_changed(
         manifest_path,
-        json.dumps(_local_codex_manifest(subject, data_root, synapse_root=synapse_root), indent=2, sort_keys=True) + "\n",
+        json.dumps(
+            _local_codex_manifest(subject, data_root, synapse_root=synapse_root, synapse_python=synapse_python),
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
     )
     config_status = _write_text_if_changed(
         config_path,
-        _local_codex_config(repo_root=repo_root, synapse_root=synapse_root),
+        _local_codex_config(repo_root=repo_root, synapse_root=synapse_root, synapse_python=synapse_python),
     )
     hooks_config_status = _write_text_if_changed(
         hooks_config_path,
@@ -354,10 +526,13 @@ def install_local_codex_integration(
             {
                 "mcpServers": {
                     "synapse": {
-                        "command": "python3",
-                        "args": ["${SYNAPSE_ROOT:-$HOME/Synapse}/runtime/synapse_mcp/server.py"],
+                        "command": str(_absolute_path(synapse_python)),
+                        "args": [str((synapse_root.resolve() / "runtime" / "synapse_mcp" / "server.py").resolve())],
                         "cwd": "${REPO_ROOT:-.}",
-                        "env": {"SYNAPSE_ROOT": "${SYNAPSE_ROOT:-$HOME/Synapse}"},
+                        "env": {
+                            "SYNAPSE_ROOT": str(synapse_root.resolve()),
+                            "SYNAPSE_PYTHON": str(_absolute_path(synapse_python)),
+                        },
                     }
                 }
             },
@@ -372,7 +547,7 @@ def install_local_codex_integration(
         source_name = filename.replace(".sh", "")
         hook_statuses[hook_name] = _write_text_if_changed(
             hook_path,
-            _hook_wrapper_source(source_name, synapse_root=synapse_root),
+            _hook_wrapper_source(source_name, synapse_root=synapse_root, synapse_python=synapse_python),
             executable=True,
         )
 
@@ -386,6 +561,7 @@ def install_local_codex_integration(
         overall = LocalIntegrationHealth.INSTALLED.value if inspection["integration_health"] == LocalIntegrationHealth.INSTALLED.value else LocalIntegrationHealth.UPDATED.value
     inspection.update(
         {
+            **runtime_env,
             "integration_status": overall,
             "manifest_write_status": manifest_status,
             "config_write_status": config_status,
@@ -409,6 +585,7 @@ def inspect_local_codex_integration(repo_root: Path, *, synapse_root: Path | Non
     mcp_path = local_codex_mcp_config_path(repo_root)
     readme_path = codex_dir / LOCAL_CODEX_README
     hook_dir = local_codex_hook_dir(repo_root)
+    runtime_env = inspect_synapse_runtime_environment(synapse_root)
 
     missing: list[str] = []
     hook_paths: dict[str, str] = {}
@@ -441,6 +618,14 @@ def inspect_local_codex_integration(repo_root: Path, *, synapse_root: Path | Non
             missing.append("manifest_parse")
     elif len(missing) < (len(LOCAL_CODEX_HOOKS) + 4):
         integration_health = LocalIntegrationHealth.PARTIAL.value
+    if not runtime_env["engine_runtime_ready"]:
+        if integration_health == LocalIntegrationHealth.INSTALLED.value:
+            integration_health = LocalIntegrationHealth.STALE.value
+        missing.append("engine_runtime")
+        if runtime_env["engine_runtime_missing_modules"]:
+            missing.append("engine_runtime_modules:" + ",".join(runtime_env["engine_runtime_missing_modules"]))
+        elif runtime_env.get("engine_runtime_probe_error"):
+            missing.append("engine_runtime_probe")
 
     posture = (
         LocalIntegrationPosture.HOOKED.value
@@ -460,6 +645,7 @@ def inspect_local_codex_integration(repo_root: Path, *, synapse_root: Path | Non
         "missing_assets": missing,
         "legacy_mcp_config_present": mcp_path.exists(),
         "synapse_root": str(synapse_root),
+        **runtime_env,
     }
 
 

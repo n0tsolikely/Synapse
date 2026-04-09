@@ -13,7 +13,7 @@ This is a transport layer over the current runtime. It is not:
 Run the server with:
 
 ```bash
-python3 /absolute/path/to/Synapse/runtime/synapse_mcp/server.py
+/absolute/path/to/Synapse/.venv/bin/python /absolute/path/to/Synapse/runtime/synapse_mcp/server.py
 ```
 
 The working directory should be the governed repo workspace you want Synapse to attach to or resume from.
@@ -23,8 +23,15 @@ The working directory should be the governed repo workspace you want Synapse to 
 Install runtime dependencies, including the official MCP SDK:
 
 ```bash
-python3 -m pip install -r /absolute/path/to/Synapse/runtime/requirements.txt
+python3 -m venv /absolute/path/to/Synapse/.venv
+/absolute/path/to/Synapse/.venv/bin/python -m pip install -r /absolute/path/to/Synapse/runtime/requirements.txt
 ```
+
+Practical rule:
+
+- the Synapse MCP server should run from the Synapse engine environment
+- target repos keep their own separate environments for product code, tests, and builds
+- do not rely on whatever `python3` happens to be first on PATH if you want predictable local integration behavior
 
 ## Environment
 
@@ -149,13 +156,14 @@ Codex/ChatGPT-style local stdio config:
 {
   "mcpServers": {
     "synapse": {
-      "command": "python3",
+      "command": "/absolute/path/to/Synapse/.venv/bin/python",
       "args": [
         "/absolute/path/to/Synapse/runtime/synapse_mcp/server.py"
       ],
       "cwd": "/absolute/path/to/target-workspace",
       "env": {
-        "SYNAPSE_ROOT": "/absolute/path/to/Synapse"
+        "SYNAPSE_ROOT": "/absolute/path/to/Synapse",
+        "SYNAPSE_PYTHON": "/absolute/path/to/Synapse/.venv/bin/python"
       }
     }
   }

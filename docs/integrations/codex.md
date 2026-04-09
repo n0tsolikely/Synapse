@@ -21,20 +21,34 @@ Recommended session start:
 
 ```bash
 cd /path/to/subject-repo
-python3 /path/to/Synapse/runtime/synapse.py engage --adopt-current-repo
+/path/to/Synapse/.venv/bin/python /path/to/Synapse/runtime/synapse.py engage --adopt-current-repo
 ```
 
 Optional local integration install/refresh:
 
 ```bash
 cd /path/to/subject-repo
-python3 /path/to/Synapse/runtime/synapse.py install-local-integration
+/path/to/Synapse/.venv/bin/python /path/to/Synapse/runtime/synapse.py install-local-integration
 ```
+
+If the Synapse engine env does not exist yet, bootstrap it first:
+
+```bash
+python3 -m venv /path/to/Synapse/.venv
+/path/to/Synapse/.venv/bin/python -m pip install -r /path/to/Synapse/runtime/requirements.txt
+```
+
+What this does now:
+
+- verifies or bootstraps the Synapse engine runtime under `SYNAPSE_ROOT/.venv`
+- installs `runtime/requirements.txt` there when required
+- writes repo-local `.codex` assets pinned to that exact Synapse interpreter
+- leaves the subject repo's own app/test/build environment alone
 
 For local MCP integration, use the dedicated stdio server:
 
 ```bash
-python3 /path/to/Synapse/runtime/synapse_mcp/server.py
+/path/to/Synapse/.venv/bin/python /path/to/Synapse/runtime/synapse_mcp/server.py
 ```
 
 Run that process with:
@@ -58,6 +72,12 @@ Current Codex client shape:
 - lifecycle hooks are loaded from `.codex/hooks.json`
 - wrapper scripts still live under `.codex/hooks/`
 - legacy `.codex/mcp.json` may be kept as a compatibility hint, but current Codex integration should not rely on it
+
+Interpreter rule:
+
+- Synapse runtime / MCP should run from the Synapse engine interpreter
+- subject repos keep their own separate environments for app/test/build work
+- local integration should not rely on a random `python3` on PATH
 
 That means a healthy local install should include at least:
 
