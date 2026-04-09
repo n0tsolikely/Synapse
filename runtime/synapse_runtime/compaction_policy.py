@@ -144,11 +144,11 @@ def evaluate_compaction_candidate(
         data_root=data_root,
         artifact_id=normalized_id,
     )
+    if not successor_ids:
+        blockers.append("no_stronger_successor")
     unresolved_dependents = [
         item for item in lineage_dependents if str(item.get("target_id") or "").strip() not in successor_ids
     ]
-    if lineage_dependents and not successor_ids:
-        blockers.append("no_stronger_successor")
     if unresolved_dependents:
         blockers.append("uncovered_lineage_dependents")
     elif successor_ids and not lineage_dependents:
