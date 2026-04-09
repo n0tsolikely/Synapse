@@ -286,6 +286,116 @@ class EventSpineTests(unittest.TestCase):
             event_payload["outputs"]["capture_artifact_path"],
         )
 
+    def test_session_tick_records_observer_metadata_and_outputs(self) -> None:
+        tick = run_synapse(
+            [
+                "session-tick",
+                "--summary",
+                "Lock observer owner boundaries",
+                "--note",
+                "Captured repo-grounded observer receipts",
+                "--decision-title",
+                "Keep observer routing inside current owners",
+                "--decision-summary",
+                "The observer must route through current stores instead of writing files directly.",
+                "--session-id",
+                "sid-observer",
+                "--json",
+                *self.subject_args,
+            ],
+            cwd=REPO_ROOT,
+            home=self.home,
+            extra_env={"SYNAPSE_CONTINUITY_OBSERVER_BACKEND": "fixture"},
+        )
+        self.assertEqual(tick.returncode, 0, tick.stdout + tick.stderr)
+
+        payload = json.loads(tick.stdout)
+        observer = payload["continuity_observer"]
+        event_payload = payload["event"]["payload"]
+        persisted_event = self._event_entries()[-1]
+
+        self.assertEqual(observer["observer_status"], "ok")
+        self.assertEqual(observer["observer_backend"], "fixture")
+        self.assertIn("semantic_capture", observer["observer_action_kinds"])
+        self.assertIn("decision_log", observer["observer_action_kinds"])
+        self.assertIsNotNone(observer["observer_capture_artifact_path"])
+        self.assertIsNotNone(observer["observer_decision_path"])
+        self.assertTrue(event_payload["signals"]["observer_triggered"])
+        self.assertEqual(
+            event_payload["signals"]["observer_action_kinds"],
+            observer["observer_action_kinds"],
+        )
+        self.assertEqual(event_payload["outputs"]["observer_status"], "ok")
+        self.assertEqual(event_payload["outputs"]["observer_backend"], "fixture")
+        self.assertEqual(
+            event_payload["outputs"]["capture_artifact_path"],
+            observer["observer_capture_artifact_path"],
+        )
+        self.assertEqual(
+            persisted_event["signals"]["observer_action_kinds"],
+            observer["observer_action_kinds"],
+        )
+        self.assertEqual(
+            persisted_event["outputs"]["observer_backend"],
+            "fixture",
+        )
+
+    def test_import_continuity_records_observer_metadata_and_outputs(self) -> None:
+        transcript = self.root / "continuity.txt"
+        transcript.write_text("Need to preserve the continuity packet boundaries.\n", encoding="utf-8")
+        started = run_synapse(
+            [
+                "session-start",
+                "--title",
+                "Import continuity session",
+                "--session-id",
+                "sid-import",
+                "--json",
+                *self.subject_args,
+            ],
+            cwd=REPO_ROOT,
+            home=self.home,
+        )
+        self.assertEqual(started.returncode, 0, started.stdout + started.stderr)
+
+        imported = run_synapse(
+            [
+                "import-continuity",
+                "--source-file",
+                str(transcript),
+                "--kind",
+                "transcript",
+                "--json",
+                *self.subject_args,
+            ],
+            cwd=REPO_ROOT,
+            home=self.home,
+            extra_env={"SYNAPSE_CONTINUITY_OBSERVER_BACKEND": "fixture"},
+        )
+        self.assertEqual(imported.returncode, 0, imported.stdout + imported.stderr)
+
+        payload = json.loads(imported.stdout)
+        observer = payload["continuity_observer"]
+        event_payload = payload["event"]["payload"]
+        persisted_event = self._event_entries()[-1]
+
+        self.assertEqual(observer["observer_status"], "ok")
+        self.assertEqual(observer["observer_backend"], "fixture")
+        self.assertIn("semantic_capture", observer["observer_action_kinds"])
+        self.assertIsNotNone(observer["observer_capture_artifact_path"])
+        self.assertTrue(event_payload["signals"]["observer_triggered"])
+        self.assertEqual(event_payload["outputs"]["observer_status"], "ok")
+        self.assertEqual(event_payload["outputs"]["observer_backend"], "fixture")
+        self.assertEqual(
+            event_payload["outputs"]["capture_artifact_path"],
+            observer["observer_capture_artifact_path"],
+        )
+        self.assertEqual(
+            persisted_event["signals"]["observer_action_kinds"],
+            observer["observer_action_kinds"],
+        )
+        self.assertEqual(persisted_event["outputs"]["observer_backend"], "fixture")
+
     def test_session_mode_set_uses_persisted_active_run_session_id(self) -> None:
         start = run_synapse(
             [
@@ -355,14 +465,22 @@ class EventSpineTests(unittest.TestCase):
         self.assertEqual(payload["session_mode"], "execution")
         self.assertEqual(payload["session_mode_source"], "command_default")
         self.assertEqual(payload["session_mode_policy_version"], 1)
+        self.assertEqual(payload["continuity_observer"]["observer_status"], "degraded")
+        self.assertEqual(payload["continuity_observer"]["observer_backend"], "noop")
         self.assertEqual(event_payload["action_name"], "run-finalize")
         self.assertEqual(event_payload["signals"]["session_mode"], "execution")
         self.assertEqual(event_payload["signals"]["session_mode_source"], "command_default")
         self.assertEqual(event_payload["signals"]["session_mode_policy_version"], 1)
+        self.assertEqual(event_payload["signals"]["observer_action_kinds"], [])
+        self.assertFalse(event_payload["signals"]["observer_triggered"])
+        self.assertEqual(event_payload["outputs"]["observer_status"], "degraded")
+        self.assertEqual(event_payload["outputs"]["observer_backend"], "noop")
+        self.assertTrue(event_payload["outputs"]["observer_degraded"])
         self.assertEqual(run_finalize_event["action_name"], "run-finalize")
         self.assertEqual(run_finalize_event["signals"]["session_mode"], "execution")
         self.assertEqual(run_finalize_event["signals"]["session_mode_source"], "command_default")
         self.assertEqual(run_finalize_event["signals"]["session_mode_policy_version"], 1)
+        self.assertEqual(run_finalize_event["outputs"]["observer_backend"], "noop")
         self.assertEqual(compile_event["action_name"], "compile-current-state")
 
     def test_doctor_accepts_live_subject_without_event_spine_until_upgraded(self) -> None:
@@ -518,7 +636,7 @@ class EventSpineTests(unittest.TestCase):
 
     def test_all_event_pipeline_call_sites_route_through_shared_result_handler(self) -> None:
         source = (REPO_ROOT / "runtime" / "synapse.py").read_text(encoding="utf-8")
-        self.assertEqual(source.count("event_info = _event_pipeline("), 30)
+        self.assertEqual(source.count("event_info = _event_pipeline("), 34)
         inline_event_commands = (
             "cmd_attach_or_init",
             "cmd_live_bootstrap",

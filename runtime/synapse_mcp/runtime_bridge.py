@@ -946,6 +946,20 @@ def record_activity(*, state: ConnectionState, context: ContextInput | dict[str,
         decision_boundary=bool(decision),
         explicit_decision_logged=bool(decision_result),
     )
+    accepted_context = cli_runtime._accepted_context_snapshot(Path(ctx["data_root"]))
+    session_mode_fields = cli_runtime._current_session_mode_fields(ctx)
+    observer = cli_runtime._execute_continuity_observer(
+        ctx=ctx,
+        active_run=cli_runtime._load_active_run_with_session_repair(ctx),
+        trigger="session-tick",
+        summary=summary,
+        notes=list(merged_notes),
+        changed_files=list(files_touched),
+        decision_boundary=bool(decision),
+        uncertainty_present=bool(automation.get("automation_context", {}).get("uncertainty_present")),
+        accepted_context=accepted_context,
+        session_mode_fields=session_mode_fields,
+    )
     signals = {
         "run_id": result.get("run_id"),
         "plan_items": cli_runtime._compact_plan_items(plan_items),
@@ -960,8 +974,8 @@ def record_activity(*, state: ConnectionState, context: ContextInput | dict[str,
         "decision_titles": [decision.get("title")] if decision else [],
         "related_quest_ids": list(related_quest_ids or []),
         "related_sidequest_ids": list(related_sidequest_ids or []),
-        "accepted_context": cli_runtime._accepted_context_snapshot(Path(ctx["data_root"])),
-        **cli_runtime._current_session_mode_fields(ctx),
+        "accepted_context": accepted_context,
+        **session_mode_fields,
     }
     outputs = {
         "run_id": result.get("run_id"),
@@ -983,6 +997,12 @@ def record_activity(*, state: ConnectionState, context: ContextInput | dict[str,
         truth_flags=truth_flags,
         automation=automation,
     )
+    cli_runtime._apply_observer_event_metadata(
+        signals=signals,
+        outputs=outputs,
+        truth_flags=truth_flags,
+        observer=observer,
+    )
     event_info = cli_runtime._event_pipeline(
         ctx=ctx,
         action_name="session-tick",
@@ -993,11 +1013,13 @@ def record_activity(*, state: ConnectionState, context: ContextInput | dict[str,
         outputs=outputs,
     )
     event_info = cli_runtime._apply_automation_partial_status(event_info=event_info, automation=automation)
+    event_info = cli_runtime._apply_observer_partial_status(event_info=event_info, observer=observer)
     cli_runtime._write_session_overlay(ctx, result, session_id=session_id)
     payload = {
         "run_update": result,
         "decision": decision_result,
         "automation": automation,
+        "continuity_observer": observer,
         "event": event_info.get("event"),
         "reducer": event_info.get("reducer"),
         "rehydrate": event_info.get("reducer", {}).get("rehydrate"),
@@ -2039,36 +2061,59 @@ def import_continuity_tool(
         path=result_payload["raw_event_path"],
         sha256=result_payload["raw_event_sha256"],
     )
+    accepted_context = cli_runtime._accepted_context_snapshot(Path(ctx["data_root"]))
+    session_mode_fields = cli_runtime._current_session_mode_fields(ctx)
+    observer = cli_runtime._execute_continuity_observer(
+        ctx=ctx,
+        active_run=cli_runtime._load_active_run_with_session_repair(ctx),
+        trigger="import-continuity",
+        summary=f"Imported {parsed.get('source_kind')} continuity evidence for {ctx['subject']}.",
+        notes=list(parsed.get("warnings") or []),
+        source_refs=[raw_ref],
+        uncertainty_present=str(parsed.get("confidence_band") or "").strip().lower() == "low",
+        accepted_context=accepted_context,
+        session_mode_fields=session_mode_fields,
+    )
+    signals = cli_runtime.raw_capture_signals(
+        accepted_context=accepted_context,
+        session_mode_fields=session_mode_fields,
+        raw_refs=[raw_ref],
+        source_surface=source_surface,
+        raw_family=result_payload["family"],
+    )
+    outputs = {
+        "raw_event_id": result_payload["raw_event_id"],
+        "raw_event_path": result_payload["raw_event_path"],
+        "raw_event_sha256": result_payload["raw_event_sha256"],
+        "payload_blob_path": result_payload.get("payload_blob", {}).get("path") if result_payload.get("payload_blob") else None,
+        "payload_blob_sha256": result_payload.get("payload_blob", {}).get("sha256") if result_payload.get("payload_blob") else None,
+        "import_source_path": parsed.get("source_path"),
+        "import_source_kind": parsed.get("source_kind"),
+        "import_parser_status": parsed.get("parser_status"),
+        "import_confidence_band": parsed.get("confidence_band"),
+    }
+    truth_flags = {
+        "canon_mutated": False,
+        "derived_state_changed": True,
+        "governed": False,
+        "uncertainty_present": str(parsed.get("confidence_band") or "").strip().lower() == "low",
+    }
+    cli_runtime._apply_observer_event_metadata(
+        signals=signals,
+        outputs=outputs,
+        truth_flags=truth_flags,
+        observer=observer,
+    )
     event_info = cli_runtime._event_pipeline(
         ctx=ctx,
         action_name="import-continuity",
         summary=f"Imported {parsed.get('source_kind')} continuity evidence for {ctx['subject']}.",
         session_id=ctx.get("session_id"),
-        signals=cli_runtime.raw_capture_signals(
-            accepted_context=cli_runtime._accepted_context_snapshot(Path(ctx["data_root"])),
-            session_mode_fields=cli_runtime._current_session_mode_fields(ctx),
-            raw_refs=[raw_ref],
-            source_surface=source_surface,
-            raw_family=result_payload["family"],
-        ),
-        truth_flags={
-            "canon_mutated": False,
-            "derived_state_changed": True,
-            "governed": False,
-            "uncertainty_present": str(parsed.get("confidence_band") or "").strip().lower() == "low",
-        },
-        outputs={
-            "raw_event_id": result_payload["raw_event_id"],
-            "raw_event_path": result_payload["raw_event_path"],
-            "raw_event_sha256": result_payload["raw_event_sha256"],
-            "payload_blob_path": result_payload.get("payload_blob", {}).get("path") if result_payload.get("payload_blob") else None,
-            "payload_blob_sha256": result_payload.get("payload_blob", {}).get("sha256") if result_payload.get("payload_blob") else None,
-            "import_source_path": parsed.get("source_path"),
-            "import_source_kind": parsed.get("source_kind"),
-            "import_parser_status": parsed.get("parser_status"),
-            "import_confidence_band": parsed.get("confidence_band"),
-        },
+        signals=signals,
+        truth_flags=truth_flags,
+        outputs=outputs,
     )
+    event_info = cli_runtime._apply_observer_partial_status(event_info=event_info, observer=observer)
     followup = cli_runtime._orchestrate_import_continuity_followup(
         ctx=ctx,
         parsed=parsed,
@@ -2080,6 +2125,7 @@ def import_continuity_tool(
     result = {
         **result_payload,
         "import_envelope": parsed,
+        "continuity_observer": observer,
         "snapshot_candidates": followup["snapshot_candidates"],
         "publication_candidates": followup["publication_candidates"],
         "opened_import_review_obligations": followup["opened_import_review_obligations"],
@@ -2310,36 +2356,60 @@ def finalize_run_tool(*, state: ConnectionState, context: ContextInput | dict[st
         raise BridgeFailure(code="ACTIVE_RUN_REQUIRED", message="finalize_run requires an active run.", recovery_hint="Call bootstrap_session first.")
     result = run_finalize(subject=ctx["subject"], data_root=Path(ctx["data_root"]), status=status or "completed", summary=outcome_summary)
     session_id = cli_runtime._effective_session_id(ctx, active_run=active_run, session_id=result.get("session_id"))
+    accepted_context = cli_runtime._accepted_context_snapshot(Path(ctx["data_root"]))
+    session_mode_fields = {
+        "session_mode": result.get("session_mode"),
+        "session_mode_source": result.get("session_mode_source"),
+        "session_mode_policy_version": result.get("session_mode_policy_version"),
+    }
+    observer = cli_runtime._execute_continuity_observer(
+        ctx=ctx,
+        active_run={**active_run, "run_id": result.get("run_id"), "session_id": session_id},
+        trigger="run-finalize",
+        summary=outcome_summary or f"Finalized run {result.get('run_id')}",
+        accepted_context=accepted_context,
+        session_mode_fields=session_mode_fields,
+    )
+    signals = {
+        "run_id": result.get("run_id"),
+        "final_status": status or "completed",
+        "run_status": status or "completed",
+        "run_summary": outcome_summary,
+        "changed_files": [],
+        "verification_entries": [],
+        "related_quest_ids": [],
+        "related_sidequest_ids": [],
+        "accepted_context": accepted_context,
+        "session_mode": result.get("session_mode"),
+        "session_mode_source": result.get("session_mode_source"),
+        "session_mode_policy_version": result.get("session_mode_policy_version"),
+    }
+    outputs = {
+        "run_id": result.get("run_id"),
+        "archive_path": result.get("archive_path"),
+    }
+    truth_flags = {
+        "canon_mutated": False,
+        "derived_state_changed": True,
+        "governed": False,
+        "uncertainty_present": False,
+    }
+    cli_runtime._apply_observer_event_metadata(
+        signals=signals,
+        outputs=outputs,
+        truth_flags=truth_flags,
+        observer=observer,
+    )
     event_info = cli_runtime._event_pipeline(
         ctx=ctx,
         action_name="run-finalize",
         summary=outcome_summary or f"Finalized run {result.get('run_id')}",
         session_id=session_id,
-        signals={
-            "run_id": result.get("run_id"),
-            "final_status": status or "completed",
-            "run_status": status or "completed",
-            "run_summary": outcome_summary,
-            "changed_files": [],
-            "verification_entries": [],
-            "related_quest_ids": [],
-            "related_sidequest_ids": [],
-            "accepted_context": cli_runtime._accepted_context_snapshot(Path(ctx["data_root"])),
-            "session_mode": result.get("session_mode"),
-            "session_mode_source": result.get("session_mode_source"),
-            "session_mode_policy_version": result.get("session_mode_policy_version"),
-        },
-        truth_flags={
-            "canon_mutated": False,
-            "derived_state_changed": True,
-            "governed": False,
-            "uncertainty_present": False,
-        },
-        outputs={
-            "run_id": result.get("run_id"),
-            "archive_path": result.get("archive_path"),
-        },
+        signals=signals,
+        truth_flags=truth_flags,
+        outputs=outputs,
     )
+    event_info = cli_runtime._apply_observer_partial_status(event_info=event_info, observer=observer)
     event_info, truth_compile = cli_runtime._merge_truth_compile_follow_on(
         ctx=ctx,
         session_id=session_id,
@@ -2351,6 +2421,7 @@ def finalize_run_tool(*, state: ConnectionState, context: ContextInput | dict[st
         "run_id": result.get("run_id"),
         "archive_path": result.get("archive_path"),
         "truth_compile": truth_compile,
+        "continuity_observer": observer,
         "current_context": bundle["context"],
         "event": event_info.get("event"),
         "reducer": event_info.get("reducer"),

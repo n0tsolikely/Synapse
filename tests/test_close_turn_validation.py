@@ -24,10 +24,18 @@ from synapse_runtime.subject_resolver import write_focus_lock
 SYNAPSE = [sys.executable, str(REPO_ROOT / "runtime" / "synapse.py")]
 
 
-def run_synapse(args: list[str], *, cwd: Path, home: Path) -> subprocess.CompletedProcess[str]:
+def run_synapse(
+    args: list[str],
+    *,
+    cwd: Path,
+    home: Path,
+    extra_env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env["HOME"] = str(home)
     env["SYNAPSE_ROOT"] = str(REPO_ROOT)
+    if extra_env:
+        env.update(extra_env)
     return subprocess.run(SYNAPSE + args, cwd=cwd, env=env, capture_output=True, text=True)
 
 
@@ -80,6 +88,10 @@ class CloseTurnValidationTests(unittest.TestCase):
         self.assertEqual(payload["integration_posture"], "hooked")
         self.assertEqual(payload["open_continuity_obligation_count"], 0)
         self.assertEqual(payload["blocker_continuity_obligation_count"], 0)
+        observer = payload["continuity_observer"]
+        self.assertEqual(observer["observer_status"], "degraded")
+        self.assertEqual(observer["observer_backend"], "noop")
+        self.assertEqual(observer["observer_action_kinds"], [])
 
     def test_close_turn_strict_blocks_on_open_blocker_obligation(self) -> None:
         install_local_codex_integration(
@@ -121,7 +133,16 @@ class CloseTurnValidationTests(unittest.TestCase):
         hooks = run_synapse(["install-hooks", "--json"], cwd=self.engine_root, home=self.home)
         self.assertEqual(hooks.returncode, 0, hooks.stdout + hooks.stderr)
         started = run_synapse(
-            ["run-start", "--title", "Hooked boundary session", "--plan-item", "Refresh snapshot candidates", "--json"],
+            [
+                "run-start",
+                "--title",
+                "Hooked boundary session",
+                "--plan-item",
+                "Refresh snapshot candidates",
+                "--session-id",
+                "sid-close-turn",
+                "--json",
+            ],
             cwd=self.engine_root,
             home=self.home,
         )
@@ -170,15 +191,75 @@ class CloseTurnValidationTests(unittest.TestCase):
             source_refs=[{"kind": "conversation_segment", "id": "SEG-PLAN", "path": "/tmp/SEG-PLAN.json"}],
         )
 
-        result = run_synapse(["close-turn", "--strict", "--json"], cwd=self.engine_root, home=self.home)
+        result = run_synapse(
+            ["close-turn", "--strict", "--json"],
+            cwd=self.engine_root,
+            home=self.home,
+            extra_env={"SYNAPSE_CONTINUITY_OBSERVER_BACKEND": "fixture"},
+        )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         payload = json.loads(result.stdout)
         self.assertEqual(payload["integration_posture"], "hooked")
+        observer = payload["continuity_observer"]
+        self.assertEqual(observer["observer_status"], "ok")
+        self.assertEqual(observer["observer_backend"], "fixture")
+        self.assertEqual(observer["observer_action_kinds"], ["semantic_capture"])
+        self.assertTrue(Path(observer["observer_capture_artifact_path"]).exists())
+        event_payload = payload["event"]["payload"]
+        self.assertEqual(event_payload["signals"]["observer_action_kinds"], ["semantic_capture"])
+        self.assertTrue(event_payload["signals"]["observer_triggered"])
+        self.assertEqual(event_payload["outputs"]["observer_status"], "ok")
+        self.assertEqual(event_payload["outputs"]["observer_backend"], "fixture")
+        self.assertEqual(
+            event_payload["outputs"]["capture_artifact_path"],
+            observer["observer_capture_artifact_path"],
+        )
         summary = payload["snapshot_candidates"]["summary"]
         self.assertTrue(summary["current_eod_candidate_path"])
         self.assertTrue(summary["current_control_sync_candidate_path"])
         self.assertTrue(Path(summary["current_eod_candidate_path"]).exists())
         self.assertTrue(Path(summary["current_control_sync_candidate_path"]).exists())
+
+    def test_close_turn_downgrades_low_confidence_observer_decisions_to_obligations(self) -> None:
+        install_local_codex_integration(
+            subject=self.subject,
+            repo_root=self.engine_root,
+            data_root=self.data_root,
+            synapse_root=REPO_ROOT,
+        )
+        fixture_json = json.dumps(
+            {
+                "observer_status": "ok",
+                "provider_status": "fixture",
+                "intents": [
+                    {
+                        "artifact_family": "decision_log",
+                        "confidence": "low",
+                        "rationale": "Low-confidence decision should not write the decision ledger directly.",
+                        "payload": {
+                            "title": "Premature decision",
+                            "summary": "This should downgrade into review-safe follow-up instead.",
+                        },
+                    }
+                ],
+            }
+        )
+        result = run_synapse(
+            ["close-turn", "--json"],
+            cwd=self.engine_root,
+            home=self.home,
+            extra_env={
+                "SYNAPSE_CONTINUITY_OBSERVER_BACKEND": "fixture",
+                "SYNAPSE_CONTINUITY_OBSERVER_FIXTURE_JSON": fixture_json,
+            },
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        payload = json.loads(result.stdout)
+        observer = payload["continuity_observer"]
+        self.assertEqual(observer["observer_action_kinds"], ["open_obligation"])
+        self.assertIsNone(observer["observer_decision_path"])
+        self.assertTrue(Path(observer["observer_obligation_path"]).exists())
+        self.assertEqual(payload["event"]["payload"]["outputs"]["observer_obligation_path"], observer["observer_obligation_path"])
 
 
 if __name__ == "__main__":

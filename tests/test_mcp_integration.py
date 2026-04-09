@@ -248,7 +248,13 @@ class McpIntegrationTests(unittest.IsolatedAsyncioTestCase):
         path.write_text("\n".join(lines), encoding="utf-8")
         return path
 
-    def _server_params(self, workspace: Path, *, home: Path | None = None) -> StdioServerParameters:
+    def _server_params(
+        self,
+        workspace: Path,
+        *,
+        home: Path | None = None,
+        extra_env: dict[str, str] | None = None,
+    ) -> StdioServerParameters:
         target_home = home or self.home
         return StdioServerParameters(
             command=sys.executable,
@@ -258,12 +264,19 @@ class McpIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 **os.environ,
                 "HOME": str(target_home),
                 "SYNAPSE_ROOT": str(REPO_ROOT),
+                **(extra_env or {}),
             },
         )
 
     @asynccontextmanager
-    async def _session(self, workspace: Path, *, home: Path | None = None):
-        async with stdio_client(self._server_params(workspace, home=home)) as (read, write):
+    async def _session(
+        self,
+        workspace: Path,
+        *,
+        home: Path | None = None,
+        extra_env: dict[str, str] | None = None,
+    ):
+        async with stdio_client(self._server_params(workspace, home=home, extra_env=extra_env)) as (read, write):
             async with ClientSession(read, write) as session:
                 await session.initialize()
                 yield session
@@ -478,7 +491,10 @@ class McpIntegrationTests(unittest.IsolatedAsyncioTestCase):
             "We need a plan for installable web apps.\n\nSupport separate user accounts.\n",
             encoding="utf-8",
         )
-        async with self._session(workspace) as session:
+        async with self._session(
+            workspace,
+            extra_env={"SYNAPSE_CONTINUITY_OBSERVER_BACKEND": "fixture"},
+        ) as session:
             await self._call(session, "bootstrap_session", {"title": "Imported continuity"})
             imported = await self._call(
                 session,
@@ -487,6 +503,11 @@ class McpIntegrationTests(unittest.IsolatedAsyncioTestCase):
             )
             self.assertEqual(imported["status"], "ok")
             self.assertEqual(imported["data"]["family"], "IMPORT_EVENTS")
+            observer = imported["data"]["continuity_observer"]
+            self.assertEqual(observer["observer_status"], "ok")
+            self.assertEqual(observer["observer_backend"], "fixture")
+            self.assertIn("semantic_capture", observer["observer_action_kinds"])
+            self.assertTrue(Path(observer["observer_capture_artifact_path"]).exists())
 
             summary = json.loads(await self._read_text_resource(session, "synapse://current/semantic-summary.json"))
             recent_events = json.loads(await self._read_text_resource(session, "synapse://current/semantic-events.json"))
@@ -1006,7 +1027,10 @@ class McpIntegrationTests(unittest.IsolatedAsyncioTestCase):
         data_root = self.root / f"{subject}_Data"
         initialize_subject_state(subject, data_root, workspace)
         ensure_live_scaffold(subject, data_root)
-        async with self._session(workspace) as session:
+        async with self._session(
+            workspace,
+            extra_env={"SYNAPSE_CONTINUITY_OBSERVER_BACKEND": "fixture"},
+        ) as session:
             bootstrap = await self._call(
                 session,
                 "bootstrap_session",
@@ -1043,6 +1067,11 @@ class McpIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 {"outcome_summary": "Wrapped the run", "status": "completed"},
             )
             self.assertEqual(finalized["status"], "ok")
+            observer = finalized["data"]["continuity_observer"]
+            self.assertEqual(observer["observer_status"], "ok")
+            self.assertEqual(observer["observer_backend"], "fixture")
+            self.assertIn("semantic_capture", observer["observer_action_kinds"])
+            self.assertTrue(Path(observer["observer_capture_artifact_path"]).exists())
             truth_compile = finalized["data"]["truth_compile"]
             self.assertTrue(truth_compile["compile_cycle_id"])
             truth_root = Path(finalized["subject_context"]["data_root"]) / ".synapse" / "TRUTH"
@@ -1093,7 +1122,10 @@ class McpIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_record_activity_reuses_runtime_automation_logic(self) -> None:
         workspace = self._make_workspace("mcp-automation-activity")
-        async with self._session(workspace) as session:
+        async with self._session(
+            workspace,
+            extra_env={"SYNAPSE_CONTINUITY_OBSERVER_BACKEND": "fixture"},
+        ) as session:
             bootstrap = await self._call(session, "bootstrap_session", {"title": "Automation activity"})
             data_root = Path(bootstrap["subject_context"]["data_root"])
             result = await self._call(
@@ -1113,11 +1145,18 @@ class McpIntegrationTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("semantic_capture", automation["automation_action_kinds"])
             self.assertIn("disclosure_log", automation["automation_action_kinds"])
             self.assertIn("continuity_refresh", automation["automation_action_kinds"])
+            observer = result["data"]["continuity_observer"]
+            self.assertEqual(observer["observer_status"], "ok")
+            self.assertEqual(observer["observer_backend"], "fixture")
+            self.assertIn("semantic_capture", observer["observer_action_kinds"])
+            self.assertTrue(Path(observer["observer_capture_artifact_path"]).exists())
 
             latest_event = self._event_entries(data_root)[-1]
             self.assertTrue(latest_event["signals"]["automation_triggered"])
             self.assertEqual(latest_event["signals"]["automation_context"]["activity_source"], "mcp")
             self.assertEqual(latest_event["signals"]["automation_context"]["activity_kind"], "record-activity")
+            self.assertEqual(latest_event["outputs"]["observer_backend"], "fixture")
+            self.assertEqual(latest_event["signals"]["observer_action_kinds"], observer["observer_action_kinds"])
             self.assertIsNotNone(latest_event["outputs"]["capture_artifact_path"])
             self.assertIsNotNone(latest_event["outputs"]["disclosures_ledger_path"])
 

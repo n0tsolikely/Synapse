@@ -30,6 +30,8 @@ from synapse_runtime.automation_orchestrator import (
     plan_automation_side_effects,
     ready_state_gate_for_mode,
 )
+from synapse_runtime.continuity_model_adapter import configured_continuity_observer_backend
+from synapse_runtime.continuity_observer import ContinuityObserverError, observe_continuity
 from synapse_runtime.continuity_obligations import open_obligation, resolve_matching_obligations
 from synapse_runtime.conversation_ingest import ConversationIngestError, record_raw_turn
 from synapse_runtime.cwt import detect_canonical_working_tree
@@ -1426,6 +1428,352 @@ def _apply_automation_partial_status(
         recovery_hint=(
             "Primary work was committed and recorded, but an automatic continuity side effect failed. "
             "Inspect the event continuity_side_effects metadata and rerun the relevant continuity command if needed."
+        ),
+    )
+
+
+def _extract_observer_source_ids(source_refs: list[dict[str, Any]] | None) -> tuple[list[str], list[str]]:
+    segment_ids: list[str] = []
+    semantic_event_ids: list[str] = []
+    for item in list(source_refs or []):
+        if not isinstance(item, dict):
+            continue
+        kind = str(item.get("kind") or "").strip().lower()
+        ref_id = str(item.get("id") or item.get("raw_id") or "").strip()
+        if not ref_id:
+            continue
+        if kind in {"conversation_segment", "segment"} and ref_id not in segment_ids:
+            segment_ids.append(ref_id)
+        elif kind in {"semantic_event", "semantic"} and ref_id not in semantic_event_ids:
+            semantic_event_ids.append(ref_id)
+    return segment_ids, semantic_event_ids
+
+
+def _normalized_observer_capture_run(active_run: dict[str, Any]) -> dict[str, Any] | None:
+    run_id = str(active_run.get("run_id") or "").strip()
+    session_id = str(active_run.get("session_id") or "").strip()
+    session_mode = str(active_run.get("session_mode") or "").strip()
+    session_mode_source = str(active_run.get("session_mode_source") or "").strip()
+    session_mode_policy_version = active_run.get("session_mode_policy_version")
+    if not run_id or not session_id or not session_mode or not session_mode_source or session_mode_policy_version is None:
+        return None
+    return dict(active_run)
+
+
+def _execute_continuity_observer(
+    *,
+    ctx: dict[str, Any],
+    active_run: dict[str, Any],
+    trigger: str,
+    summary: str | None,
+    notes: list[str] | None = None,
+    changed_files: list[str] | None = None,
+    boundary: str | None = None,
+    decision_boundary: bool = False,
+    uncertainty_present: bool = False,
+    source_refs: list[dict[str, Any]] | None = None,
+    accepted_context: dict[str, Any] | None = None,
+    session_mode_fields: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    data_root = Path(ctx["data_root"])
+    engine_root = Path(ctx["engine_root"])
+    backend = configured_continuity_observer_backend()
+    result: dict[str, Any] = {
+        "observer_status": "degraded",
+        "observer_backend": backend,
+        "observer_provider_status": "unknown",
+        "observer_degraded": True,
+        "observer_degraded_reason": None,
+        "observer_triggered": False,
+        "observer_action_kinds": [],
+        "observer_context": {},
+        "observer_side_effects": [],
+        "observer_capture_batch_id": None,
+        "observer_capture_artifact_path": None,
+        "observer_capture_ledger_path": None,
+        "observer_decision_path": None,
+        "observer_decisions_ledger_path": None,
+        "observer_disclosure_path": None,
+        "observer_disclosures_ledger_path": None,
+        "observer_obligation_path": None,
+        "written_artifacts": [],
+        "error_code": None,
+        "error_message": None,
+    }
+    try:
+        observer = observe_continuity(
+            subject=ctx["subject"],
+            data_root=data_root,
+            trigger=trigger,
+            summary=summary,
+            notes=list(notes or []),
+            changed_files=list(changed_files or []),
+            session_id=_effective_session_id(ctx, active_run=active_run),
+            run_id=str(active_run.get("run_id") or "").strip() or None,
+            boundary=boundary,
+            decision_boundary=decision_boundary,
+            uncertainty_present=uncertainty_present,
+            source_refs=list(source_refs or []),
+            accepted_context=accepted_context,
+            session_mode_fields=session_mode_fields,
+        )
+    except Exception as exc:
+        result["error_code"] = "CONTINUITY_OBSERVER_FAILED"
+        result["error_message"] = str(exc)
+        result["observer_degraded_reason"] = "observer_execution_failed"
+        result["observer_side_effects"].append(
+            {
+                "action": "observer",
+                "status": "failed",
+                "error": str(exc),
+            }
+        )
+        return result
+
+    result.update(
+        {
+            "observer_status": observer.get("observer_status"),
+            "observer_backend": observer.get("backend"),
+            "observer_provider_status": observer.get("provider_status"),
+            "observer_degraded": bool(observer.get("degraded")),
+            "observer_degraded_reason": observer.get("degraded_reason"),
+            "observer_triggered": bool(observer.get("observer_triggered")),
+            "observer_action_kinds": [],
+            "observer_context": dict(observer.get("observer_context") or {}),
+        }
+    )
+
+    for intent in list(observer.get("observer_intents") or []):
+        requested_action_kind = str(intent.get("artifact_family") or "").strip()
+        if not requested_action_kind or requested_action_kind == "noop":
+            continue
+        confidence = str(intent.get("confidence") or "medium").strip().lower() or "medium"
+        payload = dict(intent.get("payload") or {})
+        action_kind = requested_action_kind
+        if confidence == "low" and requested_action_kind not in {"semantic_capture", "open_obligation"}:
+            action_kind = "open_obligation"
+            payload = {
+                "obligation_kind": "observer.review.required",
+                "severity": "warn",
+                "summary": str(
+                    payload.get("summary")
+                    or summary
+                    or f"Low-confidence observer intent for {requested_action_kind} requires review."
+                ).strip(),
+                "required_record_families": ["semantic_capture"],
+                "metadata": {
+                    **dict(payload.get("metadata") or {}),
+                    "observer_requested_action_kind": requested_action_kind,
+                    "observer_confidence": confidence,
+                    "observer_downgraded": True,
+                },
+            }
+        try:
+            if action_kind == "semantic_capture":
+                capture_run = _normalized_observer_capture_run(active_run)
+                if capture_run is None:
+                    result["observer_side_effects"].append(
+                        {
+                            "action": action_kind,
+                            "status": "skipped",
+                            "reason": "missing_normalized_session_context",
+                        }
+                    )
+                    continue
+                captures = list(payload.get("captures") or [])
+                if not captures:
+                    capture_summary = str(payload.get("title") or summary or trigger).strip()
+                    captures = [{"kind": "repo_fact", "summary": capture_summary}]
+                receipt = write_capture_batch(
+                    subject=ctx["subject"],
+                    data_root=data_root,
+                    engine_root=engine_root,
+                    run_data=capture_run,
+                    raw_text=str(payload.get("raw_text") or summary or trigger).strip(),
+                    payload={"title": str(payload.get("title") or summary or trigger).strip(), "captures": captures},
+                    source_role=CaptureSourceRole.AGENT,
+                    title_override=str(payload.get("title") or "").strip() or None,
+                    extra_context={
+                        "capture_context": "continuity_observer",
+                        "observer_trigger": trigger,
+                        "observer_packet_fingerprint": result["observer_context"].get("packet_fingerprint"),
+                        "suppress_proposals": True,
+                    },
+                )
+                batch = dict(receipt.get("batch") or {})
+                result["observer_capture_batch_id"] = str(batch.get("capture_batch_id") or "").strip() or None
+                result["observer_capture_artifact_path"] = receipt.get("artifact_path")
+                result["observer_capture_ledger_path"] = receipt.get("ledger_path")
+                result["written_artifacts"].extend(
+                    [item for item in [receipt.get("artifact_path"), receipt.get("ledger_path")] if item]
+                )
+                result["observer_side_effects"].append(
+                    {
+                        "action": action_kind,
+                        "status": "ok",
+                        "capture_batch_id": result["observer_capture_batch_id"],
+                        "capture_artifact_path": result["observer_capture_artifact_path"],
+                        "capture_ledger_path": result["observer_capture_ledger_path"],
+                    }
+                )
+            elif action_kind == "decision_log":
+                decision_receipt = log_decision(
+                    subject=ctx["subject"],
+                    data_root=data_root,
+                    title=str(payload.get("title") or summary or "Observer decision").strip(),
+                    summary=str(payload.get("summary") or summary or "Observer identified a decision boundary.").strip(),
+                    why=str(payload.get("why") or "").strip() or None,
+                    constraints=[],
+                    tradeoffs=[],
+                    related_runs=[str(active_run.get("run_id") or "").strip()] if str(active_run.get("run_id") or "").strip() else [],
+                    related_quests=[],
+                )
+                result["observer_decision_path"] = decision_receipt.get("decision_path")
+                result["observer_decisions_ledger_path"] = decision_receipt.get("decisions_ledger_path")
+                result["written_artifacts"].extend(
+                    [item for item in [decision_receipt.get("decision_path"), decision_receipt.get("decisions_ledger_path")] if item]
+                )
+                result["observer_side_effects"].append(
+                    {
+                        "action": action_kind,
+                        "status": "ok",
+                        "decision_path": result["observer_decision_path"],
+                        "decisions_ledger_path": result["observer_decisions_ledger_path"],
+                    }
+                )
+            elif action_kind == "disclosure_log":
+                disclosure_receipt = log_disclosure(
+                    subject=ctx["subject"],
+                    data_root=data_root,
+                    trigger=str(payload.get("trigger") or summary or "Observer surfaced uncertainty.").strip(),
+                    expected=str(payload.get("expected") or "Continuity should remain truthful.").strip(),
+                    provable=str(payload.get("provable") or "Observer detected uncertainty in the bounded continuity packet.").strip(),
+                    status_labels=list(payload.get("status_labels") or ["UNCERTAINTY"]),
+                    impact=str(payload.get("impact") or summary or "Observer surfaced uncertainty during a governed boundary.").strip(),
+                    safe_options=list(payload.get("safe_options") or []),
+                    decision_needed=str(payload.get("decision_needed") or "Clarify the uncertain path before stronger canon changes.").strip(),
+                    related_runs=[str(active_run.get("run_id") or "").strip()] if str(active_run.get("run_id") or "").strip() else [],
+                    related_quests=[],
+                )
+                result["observer_disclosure_path"] = disclosure_receipt.get("disclosure_path")
+                result["observer_disclosures_ledger_path"] = disclosure_receipt.get("disclosures_ledger_path")
+                result["written_artifacts"].extend(
+                    [item for item in [disclosure_receipt.get("disclosure_path"), disclosure_receipt.get("disclosures_ledger_path")] if item]
+                )
+                result["observer_side_effects"].append(
+                    {
+                        "action": action_kind,
+                        "status": "ok",
+                        "disclosure_path": result["observer_disclosure_path"],
+                        "disclosures_ledger_path": result["observer_disclosures_ledger_path"],
+                    }
+                )
+            elif action_kind == "open_obligation":
+                segment_ids, semantic_event_ids = _extract_observer_source_ids(intent.get("source_refs"))
+                obligation_receipt = open_obligation(
+                    subject=ctx["subject"],
+                    data_root=data_root,
+                    recorded_at=kernel_now_iso(),
+                    obligation_kind=str(payload.get("obligation_kind") or "observer.review.required").strip(),
+                    severity=str(payload.get("severity") or "warn").strip().lower() or "warn",
+                    summary=str(payload.get("summary") or summary or "Observer requested a continuity review obligation.").strip(),
+                    required_record_families=list(payload.get("required_record_families") or ["semantic_capture"]),
+                    source_segment_ids=segment_ids,
+                    source_semantic_event_ids=semantic_event_ids,
+                    source_refs=list(intent.get("source_refs") or []),
+                    metadata={
+                        "observer_trigger": trigger,
+                        "observer_packet_fingerprint": result["observer_context"].get("packet_fingerprint"),
+                        **dict(payload.get("metadata") or {}),
+                    },
+                )
+                result["observer_obligation_path"] = obligation_receipt.get("path")
+                if obligation_receipt.get("path"):
+                    result["written_artifacts"].append(obligation_receipt["path"])
+                result["observer_side_effects"].append(
+                    {
+                        "action": action_kind,
+                        "status": "ok",
+                        "obligation_path": result["observer_obligation_path"],
+                        "obligation_kind": obligation_receipt.get("obligation_kind"),
+                        "downgraded_from": requested_action_kind if requested_action_kind != action_kind else None,
+                    }
+                )
+            result["observer_action_kinds"].append(action_kind)
+        except Exception as exc:
+            result["error_code"] = "CONTINUITY_OBSERVER_SIDE_EFFECT_FAILED"
+            result["error_message"] = f"{action_kind} failed: {exc}"
+            result["observer_side_effects"].append(
+                {
+                    "action": action_kind,
+                    "status": "failed",
+                    "error": str(exc),
+                }
+            )
+            break
+
+    result["observer_action_kinds"] = [str(item) for item in result.get("observer_action_kinds") or [] if str(item).strip()]
+    result["observer_triggered"] = bool(result["observer_action_kinds"])
+    return result
+
+
+def _apply_observer_event_metadata(
+    *,
+    signals: dict[str, Any],
+    outputs: dict[str, Any],
+    truth_flags: dict[str, Any],
+    observer: dict[str, Any],
+) -> None:
+    changed_files = list(signals.get("changed_files") or [])
+    for path in observer.get("written_artifacts") or []:
+        text = str(path or "").strip()
+        if text and text not in changed_files:
+            changed_files.append(text)
+    signals["changed_files"] = changed_files
+    signals["observer_triggered"] = bool(observer.get("observer_triggered"))
+    signals["observer_action_kinds"] = list(observer.get("observer_action_kinds") or [])
+    signals["observer_context"] = dict(observer.get("observer_context") or {})
+    outputs["observer_status"] = observer.get("observer_status")
+    outputs["observer_backend"] = observer.get("observer_backend")
+    outputs["observer_provider_status"] = observer.get("observer_provider_status")
+    outputs["observer_degraded"] = bool(observer.get("observer_degraded"))
+    outputs["observer_degraded_reason"] = observer.get("observer_degraded_reason")
+    outputs["observer_side_effects"] = list(observer.get("observer_side_effects") or [])
+    for source_key, target_key in (
+        ("observer_capture_batch_id", "capture_batch_id"),
+        ("observer_capture_artifact_path", "capture_artifact_path"),
+        ("observer_capture_ledger_path", "capture_ledger_path"),
+        ("observer_decision_path", "decision_path"),
+        ("observer_decisions_ledger_path", "decisions_ledger_path"),
+        ("observer_disclosure_path", "disclosure_path"),
+        ("observer_disclosures_ledger_path", "disclosures_ledger_path"),
+    ):
+        value = observer.get(source_key)
+        if value and not outputs.get(target_key):
+            outputs[target_key] = value
+    if observer.get("observer_obligation_path"):
+        outputs["observer_obligation_path"] = observer.get("observer_obligation_path")
+    truth_flags["uncertainty_present"] = bool(
+        truth_flags.get("uncertainty_present") or observer.get("observer_context", {}).get("uncertainty_present")
+    )
+    if observer.get("observer_disclosure_path"):
+        truth_flags["disclosure_open"] = True
+
+
+def _apply_observer_partial_status(
+    *,
+    event_info: dict[str, Any],
+    observer: dict[str, Any],
+) -> dict[str, Any]:
+    if not observer.get("error_message"):
+        return event_info
+    return _apply_follow_on_partial_status(
+        event_info=event_info,
+        error_code=observer.get("error_code") or "CONTINUITY_OBSERVER_FAILED",
+        error_message=str(observer.get("error_message")),
+        recovery_hint=(
+            "Primary work was committed and recorded, but a continuity-observer side effect failed. "
+            "Inspect the observer_side_effects metadata and rerun the relevant continuity boundary if needed."
         ),
     )
 
@@ -4428,6 +4776,18 @@ def cmd_session_tick(args: argparse.Namespace) -> int:
             decision_boundary=bool(args.decision_title and args.decision_summary),
             explicit_decision_logged=bool(decision_result),
         )
+        observer = _execute_continuity_observer(
+            ctx=ctx,
+            active_run=_load_active_run_with_session_repair(ctx),
+            trigger="session-tick",
+            summary=args.summary,
+            notes=list(notes),
+            changed_files=list(files_touched),
+            decision_boundary=bool(args.decision_title and args.decision_summary),
+            uncertainty_present=bool(automation.get("automation_context", {}).get("uncertainty_present")),
+            accepted_context=_accepted_context_snapshot(Path(ctx["data_root"])),
+            session_mode_fields=_current_session_mode_fields(ctx),
+        )
         signals = {
             "run_id": result.get("run_id"),
             "plan_items": _compact_plan_items(items),
@@ -4465,6 +4825,12 @@ def cmd_session_tick(args: argparse.Namespace) -> int:
             truth_flags=truth_flags,
             automation=automation,
         )
+        _apply_observer_event_metadata(
+            signals=signals,
+            outputs=outputs,
+            truth_flags=truth_flags,
+            observer=observer,
+        )
         event_info = _event_pipeline(
             ctx=ctx,
             action_name="session-tick",
@@ -4475,6 +4841,7 @@ def cmd_session_tick(args: argparse.Namespace) -> int:
             outputs=outputs,
         )
         event_info = _apply_automation_partial_status(event_info=event_info, automation=automation)
+        event_info = _apply_observer_partial_status(event_info=event_info, observer=observer)
         continuity_result = {
             "rehydrate": event_info["reducer"]["rehydrate"],
             "continuity": event_info["reducer"]["continuity"],
@@ -4494,6 +4861,7 @@ def cmd_session_tick(args: argparse.Namespace) -> int:
         "event": event_info["event"],
         "reducer": event_info["reducer"],
         "automation": automation,
+        "continuity_observer": observer,
     }
     def _emit_session_tick(rendered_payload: dict[str, Any]) -> None:
         run_update_payload = rendered_payload["run_update"]
@@ -4502,6 +4870,10 @@ def cmd_session_tick(args: argparse.Namespace) -> int:
         print(f"discoveries_path: {run_update_payload.get('discoveries_path')}")
         if rendered_payload.get("decision"):
             print(f"decision_path: {rendered_payload['decision'].get('decision_path')}")
+        observer_payload = dict(rendered_payload.get("continuity_observer") or {})
+        print(f"observer_status: {observer_payload.get('observer_status')}")
+        print(f"observer_backend: {observer_payload.get('observer_backend')}")
+        print(f"observer_action_kinds: {','.join(observer_payload.get('observer_action_kinds') or []) or 'none'}")
         if overlay_path:
             print(f"session_overlay: {overlay_path}")
 
@@ -4527,36 +4899,58 @@ def cmd_run_finalize(args: argparse.Namespace) -> int:
             summary=args.summary,
         )
         session_id = _effective_session_id(ctx, active_run=active_run, session_id=result.get("session_id"))
+        observer = _execute_continuity_observer(
+            ctx=ctx,
+            active_run={**active_run, "run_id": result.get("run_id"), "session_id": session_id},
+            trigger="run-finalize",
+            summary=args.summary or f"Finalized run {result.get('run_id')}",
+            accepted_context=_accepted_context_snapshot(Path(ctx["data_root"])),
+            session_mode_fields={
+                "session_mode": result.get("session_mode"),
+                "session_mode_source": result.get("session_mode_source"),
+                "session_mode_policy_version": result.get("session_mode_policy_version"),
+            },
+        )
+        signals = {
+            "run_id": result.get("run_id"),
+            "final_status": args.status,
+            "run_status": args.status,
+            "run_summary": args.summary,
+            "changed_files": [],
+            "verification_entries": [],
+            "related_quest_ids": [],
+            "related_sidequest_ids": [],
+            "accepted_context": _accepted_context_snapshot(Path(ctx["data_root"])),
+            "session_mode": result.get("session_mode"),
+            "session_mode_source": result.get("session_mode_source"),
+            "session_mode_policy_version": result.get("session_mode_policy_version"),
+        }
+        outputs = {
+            "run_id": result.get("run_id"),
+            "archive_path": result.get("archive_path"),
+        }
+        truth_flags = {
+            "canon_mutated": False,
+            "derived_state_changed": True,
+            "governed": False,
+            "uncertainty_present": False,
+        }
+        _apply_observer_event_metadata(
+            signals=signals,
+            outputs=outputs,
+            truth_flags=truth_flags,
+            observer=observer,
+        )
         event_info = _event_pipeline(
             ctx=ctx,
             action_name="run-finalize",
             summary=args.summary or f"Finalized run {result.get('run_id')}",
             session_id=session_id,
-            signals={
-                "run_id": result.get("run_id"),
-                "final_status": args.status,
-                "run_status": args.status,
-                "run_summary": args.summary,
-                "changed_files": [],
-                "verification_entries": [],
-                "related_quest_ids": [],
-                "related_sidequest_ids": [],
-                "accepted_context": _accepted_context_snapshot(Path(ctx["data_root"])),
-                "session_mode": result.get("session_mode"),
-                "session_mode_source": result.get("session_mode_source"),
-                "session_mode_policy_version": result.get("session_mode_policy_version"),
-            },
-            truth_flags={
-                "canon_mutated": False,
-                "derived_state_changed": True,
-                "governed": False,
-                "uncertainty_present": False,
-            },
-            outputs={
-                "run_id": result.get("run_id"),
-                "archive_path": result.get("archive_path"),
-            },
+            signals=signals,
+            truth_flags=truth_flags,
+            outputs=outputs,
         )
+        event_info = _apply_observer_partial_status(event_info=event_info, observer=observer)
     except LiveMemoryError as exc:
         print(f"FAIL: {exc}")
         return 2
@@ -4571,6 +4965,7 @@ def cmd_run_finalize(args: argparse.Namespace) -> int:
     result["rehydrate"] = event_info["reducer"]["rehydrate"]
     result["continuity"] = event_info["reducer"]["continuity"]
     result["truth_compile"] = truth_compile
+    result["continuity_observer"] = observer
     try:
         result["snapshot_candidates"] = _refresh_snapshot_candidate_boundary(
             ctx=ctx,
@@ -4596,6 +4991,10 @@ def cmd_run_finalize(args: argparse.Namespace) -> int:
         print("=== RUN FINALIZED ===")
         print(f"run_id: {payload.get('run_id')}")
         print(f"archive_path: {payload.get('archive_path')}")
+        observer_payload = dict(payload.get("continuity_observer") or {})
+        print(f"observer_status: {observer_payload.get('observer_status')}")
+        print(f"observer_backend: {observer_payload.get('observer_backend')}")
+        print(f"observer_action_kinds: {','.join(observer_payload.get('observer_action_kinds') or []) or 'none'}")
         if overlay_path:
             print(f"session_overlay_cleared: {overlay_path}")
 
@@ -7269,28 +7668,50 @@ def cmd_close_turn(args: argparse.Namespace) -> int:
     if not ctx:
         return 2
     try:
+        active_run = _load_active_run_with_session_repair(ctx)
+        accepted_context = _accepted_context_snapshot(Path(ctx["data_root"]))
+        session_mode_fields = _current_session_mode_fields(ctx)
+        observer = _execute_continuity_observer(
+            ctx=ctx,
+            active_run=active_run,
+            trigger="close-turn",
+            summary=f"Validated close-turn continuity boundary for {ctx['subject']}.",
+            boundary=args.boundary,
+            accepted_context=accepted_context,
+            session_mode_fields=session_mode_fields,
+        )
+        signals = {
+            "changed_files": [],
+            "verification_entries": [],
+            "related_quest_ids": [],
+            "related_sidequest_ids": [],
+            "accepted_context": accepted_context,
+            **session_mode_fields,
+        }
+        outputs = {"boundary": args.boundary}
+        truth_flags = {
+            "canon_mutated": False,
+            "derived_state_changed": True,
+            "governed": False,
+            "uncertainty_present": False,
+        }
+        _apply_observer_event_metadata(
+            signals=signals,
+            outputs=outputs,
+            truth_flags=truth_flags,
+            observer=observer,
+        )
         event_info = _event_pipeline(
             ctx=ctx,
             action_name="close-turn",
             summary=f"Validated close-turn continuity boundary for {ctx['subject']}.",
             session_id=_resolved_session_id(args),
             refresh_continuity=False,
-            signals={
-                "changed_files": [],
-                "verification_entries": [],
-                "related_quest_ids": [],
-                "related_sidequest_ids": [],
-                "accepted_context": _accepted_context_snapshot(Path(ctx["data_root"])),
-                **_current_session_mode_fields(ctx),
-            },
-            truth_flags={
-                "canon_mutated": False,
-                "derived_state_changed": True,
-                "governed": False,
-                "uncertainty_present": False,
-            },
-            outputs={"boundary": args.boundary},
+            signals=signals,
+            truth_flags=truth_flags,
+            outputs=outputs,
         )
+        event_info = _apply_observer_partial_status(event_info=event_info, observer=observer)
         snapshot_candidate_result = _refresh_snapshot_candidate_boundary(
             ctx=ctx,
             boundary=args.boundary,
@@ -7307,6 +7728,7 @@ def cmd_close_turn(args: argparse.Namespace) -> int:
     rendered = {
         "subject_context": ctx,
         "kernel_posture": _kernel_posture_payload(ctx),
+        "continuity_observer": observer,
         "snapshot_candidates": snapshot_candidate_result,
         "publication_candidates": publication_candidate_result,
         **payload,
@@ -7321,6 +7743,10 @@ def cmd_close_turn(args: argparse.Namespace) -> int:
         print(f"validation_status: {result_payload.get('validation_status')}")
         print(f"integration_posture: {result_payload.get('integration_posture')}")
         print(f"local_integration_health: {result_payload.get('local_integration_health')}")
+        observer_payload = dict(result_payload.get("continuity_observer") or {})
+        print(f"observer_status: {observer_payload.get('observer_status')}")
+        print(f"observer_backend: {observer_payload.get('observer_backend')}")
+        print(f"observer_action_kinds: {','.join(observer_payload.get('observer_action_kinds') or []) or 'none'}")
         print(f"open_continuity_obligation_count: {result_payload.get('open_continuity_obligation_count')}")
         print(f"blocker_continuity_obligation_count: {result_payload.get('blocker_continuity_obligation_count')}")
         if result_payload.get("degraded_mode"):
@@ -7382,36 +7808,57 @@ def cmd_import_continuity(args: argparse.Namespace) -> int:
         path=payload["raw_event_path"],
         sha256=payload["raw_event_sha256"],
     )
+    observer = _execute_continuity_observer(
+        ctx=ctx,
+        active_run=_load_active_run_with_session_repair(ctx),
+        trigger="import-continuity",
+        summary=f"Imported {parsed.get('source_kind')} continuity evidence for {ctx['subject']}.",
+        notes=list(parsed.get("warnings") or []),
+        source_refs=[raw_ref],
+        uncertainty_present=str(parsed.get("confidence_band") or "").strip().lower() == "low",
+        accepted_context=_accepted_context_snapshot(Path(ctx["data_root"])),
+        session_mode_fields=_current_session_mode_fields(ctx),
+    )
+    signals = raw_capture_signals(
+        accepted_context=_accepted_context_snapshot(Path(ctx["data_root"])),
+        session_mode_fields=_current_session_mode_fields(ctx),
+        raw_refs=[raw_ref],
+        source_surface=args.source_surface,
+        raw_family=payload["family"],
+    )
+    outputs = {
+        "raw_event_id": payload["raw_event_id"],
+        "raw_event_path": payload["raw_event_path"],
+        "raw_event_sha256": payload["raw_event_sha256"],
+        "payload_blob_path": payload.get("payload_blob", {}).get("path") if payload.get("payload_blob") else None,
+        "payload_blob_sha256": payload.get("payload_blob", {}).get("sha256") if payload.get("payload_blob") else None,
+        "import_source_path": parsed.get("source_path"),
+        "import_source_kind": parsed.get("source_kind"),
+        "import_parser_status": parsed.get("parser_status"),
+        "import_confidence_band": parsed.get("confidence_band"),
+    }
+    truth_flags = {
+        "canon_mutated": False,
+        "derived_state_changed": True,
+        "governed": False,
+        "uncertainty_present": str(parsed.get("confidence_band") or "").strip().lower() == "low",
+    }
+    _apply_observer_event_metadata(
+        signals=signals,
+        outputs=outputs,
+        truth_flags=truth_flags,
+        observer=observer,
+    )
     event_info = _event_pipeline(
         ctx=ctx,
         action_name="import-continuity",
         summary=f"Imported {parsed.get('source_kind')} continuity evidence for {ctx['subject']}.",
         session_id=_resolved_session_id(args),
-        signals=raw_capture_signals(
-            accepted_context=_accepted_context_snapshot(Path(ctx["data_root"])),
-            session_mode_fields=_current_session_mode_fields(ctx),
-            raw_refs=[raw_ref],
-            source_surface=args.source_surface,
-            raw_family=payload["family"],
-        ),
-        truth_flags={
-            "canon_mutated": False,
-            "derived_state_changed": True,
-            "governed": False,
-            "uncertainty_present": str(parsed.get("confidence_band") or "").strip().lower() == "low",
-        },
-        outputs={
-            "raw_event_id": payload["raw_event_id"],
-            "raw_event_path": payload["raw_event_path"],
-            "raw_event_sha256": payload["raw_event_sha256"],
-            "payload_blob_path": payload.get("payload_blob", {}).get("path") if payload.get("payload_blob") else None,
-            "payload_blob_sha256": payload.get("payload_blob", {}).get("sha256") if payload.get("payload_blob") else None,
-            "import_source_path": parsed.get("source_path"),
-            "import_source_kind": parsed.get("source_kind"),
-            "import_parser_status": parsed.get("parser_status"),
-            "import_confidence_band": parsed.get("confidence_band"),
-        },
+        signals=signals,
+        truth_flags=truth_flags,
+        outputs=outputs,
     )
+    event_info = _apply_observer_partial_status(event_info=event_info, observer=observer)
     try:
         followup = _orchestrate_import_continuity_followup(
             ctx=ctx,
@@ -7426,6 +7873,7 @@ def cmd_import_continuity(args: argparse.Namespace) -> int:
     rendered = {
         "subject_context": ctx,
         "kernel_posture": _kernel_posture_payload(ctx),
+        "continuity_observer": observer,
         "import_envelope": parsed,
         "snapshot_candidates": followup["snapshot_candidates"],
         "publication_candidates": followup["publication_candidates"],
@@ -7443,6 +7891,10 @@ def cmd_import_continuity(args: argparse.Namespace) -> int:
         print(f"source_path: {envelope.get('source_path')}")
         print(f"parser_status: {envelope.get('parser_status')}")
         print(f"confidence_band: {envelope.get('confidence_band')}")
+        observer_payload = dict(result_payload.get("continuity_observer") or {})
+        print(f"observer_status: {observer_payload.get('observer_status')}")
+        print(f"observer_backend: {observer_payload.get('observer_backend')}")
+        print(f"observer_action_kinds: {','.join(observer_payload.get('observer_action_kinds') or []) or 'none'}")
         print(f"raw_event_id: {result_payload.get('raw_event_id')}")
         print(f"raw_event_path: {result_payload.get('raw_event_path')}")
 

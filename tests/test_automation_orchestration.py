@@ -712,6 +712,65 @@ class AutomationCliGateTests(unittest.TestCase):
         self.assertTrue(state["onboarding_required"])
         self.assertEqual(state["active_session_mode"], "onboarding_existing_repo")
 
+    def test_run_finalize_reports_degraded_observer_without_configured_backend(self) -> None:
+        finalized = run_synapse(
+            [
+                "run-finalize",
+                "--status",
+                "cancelled",
+                "--summary",
+                "close onboarding run",
+                "--session-id",
+                "sid-finalize-degraded",
+                "--json",
+            ],
+            cwd=self.repo,
+            home=self.home,
+        )
+        self.assertEqual(finalized.returncode, 0, finalized.stdout + finalized.stderr)
+        payload = json.loads(finalized.stdout)
+        observer = payload["continuity_observer"]
+        self.assertEqual(observer["observer_status"], "degraded")
+        self.assertEqual(observer["observer_backend"], "noop")
+        self.assertEqual(observer["observer_provider_status"], "not_configured")
+        self.assertTrue(observer["observer_degraded"])
+        self.assertEqual(observer["observer_action_kinds"], [])
+        self.assertEqual(payload["event"]["payload"]["outputs"]["observer_status"], "degraded")
+        self.assertEqual(payload["event"]["payload"]["outputs"]["observer_backend"], "noop")
+        self.assertTrue(payload["event"]["payload"]["outputs"]["observer_degraded"])
+
+    def test_run_finalize_fixture_observer_routes_capture_draft_safely(self) -> None:
+        finalized = run_synapse(
+            [
+                "run-finalize",
+                "--status",
+                "cancelled",
+                "--summary",
+                "Capture continuity seam",
+                "--session-id",
+                "sid-finalize-fixture",
+                "--json",
+            ],
+            cwd=self.repo,
+            home=self.home,
+            extra_env={"SYNAPSE_CONTINUITY_OBSERVER_BACKEND": "fixture"},
+        )
+        self.assertEqual(finalized.returncode, 0, finalized.stdout + finalized.stderr)
+        payload = json.loads(finalized.stdout)
+        observer = payload["continuity_observer"]
+        self.assertEqual(observer["observer_status"], "ok")
+        self.assertEqual(observer["observer_backend"], "fixture")
+        self.assertEqual(observer["observer_action_kinds"], ["semantic_capture"])
+        self.assertIsNotNone(observer["observer_capture_artifact_path"])
+        self.assertTrue(Path(observer["observer_capture_artifact_path"]).exists())
+        self.assertEqual(
+            payload["event"]["payload"]["outputs"]["capture_artifact_path"],
+            observer["observer_capture_artifact_path"],
+        )
+        self.assertFalse(payload["event"]["payload"]["truth_flags"]["canon_mutated"])
+        truth_compile = payload.get("truth_compile") or {}
+        self.assertIsNone(truth_compile.get("compiled_truth_path"))
+
     def test_automation_updates_remain_draft_safe_and_do_not_publish(self) -> None:
         result = run_synapse(
             [
