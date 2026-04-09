@@ -43,7 +43,7 @@ def log_decision(
     decisions_path = _daily_ledger_path(data_root, "DECISIONS")
     run_data = _load_active_run(live / "ACTIVE_RUN.yaml", subject)
 
-    timestamp = _now().strftime("%Y%m%d-%H%M%S")
+    timestamp = _now().strftime("%Y%m%d-%H%M%S-%f")
     slug = _slugify(title)
     filename = f"DECISION__{timestamp}__{slug}.md"
     path = decisions_dir / filename
@@ -143,7 +143,7 @@ def log_disclosure(
     disclosures_path = _daily_ledger_path(data_root, "DISCLOSURES")
     run_data = _load_active_run(live / "ACTIVE_RUN.yaml", subject)
 
-    timestamp = _now().strftime("%Y%m%d-%H%M%S")
+    timestamp = _now().strftime("%Y%m%d-%H%M%S-%f")
     slug = _slugify(trigger)
     filename = f"DISCLOSURE__{timestamp}__{slug}.md"
     path = disclosures_dir / filename
@@ -251,7 +251,7 @@ def log_discovery(
     discoveries_path = _daily_ledger_path(data_root, "DISCOVERIES")
     run_data = _load_active_run(live / "ACTIVE_RUN.yaml", subject)
 
-    timestamp = _now().strftime("%Y%m%d-%H%M%S")
+    timestamp = _now().strftime("%Y%m%d-%H%M%S-%f")
     slug = _slugify(title)
     filename = f"DISCOVERY__{timestamp}__{slug}.md"
     path = discoveries_dir / filename

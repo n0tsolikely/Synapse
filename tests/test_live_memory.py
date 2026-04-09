@@ -2,8 +2,10 @@ import json
 import subprocess
 import sys
 import tempfile
+from datetime import datetime
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 import yaml
 
@@ -12,7 +14,7 @@ RUNTIME_ROOT = REPO_ROOT / "runtime"
 if str(RUNTIME_ROOT) not in sys.path:
     sys.path.insert(0, str(RUNTIME_ROOT))
 
-from synapse_runtime.live_journal import record_quest_acceptance
+from synapse_runtime.live_journal import log_disclosure, record_quest_acceptance
 from synapse_runtime.truth_drafts import write_truth_draft
 
 SYNAPSE = [sys.executable, str(REPO_ROOT / "runtime" / "synapse.py")]
@@ -273,6 +275,36 @@ class LiveMemoryFlowTests(unittest.TestCase):
         self.assertIn("QUEST_001", summary_text)
         self.assertIn("Verification proof missing for QUEST_001", verify_text)
         self.assertIn("Decision Needed From Brains", disclosure_text)
+
+    def test_log_disclosure_allows_same_second_duplicate_slug_without_collision(self):
+        self._run_start(title="Disclosure collision", plan_item="Surface duplicate uncertainty")
+        now_one = datetime(2026, 3, 10, 12, 0, 0, 111111)
+        now_two = datetime(2026, 3, 10, 12, 0, 0, 222222)
+        kwargs = {
+            "subject": "TestSubject",
+            "data_root": self.data_root,
+            "trigger": "Mapped reducer replay seam",
+            "expected": "One replay owner.",
+            "provable": "Replay ownership is still being clarified.",
+            "status_labels": ["UNVERIFIED"],
+            "impact": "A stale replay seam may hide continuity drift.",
+            "safe_options": ["Pause and inspect the replay boundary."],
+            "decision_needed": "Confirm replay ownership.",
+            "related_runs": [],
+            "related_quests": [],
+            "source_refs": [],
+        }
+
+        with patch("synapse_runtime.live_journal._now", side_effect=[now_one, now_two]), patch(
+            "synapse_runtime.live_journal._now_iso",
+            return_value="2026-03-10T12:00:00-04:00",
+        ):
+            first = log_disclosure(**kwargs)
+            second = log_disclosure(**kwargs)
+
+        self.assertNotEqual(first["disclosure_path"], second["disclosure_path"])
+        disclosures = sorted((self.data_root / ".synapse" / "DISCLOSURES").glob("DISCLOSURE__*.md"))
+        self.assertEqual(len(disclosures), 2)
 
     def test_record_quest_acceptance_writes_authored_discovery_artifact(self):
         self._run_start(title="Quest acceptance discovery", plan_item="Accept the governed quest")
