@@ -40,8 +40,22 @@ Supported environment variables:
 - `SYNAPSE_ROOT`
 - `SYNAPSE_GOVERNANCE_ROOT`
 - `SYNAPSE_SESSION_ID` as a legacy fallback only
+- `SYNAPSE_CONTINUITY_OBSERVER_BACKEND`
+- `SYNAPSE_CONTINUITY_OBSERVER_MODEL`
+- `SYNAPSE_CONTINUITY_OBSERVER_BASE_URL`
+- `SYNAPSE_CONTINUITY_OBSERVER_TIMEOUT_SECONDS`
+- `SYNAPSE_CONTINUITY_OBSERVER_MAX_OUTPUT_TOKENS`
+- `OPENAI_API_KEY` when `SYNAPSE_CONTINUITY_OBSERVER_BACKEND=openai_responses`
 
 `SYNAPSE_ROOT` should point at the Synapse install root. If omitted, Synapse uses the Phase 0 install-root resolution contract.
+
+Continuity observer backend rule:
+
+- default runtime posture is still `noop`, which reports degraded observer truth honestly
+- set `SYNAPSE_CONTINUITY_OBSERVER_BACKEND=openai_responses` to enable the live model-backed observer backend
+- optional `SYNAPSE_CONTINUITY_OBSERVER_MODEL` overrides the default observer model (`gpt-4o-mini`)
+- optional `SYNAPSE_CONTINUITY_OBSERVER_BASE_URL` lets you target a compatible Responses endpoint when needed
+- optional `SYNAPSE_CONTINUITY_OBSERVER_TIMEOUT_SECONDS` and `SYNAPSE_CONTINUITY_OBSERVER_MAX_OUTPUT_TOKENS` tune runtime request limits
 
 ## Working Directory
 

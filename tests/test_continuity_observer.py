@@ -81,7 +81,7 @@ class ContinuityObserverTests(unittest.TestCase):
         self.assertEqual(observed["backend"], "noop")
         self.assertEqual(observed["provider_status"], "not_configured")
         self.assertTrue(observed["degraded"])
-        self.assertEqual(observed["degraded_reason"], "production_model_backend_unresolved")
+        self.assertEqual(observed["degraded_reason"], "observer_backend_not_configured")
         self.assertFalse(observed["observer_triggered"])
         self.assertEqual(observed["observer_action_kinds"], [])
         self.assertEqual(observed["observer_intents"], [])
