@@ -7,11 +7,12 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from synapse_runtime.continuity_obligations import load_obligations
-from synapse_runtime.draftshots import list_draftshot_revisions
+from synapse_runtime.draftshots import draftshot_summary, list_draftshot_revisions
+from synapse_runtime.publication_candidates import list_publication_candidate_revisions, publication_candidate_summary
+from synapse_runtime.snapshot_candidates import list_snapshot_candidate_revisions, snapshot_candidate_summary
+from synapse_runtime.truth_drafts import truth_draft_summary
 from synapse_runtime.kernel_types import stable_kernel_id
 from synapse_runtime.lineage_store import load_lineage_edges
-from synapse_runtime.publication_candidates import list_publication_candidate_revisions
-from synapse_runtime.snapshot_candidates import list_snapshot_candidate_revisions
 
 
 COMPACTION_POLICY_SCHEMA_VERSION = 1
@@ -47,6 +48,15 @@ def _write_yaml(path: Path, payload: dict[str, Any]) -> None:
     import yaml
 
     path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+
+
+def _read_yaml(path: Path) -> dict[str, Any]:
+    import yaml
+
+    if not path.exists():
+        return {}
+    payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+    return dict(payload) if isinstance(payload, dict) else {}
 
 
 def _normalize_refs(items: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -265,6 +275,20 @@ def _record_manifest(
     return {**payload, "manifest_path": str(path.resolve())}
 
 
+def list_compaction_manifests(data_root: Path) -> list[dict[str, Any]]:
+    root = compaction_root(data_root)
+    if not root.exists():
+        return []
+    manifests: list[dict[str, Any]] = []
+    for path in sorted(root.glob("**/COMPACTION__*.yaml")):
+        payload = _read_yaml(path)
+        if not payload:
+            continue
+        payload["manifest_path"] = str(path.resolve())
+        manifests.append(payload)
+    return manifests
+
+
 def refresh_superseded_revision_manifests(data_root: Path) -> dict[str, Any]:
     draftshot_revisions = list_draftshot_revisions(data_root)
     snapshot_revisions = list_snapshot_candidate_revisions(data_root)
@@ -355,4 +379,57 @@ def refresh_superseded_revision_manifests(data_root: Path) -> dict[str, Any]:
         "manifest_count": len(receipts),
         "manifest_paths": [str(item.get("manifest_path") or "") for item in receipts],
         "receipts": receipts,
+    }
+
+
+def compaction_summary(data_root: Path) -> dict[str, Any]:
+    manifests = list_compaction_manifests(data_root)
+    eligible = [item for item in manifests if str(item.get("decision_status") or "") == "eligible"]
+    blocked = [item for item in manifests if str(item.get("decision_status") or "") == "blocked"]
+    family_counts: dict[str, int] = {}
+    for item in manifests:
+        family = str(item.get("artifact_family") or "unknown")
+        family_counts[family] = family_counts.get(family, 0) + 1
+
+    draftshots = draftshot_summary(data_root)
+    snapshots = snapshot_candidate_summary(data_root)
+    publications = publication_candidate_summary(data_root)
+    truth_drafts = truth_draft_summary(data_root)
+    hot_memory_counts = {
+        "draftshots": int(draftshots.get("active_draftshot_count") or 0),
+        "snapshot_candidates": int(bool(snapshots.get("current_eod_candidate_path"))) + int(bool(snapshots.get("current_control_sync_candidate_path"))),
+        "publication_candidates": int(bool(publications.get("current_story_candidate_path")))
+        + int(bool(publications.get("current_vision_candidate_path")))
+        + len(list(publications.get("current_codex_candidate_paths") or [])),
+        "truth_drafts": int(truth_drafts.get("truth_draft_count") or 0),
+    }
+    warm_memory_counts = {
+        "draftshot_revisions": len(list(draftshots.get("recent_draftshot_details") or [])),
+        "snapshot_candidate_revisions": len(list(snapshots.get("recent_eod_candidate_details") or []))
+        + len(list(snapshots.get("recent_control_sync_candidate_details") or [])),
+        "publication_candidate_revisions": len(list(publications.get("recent_story_candidate_details") or []))
+        + len(list(publications.get("recent_vision_candidate_details") or []))
+        + len(list(publications.get("recent_codex_candidate_details") or [])),
+        "compaction_candidates": len(manifests),
+    }
+    recent_details = [
+        {
+            "artifact_family": item.get("artifact_family"),
+            "artifact_id": item.get("artifact_id"),
+            "decision_status": item.get("decision_status"),
+            "target_temperature": item.get("target_temperature"),
+            "manifest_path": item.get("manifest_path"),
+        }
+        for item in manifests[-10:]
+    ]
+    return {
+        "schema_version": COMPACTION_POLICY_SCHEMA_VERSION,
+        "compaction_manifest_count": len(manifests),
+        "eligible_cooling_manifest_count": len(eligible),
+        "blocked_cooling_manifest_count": len(blocked),
+        "compaction_family_counts": family_counts,
+        "hot_memory_counts": hot_memory_counts,
+        "warm_memory_counts": warm_memory_counts,
+        "cold_memory_artifact_count": 0,
+        "recent_compaction_manifest_details": recent_details,
     }

@@ -597,6 +597,24 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
                 lines.append(f"  path={item.get('path')}")
         lines.append("")
 
+    if manifold.get("compaction_manifest_count") or manifold.get("hot_memory_counts") or manifold.get("warm_memory_counts"):
+        lines.append("## Compaction / Memory Temperature")
+        lines.append(f"- Compaction manifests: {manifold.get('compaction_manifest_count') or 0}")
+        lines.append(f"- Eligible cooling manifests: {manifold.get('eligible_cooling_manifest_count') or 0}")
+        lines.append(f"- Blocked cooling manifests: {manifold.get('blocked_cooling_manifest_count') or 0}")
+        lines.append(f"- Cold artifact count: {manifold.get('cold_memory_artifact_count') or 0}")
+        hot_counts = dict(manifold.get("hot_memory_counts") or {})
+        if hot_counts:
+            lines.append(f"- Hot memory counts: {hot_counts}")
+        warm_counts = dict(manifold.get("warm_memory_counts") or {})
+        if warm_counts:
+            lines.append(f"- Warm memory counts: {warm_counts}")
+        for item in list(manifold.get("recent_compaction_manifest_details") or [])[:5]:
+            lines.append(
+                f"- [{item.get('decision_status')}] {item.get('artifact_family')} :: {item.get('artifact_id')}"
+            )
+        lines.append("")
+
     semantic_sections = [
         ("Ideas", manifold.get("recent_idea_details") or []),
         ("Constraints", manifold.get("recent_constraint_details") or []),

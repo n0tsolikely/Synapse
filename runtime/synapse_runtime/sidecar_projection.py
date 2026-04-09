@@ -12,6 +12,7 @@ from synapse_runtime.accepted_execution_view import (
     select_latest_completed_quest,
 )
 from synapse_runtime.automation_orchestrator import automation_summary
+from synapse_runtime.compaction_policy import compaction_summary
 from synapse_runtime.conversation_ingest import load_raw_turn, load_raw_turn_text
 from synapse_runtime.draftshots import (
     draftshot_source_refs_from_synthesis,
@@ -896,6 +897,31 @@ def _apply_operational_proposal_projection(
     return summary
 
 
+def _apply_compaction_projection(
+    *,
+    state: dict[str, Any],
+    manifold: dict[str, Any],
+    data_root: Path,
+) -> dict[str, Any]:
+    summary = compaction_summary(data_root)
+    state["compaction_manifest_count"] = int(summary.get("compaction_manifest_count") or 0)
+    state["eligible_cooling_manifest_count"] = int(summary.get("eligible_cooling_manifest_count") or 0)
+    state["blocked_cooling_manifest_count"] = int(summary.get("blocked_cooling_manifest_count") or 0)
+    state["hot_memory_counts"] = dict(summary.get("hot_memory_counts") or {})
+    state["warm_memory_counts"] = dict(summary.get("warm_memory_counts") or {})
+    state["cold_memory_artifact_count"] = int(summary.get("cold_memory_artifact_count") or 0)
+
+    manifold["compaction_manifest_count"] = int(summary.get("compaction_manifest_count") or 0)
+    manifold["eligible_cooling_manifest_count"] = int(summary.get("eligible_cooling_manifest_count") or 0)
+    manifold["blocked_cooling_manifest_count"] = int(summary.get("blocked_cooling_manifest_count") or 0)
+    manifold["compaction_family_counts"] = dict(summary.get("compaction_family_counts") or {})
+    manifold["hot_memory_counts"] = dict(summary.get("hot_memory_counts") or {})
+    manifold["warm_memory_counts"] = dict(summary.get("warm_memory_counts") or {})
+    manifold["cold_memory_artifact_count"] = int(summary.get("cold_memory_artifact_count") or 0)
+    manifold["recent_compaction_manifest_details"] = list(summary.get("recent_compaction_manifest_details") or [])
+    return summary
+
+
 def refresh_synthesis_projection(*, subject: str, data_root: Path) -> dict[str, Any]:
     live = live_root(data_root)
     state_path = live / "STATE.yaml"
@@ -934,6 +960,11 @@ def refresh_synthesis_projection(*, subject: str, data_root: Path) -> dict[str, 
         manifold=manifold,
         data_root=data_root,
     )
+    compaction = _apply_compaction_projection(
+        state=state,
+        manifold=manifold,
+        data_root=data_root,
+    )
     _write_yaml(state_path, state)
     manifold["last_updated_at"] = _now_iso()
     _write_yaml(manifold_path, manifold)
@@ -945,6 +976,7 @@ def refresh_synthesis_projection(*, subject: str, data_root: Path) -> dict[str, 
         "publication_candidates": publication_candidates,
         "truth_drafts": truth_drafts,
         "operational_proposals": operational_proposals,
+        "compaction": compaction,
     }
 
 
@@ -1150,6 +1182,11 @@ def _sync_sidecar(
         manifold=manifold,
         data_root=data_root,
     )
+    compaction_projection = _apply_compaction_projection(
+        state=state,
+        manifold=manifold,
+        data_root=data_root,
+    )
 
     accepted_details = load_accepted_quest_details(subject, data_root)
     current_accepted = select_current_accepted_quest(accepted_details)
@@ -1324,6 +1361,7 @@ def _sync_sidecar(
         "publication_candidates": publication_candidates_projection,
         "truth_drafts": truth_drafts_projection,
         "operational_proposals": operational_proposals_projection,
+        "compaction": compaction_projection,
         "interaction_mode": interaction_mode,
         "world_state": world_state.value,
         "active_onboarding_id": onboarding_state.get("active_onboarding_id"),

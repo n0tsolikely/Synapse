@@ -3,6 +3,8 @@ from pathlib import Path
 import sys
 import unittest
 
+import yaml
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RUNTIME_ROOT = REPO_ROOT / "runtime"
@@ -17,6 +19,7 @@ from synapse_runtime.compaction_policy import refresh_superseded_revision_manife
 from synapse_runtime.promotion_engine import promote_semantic_events
 from synapse_runtime.publication_candidates import refresh_publication_candidates
 from synapse_runtime.quest_plans import persist_execution_plan
+from synapse_runtime.rehydrate_renderer import render_rehydrate
 from synapse_runtime.sidecar_projection import refresh_synthesis_projection
 from synapse_runtime.sidecar_store import ensure_live_scaffold
 from synapse_runtime.snapshot_candidates import refresh_snapshot_candidates
@@ -290,6 +293,18 @@ class CompactionPolicyTests(unittest.TestCase):
         for receipt in result["receipts"]:
             self.assertTrue(Path(receipt["manifest_path"]).exists())
             self.assertEqual(receipt["decision"]["allowed_to_delete"], False)
+
+        refresh_synthesis_projection(subject=self.subject, data_root=self.data_root)
+        render_rehydrate(subject=self.subject, data_root=self.data_root)
+        state = yaml.safe_load((self.data_root / ".synapse" / "STATE.yaml").read_text(encoding="utf-8"))
+        manifold = yaml.safe_load((self.data_root / ".synapse" / "MANIFOLD.yaml").read_text(encoding="utf-8"))
+        rehydrate = (self.data_root / ".synapse" / "REHYDRATE.md").read_text(encoding="utf-8")
+        self.assertGreaterEqual(state["compaction_manifest_count"], 1)
+        self.assertGreaterEqual(manifold["eligible_cooling_manifest_count"], 1)
+        self.assertIn("hot_memory_counts", manifold)
+        self.assertIn("warm_memory_counts", manifold)
+        self.assertTrue(manifold["recent_compaction_manifest_details"])
+        self.assertIn("## Compaction / Memory Temperature", rehydrate)
 
 
 if __name__ == "__main__":
