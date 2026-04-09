@@ -8,6 +8,7 @@ from typing import Any, Iterable
 
 import yaml
 
+from synapse_runtime.canonizer import CANONIZER_SCHEMA_VERSION, render_publication_candidate_body
 from synapse_runtime.codex_packets import load_codex_packets
 from synapse_runtime.kernel_types import stable_kernel_id
 from synapse_runtime.project_model import (
@@ -375,7 +376,7 @@ def _candidate_draft_view(model: dict[str, Any]) -> dict[str, Any]:
 
 def _story_source_refs(continuity: dict[str, Any]) -> list[dict[str, Any]]:
     refs: list[dict[str, Any]] = []
-    for key in ("identity_delta", "narrative_delta", "active_scope_delta", "architecture_delta", "active_plan_delta"):
+    for key in ("identity_delta", "narrative_delta", "active_scope_delta", "architecture_delta", "active_plan_delta", "obligation_delta"):
         refs.extend(list(dict(continuity.get(key) or {}).get("source_refs") or []))
     imported_delta = dict(continuity.get("imported_continuity_delta") or {})
     if bool(dict(imported_delta.get("metadata") or {}).get("publication_candidate_eligible")):
@@ -503,6 +504,7 @@ def _candidate_detail(manifest: dict[str, Any]) -> dict[str, Any]:
         "imported_confidence_band": manifest.get("imported_confidence_band"),
         "requires_import_review": manifest.get("requires_import_review"),
         "imported_source_count": manifest.get("imported_source_count"),
+        "truth_state_counts": dict(dict(manifest.get("canonizer_sections") or {}).get("truth_state_counts") or {}),
     }
 
 
@@ -582,132 +584,69 @@ def publication_candidate_summary(data_root: Path) -> dict[str, Any]:
     }
 
 
-def _story_body(*, summary: str, rendered_story: str, baseline_refs: list[dict[str, Any]], source_refs: list[dict[str, Any]]) -> str:
-    lines = [
-        "# Project Story Candidate",
-        "",
-        "## Candidate Summary",
-        summary,
-        "",
-        "## Canonical Baseline Refs",
-    ]
-    lines.extend(
-        [
-            f"- [{item.get('baseline_kind')}] {item.get('path')} (confirmed_at={item.get('confirmed_at') or 'unknown'})"
-            for item in baseline_refs
-        ]
-        or ["- none"]
-    )
-    lines.extend(
-        [
-            "",
-            "## Rendered Candidate",
-            rendered_story.replace("# Project Story", "### Story View", 1).rstrip(),
-            "",
-            "## Source Refs",
-        ]
-    )
-    lines.extend(
-        [
-            f"- [{item.get('kind')}] {item.get('id')} :: {item.get('path') or item.get('body_path') or 'n/a'}"
-            for item in source_refs
-        ]
-        or ["- none"]
-    )
-    lines.append("")
-    return "\n".join(lines)
+def _summary_items(items: Iterable[dict[str, Any]]) -> list[str]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        summary = _normalize_text(item.get("summary"))
+        if not summary or summary in seen:
+            continue
+        seen.add(summary)
+        normalized.append(summary)
+    return normalized
 
 
-def _vision_body(*, summary: str, rendered_vision: str, baseline_refs: list[dict[str, Any]], source_refs: list[dict[str, Any]]) -> str:
-    lines = [
-        "# Vision Candidate",
-        "",
-        "## Candidate Summary",
-        summary,
-        "",
-        "## Canonical Baseline Refs",
-    ]
-    lines.extend(
-        [
-            f"- [{item.get('baseline_kind')}] {item.get('path')} (confirmed_at={item.get('confirmed_at') or 'unknown'})"
-            for item in baseline_refs
-        ]
-        or ["- none"]
-    )
-    lines.extend(
-        [
-            "",
-            "## Rendered Candidate",
-            rendered_vision.replace("# Vision (Published)", "### Vision View", 1).rstrip(),
-            "",
-            "## Source Refs",
-        ]
-    )
-    lines.extend(
-        [
-            f"- [{item.get('kind')}] {item.get('id')} :: {item.get('path') or item.get('body_path') or 'n/a'}"
-            for item in source_refs
-        ]
-        or ["- none"]
-    )
-    lines.append("")
-    return "\n".join(lines)
-
-
-def _codex_body(
+def _candidate_authored_sections(
     *,
-    summary: str,
-    rendered_current: str,
-    rendered_future: str,
-    baseline_refs: list[dict[str, Any]],
-    source_refs: list[dict[str, Any]],
+    kind: str,
+    model: dict[str, Any],
+    continuity: dict[str, Any],
     packets: list[dict[str, Any]],
-) -> str:
-    lines = [
-        "# Codex Candidate",
-        "",
-        "## Candidate Summary",
-        summary,
-        "",
-        "## Canonical Baseline Refs",
+) -> dict[str, list[str]]:
+    truths = [
+        *_summary_items(model.get("implemented_truths") or []),
+        *_summary_items(model.get("partial_truths") or []),
     ]
-    lines.extend(
-        [
-            f"- [{item.get('baseline_kind')}] {item.get('path')} (confirmed_at={item.get('confirmed_at') or 'unknown'})"
-            for item in baseline_refs
-        ]
-        or ["- none"]
-    )
-    lines.extend(
-        [
-            "",
-            "## Current Codex View",
-            rendered_current.replace("# Current Codex", "### Current Codex", 1).rstrip(),
-            "",
-            "## Future Codex View",
-            rendered_future.replace("# Future Codex", "### Future Codex", 1).rstrip(),
-            "",
-            "## Packet Inputs",
-        ]
-    )
-    lines.extend(
-        [
-            f"- [{item.get('section_key')}] {item.get('summary')}"
+    visions = [
+        *_summary_items(model.get("intended_capabilities") or []),
+        *_summary_items(model.get("future_ideas_needing_expansion") or []),
+    ]
+    unresolved = [*_summary_items(model.get("constraints") or [])]
+
+    project_identity = _normalize_text(model.get("project_identity"))
+    purpose = _normalize_text(model.get("purpose"))
+    current_vision = _normalize_text(model.get("current_vision"))
+    if kind == STORY_KIND:
+        if purpose:
+            visions.append(f"Purpose candidate: {purpose}")
+    elif kind == VISION_KIND:
+        if current_vision:
+            visions.append(f"Vision candidate: {current_vision}")
+    elif kind == CODEX_KIND:
+        packet_lines = [
+            f"{str(item.get('section_key') or '').strip()}: {_normalize_text(item.get('summary'))}"
             for item in packets
             if _normalize_text(item.get("summary"))
         ]
-        or ["- none"]
-    )
-    lines.extend(["", "## Source Refs"])
-    lines.extend(
-        [
-            f"- [{item.get('kind')}] {item.get('id')} :: {item.get('path') or item.get('body_path') or 'n/a'}"
-            for item in source_refs
-        ]
-        or ["- none"]
-    )
-    lines.append("")
-    return "\n".join(lines)
+        truths.extend(packet_lines)
+
+    if project_identity:
+        visions.append(f"Identity candidate: {project_identity}")
+
+    imported_delta = dict(continuity.get("imported_continuity_delta") or {})
+    imported_summary = _normalize_text(imported_delta.get("summary"))
+    imported_metadata = dict(imported_delta.get("metadata") or {})
+    if imported_summary and bool(imported_metadata.get("publication_candidate_eligible")):
+        target = unresolved if bool(imported_metadata.get("requires_import_review")) else truths
+        target.append(f"Imported Continuity: {imported_summary}")
+
+    return {
+        "truths": _summary_items([{"summary": item} for item in truths]),
+        "visions": _summary_items([{"summary": item} for item in visions]),
+        "unresolved": _summary_items([{"summary": item} for item in unresolved]),
+    }
 
 
 def _write_story_or_vision_candidate(
@@ -822,6 +761,13 @@ def refresh_publication_candidates(
             results.append({"candidate_kind": kind, "status": "noop", "reason": "no_material_sources"})
             continue
 
+        authored_sections = _candidate_authored_sections(
+            kind=kind,
+            model=model,
+            continuity=continuity,
+            packets=packets,
+        )
+
         if _already_canonical(data_root, kind, model):
             current.pop(kind, None)
             results.append({"candidate_kind": kind, "status": "noop", "reason": "already_canonical"})
@@ -868,15 +814,21 @@ def refresh_publication_candidates(
             "requires_import_review": bool(imported_metadata.get("requires_import_review")),
             "imported_source_count": int(imported_metadata.get("imported_source_count") or 0),
             "candidate_model": model,
+            "canonizer_schema_version": CANONIZER_SCHEMA_VERSION,
         }
 
         if kind == STORY_KIND:
-            body = _story_body(
+            body, canonizer_sections = render_publication_candidate_body(
+                kind=kind,
                 summary=summary,
-                rendered_story=render_project_story(model),
+                rendered_sections=[("Rendered Candidate", render_project_story(model).replace("# Project Story", "### Story View", 1).rstrip())],
                 baseline_refs=baseline_refs,
                 source_refs=source_refs,
+                truths=authored_sections["truths"],
+                visions=authored_sections["visions"],
+                unresolved=authored_sections["unresolved"],
             )
+            manifest["canonizer_sections"] = canonizer_sections
             _write_story_or_vision_candidate(path=body_path, manifest=manifest, body=body)
             entry = {
                 "candidate_family_id": family_id,
@@ -888,12 +840,17 @@ def refresh_publication_candidates(
                 "source_signature": source_signature,
             }
         elif kind == VISION_KIND:
-            body = _vision_body(
+            body, canonizer_sections = render_publication_candidate_body(
+                kind=kind,
                 summary=summary,
-                rendered_vision=render_published_vision(model),
+                rendered_sections=[("Rendered Candidate", render_published_vision(model).replace("# Vision (Published)", "### Vision View", 1).rstrip())],
                 baseline_refs=baseline_refs,
                 source_refs=source_refs,
+                truths=authored_sections["truths"],
+                visions=authored_sections["visions"],
+                unresolved=authored_sections["unresolved"],
             )
+            manifest["canonizer_sections"] = canonizer_sections
             _write_story_or_vision_candidate(path=body_path, manifest=manifest, body=body)
             entry = {
                 "candidate_family_id": family_id,
@@ -905,14 +862,25 @@ def refresh_publication_candidates(
                 "source_signature": source_signature,
             }
         else:
-            body = _codex_body(
+            body, canonizer_sections = render_publication_candidate_body(
+                kind=kind,
                 summary=summary,
-                rendered_current=render_draft_codex_current(_candidate_draft_view(model)),
-                rendered_future=render_draft_codex_future(_candidate_draft_view(model)),
+                rendered_sections=[
+                    ("Current Codex View", render_draft_codex_current(_candidate_draft_view(model)).replace("# Current Codex", "### Current Codex", 1).rstrip()),
+                    ("Future Codex View", render_draft_codex_future(_candidate_draft_view(model)).replace("# Future Codex", "### Future Codex", 1).rstrip()),
+                ],
                 baseline_refs=baseline_refs,
                 source_refs=source_refs,
-                packets=packets,
+                truths=authored_sections["truths"],
+                visions=authored_sections["visions"],
+                unresolved=authored_sections["unresolved"],
+                packet_inputs=[
+                    f"[{item.get('section_key')}] {item.get('summary')}"
+                    for item in packets
+                    if _normalize_text(item.get("summary"))
+                ],
             )
+            manifest["canonizer_sections"] = canonizer_sections
             body_path.write_text(body, encoding="utf-8")
             _write_yaml(manifest_path, manifest)
             entry = {

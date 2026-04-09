@@ -415,6 +415,65 @@ def render_snapshot_candidate_body(
     return "\n".join(lines), sections
 
 
+def render_publication_candidate_body(
+    *,
+    kind: str,
+    summary: str,
+    rendered_sections: list[tuple[str, str]],
+    baseline_refs: Iterable[dict[str, Any]],
+    source_refs: Iterable[dict[str, Any]],
+    truths: Iterable[str],
+    visions: Iterable[str],
+    unresolved: Iterable[str],
+    packet_inputs: Iterable[str] = (),
+) -> tuple[str, dict[str, Any]]:
+    sections = compose_authored_sections(
+        truths=[summary, *truths],
+        visions=visions,
+        unresolved=unresolved,
+        source_refs=source_refs,
+    )
+    title = {
+        "STORY": "Project Story Candidate",
+        "VISION": "Vision Candidate",
+        "CODEX": "Codex Candidate",
+    }.get(kind, "Publication Candidate")
+    lines = [
+        f"# {title}",
+        "",
+        "## Candidate Summary",
+        _normalize_text(summary) or "- none",
+        "",
+        "## Truths In Hand",
+        *_bullet_lines(sections["implemented_truths"]),
+        "",
+        "## Intended Direction",
+        *_bullet_lines(sections["intended_directions"]),
+        "",
+        "## Unresolved / Review",
+        *_bullet_lines(sections["unresolved_items"]),
+        "",
+        "## Canonical Baseline Refs",
+    ]
+    normalized_baseline_refs = normalize_source_refs(baseline_refs)
+    if normalized_baseline_refs:
+        lines.extend(
+            [
+                f"- [{item.get('baseline_kind')}] {item.get('path')} (confirmed_at={item.get('confirmed_at') or 'unknown'})"
+                for item in normalized_baseline_refs
+            ]
+        )
+    else:
+        lines.append("- none")
+    for section_title, rendered_text in rendered_sections:
+        lines.extend(["", f"## {section_title}", rendered_text.rstrip()])
+    normalized_packets = _normalize_lines(packet_inputs)
+    if normalized_packets:
+        lines.extend(["", "## Packet Inputs", *[f"- {item}" for item in normalized_packets]])
+    lines.extend(["", "## Source Refs", *render_source_refs_section(source_refs), ""])
+    return "\n".join(lines), sections
+
+
 def working_record_authoring_metadata(
     *,
     family: str,
