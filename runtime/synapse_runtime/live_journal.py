@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from synapse_runtime.accepted_execution_view import record_disclosure_in_quest_audits
+from synapse_runtime.canonizer import author_decision_body, author_disclosure_body, author_discovery_body
 from synapse_runtime.governance_model import AmbientSignal
 from synapse_runtime.ledger_store import _append_ledger_entry, _daily_ledger_path, _entry_id, _sync_run_ledger
 from synapse_runtime.live_memory_common import LiveMemoryError, _extract_decision_id, _normalize_relpaths, _slugify
@@ -32,6 +33,9 @@ def log_decision(
     tradeoffs: list[str],
     related_runs: list[str],
     related_quests: list[str],
+    source_refs: list[dict[str, Any]] | None = None,
+    intended_directions: list[str] | None = None,
+    unresolved_items: list[str] | None = None,
 ) -> dict[str, Any]:
     live = live_root(data_root)
     decisions_dir = live / "DECISIONS"
@@ -46,39 +50,21 @@ def log_decision(
     if path.exists():
         raise LiveMemoryError(f"Decision already exists: {path}")
 
-    lines = [
-        f"# {title}",
-        "",
-        f"- Subject: {subject}",
-        f"- Logged at: {_now_iso()}",
-        "",
-        "## Summary",
-        summary.strip(),
-        "",
-    ]
-
-    if why:
-        lines.extend(["## Rationale", why.strip(), ""])
-
-    if constraints:
-        lines.append("## Constraints")
-        lines.extend([f"- {c}" for c in constraints])
-        lines.append("")
-
-    if tradeoffs:
-        lines.append("## Tradeoffs")
-        lines.extend([f"- {t}" for t in tradeoffs])
-        lines.append("")
-
-    if related_runs or related_quests:
-        lines.append("## Related")
-        for run in related_runs:
-            lines.append(f"- Run: {run}")
-        for quest in related_quests:
-            lines.append(f"- Quest: {quest}")
-        lines.append("")
-
-    path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+    authored_text, authored_sections = author_decision_body(
+        subject=subject,
+        logged_at=_now_iso(),
+        title=title,
+        summary=summary,
+        why=why,
+        constraints=constraints,
+        tradeoffs=tradeoffs,
+        related_runs=related_runs,
+        related_quests=related_quests,
+        source_refs=list(source_refs or []),
+        intended_directions=list(intended_directions or []),
+        unresolved_items=list(unresolved_items or []),
+    )
+    path.write_text(authored_text, encoding="utf-8")
 
     ledger_entry = {
         "decision_id": _extract_decision_id(path.name),
@@ -90,6 +76,8 @@ def log_decision(
         "tradeoffs": tradeoffs,
         "related_runs": related_runs,
         "related_quests": related_quests,
+        "source_refs": list(source_refs or []),
+        "authored_sections": authored_sections,
         "artifact_path": str(path),
         "binding": True,
     }
@@ -105,7 +93,15 @@ def log_decision(
         subject=subject,
         title=title,
         summary=summary,
-        notes=tuple((why,) if why else ()),
+        notes=tuple(
+            item
+            for item in [
+                why,
+                *list(intended_directions or []),
+                *list(unresolved_items or []),
+            ]
+            if str(item or "").strip()
+        ),
         files_touched=tuple(_normalize_relpaths(data_root, [str(path)])),
         related_quests=tuple(related_quests),
         related_sidequests=(),
@@ -139,6 +135,7 @@ def log_disclosure(
     decision_needed: str,
     related_runs: list[str],
     related_quests: list[str],
+    source_refs: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     live = live_root(data_root)
     disclosures_dir = live / "DISCLOSURES"
@@ -158,60 +155,22 @@ def log_disclosure(
     if not options:
         options = ["HALT until Brains chooses the next legal action."]
     disclosure_id = _extract_decision_id(path.name)
-    disclosure_block = "\n".join(
-        [
-            "DISCLOSURE GATE -- EVENT",
-            "",
-            "Trigger:",
-            trigger.strip(),
-            "Expected:",
-            expected.strip(),
-            "Provable:",
-            provable.strip(),
-            "Status Labels:",
-            *[f"- {label}" for label in labels],
-            "Impact:",
-            impact.strip(),
-            "Safe Options:",
-            *[f"- {option}" for option in options],
-            "Decision Needed From Brains:",
-            decision_needed.strip(),
-        ]
+    authored_text, authored_sections = author_disclosure_body(
+        subject=subject,
+        logged_at=_now_iso(),
+        trigger=trigger,
+        expected=expected,
+        provable=provable,
+        status_labels=labels,
+        impact=impact,
+        safe_options=options,
+        decision_needed=decision_needed,
+        related_runs=related_runs,
+        related_quests=related_quests,
+        source_refs=list(source_refs or []),
     )
-
-    lines = [
-        "DISCLOSURE GATE -- EVENT",
-        "",
-        f"- Subject: {subject}",
-        f"- Logged at: {_now_iso()}",
-        "",
-        "Trigger:",
-        trigger.strip(),
-        "",
-        "Expected:",
-        expected.strip(),
-        "",
-        "Provable:",
-        provable.strip(),
-        "",
-        "Status Labels:",
-        *(f"- {label}" for label in labels),
-        "",
-        "Impact:",
-        impact.strip(),
-        "",
-        "Safe Options:",
-        *(f"- {option}" for option in options),
-        "",
-        "Decision Needed From Brains:",
-        decision_needed.strip(),
-        "",
-    ]
-    if related_runs or related_quests:
-        lines.extend(
-            ["Related:", *(f"- Run: {run}" for run in related_runs), *(f"- Quest: {quest}" for quest in related_quests), ""]
-        )
-    path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+    path.write_text(authored_text, encoding="utf-8")
+    disclosure_block = authored_text.strip()
     audit_touches = record_disclosure_in_quest_audits(
         subject=subject,
         data_root=data_root,
@@ -234,6 +193,8 @@ def log_disclosure(
         "decision_needed": decision_needed,
         "related_runs": related_runs,
         "related_quests": related_quests,
+        "source_refs": list(source_refs or []),
+        "authored_sections": authored_sections,
         "artifact_path": str(path),
         "audit_paths": audit_touches,
     }
@@ -269,6 +230,97 @@ def log_disclosure(
     }
 
 
+def log_discovery(
+    *,
+    subject: str,
+    data_root: Path,
+    title: str,
+    summary: str,
+    truths: list[str],
+    visions: list[str],
+    unresolved: list[str],
+    related_runs: list[str],
+    related_quests: list[str],
+    source_refs: list[dict[str, Any]] | None = None,
+    kind: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    live = live_root(data_root)
+    discoveries_dir = live / "DISCOVERIES"
+    discoveries_dir.mkdir(parents=True, exist_ok=True)
+    discoveries_path = _daily_ledger_path(data_root, "DISCOVERIES")
+    run_data = _load_active_run(live / "ACTIVE_RUN.yaml", subject)
+
+    timestamp = _now().strftime("%Y%m%d-%H%M%S")
+    slug = _slugify(title)
+    filename = f"DISCOVERY__{timestamp}__{slug}.md"
+    path = discoveries_dir / filename
+    if path.exists():
+        raise LiveMemoryError(f"Discovery already exists: {path}")
+
+    authored_text, authored_sections = author_discovery_body(
+        subject=subject,
+        logged_at=_now_iso(),
+        title=title,
+        summary=summary,
+        truths=truths,
+        visions=visions,
+        unresolved=unresolved,
+        related_runs=related_runs,
+        related_quests=related_quests,
+        source_refs=list(source_refs or []),
+    )
+    path.write_text(authored_text, encoding="utf-8")
+
+    discovery_id = _entry_id("DISCOVERY")
+    ledger_entry = {
+        "discovery_id": discovery_id,
+        "logged_at": _now_iso(),
+        "kind": kind or "discovery",
+        "title": title,
+        "summary": summary,
+        "truths": truths,
+        "visions": visions,
+        "unresolved": unresolved,
+        "related_runs": related_runs,
+        "related_quests": related_quests,
+        "source_refs": list(source_refs or []),
+        "authored_sections": authored_sections,
+        "artifact_path": str(path),
+        "metadata": dict(metadata or {}),
+    }
+    _append_ledger_entry(discoveries_path, subject=subject, entry=ledger_entry)
+
+    state_path = live / "STATE.yaml"
+    state = _load_state(state_path, subject)
+    _append_recent_change(state, f"Discovery logged: {title}")
+    _write_yaml(state_path, state)
+    signal = AmbientSignal(
+        source="log-discovery",
+        subject=subject,
+        title=title,
+        summary=summary,
+        notes=tuple([*truths, *visions, *unresolved]),
+        files_touched=tuple(_normalize_relpaths(data_root, [str(path)])),
+        related_quests=tuple(related_quests),
+        related_sidequests=(),
+        status="observed",
+    )
+    sidecar = _sync_sidecar(
+        subject=subject,
+        data_root=data_root,
+        active_run=run_data,
+        signal=signal,
+        discoveries_path=discoveries_path,
+    )
+
+    return {
+        "discovery_path": str(path),
+        "discoveries_ledger_path": str(discoveries_path),
+        "sidecar": sidecar,
+    }
+
+
 def record_quest_acceptance(
     *,
     subject: str,
@@ -296,24 +348,35 @@ def record_quest_acceptance(
             _sync_run_ledger(live, run_data, slugify=_slugify)
             _write_yaml(run_path, run_data)
 
-    discovery_entry = {
-        "discovery_id": _entry_id("DISCOVERY"),
-        "logged_at": _now_iso(),
-        "kind": "governed_execution_readiness",
-        "summary": f"Quest accepted for governed execution: {quest_id} - {quest_title}",
-        "evidence": {
+    discovery_receipt = log_discovery(
+        subject=subject,
+        data_root=data_root,
+        title=f"Quest accepted: {quest_id}",
+        summary=f"Quest accepted for governed execution: {quest_id} - {quest_title}",
+        truths=[
+            f"Accepted quest artifact exists: {accepted_path.resolve()}",
+            f"Audit bundle exists: {audit_bundle_path.resolve()}",
+            f"Control sync state exists: {control_sync_state_path.resolve()}",
+        ],
+        visions=[],
+        unresolved=[],
+        related_runs=[str(run_data.get("run_id") or "").strip()] if str(run_data.get("run_id") or "").strip() else [],
+        related_quests=[quest_id],
+        source_refs=[
+            {"kind": "quest_artifact", "id": quest_id, "path": str(accepted_path.resolve())},
+            {"kind": "execution_audit_bundle", "id": quest_id, "path": str(audit_bundle_path.resolve())},
+            {"kind": "control_sync_state", "id": quest_id, "path": str(control_sync_state_path.resolve())},
+        ],
+        kind="governed_execution_readiness",
+        metadata={
             "accepted_path": str(accepted_path.resolve()),
             "audit_bundle_path": str(audit_bundle_path.resolve()),
             "control_sync_state_path": str(control_sync_state_path.resolve()),
         },
-    }
-    _append_ledger_entry(discoveries_path, subject=subject, entry=discovery_entry)
-
-    state = _load_state(state_path, subject)
-    _append_recent_change(state, f"Quest accepted: {quest_id}")
-    _write_yaml(state_path, state)
-    sidecar = _sync_sidecar(subject=subject, data_root=data_root, active_run=run_data, discoveries_path=discoveries_path)
+    )
     return {
         "discoveries_path": str(discoveries_path),
-        "sidecar": sidecar,
+        "discoveries_ledger_path": discovery_receipt["discoveries_ledger_path"],
+        "discovery_path": discovery_receipt["discovery_path"],
+        "sidecar": discovery_receipt["sidecar"],
     }

@@ -1321,6 +1321,7 @@ def _execute_automation_side_effects(
                     tradeoffs=[],
                     related_runs=[str(active_run.get("run_id") or "").strip()] if str(active_run.get("run_id") or "").strip() else [],
                     related_quests=[],
+                    source_refs=list(action.get("source_refs") or []),
                 )
                 result["decision_path"] = decision_receipt.get("decision_path")
                 result["decisions_ledger_path"] = decision_receipt.get("decisions_ledger_path")
@@ -1347,6 +1348,7 @@ def _execute_automation_side_effects(
                     decision_needed=str(action.get("decision_needed") or "Clarify the uncertain path before binding canon or governed execution.").strip(),
                     related_runs=[str(active_run.get("run_id") or "").strip()] if str(active_run.get("run_id") or "").strip() else [],
                     related_quests=[],
+                    source_refs=list(action.get("source_refs") or []),
                 )
                 result["disclosure_path"] = disclosure_receipt.get("disclosure_path")
                 result["disclosures_ledger_path"] = disclosure_receipt.get("disclosures_ledger_path")
@@ -1627,6 +1629,9 @@ def _execute_continuity_observer(
                     tradeoffs=[],
                     related_runs=[str(active_run.get("run_id") or "").strip()] if str(active_run.get("run_id") or "").strip() else [],
                     related_quests=[],
+                    source_refs=list(intent.get("source_refs") or []),
+                    intended_directions=list(payload.get("intended_directions") or []),
+                    unresolved_items=list(payload.get("unresolved_items") or []),
                 )
                 result["observer_decision_path"] = decision_receipt.get("decision_path")
                 result["observer_decisions_ledger_path"] = decision_receipt.get("decisions_ledger_path")
@@ -1654,6 +1659,7 @@ def _execute_continuity_observer(
                     decision_needed=str(payload.get("decision_needed") or "Clarify the uncertain path before stronger canon changes.").strip(),
                     related_runs=[str(active_run.get("run_id") or "").strip()] if str(active_run.get("run_id") or "").strip() else [],
                     related_quests=[],
+                    source_refs=list(intent.get("source_refs") or []),
                 )
                 result["observer_disclosure_path"] = disclosure_receipt.get("disclosure_path")
                 result["observer_disclosures_ledger_path"] = disclosure_receipt.get("disclosures_ledger_path")

@@ -8,6 +8,12 @@ import unittest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+RUNTIME_ROOT = REPO_ROOT / "runtime"
+if str(RUNTIME_ROOT) not in sys.path:
+    sys.path.insert(0, str(RUNTIME_ROOT))
+
+from synapse_runtime.live_journal import record_quest_acceptance
+
 SYNAPSE = [sys.executable, str(REPO_ROOT / "runtime" / "synapse.py")]
 
 
@@ -126,6 +132,11 @@ class LiveMemoryFlowTests(unittest.TestCase):
         self.assertIn("Active run: none", content)
         self.assertIn("Last run:", content)
         self.assertIn("Last decision:", content)
+        decisions = sorted((self.data_root / ".synapse" / "DECISIONS").glob("DECISION__*.md"))
+        self.assertTrue(decisions)
+        decision_text = decisions[-1].read_text(encoding="utf-8")
+        self.assertIn("## Implemented Truths", decision_text)
+        self.assertIn("## Source Refs", decision_text)
         ledgers = sorted((self.data_root / ".synapse" / "DECISIONS").glob("*.yaml"))
         self.assertTrue(ledgers)
         entries = yaml.safe_load(ledgers[-1].read_text(encoding="utf-8"))["entries"]
@@ -194,6 +205,9 @@ class LiveMemoryFlowTests(unittest.TestCase):
 
         disclosures = sorted((self.data_root / ".synapse" / "DISCLOSURES").glob("DISCLOSURE__*.md"))
         self.assertTrue(disclosures)
+        disclosure_text = disclosures[-1].read_text(encoding="utf-8")
+        self.assertIn("## Truths In Hand", disclosure_text)
+        self.assertIn("## Unresolved / Review", disclosure_text)
         ledger = sorted((self.data_root / ".synapse" / "DISCLOSURES").glob("*.yaml"))
         self.assertTrue(ledger)
         entries = yaml.safe_load(ledger[-1].read_text(encoding="utf-8"))["entries"]
@@ -258,6 +272,38 @@ class LiveMemoryFlowTests(unittest.TestCase):
         self.assertIn("QUEST_001", summary_text)
         self.assertIn("Verification proof missing for QUEST_001", verify_text)
         self.assertIn("Decision Needed From Brains", disclosure_text)
+
+    def test_record_quest_acceptance_writes_authored_discovery_artifact(self):
+        self._run_start(title="Quest acceptance discovery", plan_item="Accept the governed quest")
+        accepted_dir = self.data_root / "Quest Board" / "Accepted"
+        accepted_dir.mkdir(parents=True, exist_ok=True)
+        accepted_path = accepted_dir / "QUEST_002__author-discovery__2026-04-09.txt"
+        accepted_path.write_text("accepted quest\n", encoding="utf-8")
+        audit_bundle_path = self.data_root / "Audits" / "Execution" / "QUEST_002__2026-04-09__author-discovery"
+        audit_bundle_path.mkdir(parents=True, exist_ok=True)
+        control_sync_state_path = self.data_root / ".synapse" / "STATE.yaml"
+        result = record_quest_acceptance(
+            subject="TestSubject",
+            data_root=self.data_root,
+            quest_id="QUEST_002",
+            quest_title="Author discovery",
+            accepted_path=accepted_path,
+            audit_bundle_path=audit_bundle_path,
+            control_sync_state_path=control_sync_state_path,
+        )
+
+        discovery_path = Path(result["discovery_path"])
+        self.assertTrue(discovery_path.exists())
+        discovery_text = discovery_path.read_text(encoding="utf-8")
+        self.assertIn("## Implemented Truths", discovery_text)
+        self.assertIn("Accepted quest artifact exists", discovery_text)
+
+        ledgers = sorted((self.data_root / ".synapse" / "DISCOVERIES").glob("*.yaml"))
+        self.assertTrue(ledgers)
+        entries = yaml.safe_load(ledgers[-1].read_text(encoding="utf-8"))["entries"]
+        entry = next(item for item in entries if item.get("kind") == "governed_execution_readiness")
+        self.assertEqual(entry["artifact_path"], str(discovery_path))
+        self.assertIn("authored_sections", entry)
 
     def test_session_tick_creates_run_and_promotion_backlog(self):
         result = run_cmd(
