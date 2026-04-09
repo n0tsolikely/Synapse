@@ -42,10 +42,15 @@ Supported environment variables:
 - `SYNAPSE_SESSION_ID` as a legacy fallback only
 - `SYNAPSE_CONTINUITY_OBSERVER_BACKEND`
 - `SYNAPSE_CONTINUITY_OBSERVER_MODEL`
+- `SYNAPSE_CONTINUITY_OBSERVER_GEMINI_MODEL`
+- `SYNAPSE_CONTINUITY_OBSERVER_GEMINI_BASE_URL`
+- `SYNAPSE_CONTINUITY_OBSERVER_GEMINI_TIMEOUT_SECONDS`
+- `SYNAPSE_CONTINUITY_OBSERVER_GEMINI_MAX_OUTPUT_TOKENS`
 - `SYNAPSE_CONTINUITY_OBSERVER_BASE_URL`
 - `SYNAPSE_CONTINUITY_OBSERVER_TIMEOUT_SECONDS`
 - `SYNAPSE_CONTINUITY_OBSERVER_MAX_OUTPUT_TOKENS`
 - `OPENAI_API_KEY` when `SYNAPSE_CONTINUITY_OBSERVER_BACKEND=openai_responses`
+- `GEMINI_API_KEY` or `GOOGLE_API_KEY` when `SYNAPSE_CONTINUITY_OBSERVER_BACKEND=gemini_generate_content`
 
 `SYNAPSE_ROOT` should point at the Synapse install root. If omitted, Synapse uses the Phase 0 install-root resolution contract.
 
@@ -53,13 +58,23 @@ Continuity observer backend rule:
 
 - default runtime posture is still `noop`, which reports degraded observer truth honestly
 - set `SYNAPSE_CONTINUITY_OBSERVER_BACKEND=openai_responses` to enable the live model-backed observer backend
+- set `SYNAPSE_CONTINUITY_OBSERVER_BACKEND=gemini_generate_content` to enable the Gemini GenerateContent observer backend
 - optional `SYNAPSE_CONTINUITY_OBSERVER_MODEL` overrides the default observer model (`gpt-4o-mini`)
+- optional `SYNAPSE_CONTINUITY_OBSERVER_GEMINI_MODEL` overrides the default Gemini observer model (`gemini-2.5-flash`)
 - optional `SYNAPSE_CONTINUITY_OBSERVER_BASE_URL` lets you target a compatible Responses endpoint when needed
 - optional `SYNAPSE_CONTINUITY_OBSERVER_TIMEOUT_SECONDS` and `SYNAPSE_CONTINUITY_OBSERVER_MAX_OUTPUT_TOKENS` tune runtime request limits
+- optional `SYNAPSE_CONTINUITY_OBSERVER_GEMINI_BASE_URL`, `SYNAPSE_CONTINUITY_OBSERVER_GEMINI_TIMEOUT_SECONDS`, and `SYNAPSE_CONTINUITY_OBSERVER_GEMINI_MAX_OUTPUT_TOKENS` tune Gemini requests
 
 ## Working Directory
 
 The server process `cwd` is expected to be the target repo workspace for local Codex/ChatGPT use.
+
+Repo-local integration note:
+
+- `install-local-integration` persists the selected observer backend into the generated `.codex` integration when a choice exists
+- re-running `install-local-integration` keeps using the persisted observer backend until you explicitly change it with `--observer-backend`
+- if multiple provider keys are available, the install flow should require an explicit backend choice instead of guessing silently
+- the generated repo-local launch wrappers source standard bash login profiles before starting Synapse, so provider keys exported in `~/.bash_profile`, `~/.bash_login`, or `~/.profile` remain available even when the client app itself did not inherit them
 
 That matters for:
 - `bootstrap_session`

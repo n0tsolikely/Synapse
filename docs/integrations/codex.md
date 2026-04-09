@@ -31,6 +31,12 @@ cd /path/to/subject-repo
 /path/to/Synapse/.venv/bin/python /path/to/Synapse/runtime/synapse.py install-local-integration
 ```
 
+If you want to pin a specific continuity observer backend explicitly:
+
+```bash
+/path/to/Synapse/.venv/bin/python /path/to/Synapse/runtime/synapse.py install-local-integration --observer-backend openai_responses
+```
+
 If the Synapse engine env does not exist yet, bootstrap it first:
 
 ```bash
@@ -43,6 +49,9 @@ What this does now:
 - verifies or bootstraps the Synapse engine runtime under `SYNAPSE_ROOT/.venv`
 - installs `runtime/requirements.txt` there when required
 - writes repo-local `.codex` assets pinned to that exact Synapse interpreter
+- persists the selected continuity observer backend when one is chosen or auto-selected, and keeps using it until you explicitly change it
+- can require an explicit observer-backend choice when multiple provider keys are available
+- uses profile-aware launch wrappers so keys exported in bash login profiles remain available to the repo-local Synapse integration
 - leaves the subject repo's own app/test/build environment alone
 
 For local MCP integration, use the dedicated stdio server:

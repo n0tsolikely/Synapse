@@ -12,7 +12,10 @@ RUNTIME_ROOT = REPO_ROOT / "runtime"
 if str(RUNTIME_ROOT) not in sys.path:
     sys.path.insert(0, str(RUNTIME_ROOT))
 
-from synapse_runtime.continuity_model_adapter import invoke_continuity_observer_backend
+from synapse_runtime.continuity_model_adapter import (
+    continuity_observer_provider_options,
+    invoke_continuity_observer_backend,
+)
 
 
 class _FakeHTTPResponse:
@@ -240,6 +243,99 @@ class ContinuityModelAdapterTests(unittest.TestCase):
         self.assertEqual(payload["provider_status"], "schema_mismatch")
         self.assertTrue(payload["degraded"])
         self.assertEqual(payload["degraded_reason"], "openai_backend_output_schema_mismatch")
+
+    def test_provider_options_detect_openai_and_gemini_envs(self) -> None:
+        with mock.patch.dict(
+            "os.environ",
+            {
+                "OPENAI_API_KEY": "test-openai-key",
+                "GEMINI_API_KEY": "test-gemini-key",
+                "GOOGLE_API_KEY": "",
+            },
+            clear=False,
+        ):
+            options = continuity_observer_provider_options()
+        by_backend = {item["backend"]: item for item in options}
+        self.assertTrue(by_backend["openai_responses"]["available"])
+        self.assertEqual(by_backend["openai_responses"]["matched_env_vars"], ["OPENAI_API_KEY"])
+        self.assertTrue(by_backend["gemini_generate_content"]["available"])
+        self.assertEqual(by_backend["gemini_generate_content"]["matched_env_vars"], ["GEMINI_API_KEY"])
+
+    def test_gemini_backend_degrades_when_api_key_missing(self) -> None:
+        with mock.patch.dict("os.environ", {"GEMINI_API_KEY": "", "GOOGLE_API_KEY": ""}, clear=False):
+            payload = invoke_continuity_observer_backend(packet=self.packet, backend="gemini_generate_content")
+        self.assertEqual(payload["backend"], "gemini_generate_content")
+        self.assertEqual(payload["provider_status"], "not_configured")
+        self.assertTrue(payload["degraded"])
+        self.assertEqual(payload["degraded_reason"], "missing_gemini_api_key")
+
+    def test_gemini_backend_returns_schema_valid_output(self) -> None:
+        api_payload = {
+            "candidates": [
+                {
+                    "content": {
+                        "parts": [
+                            {
+                                "text": json.dumps(
+                                    {
+                                        "observer_status": "ok",
+                                        "provider_status": "ok",
+                                        "degraded": False,
+                                        "degraded_reason": None,
+                                        "rationale": "The packet contains an explicit decision boundary with bounded source refs.",
+                                        "intents": [
+                                            {
+                                                "artifact_family": "decision_log",
+                                                "action_type": "create",
+                                                "confidence": "medium",
+                                                "rationale": "The packet marks a decision boundary.",
+                                                "source_refs": [{"kind": "raw_turn", "id": "RAW-1"}],
+                                                "truth_state_label": "decision_draft",
+                                                "uncertainty_markers": [],
+                                                "draft_safe": True,
+                                                "gated_publication": False,
+                                                "supersedes": [],
+                                                "updates": [],
+                                                "payload": {
+                                                    "title": "Lock the observer seam.",
+                                                    "summary": "Lock the observer seam.",
+                                                    "why": "Decision boundary was explicit.",
+                                                },
+                                            }
+                                        ],
+                                    }
+                                )
+                            }
+                        ]
+                    },
+                    "finishReason": "STOP",
+                }
+            ]
+        }
+        with mock.patch.dict("os.environ", {"GEMINI_API_KEY": "test-gemini-key"}, clear=False), mock.patch(
+            "synapse_runtime.continuity_model_adapter.urllib_request.urlopen",
+            return_value=_FakeHTTPResponse(api_payload),
+        ):
+            payload = invoke_continuity_observer_backend(packet=self.packet, backend="gemini_generate_content")
+        self.assertEqual(payload["backend"], "gemini_generate_content")
+        self.assertEqual(payload["observer_status"], "ok")
+        self.assertFalse(payload["degraded"])
+        self.assertEqual(payload["intents"][0]["artifact_family"], "decision_log")
+
+    def test_gemini_backend_degrades_on_prompt_block(self) -> None:
+        api_payload = {
+            "promptFeedback": {
+                "blockReason": "SAFETY",
+            }
+        }
+        with mock.patch.dict("os.environ", {"GEMINI_API_KEY": "test-gemini-key"}, clear=False), mock.patch(
+            "synapse_runtime.continuity_model_adapter.urllib_request.urlopen",
+            return_value=_FakeHTTPResponse(api_payload),
+        ):
+            payload = invoke_continuity_observer_backend(packet=self.packet, backend="gemini_generate_content")
+        self.assertEqual(payload["provider_status"], "prompt_blocked")
+        self.assertTrue(payload["degraded"])
+        self.assertEqual(payload["degraded_reason"], "gemini_prompt_blocked")
 
 
 if __name__ == "__main__":

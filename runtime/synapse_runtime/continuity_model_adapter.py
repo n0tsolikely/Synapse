@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any
+from typing import Any, Mapping
 from urllib import error as urllib_error
 from urllib import request as urllib_request
 
@@ -20,10 +20,29 @@ SUPPORTED_CONTINUITY_OBSERVER_BACKENDS = {
     "noop",
     "fixture",
     "openai_responses",
+    "gemini_generate_content",
+}
+SELECTABLE_CONTINUITY_OBSERVER_BACKENDS = {
+    "noop",
+    "openai_responses",
+    "gemini_generate_content",
+}
+CONTINUITY_OBSERVER_PROVIDER_SPECS: dict[str, dict[str, Any]] = {
+    "openai_responses": {
+        "label": "OpenAI Responses",
+        "credential_env_vars": ("OPENAI_API_KEY",),
+    },
+    "gemini_generate_content": {
+        "label": "Gemini GenerateContent",
+        "credential_env_vars": ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
+    },
 }
 DEFAULT_OPENAI_RESPONSES_MODEL = "gpt-4o-mini"
 DEFAULT_OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
 DEFAULT_OPENAI_RESPONSES_TIMEOUT_SECONDS = 30
+DEFAULT_GEMINI_GENERATE_CONTENT_MODEL = "gemini-2.5-flash"
+DEFAULT_GEMINI_GENERATE_CONTENT_URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+DEFAULT_GEMINI_GENERATE_CONTENT_TIMEOUT_SECONDS = 30
 CONTINUITY_OBSERVER_RESPONSE_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
@@ -191,6 +210,24 @@ def configured_continuity_observer_backend(explicit_backend: str | None = None) 
     return backend or DEFAULT_CONTINUITY_OBSERVER_BACKEND
 
 
+def continuity_observer_provider_options(env: Mapping[str, str] | None = None) -> list[dict[str, Any]]:
+    env_map = dict(env or os.environ)
+    options: list[dict[str, Any]] = []
+    for backend, spec in CONTINUITY_OBSERVER_PROVIDER_SPECS.items():
+        credential_env_vars = [str(item) for item in spec.get("credential_env_vars") or [] if str(item).strip()]
+        matched_env_vars = [name for name in credential_env_vars if str(env_map.get(name) or "").strip()]
+        options.append(
+            {
+                "backend": backend,
+                "label": str(spec.get("label") or backend),
+                "credential_env_vars": credential_env_vars,
+                "available": bool(matched_env_vars),
+                "matched_env_vars": matched_env_vars,
+            }
+        )
+    return options
+
+
 def invoke_continuity_observer_backend(*, packet: dict[str, Any], backend: str | None = None) -> dict[str, Any]:
     selected = configured_continuity_observer_backend(backend)
     if selected == "noop":
@@ -207,6 +244,8 @@ def invoke_continuity_observer_backend(*, packet: dict[str, Any], backend: str |
         return _fixture_backend_response(packet)
     if selected == "openai_responses":
         return _openai_responses_backend(packet)
+    if selected == "gemini_generate_content":
+        return _gemini_generate_content_backend(packet)
     return {
         "observer_status": "degraded",
         "backend": selected,
@@ -458,7 +497,7 @@ def _openai_responses_backend(packet: dict[str, Any]) -> dict[str, Any]:
             "intents": [],
         }
 
-    coerced_output = _coerce_openai_backend_output(parsed_output)
+    coerced_output = _coerce_model_backend_output(parsed_output)
 
     try:
         Draft202012Validator(CONTINUITY_OBSERVER_RESPONSE_SCHEMA).validate(coerced_output)
@@ -475,6 +514,159 @@ def _openai_responses_backend(packet: dict[str, Any]) -> dict[str, Any]:
 
     normalized = dict(coerced_output)
     normalized["backend"] = "openai_responses"
+    return normalized
+
+
+def _gemini_generate_content_backend(packet: dict[str, Any]) -> dict[str, Any]:
+    api_key, matched_env_var = _gemini_api_key()
+    if not api_key:
+        return {
+            "observer_status": "degraded",
+            "backend": "gemini_generate_content",
+            "provider_status": "not_configured",
+            "degraded": True,
+            "degraded_reason": "missing_gemini_api_key",
+            "rationale": "Neither GEMINI_API_KEY nor GOOGLE_API_KEY is configured for the gemini_generate_content continuity backend.",
+            "intents": [],
+        }
+
+    request_payload = _gemini_generate_content_request_payload(packet)
+    request_body = json.dumps(request_payload).encode("utf-8")
+    model = str(
+        os.environ.get("SYNAPSE_CONTINUITY_OBSERVER_GEMINI_MODEL")
+        or os.environ.get("SYNAPSE_CONTINUITY_OBSERVER_MODEL")
+        or DEFAULT_GEMINI_GENERATE_CONTENT_MODEL
+    ).strip() or DEFAULT_GEMINI_GENERATE_CONTENT_MODEL
+    base_url = str(os.environ.get("SYNAPSE_CONTINUITY_OBSERVER_GEMINI_BASE_URL") or "").strip()
+    request_url = base_url or DEFAULT_GEMINI_GENERATE_CONTENT_URL_TEMPLATE.format(model=model)
+    request = urllib_request.Request(
+        url=request_url,
+        data=request_body,
+        headers={
+            "x-goog-api-key": api_key,
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+
+    timeout_raw = str(
+        os.environ.get("SYNAPSE_CONTINUITY_OBSERVER_GEMINI_TIMEOUT_SECONDS")
+        or os.environ.get("SYNAPSE_CONTINUITY_OBSERVER_TIMEOUT_SECONDS")
+        or ""
+    ).strip()
+    timeout = DEFAULT_GEMINI_GENERATE_CONTENT_TIMEOUT_SECONDS
+    if timeout_raw:
+        try:
+            timeout = max(1, int(timeout_raw))
+        except ValueError:
+            timeout = DEFAULT_GEMINI_GENERATE_CONTENT_TIMEOUT_SECONDS
+
+    try:
+        with urllib_request.urlopen(request, timeout=timeout) as response:
+            response_text = response.read().decode("utf-8")
+    except urllib_error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace").strip()
+        return {
+            "observer_status": "degraded",
+            "backend": "gemini_generate_content",
+            "provider_status": f"http_error:{exc.code}",
+            "degraded": True,
+            "degraded_reason": "gemini_http_error",
+            "rationale": body or f"Gemini GenerateContent returned HTTP {exc.code}.",
+            "intents": [],
+        }
+    except urllib_error.URLError as exc:
+        return {
+            "observer_status": "degraded",
+            "backend": "gemini_generate_content",
+            "provider_status": "network_error",
+            "degraded": True,
+            "degraded_reason": "gemini_network_error",
+            "rationale": str(exc.reason or exc),
+            "intents": [],
+        }
+
+    try:
+        payload = json.loads(response_text)
+    except json.JSONDecodeError as exc:
+        return {
+            "observer_status": "degraded",
+            "backend": "gemini_generate_content",
+            "provider_status": "invalid_api_response",
+            "degraded": True,
+            "degraded_reason": "gemini_invalid_json",
+            "rationale": f"Gemini GenerateContent returned invalid JSON: {exc}",
+            "intents": [],
+        }
+
+    if not isinstance(payload, dict):
+        return {
+            "observer_status": "degraded",
+            "backend": "gemini_generate_content",
+            "provider_status": "invalid_api_response",
+            "degraded": True,
+            "degraded_reason": "gemini_invalid_payload",
+            "rationale": "Gemini GenerateContent returned a non-object payload.",
+            "intents": [],
+        }
+
+    block_reason = str(((payload.get("promptFeedback") or {}).get("blockReason")) or "").strip()
+    if block_reason:
+        return {
+            "observer_status": "degraded",
+            "backend": "gemini_generate_content",
+            "provider_status": "prompt_blocked",
+            "degraded": True,
+            "degraded_reason": "gemini_prompt_blocked",
+            "rationale": block_reason,
+            "intents": [],
+        }
+
+    raw_output = _extract_gemini_output_text(payload)
+    if not raw_output:
+        finish_reason = _extract_gemini_finish_reason(payload)
+        return {
+            "observer_status": "degraded",
+            "backend": "gemini_generate_content",
+            "provider_status": finish_reason or "missing_output_text",
+            "degraded": True,
+            "degraded_reason": "gemini_missing_output_text",
+            "rationale": finish_reason or "Gemini GenerateContent did not return text content.",
+            "intents": [],
+        }
+
+    try:
+        parsed_output = json.loads(raw_output)
+    except json.JSONDecodeError as exc:
+        return {
+            "observer_status": "degraded",
+            "backend": "gemini_generate_content",
+            "provider_status": "invalid_backend_json",
+            "degraded": True,
+            "degraded_reason": "gemini_backend_output_not_json",
+            "rationale": f"Gemini backend output was not valid JSON: {exc}",
+            "intents": [],
+        }
+
+    coerced_output = _coerce_model_backend_output(parsed_output)
+    try:
+        Draft202012Validator(CONTINUITY_OBSERVER_RESPONSE_SCHEMA).validate(coerced_output)
+    except ValidationError as exc:
+        return {
+            "observer_status": "degraded",
+            "backend": "gemini_generate_content",
+            "provider_status": "schema_mismatch",
+            "degraded": True,
+            "degraded_reason": "gemini_backend_output_schema_mismatch",
+            "rationale": f"Gemini backend output did not match the required schema: {exc.message}",
+            "intents": [],
+        }
+
+    normalized = dict(coerced_output)
+    normalized["backend"] = "gemini_generate_content"
+    normalized["provider_status"] = str(normalized.get("provider_status") or "ok").strip() or "ok"
+    if matched_env_var:
+        normalized["provider_credential_env"] = matched_env_var
     return normalized
 
 
@@ -515,6 +707,45 @@ def _openai_responses_request_payload(packet: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _gemini_generate_content_request_payload(packet: dict[str, Any]) -> dict[str, Any]:
+    packet_json = json.dumps(packet, indent=2, sort_keys=True)
+    max_output_tokens_raw = str(
+        os.environ.get("SYNAPSE_CONTINUITY_OBSERVER_GEMINI_MAX_OUTPUT_TOKENS")
+        or os.environ.get("SYNAPSE_CONTINUITY_OBSERVER_MAX_OUTPUT_TOKENS")
+        or ""
+    ).strip()
+    max_output_tokens = 1400
+    if max_output_tokens_raw:
+        try:
+            max_output_tokens = max(256, int(max_output_tokens_raw))
+        except ValueError:
+            max_output_tokens = 1400
+    return {
+        "systemInstruction": {
+            "parts": [{"text": _continuity_observer_system_prompt()}],
+        },
+        "contents": [
+            {
+                "role": "user",
+                "parts": [
+                    {
+                        "text": (
+                            "Return JSON only. Evaluate this bounded Synapse continuity packet and produce only draft-safe observer intents.\n\n"
+                            "Continuity packet JSON:\n"
+                            f"{packet_json}"
+                        )
+                    }
+                ],
+            }
+        ],
+        "generationConfig": {
+            "temperature": 0.1,
+            "maxOutputTokens": max_output_tokens,
+            "responseMimeType": "application/json",
+        },
+    }
+
+
 def _continuity_observer_system_prompt() -> str:
     return (
         "You are the Synapse continuity observer. "
@@ -533,6 +764,41 @@ def _continuity_observer_system_prompt() -> str:
         "Each intent must contain artifact_family, action_type, confidence, rationale, source_refs, truth_state_label, uncertainty_markers, draft_safe, gated_publication, supersedes, updates, and payload. "
         "JSON only."
     )
+
+
+def _gemini_api_key() -> tuple[str, str | None]:
+    for env_var in ("GEMINI_API_KEY", "GOOGLE_API_KEY"):
+        value = str(os.environ.get(env_var) or "").strip()
+        if value:
+            return value, env_var
+    return "", None
+
+
+def _extract_gemini_output_text(payload: dict[str, Any]) -> str:
+    parts: list[str] = []
+    for candidate in list(payload.get("candidates") or []):
+        if not isinstance(candidate, dict):
+            continue
+        content = candidate.get("content")
+        if not isinstance(content, dict):
+            continue
+        for part in list(content.get("parts") or []):
+            if not isinstance(part, dict):
+                continue
+            text = str(part.get("text") or "").strip()
+            if text:
+                parts.append(text)
+    return "\n".join(parts).strip()
+
+
+def _extract_gemini_finish_reason(payload: dict[str, Any]) -> str:
+    for candidate in list(payload.get("candidates") or []):
+        if not isinstance(candidate, dict):
+            continue
+        reason = str(candidate.get("finishReason") or "").strip()
+        if reason:
+            return reason
+    return ""
 
 
 def _extract_openai_output_text(payload: dict[str, Any]) -> str:
@@ -564,7 +830,7 @@ def _extract_openai_refusal(payload: dict[str, Any]) -> str | None:
     return None
 
 
-def _coerce_openai_backend_output(payload: Any) -> dict[str, Any]:
+def _coerce_model_backend_output(payload: Any) -> dict[str, Any]:
     if not isinstance(payload, dict):
         return {}
     normalized = dict(payload)

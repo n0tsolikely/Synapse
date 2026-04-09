@@ -10,6 +10,10 @@ import subprocess
 import sys
 from typing import Any
 
+from synapse_runtime.continuity_model_adapter import (
+    SELECTABLE_CONTINUITY_OBSERVER_BACKENDS,
+    continuity_observer_provider_options,
+)
 from synapse_runtime.live_memory_common import LiveMemoryError
 
 from synapse_runtime.governance_pack import resolve_synapse_root
@@ -28,6 +32,7 @@ LOCAL_CODEX_MANIFEST = "synapse_local_integration.json"
 LOCAL_CODEX_CONFIG = "config.toml"
 LOCAL_CODEX_HOOKS_CONFIG = "hooks.json"
 LOCAL_CODEX_MCP = "mcp.json"
+LOCAL_CODEX_MCP_WRAPPER = "synapse_mcp_server.sh"
 LOCAL_CODEX_HOOK_DIR = "hooks"
 LOCAL_CODEX_HOOKS = {
     "UserPromptSubmit": "user_prompt_submit.sh",
@@ -156,6 +161,10 @@ def local_codex_hooks_config_path(repo_root: Path) -> Path:
 
 def local_codex_hook_dir(repo_root: Path) -> Path:
     return local_codex_dir(repo_root) / LOCAL_CODEX_HOOK_DIR
+
+
+def local_codex_mcp_wrapper_path(repo_root: Path) -> Path:
+    return local_codex_dir(repo_root) / LOCAL_CODEX_MCP_WRAPPER
 
 
 def _absolute_path(path: Path) -> Path:
@@ -306,18 +315,175 @@ def inspect_synapse_runtime_environment(synapse_root: Path) -> dict[str, Any]:
     }
 
 
-def _hook_wrapper_source(hook_name: str, *, synapse_root: Path, synapse_python: Path) -> str:
+def _shell_login_env_presence(var_names: list[str]) -> dict[str, bool]:
+    normalized = [str(item).strip() for item in var_names if str(item).strip()]
+    if not normalized:
+        return {}
+    script = "\n".join(
+        [
+            "if [ -r \"$HOME/.bash_profile\" ]; then",
+            "  . \"$HOME/.bash_profile\"",
+            "elif [ -r \"$HOME/.bash_login\" ]; then",
+            "  . \"$HOME/.bash_login\"",
+            "elif [ -r \"$HOME/.profile\" ]; then",
+            "  . \"$HOME/.profile\"",
+            "fi",
+            *(f"if [ -n \"${{{name}:-}}\" ]; then printf '%s\\n' {shlex.quote(name)}; fi" for name in normalized),
+        ]
+    )
+    result = subprocess.run(
+        ["/bin/bash", "-lc", script],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return {name: False for name in normalized}
+    found = {line.strip() for line in (result.stdout or "").splitlines() if line.strip()}
+    return {name: name in found for name in normalized}
+
+
+def _load_existing_local_codex_manifest(repo_root: Path) -> dict[str, Any]:
+    manifest_path = local_codex_manifest_path(repo_root)
+    if not manifest_path.exists():
+        return {}
+    try:
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def resolve_observer_backend_selection(repo_root: Path, *, explicit_backend: str | None = None) -> dict[str, Any]:
+    existing_manifest = _load_existing_local_codex_manifest(repo_root)
+    persisted_backend = str(existing_manifest.get("selected_observer_backend") or "").strip().lower() or None
+    if explicit_backend:
+        selected_candidate = explicit_backend.strip().lower()
+        if selected_candidate not in SELECTABLE_CONTINUITY_OBSERVER_BACKENDS:
+            supported = ", ".join(sorted(SELECTABLE_CONTINUITY_OBSERVER_BACKENDS))
+            raise LiveMemoryError(f"Unsupported observer backend '{explicit_backend}'. Supported values: {supported}.")
+
+    process_options = continuity_observer_provider_options()
+    all_env_names = sorted(
+        {
+            env_var
+            for option in process_options
+            for env_var in list(option.get("credential_env_vars") or [])
+            if str(env_var).strip()
+        }
+    )
+    login_env_presence = _shell_login_env_presence(all_env_names)
+    enriched_options: list[dict[str, Any]] = []
+    available_provider_backends: list[str] = []
+    for option in process_options:
+        credential_env_vars = [str(item) for item in list(option.get("credential_env_vars") or []) if str(item).strip()]
+        process_matches = [name for name in credential_env_vars if name in set(option.get("matched_env_vars") or [])]
+        login_matches = [name for name in credential_env_vars if login_env_presence.get(name)]
+        availability_sources: list[str] = []
+        if process_matches:
+            availability_sources.append("process_env")
+        if login_matches:
+            availability_sources.append("login_profile")
+        available = bool(availability_sources)
+        if available:
+            available_provider_backends.append(str(option.get("backend")))
+        enriched_options.append(
+            {
+                "backend": str(option.get("backend")),
+                "label": str(option.get("label") or option.get("backend") or ""),
+                "credential_env_vars": credential_env_vars,
+                "available": available,
+                "matched_env_vars": sorted(set([*process_matches, *login_matches])),
+                "availability_sources": availability_sources,
+            }
+        )
+
+    selected_backend: str | None
+    selection_source: str
+    selection_required = False
+    if explicit_backend:
+        selected_backend = explicit_backend.strip().lower()
+        selection_source = "explicit"
+    elif persisted_backend in SELECTABLE_CONTINUITY_OBSERVER_BACKENDS:
+        selected_backend = persisted_backend
+        selection_source = "persisted"
+    elif len(available_provider_backends) == 1:
+        selected_backend = available_provider_backends[0]
+        selection_source = "auto_single_available"
+    elif len(available_provider_backends) > 1:
+        selected_backend = None
+        selection_source = "selection_required"
+        selection_required = True
+    else:
+        selected_backend = None
+        selection_source = "unset"
+
+    selected_backend_ready = bool(
+        selected_backend in available_provider_backends or selected_backend in (None, "noop")
+    )
+    return {
+        "selected_observer_backend": selected_backend,
+        "selected_observer_backend_source": selection_source,
+        "selected_observer_backend_ready": selected_backend_ready,
+        "observer_backend_selection_required": selection_required,
+        "observer_backend_options": enriched_options,
+        "available_observer_backends": [item for item in enriched_options if item.get("available")],
+        "persisted_observer_backend": persisted_backend,
+    }
+
+
+def _shell_login_source_lines() -> list[str]:
+    return [
+        'if [ -r "$HOME/.bash_profile" ]; then',
+        '  . "$HOME/.bash_profile"',
+        'elif [ -r "$HOME/.bash_login" ]; then',
+        '  . "$HOME/.bash_login"',
+        'elif [ -r "$HOME/.profile" ]; then',
+        '  . "$HOME/.profile"',
+        "fi",
+    ]
+
+
+def _selected_observer_backend_lines(selected_backend: str | None) -> list[str]:
+    if not selected_backend:
+        return []
+    return [f'export SYNAPSE_CONTINUITY_OBSERVER_BACKEND="${{SYNAPSE_CONTINUITY_OBSERVER_BACKEND:-{selected_backend}}}"']
+
+
+def _hook_wrapper_source(hook_name: str, *, synapse_root: Path, synapse_python: Path, selected_backend: str | None) -> str:
     runtime_hook = f"synapse_hook_{hook_name}.py"
     return "\n".join(
         [
             "#!/usr/bin/env bash",
             "set -euo pipefail",
             'REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"',
+            *_shell_login_source_lines(),
             f'DEFAULT_SYNAPSE_ROOT="{synapse_root.resolve()}"',
             f'DEFAULT_SYNAPSE_PYTHON="{_absolute_path(synapse_python)}"',
             'export SYNAPSE_ROOT="${SYNAPSE_ROOT:-$DEFAULT_SYNAPSE_ROOT}"',
             'export SYNAPSE_PYTHON="${SYNAPSE_PYTHON:-$DEFAULT_SYNAPSE_PYTHON}"',
+            *_selected_observer_backend_lines(selected_backend),
             'exec "$SYNAPSE_PYTHON" "$SYNAPSE_ROOT/runtime/tools/%s" --repo-root "$REPO_ROOT" "$@"' % runtime_hook,
+            "",
+        ]
+    )
+
+
+def _mcp_wrapper_source(*, synapse_root: Path, synapse_python: Path, selected_backend: str | None) -> str:
+    server_path = (synapse_root.resolve() / "runtime" / "synapse_mcp" / "server.py").resolve()
+    return "\n".join(
+        [
+            "#!/usr/bin/env bash",
+            "set -euo pipefail",
+            'REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"',
+            *_shell_login_source_lines(),
+            f'DEFAULT_SYNAPSE_ROOT="{synapse_root.resolve()}"',
+            f'DEFAULT_SYNAPSE_PYTHON="{_absolute_path(synapse_python)}"',
+            'export SYNAPSE_ROOT="${SYNAPSE_ROOT:-$DEFAULT_SYNAPSE_ROOT}"',
+            'export SYNAPSE_PYTHON="${SYNAPSE_PYTHON:-$DEFAULT_SYNAPSE_PYTHON}"',
+            *_selected_observer_backend_lines(selected_backend),
+            'cd "$REPO_ROOT"',
+            f'exec "$SYNAPSE_PYTHON" "{server_path}" "$@"',
             "",
         ]
     )
@@ -337,7 +503,15 @@ def _write_text_if_changed(path: Path, text: str, *, executable: bool = False) -
     return "updated" if path.exists() else "written"
 
 
-def _local_codex_manifest(subject: str, data_root: Path, *, synapse_root: Path, synapse_python: Path) -> dict[str, Any]:
+def _local_codex_manifest(
+    subject: str,
+    data_root: Path,
+    *,
+    synapse_root: Path,
+    synapse_python: Path,
+    mcp_wrapper_path: Path,
+    observer_backend_selection: dict[str, Any],
+) -> dict[str, Any]:
     hook_entries = {
         name: {
             "script": f"{LOCAL_CODEX_DIRNAME}/{LOCAL_CODEX_HOOK_DIR}/{filename}",
@@ -357,12 +531,18 @@ def _local_codex_manifest(subject: str, data_root: Path, *, synapse_root: Path, 
         "synapse_python_env": "SYNAPSE_PYTHON",
         "default_synapse_root": str(synapse_root.resolve()),
         "default_synapse_python": str(_absolute_path(synapse_python)),
+        "selected_observer_backend": observer_backend_selection.get("selected_observer_backend"),
+        "selected_observer_backend_source": observer_backend_selection.get("selected_observer_backend_source"),
+        "selected_observer_backend_ready": bool(observer_backend_selection.get("selected_observer_backend_ready")),
+        "observer_backend_selection_required": bool(observer_backend_selection.get("observer_backend_selection_required")),
+        "observer_backend_options": list(observer_backend_selection.get("observer_backend_options") or []),
         "codex_config_path": f"{LOCAL_CODEX_DIRNAME}/{LOCAL_CODEX_CONFIG}",
         "hooks_config_path": f"{LOCAL_CODEX_DIRNAME}/{LOCAL_CODEX_HOOKS_CONFIG}",
         "legacy_mcp_config_path": f"{LOCAL_CODEX_DIRNAME}/{LOCAL_CODEX_MCP}",
+        "mcp_wrapper_path": f"{LOCAL_CODEX_DIRNAME}/{LOCAL_CODEX_MCP_WRAPPER}",
         "mcp": {
-            "command": str(_absolute_path(synapse_python)),
-            "args": [str((synapse_root.resolve() / "runtime" / "synapse_mcp" / "server.py").resolve())],
+            "command": str(mcp_wrapper_path.resolve()),
+            "args": [],
             "cwd": "${REPO_ROOT:-.}",
             "env": {
                 "SYNAPSE_ROOT": str(synapse_root.resolve()),
@@ -373,8 +553,14 @@ def _local_codex_manifest(subject: str, data_root: Path, *, synapse_root: Path, 
     }
 
 
-def _local_codex_config(*, repo_root: Path, synapse_root: Path, synapse_python: Path) -> str:
-    mcp_server = (synapse_root.resolve() / "runtime" / "synapse_mcp" / "server.py").resolve()
+def _local_codex_config(
+    *,
+    repo_root: Path,
+    synapse_root: Path,
+    synapse_python: Path,
+    mcp_wrapper_path: Path,
+    observer_backend_selection: dict[str, Any],
+) -> str:
     lines = [
         "#:schema https://developers.openai.com/codex/config-schema.json",
         "# Synapse-managed repo-local Codex integration.",
@@ -382,8 +568,8 @@ def _local_codex_config(*, repo_root: Path, synapse_root: Path, synapse_python: 
         "codex_hooks = true",
         "",
         "[mcp_servers.synapse]",
-        f"command = {json.dumps(str(_absolute_path(synapse_python)))}",
-        f"args = [{json.dumps(str(mcp_server))}]",
+        f"command = {json.dumps(str(mcp_wrapper_path.resolve()))}",
+        "args = []",
         f"cwd = {json.dumps(str(repo_root.resolve()))}",
         "startup_timeout_sec = 15",
         "",
@@ -392,6 +578,9 @@ def _local_codex_config(*, repo_root: Path, synapse_root: Path, synapse_python: 
         f"SYNAPSE_PYTHON = {json.dumps(str(_absolute_path(synapse_python)))}",
         "",
     ]
+    selected_backend = str(observer_backend_selection.get("selected_observer_backend") or "").strip()
+    if selected_backend:
+        lines.insert(-1, f"SYNAPSE_CONTINUITY_OBSERVER_BACKEND = {json.dumps(selected_backend)}")
     return "\n".join(lines)
 
 
@@ -463,6 +652,7 @@ def _local_codex_readme(subject: str) -> str:
             "It is intentionally excluded from git because it may rely on local runtime paths and client support.",
             "The generated MCP bridge and hook wrappers pin the Synapse engine interpreter instead of relying on a random `python3` on PATH.",
             "That interpreter belongs to the Synapse engine install and stays separate from the subject repo's own app/test environment.",
+            "The generated wrappers also source standard bash login profiles before launching Synapse so provider keys exported in profile files remain available to the local integration.",
             "",
             f"Subject: {subject}",
             "",
@@ -470,6 +660,7 @@ def _local_codex_readme(subject: str) -> str:
             f"- `{LOCAL_CODEX_MANIFEST}`: local integration manifest and asset receipt",
             f"- `{LOCAL_CODEX_CONFIG}`: repo-local Codex config enabling hooks and the Synapse MCP server",
             f"- `{LOCAL_CODEX_HOOKS_CONFIG}`: Codex lifecycle hook registration for raw capture and close-turn validation",
+            f"- `{LOCAL_CODEX_MCP_WRAPPER}`: profile-aware launcher for the repo-local Synapse MCP server",
             f"- `{LOCAL_CODEX_HOOK_DIR}/`: wrapper scripts for UserPromptSubmit, PreToolUse, PostToolUse, and Stop",
             f"- `{LOCAL_CODEX_MCP}`: legacy MCP config hint kept only for backwards compatibility",
             "",
@@ -486,6 +677,7 @@ def install_local_codex_integration(
     repo_root: Path,
     data_root: Path,
     synapse_root: Path | None = None,
+    observer_backend: str | None = None,
 ) -> dict[str, Any]:
     repo_root = repo_root.resolve()
     data_root = data_root.resolve()
@@ -498,7 +690,9 @@ def install_local_codex_integration(
     config_path = local_codex_config_path(repo_root)
     hooks_config_path = local_codex_hooks_config_path(repo_root)
     mcp_path = local_codex_mcp_config_path(repo_root)
+    mcp_wrapper_path = local_codex_mcp_wrapper_path(repo_root)
     readme_path = codex_dir / LOCAL_CODEX_README
+    observer_backend_selection = resolve_observer_backend_selection(repo_root, explicit_backend=observer_backend)
 
     codex_dir.mkdir(parents=True, exist_ok=True)
     hook_dir.mkdir(parents=True, exist_ok=True)
@@ -506,7 +700,14 @@ def install_local_codex_integration(
     manifest_status = _write_text_if_changed(
         manifest_path,
         json.dumps(
-            _local_codex_manifest(subject, data_root, synapse_root=synapse_root, synapse_python=synapse_python),
+            _local_codex_manifest(
+                subject,
+                data_root,
+                synapse_root=synapse_root,
+                synapse_python=synapse_python,
+                mcp_wrapper_path=mcp_wrapper_path,
+                observer_backend_selection=observer_backend_selection,
+            ),
             indent=2,
             sort_keys=True,
         )
@@ -514,7 +715,13 @@ def install_local_codex_integration(
     )
     config_status = _write_text_if_changed(
         config_path,
-        _local_codex_config(repo_root=repo_root, synapse_root=synapse_root, synapse_python=synapse_python),
+        _local_codex_config(
+            repo_root=repo_root,
+            synapse_root=synapse_root,
+            synapse_python=synapse_python,
+            mcp_wrapper_path=mcp_wrapper_path,
+            observer_backend_selection=observer_backend_selection,
+        ),
     )
     hooks_config_status = _write_text_if_changed(
         hooks_config_path,
@@ -526,10 +733,17 @@ def install_local_codex_integration(
             {
                 "mcpServers": {
                     "synapse": {
-                        "command": str(_absolute_path(synapse_python)),
-                        "args": [str((synapse_root.resolve() / "runtime" / "synapse_mcp" / "server.py").resolve())],
+                        "command": str(mcp_wrapper_path.resolve()),
+                        "args": [],
                         "cwd": "${REPO_ROOT:-.}",
                         "env": {
+                            **(
+                                {
+                                    "SYNAPSE_CONTINUITY_OBSERVER_BACKEND": str(observer_backend_selection.get("selected_observer_backend"))
+                                }
+                                if str(observer_backend_selection.get("selected_observer_backend") or "").strip()
+                                else {}
+                            ),
                             "SYNAPSE_ROOT": str(synapse_root.resolve()),
                             "SYNAPSE_PYTHON": str(_absolute_path(synapse_python)),
                         },
@@ -540,6 +754,15 @@ def install_local_codex_integration(
             sort_keys=True,
         ) + "\n",
     )
+    mcp_wrapper_status = _write_text_if_changed(
+        mcp_wrapper_path,
+        _mcp_wrapper_source(
+            synapse_root=synapse_root,
+            synapse_python=synapse_python,
+            selected_backend=str(observer_backend_selection.get("selected_observer_backend") or "").strip() or None,
+        ),
+        executable=True,
+    )
     readme_status = _write_text_if_changed(readme_path, _local_codex_readme(subject))
     hook_statuses: dict[str, str] = {}
     for hook_name, filename in LOCAL_CODEX_HOOKS.items():
@@ -547,7 +770,12 @@ def install_local_codex_integration(
         source_name = filename.replace(".sh", "")
         hook_statuses[hook_name] = _write_text_if_changed(
             hook_path,
-            _hook_wrapper_source(source_name, synapse_root=synapse_root, synapse_python=synapse_python),
+            _hook_wrapper_source(
+                source_name,
+                synapse_root=synapse_root,
+                synapse_python=synapse_python,
+                selected_backend=str(observer_backend_selection.get("selected_observer_backend") or "").strip() or None,
+            ),
             executable=True,
         )
 
@@ -556,17 +784,19 @@ def install_local_codex_integration(
     overall = LocalIntegrationHealth.NOOP.value
     if any(
         status != "noop"
-        for status in [manifest_status, config_status, hooks_config_status, mcp_status, readme_status, *hook_statuses.values()]
+        for status in [manifest_status, config_status, hooks_config_status, mcp_status, mcp_wrapper_status, readme_status, *hook_statuses.values()]
     ):
         overall = LocalIntegrationHealth.INSTALLED.value if inspection["integration_health"] == LocalIntegrationHealth.INSTALLED.value else LocalIntegrationHealth.UPDATED.value
     inspection.update(
         {
             **runtime_env,
+            **observer_backend_selection,
             "integration_status": overall,
             "manifest_write_status": manifest_status,
             "config_write_status": config_status,
             "hooks_config_write_status": hooks_config_status,
             "mcp_config_write_status": mcp_status,
+            "mcp_wrapper_write_status": mcp_wrapper_status,
             "readme_write_status": readme_status,
             "hook_write_statuses": hook_statuses,
             "exclude_status": exclude_status,
@@ -583,9 +813,11 @@ def inspect_local_codex_integration(repo_root: Path, *, synapse_root: Path | Non
     config_path = local_codex_config_path(repo_root)
     hooks_config_path = local_codex_hooks_config_path(repo_root)
     mcp_path = local_codex_mcp_config_path(repo_root)
+    mcp_wrapper_path = local_codex_mcp_wrapper_path(repo_root)
     readme_path = codex_dir / LOCAL_CODEX_README
     hook_dir = local_codex_hook_dir(repo_root)
     runtime_env = inspect_synapse_runtime_environment(synapse_root)
+    observer_backend_selection = resolve_observer_backend_selection(repo_root)
 
     missing: list[str] = []
     hook_paths: dict[str, str] = {}
@@ -602,6 +834,8 @@ def inspect_local_codex_integration(repo_root: Path, *, synapse_root: Path | Non
         missing.append(LOCAL_CODEX_HOOKS_CONFIG)
     if not mcp_path.exists():
         pass
+    if not mcp_wrapper_path.exists():
+        missing.append(LOCAL_CODEX_MCP_WRAPPER)
     if not readme_path.exists():
         missing.append(LOCAL_CODEX_README)
 
@@ -642,9 +876,11 @@ def inspect_local_codex_integration(repo_root: Path, *, synapse_root: Path | Non
         "mcp_config_path": str(mcp_path.resolve()),
         "readme_path": str(readme_path.resolve()),
         "hook_paths": hook_paths,
+        "mcp_wrapper_path": str(mcp_wrapper_path.resolve()),
         "missing_assets": missing,
         "legacy_mcp_config_present": mcp_path.exists(),
         "synapse_root": str(synapse_root),
+        **observer_backend_selection,
         **runtime_env,
     }
 

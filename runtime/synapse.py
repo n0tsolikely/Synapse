@@ -815,6 +815,10 @@ def build_parser() -> argparse.ArgumentParser:
     local_integration_parser.add_argument("--selected-by", default="Brains", help="Who made the selection (default: Brains)")
     local_integration_parser.add_argument("--no-home-lock", action="store_true", help="Do not write ~/.synapse/ACTIVE_SUBJECT.json")
     local_integration_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
+    local_integration_parser.add_argument(
+        "--observer-backend",
+        help="Persist the selected continuity observer backend for this repo-local integration (for example: openai_responses, gemini_generate_content, noop)",
+    )
     local_integration_parser.add_argument("--json", action="store_true", help="Print JSON output")
 
     draftshot_parser = subparsers.add_parser(
@@ -7924,13 +7928,41 @@ def cmd_import_continuity(args: argparse.Namespace) -> int:
     )
 
 
-def _install_local_integration_receipt(ctx: dict[str, Any]) -> dict[str, Any]:
+def _install_local_integration_receipt(
+    ctx: dict[str, Any],
+    *,
+    observer_backend: str | None = None,
+) -> dict[str, Any]:
     return install_local_codex_integration(
         subject=ctx["subject"],
         repo_root=Path(ctx["engine_root"]),
         data_root=Path(ctx["data_root"]),
         synapse_root=resolve_synapse_root(),
+        observer_backend=observer_backend,
     )
+
+
+def _interactive_observer_backend_choice(payload: dict[str, Any]) -> str | None:
+    options = list(payload.get("available_observer_backends") or [])
+    if not options:
+        return None
+    print("Multiple continuity observer backends are available from this environment/profile:")
+    for index, option in enumerate(options, start=1):
+        backend = str(option.get("backend") or "")
+        label = str(option.get("label") or backend)
+        matched = ",".join(option.get("matched_env_vars") or []) or "detected"
+        print(f"{index}. {label} [{backend}] via {matched}")
+    print(f"{len(options) + 1}. Degraded fallback [noop]")
+    choice = input("Select observer backend number: ").strip()
+    try:
+        selected_index = int(choice)
+    except ValueError:
+        return None
+    if 1 <= selected_index <= len(options):
+        return str(options[selected_index - 1].get("backend") or "").strip() or None
+    if selected_index == len(options) + 1:
+        return "noop"
+    return None
 
 
 def cmd_install_local_integration(args: argparse.Namespace) -> int:
@@ -7938,7 +7970,18 @@ def cmd_install_local_integration(args: argparse.Namespace) -> int:
     if not ctx:
         return 2
     try:
-        payload = _install_local_integration_receipt(ctx)
+        payload = _install_local_integration_receipt(ctx, observer_backend=args.observer_backend)
+        if (
+            payload.get("observer_backend_selection_required")
+            and not args.json
+            and _stdin_is_interactive()
+            and not args.observer_backend
+        ):
+            selected_backend = _interactive_observer_backend_choice(payload)
+            if not selected_backend:
+                print("FAIL: observer backend selection is required. Re-run with --observer-backend <backend> or choose a valid option.")
+                return 2
+            payload = _install_local_integration_receipt(ctx, observer_backend=selected_backend)
     except LiveMemoryError as exc:
         print(f"FAIL: {exc}")
         return 2
@@ -7948,6 +7991,7 @@ def cmd_install_local_integration(args: argparse.Namespace) -> int:
         str(payload.get("config_path") or ""),
         str(payload.get("hooks_config_path") or ""),
         str(payload.get("mcp_config_path") or ""),
+        str(payload.get("mcp_wrapper_path") or ""),
         str(payload.get("readme_path") or ""),
         *[str(path) for path in (payload.get("hook_paths") or {}).values()],
     ]
@@ -7974,10 +8018,14 @@ def cmd_install_local_integration(args: argparse.Namespace) -> int:
             "integration_posture": payload.get("integration_posture"),
             "integration_health": payload.get("integration_health"),
             "integration_dir": payload.get("integration_dir"),
+            "selected_observer_backend": payload.get("selected_observer_backend"),
+            "selected_observer_backend_ready": payload.get("selected_observer_backend_ready"),
+            "observer_backend_selection_required": payload.get("observer_backend_selection_required"),
             "manifest_path": payload.get("manifest_path"),
             "config_path": payload.get("config_path"),
             "hooks_config_path": payload.get("hooks_config_path"),
             "mcp_config_path": payload.get("mcp_config_path"),
+            "mcp_wrapper_path": payload.get("mcp_wrapper_path"),
             "readme_path": payload.get("readme_path"),
             "hook_paths": payload.get("hook_paths"),
             "missing_assets": list(payload.get("missing_assets") or []),
@@ -7997,10 +8045,17 @@ def cmd_install_local_integration(args: argparse.Namespace) -> int:
         print(f"integration_posture: {result_payload.get('integration_posture')}")
         print(f"integration_health: {result_payload.get('integration_health')}")
         print(f"integration_dir: {result_payload.get('integration_dir')}")
+        print(f"selected_observer_backend: {result_payload.get('selected_observer_backend') or 'unset'}")
+        print(f"observer_backend_selection_required: {bool(result_payload.get('observer_backend_selection_required'))}")
+        available = list(result_payload.get("available_observer_backends") or [])
+        if available:
+            labels = [f"{item.get('label')} [{item.get('backend')}]" for item in available]
+            print(f"available_observer_backends: {', '.join(labels)}")
         print(f"manifest_path: {result_payload.get('manifest_path')}")
         print(f"config_path: {result_payload.get('config_path')}")
         print(f"hooks_config_path: {result_payload.get('hooks_config_path')}")
         print(f"mcp_config_path: {result_payload.get('mcp_config_path')}")
+        print(f"mcp_wrapper_path: {result_payload.get('mcp_wrapper_path')}")
 
     return _finalize_mutation_result(
         payload=rendered,
