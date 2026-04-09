@@ -46,6 +46,7 @@ from synapse_runtime.quest_candidates import (
     _sync_candidate_backlog,
     _upsert_quest_candidate,
     _write_proposals,
+    build_operational_proposal_payload,
 )
 from synapse_runtime.semantic_intake import (
     capture_kinds as semantic_capture_kinds,
@@ -1175,20 +1176,16 @@ def _sync_sidecar(
                 continue
 
             proposal_id = _proposal_id(promotion.kind, source_id, promotion.title)
-            promotion_payloads.append(
-                {
-                    "proposal_id": proposal_id,
-                    "kind": promotion.kind.value,
-                    "state": promotion.state.value,
-                    "title": promotion.title,
-                    "summary": promotion.summary,
-                    "reason": promotion.reason,
-                    "blockers": list(promotion.blockers),
-                    "evidence": list(promotion.evidence),
-                    "codex_implications": list(promotion.codex_implications),
-                    "created_at": _now_iso(),
-                }
+            promotion_payload = build_operational_proposal_payload(
+                subject=subject,
+                source_id=source_id,
+                interaction_mode=interaction_mode,
+                promotion=promotion,
+                signal=signal,
+                active_run=active_run,
             )
+            promotion_payload["proposal_id"] = proposal_id
+            promotion_payloads.append(promotion_payload)
             if promotion.kind == ProposalKind.GUILD_ORDERS and proposal_id not in order_candidates:
                 order_candidates.append(proposal_id)
             if promotion.kind == ProposalKind.TALENT and proposal_id not in talent_candidates:

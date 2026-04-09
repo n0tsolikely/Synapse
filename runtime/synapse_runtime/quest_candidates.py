@@ -6,6 +6,7 @@ import hashlib
 from pathlib import Path
 from typing import Any, Iterable
 
+from synapse_runtime.canonizer import CANONIZER_SCHEMA_VERSION, compose_authored_sections
 from synapse_runtime.accepted_execution_view import find_quest_file
 from synapse_runtime.governance_model import AmbientSignal, PromotionRecord, ProposalKind, ProposalState
 from synapse_runtime.live_memory_common import (
@@ -501,6 +502,33 @@ def _collect_quest_candidate_details(records: list[dict[str, Any]]) -> list[dict
     return details
 
 
+def _collect_operational_proposal_details(records: list[dict[str, Any]], kind: ProposalKind) -> list[dict[str, Any]]:
+    details: list[dict[str, Any]] = []
+    for record in records:
+        if str(record.get("kind") or "") != kind.value:
+            continue
+        details.append(
+            {
+                "proposal_id": str(record.get("proposal_id") or ""),
+                "kind": kind.value,
+                "state": str(record.get("state") or ""),
+                "title": str(record.get("title") or ""),
+                "summary": str(record.get("summary") or ""),
+                "reason": str(record.get("reason") or ""),
+                "confidence_reason": str(record.get("confidence_reason") or ""),
+                "evidence_sources": list(record.get("evidence_sources") or []),
+                "related_run_ids": list(record.get("related_run_ids") or []),
+                "related_files": list(record.get("related_files") or []),
+                "verification_entries": list(record.get("verification_entries") or []),
+                "formalized_artifact_path": record.get("formalized_artifact_path"),
+                "last_updated_at": str(record.get("updated_at") or record.get("created_at") or ""),
+                "truth_state_counts": dict(dict(record.get("canonizer_sections") or {}).get("truth_state_counts") or {}),
+            }
+        )
+    details.sort(key=lambda item: str(item.get("last_updated_at") or ""), reverse=True)
+    return details
+
+
 def _sync_candidate_backlog(manifold: dict[str, Any], records: list[dict[str, Any]]) -> None:
     quest_details = _collect_quest_candidate_details(records)
     manifold["quest_candidate_details"] = quest_details
@@ -517,6 +545,10 @@ def _sync_candidate_backlog(manifold: dict[str, Any], records: list[dict[str, An
         }
         and str(record.get("proposal_id") or "")
     ]
+    manifold["guild_order_candidate_details"] = _collect_operational_proposal_details(records, ProposalKind.GUILD_ORDERS)
+    manifold["codex_candidate_details"] = _collect_operational_proposal_details(records, ProposalKind.CODEX)
+    manifold["build_manual_candidate_details"] = _collect_operational_proposal_details(records, ProposalKind.BUILD_MANUAL)
+    manifold["disclosure_candidate_details"] = _collect_operational_proposal_details(records, ProposalKind.DISCLOSURE)
 
 
 def _load_proposal_records(live: Path) -> list[dict[str, Any]]:
@@ -531,6 +563,105 @@ def _load_proposal_records(live: Path) -> list[dict[str, Any]]:
         data["path"] = str(path)
         records.append(data)
     return records
+
+
+def _proposal_guidance_lines(kind: ProposalKind, summary: str, reason: str) -> list[str]:
+    guidance = {
+        ProposalKind.CODEX: (
+            "Codex proposals should capture durable system knowledge, not ambient wishcasting.",
+            "Conflicts with current Codex law require Control Sync before formalization.",
+        ),
+        ProposalKind.GUILD_ORDERS: (
+            "Guild Orders proposals should preserve bounded execution scope and campaign intent.",
+            "Guild Orders must remain aligned to active Control Sync outputs and Codex constraints.",
+        ),
+        ProposalKind.BUILD_MANUAL: (
+            "Build Manual proposals should describe the HOW-layer without redefining Codex law.",
+        ),
+        ProposalKind.DISCLOSURE: (
+            "Disclosure proposals should preserve the exact uncertainty that changed the next safe action.",
+        ),
+        ProposalKind.TALENT: (
+            "Talent proposals should only be formalized when capability change is durable and evidenced.",
+        ),
+        ProposalKind.CONTROL_SYNC: (
+            "Control Sync proposals should preserve the binding decision surface and its tradeoffs.",
+        ),
+        ProposalKind.SNAPSHOT: (
+            "Snapshot proposals should remain noncanonical until the snapshot owner formalizes them.",
+        ),
+    }.get(kind, ())
+    return _unique_strings([summary, reason, *guidance])
+
+
+def build_operational_proposal_payload(
+    *,
+    subject: str,
+    source_id: str,
+    interaction_mode: str,
+    promotion: PromotionRecord,
+    signal: AmbientSignal | None,
+    active_run: dict[str, Any],
+) -> dict[str, Any]:
+    evidence = _unique_strings(str(item) for item in promotion.evidence if str(item).strip())
+    blockers = _unique_strings(str(item) for item in promotion.blockers if str(item).strip())
+    codex_implications = _unique_strings(str(item) for item in promotion.codex_implications if str(item).strip())
+    evidence_sources = _candidate_evidence_sources(signal, active_run) if signal is not None else []
+    related_files = _unique_strings(signal.files_touched) if signal is not None else []
+    verification_entries = _unique_strings(signal.verification) if signal is not None else []
+    related_run_ids = [] if source_id == "NO_RUN" else [source_id]
+
+    coherent_outcome = {
+        ProposalKind.CODEX: "A durable Codex update candidate exists with evidence-backed operational framing.",
+        ProposalKind.GUILD_ORDERS: "A durable Guild Orders candidate exists with bounded scope and execution framing.",
+        ProposalKind.BUILD_MANUAL: "A durable Build Manual candidate exists with HOW-layer guidance and receipts.",
+        ProposalKind.DISCLOSURE: "A durable disclosure candidate exists with preserved uncertainty and safe-next-action framing.",
+        ProposalKind.TALENT: "A durable talent candidate exists with evidence-backed capability change.",
+        ProposalKind.CONTROL_SYNC: "A durable Control Sync candidate exists with binding decision framing.",
+        ProposalKind.SNAPSHOT: "A durable snapshot proposal exists pending typed owner formalization.",
+    }.get(promotion.kind, f"{promotion.title} exists as a durable operational proposal.")
+    closure_statement = f"Close only when {promotion.summary.lower()} is honestly satisfied and the governing formalization path records PASS receipts."
+    verification_plan = (
+        "Preserve the exact commands, evidence, and artifact receipts that justify this proposal; "
+        "do not formalize it without source-backed proof."
+    )
+    canonizer_sections = compose_authored_sections(
+        truths=[promotion.summary, *evidence[:3]],
+        visions=[*codex_implications, *_proposal_guidance_lines(promotion.kind, promotion.summary, promotion.reason)],
+        unresolved=blockers,
+        source_refs=[],
+    )
+
+    return {
+        "proposal_id": _proposal_id(promotion.kind, source_id, promotion.title),
+        "kind": promotion.kind.value,
+        "state": promotion.state.value,
+        "title": promotion.title,
+        "summary": promotion.summary,
+        "reason": promotion.reason,
+        "description": promotion.summary,
+        "objective": promotion.summary,
+        "coherent_outcome": coherent_outcome,
+        "closure_statement": closure_statement,
+        "verification_plan": verification_plan,
+        "blockers": blockers,
+        "evidence": evidence,
+        "evidence_sources": evidence_sources,
+        "related_run_ids": related_run_ids,
+        "related_files": related_files,
+        "verification_entries": verification_entries,
+        "confidence_reason": (
+            f"evidence={len(evidence)}; blockers={len(blockers)}; "
+            f"evidence_sources={len(evidence_sources)}; interaction_mode={interaction_mode}; kind={promotion.kind.value}"
+        ),
+        "codex_implications": codex_implications,
+        "canonizer_schema_version": CANONIZER_SCHEMA_VERSION,
+        "canonizer_sections": canonizer_sections,
+        "created_at": _now_iso(),
+        "interaction_mode": interaction_mode,
+        "source_id": source_id,
+        "subject": subject,
+    }
 
 
 def _write_proposals(
@@ -558,9 +689,26 @@ def _write_proposals(
             "title": proposal["title"],
             "summary": proposal["summary"],
             "reason": proposal["reason"],
+            "description": proposal.get("description") or proposal["summary"],
+            "objective": proposal.get("objective") or proposal["summary"],
+            "coherent_outcome": proposal.get("coherent_outcome") or proposal["summary"],
+            "closure_statement": proposal.get("closure_statement") or f"Close only when {str(proposal['summary']).lower()} is honestly satisfied and the completion audit returns PASS.",
+            "verification_plan": proposal.get("verification_plan") or "",
             "blockers": proposal.get("blockers", []),
             "evidence": proposal.get("evidence", []),
+            "evidence_sources": proposal.get("evidence_sources", []),
+            "related_run_ids": proposal.get("related_run_ids", []),
+            "related_files": proposal.get("related_files", []),
+            "verification_entries": proposal.get("verification_entries", []),
+            "confidence_reason": proposal.get("confidence_reason", ""),
             "codex_implications": proposal.get("codex_implications", []),
+            "canonizer_schema_version": proposal.get("canonizer_schema_version") or CANONIZER_SCHEMA_VERSION,
+            "canonizer_sections": proposal.get("canonizer_sections") or compose_authored_sections(
+                truths=[proposal.get("summary") or ""],
+                visions=proposal.get("codex_implications", []),
+                unresolved=proposal.get("blockers", []),
+                source_refs=[],
+            ),
         }
         _write_yaml(proposal_path, payload)
         written.append(str(proposal_path))

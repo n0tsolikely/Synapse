@@ -779,7 +779,13 @@ class SessionModeLifecycleTests(unittest.TestCase):
         self.assertFalse(self._proposal_paths("quests"))
         self.assertFalse(self._proposal_paths("side_quests"))
         self.assertFalse(self._proposal_paths("guild_orders"))
-        self.assertTrue(self._proposal_paths("codex"))
+        codex_paths = self._proposal_paths("codex")
+        self.assertTrue(codex_paths)
+        codex_payload = yaml.safe_load(codex_paths[0].read_text(encoding="utf-8"))
+        self.assertEqual(codex_payload["canonizer_schema_version"], 1)
+        self.assertIn("canonizer_sections", codex_payload)
+        self.assertTrue(codex_payload["evidence_sources"])
+        self.assertTrue(codex_payload["confidence_reason"])
 
     def test_auto_formalize_is_suppressed_in_brainstorm_spec(self) -> None:
         proposal = self._prepare_ready_candidate(session_mode="brainstorm_spec")
