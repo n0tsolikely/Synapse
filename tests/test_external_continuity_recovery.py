@@ -74,6 +74,10 @@ class ExternalContinuityRecoveryTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         payload = json.loads(result.stdout)
+        routing = payload["artifact_routing"]
+        families = {item["target_family"] for item in routing["result"]["intents"]}
+        self.assertIn("snapshot_candidate", families)
+        self.assertIn("publication_candidate", families)
         self.assertEqual(payload["snapshot_candidates"]["snapshot_candidates"]["status"], "written")
         self.assertTrue(payload["snapshot_candidates"]["summary"]["current_eod_candidate_path"])
         self.assertEqual(payload["publication_candidates"]["publication_candidates"]["status"], "written")
@@ -89,6 +93,7 @@ class ExternalContinuityRecoveryTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         payload = json.loads(result.stdout)
+        self.assertIsNone(payload["artifact_routing"])
         self.assertEqual(payload["publication_candidates"]["publication_candidates"]["status"], "noop")
         self.assertEqual(payload["publication_candidates"]["publication_candidates"]["reason"], "import_confidence_not_permitted")
         self.assertEqual(len(payload["opened_import_review_obligations"]), 1)
