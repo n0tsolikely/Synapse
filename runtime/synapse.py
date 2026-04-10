@@ -30,6 +30,18 @@ from synapse_runtime.automation_orchestrator import (
     plan_automation_side_effects,
     ready_state_gate_for_mode,
 )
+from synapse_runtime.artifact_router import (
+    GOVERNANCE_PROPOSAL_DISPATCH_KEY,
+    NOOP_DISPATCH_KEY,
+    PUBLICATION_DISPATCH_KEY,
+    QUEST_DISPATCH_KEY,
+    SNAPSHOT_DISPATCH_KEY,
+    ArtifactRoutingContext,
+    ArtifactRoutingResult,
+    build_artifact_routing_context,
+    evaluate_artifact_routing,
+    promotion_record_from_payload,
+)
 from synapse_runtime.continuity_model_adapter import configured_continuity_observer_backend
 from synapse_runtime.continuity_observer import ContinuityObserverError, observe_continuity
 from synapse_runtime.continuity_obligations import open_obligation, resolve_matching_obligations
@@ -81,7 +93,12 @@ from synapse_runtime.repo_onboarding import (
     onboarding_update,
     publish_publication_candidate,
 )
-from synapse_runtime.quest_candidates import list_proposals, mark_proposal_state
+from synapse_runtime.quest_candidates import (
+    list_proposals,
+    mark_proposal_state,
+    upsert_operational_proposal_from_promotion,
+    upsert_quest_candidate_from_promotion,
+)
 from synapse_runtime.reducer import ReducerError, reduce_after_event, reducer_mode
 from synapse_runtime.rehydration_pack import refresh_rehydration_pack
 from synapse_runtime.rehydrate_renderer import render_rehydrate
@@ -136,6 +153,7 @@ from synapse_runtime.quest_board import (
     write_quest_document,
 )
 from synapse_runtime.publication_candidates import (
+    PUBLICATION_CANDIDATE_KINDS,
     PublicationCandidateError,
     publication_candidate_summary,
     refresh_publication_candidates,
@@ -1986,6 +2004,251 @@ def _close_turn_validation_payload(ctx: dict[str, Any], *, boundary: str) -> dic
     }
 
 
+def _routing_signal_for_boundary(context: ArtifactRoutingContext) -> AmbientSignal | None:
+    if not any((context.summary, context.notes, context.changed_files)):
+        return None
+    return AmbientSignal(
+        source=context.trigger,
+        subject=context.subject,
+        title=context.summary,
+        summary=context.summary,
+        notes=context.notes,
+        files_touched=context.changed_files,
+    )
+
+
+def _routing_current_accepted(accepted_context: dict[str, Any] | None) -> dict[str, Any] | None:
+    payload = dict(accepted_context or {})
+    quest_id = str(payload.get("current_accepted_quest_id") or "").strip()
+    if not quest_id:
+        return None
+    return {"quest_id": quest_id}
+
+
+def _routing_changed_paths(payload: dict[str, Any]) -> list[str]:
+    paths: list[str] = []
+    summary = dict(payload.get("summary") or {})
+    for key in (
+        "current_eod_candidate_path",
+        "current_control_sync_candidate_path",
+        "current_snapshot_candidate_path",
+        "current_story_candidate_path",
+        "current_vision_candidate_path",
+    ):
+        text = str(summary.get(key) or "").strip()
+        if text and text not in paths:
+            paths.append(text)
+    for item in summary.get("current_codex_candidate_paths") or []:
+        text = str(item or "").strip()
+        if text and text not in paths:
+            paths.append(text)
+    return paths
+
+
+def _apply_artifact_routing_result(
+    *,
+    ctx: dict[str, Any],
+    active_run: dict[str, Any],
+    accepted_context: dict[str, Any],
+    routing_context: ArtifactRoutingContext,
+    routing_result: ArtifactRoutingResult,
+) -> dict[str, Any]:
+    dispatch_results: list[dict[str, Any]] = []
+    changed_artifact_paths: list[str] = []
+    snapshot_candidate_result: dict[str, Any] | None = None
+    publication_candidate_result: dict[str, Any] | None = None
+    proposal_results: list[dict[str, Any]] = []
+    proposal_mutated = False
+
+    signal = _routing_signal_for_boundary(routing_context)
+    current_accepted = _routing_current_accepted(accepted_context)
+    source_id = str(active_run.get("run_id") or "NO_RUN").strip() or "NO_RUN"
+    interaction_mode = str(active_run.get("interaction_mode") or "").strip().lower() or "maintenance"
+
+    for intent in routing_result.intents:
+        receipt: dict[str, Any] = {
+            "intent_kind": intent.intent_kind,
+            "target_family": intent.target_family,
+            "target_owner": intent.target_owner,
+            "target_posture": intent.target_posture,
+            "dispatch_key": intent.dispatch_key,
+            "blocking_reason": intent.blocking_reason,
+            "required_prerequisites": list(intent.required_prerequisites),
+        }
+        if intent.dispatch_key == NOOP_DISPATCH_KEY:
+            receipt["status"] = "noop"
+            receipt["reason"] = str(intent.metadata.get("reason") or "no_routable_artifact_family")
+            dispatch_results.append(receipt)
+            continue
+        if intent.dispatch_key == "blocked":
+            receipt["status"] = "blocked"
+            receipt["metadata"] = dict(intent.metadata or {})
+            dispatch_results.append(receipt)
+            continue
+        if intent.dispatch_key == SNAPSHOT_DISPATCH_KEY:
+            snapshot_candidate_result = _refresh_snapshot_candidate_boundary(
+                ctx=ctx,
+                boundary=routing_context.boundary or routing_context.trigger,
+                candidate_kinds=list(intent.metadata.get("candidate_kinds") or []),
+                target_day=str(intent.metadata.get("target_day") or "").strip() or None,
+                prefer_latest_active_draftshot=bool(intent.metadata.get("prefer_latest_active_draftshot")),
+                obligation_fallback=bool(intent.metadata.get("obligation_fallback", True)),
+                session_id_override=str(active_run.get("session_id") or "").strip() or None,
+                run_id_override=str(active_run.get("run_id") or "").strip() or None,
+            )
+            receipt["status"] = "applied"
+            receipt["result"] = snapshot_candidate_result
+            for path in _routing_changed_paths(snapshot_candidate_result):
+                if path not in changed_artifact_paths:
+                    changed_artifact_paths.append(path)
+            dispatch_results.append(receipt)
+            continue
+        if intent.dispatch_key == PUBLICATION_DISPATCH_KEY:
+            publication_candidate_result = _refresh_publication_candidate_boundary(
+                ctx=ctx,
+                boundary=routing_context.boundary or routing_context.trigger,
+                candidate_kinds=list(intent.metadata.get("candidate_kinds") or []),
+            )
+            receipt["status"] = "applied"
+            receipt["result"] = publication_candidate_result
+            for path in _routing_changed_paths(publication_candidate_result):
+                if path not in changed_artifact_paths:
+                    changed_artifact_paths.append(path)
+            dispatch_results.append(receipt)
+            continue
+        if intent.dispatch_key == QUEST_DISPATCH_KEY:
+            if signal is None:
+                receipt["status"] = "blocked"
+                receipt["blocking_reason"] = "missing_signal"
+                dispatch_results.append(receipt)
+                continue
+            proposal_receipt = upsert_quest_candidate_from_promotion(
+                subject=ctx["subject"],
+                data_root=Path(ctx["data_root"]),
+                source_id=source_id,
+                interaction_mode=interaction_mode,
+                active_run=active_run,
+                signal=signal,
+                promotion=promotion_record_from_payload(dict(intent.metadata.get("promotion") or {})),
+                current_accepted=current_accepted,
+            )
+            receipt["status"] = "applied" if proposal_receipt is not None else "noop"
+            receipt["result"] = proposal_receipt
+            if proposal_receipt is not None:
+                proposal_mutated = True
+                proposal_results.append(proposal_receipt)
+                path = str(proposal_receipt.get("path") or "").strip()
+                if path and path not in changed_artifact_paths:
+                    changed_artifact_paths.append(path)
+            dispatch_results.append(receipt)
+            continue
+        if intent.dispatch_key == GOVERNANCE_PROPOSAL_DISPATCH_KEY:
+            proposal_receipt = upsert_operational_proposal_from_promotion(
+                subject=ctx["subject"],
+                data_root=Path(ctx["data_root"]),
+                source_id=source_id,
+                interaction_mode=interaction_mode,
+                active_run=active_run,
+                signal=signal,
+                promotion=promotion_record_from_payload(dict(intent.metadata.get("promotion") or {})),
+            )
+            receipt["status"] = str(proposal_receipt.get("status") or "written")
+            receipt["result"] = proposal_receipt
+            proposal_mutated = proposal_mutated or receipt["status"] != "blocked"
+            proposal_results.append(proposal_receipt)
+            path = str(proposal_receipt.get("path") or "").strip()
+            if path and path not in changed_artifact_paths:
+                changed_artifact_paths.append(path)
+            dispatch_results.append(receipt)
+            continue
+        receipt["status"] = "blocked"
+        receipt["blocking_reason"] = f"unknown_dispatch_key:{intent.dispatch_key}"
+        dispatch_results.append(receipt)
+
+    projection = None
+    if proposal_mutated:
+        projection = _sync_sidecar(
+            subject=ctx["subject"],
+            data_root=Path(ctx["data_root"]),
+            active_run=_load_active_run_with_session_repair(ctx),
+            mutate_proposals=False,
+        )
+
+    status = "applied"
+    if dispatch_results and all(item.get("status") == "noop" for item in dispatch_results):
+        status = "noop"
+    elif dispatch_results and all(item.get("status") == "blocked" for item in dispatch_results):
+        status = "blocked"
+
+    return {
+        "status": status,
+        "dispatch_results": dispatch_results,
+        "changed_artifact_paths": changed_artifact_paths,
+        "snapshot_candidates": snapshot_candidate_result,
+        "publication_candidates": publication_candidate_result,
+        "proposal_results": proposal_results,
+        "projection": projection,
+    }
+
+
+def _route_artifact_boundary(
+    *,
+    ctx: dict[str, Any],
+    trigger: str,
+    invoke_reason: str,
+    active_run: dict[str, Any],
+    accepted_context: dict[str, Any],
+    summary: str | None = None,
+    notes: list[str] | None = None,
+    changed_files: list[str] | None = None,
+    source_refs: list[dict[str, Any]] | None = None,
+    observer_action_kinds: list[str] | None = None,
+    requested_snapshot_kinds: list[str] | None = None,
+    requested_publication_candidate_kinds: list[str] | None = None,
+    requested_missing_owner_families: list[str] | None = None,
+    boundary: str | None = None,
+    target_day: str | None = None,
+    prefer_latest_active_draftshot: bool = False,
+    obligation_fallback: bool = True,
+    import_profile: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    routing_context = build_artifact_routing_context(
+        subject=ctx["subject"],
+        data_root=Path(ctx["data_root"]),
+        engine_root=Path(ctx["engine_root"]),
+        trigger=trigger,
+        boundary=boundary,
+        invoke_reason=invoke_reason,
+        active_run=active_run,
+        accepted_context=accepted_context,
+        summary=summary,
+        notes=list(notes or []),
+        changed_files=list(changed_files or []),
+        source_refs=list(source_refs or []),
+        observer_action_kinds=list(observer_action_kinds or []),
+        requested_snapshot_kinds=requested_snapshot_kinds,
+        requested_publication_candidate_kinds=requested_publication_candidate_kinds,
+        requested_missing_owner_families=requested_missing_owner_families,
+        target_day=target_day,
+        prefer_latest_active_draftshot=prefer_latest_active_draftshot,
+        obligation_fallback=obligation_fallback,
+        import_profile=import_profile,
+    )
+    routing_result = evaluate_artifact_routing(routing_context)
+    applied = _apply_artifact_routing_result(
+        ctx=ctx,
+        active_run=active_run,
+        accepted_context=accepted_context,
+        routing_context=routing_context,
+        routing_result=routing_result,
+    )
+    return {
+        "context": routing_context.to_dict(),
+        "result": routing_result.to_dict(),
+        "dispatch": applied,
+    }
+
+
 def _snapshot_candidate_required_kinds(ctx: dict[str, Any]) -> list[str]:
     data_root = Path(ctx["data_root"])
     active_run = _load_active_run_with_session_repair(ctx)
@@ -2299,12 +2562,39 @@ def _orchestrate_import_continuity_followup(
                 },
             )
         )
+    artifact_routing = None
     if import_profile.get("snapshot_candidate_eligible"):
-        snapshot_candidate_result = _refresh_snapshot_candidate_boundary(
+        active_run = _load_active_run_with_session_repair(ctx)
+        accepted_context = _accepted_context_snapshot(Path(ctx["data_root"]))
+        artifact_routing = _route_artifact_boundary(
             ctx=ctx,
+            trigger="import-continuity",
             boundary="import-continuity",
-            session_id_override=session_id_override,
-            run_id_override=run_id_override,
+            invoke_reason="import_continuity_boundary",
+            active_run={**active_run, "session_id": session_id_override or active_run.get("session_id"), "run_id": run_id_override or active_run.get("run_id")},
+            accepted_context=accepted_context,
+            summary=f"Imported {parsed.get('source_kind')} continuity evidence for {ctx['subject']}.",
+            notes=list(parsed.get("warnings") or []),
+            source_refs=[
+                {
+                    "kind": "raw_import_event",
+                    "id": raw_payload["raw_event_id"],
+                    "path": raw_payload["raw_event_path"],
+                    "source_kind": parsed.get("source_kind"),
+                    "parser_status": import_profile.get("parser_status"),
+                    "confidence_band": import_profile.get("confidence_band"),
+                }
+            ],
+            requested_snapshot_kinds=None,
+            requested_publication_candidate_kinds=list(PUBLICATION_CANDIDATE_KINDS)
+            if import_profile.get("publication_candidate_eligible")
+            else [],
+            import_profile=import_profile,
+        )
+        snapshot_candidate_result = artifact_routing["dispatch"].get("snapshot_candidates") or _snapshot_candidate_boundary_noop(
+            data_root=data_root,
+            boundary="import-continuity",
+            reason="router_no_snapshot_dispatch",
         )
     elif import_profile.get("draftshot_eligible"):
         snapshot_candidate_result = _refresh_snapshot_candidate_boundary(
@@ -2321,11 +2611,14 @@ def _orchestrate_import_continuity_followup(
             boundary="import-continuity",
             reason="import_confidence_not_permitted",
         )
-    if import_profile.get("publication_candidate_eligible"):
-        publication_candidate_result = _refresh_publication_candidate_boundary(
-            ctx=ctx,
+    if artifact_routing is not None:
+        publication_candidate_result = artifact_routing["dispatch"].get("publication_candidates") or _publication_candidate_boundary_noop(
+            data_root=data_root,
             boundary="import-continuity",
+            reason="router_no_publication_dispatch",
         )
+    elif import_profile.get("publication_candidate_eligible"):
+        publication_candidate_result = _refresh_publication_candidate_boundary(ctx=ctx, boundary="import-continuity")
     else:
         publication_candidate_result = _publication_candidate_boundary_noop(
             data_root=data_root,
@@ -2340,6 +2633,7 @@ def _orchestrate_import_continuity_followup(
     )
     return {
         "import_profile": import_profile,
+        "artifact_routing": artifact_routing,
         "snapshot_candidates": snapshot_candidate_result,
         "publication_candidates": publication_candidate_result,
         "opened_import_review_obligations": import_review_obligations,
@@ -4865,6 +5159,21 @@ def cmd_session_tick(args: argparse.Namespace) -> int:
         print(f"FAIL: {exc}")
         return 2
 
+    accepted_context = _accepted_context_snapshot(Path(ctx["data_root"]))
+    artifact_routing = _route_artifact_boundary(
+        ctx=ctx,
+        trigger="session-tick",
+        boundary="session-tick",
+        invoke_reason="session_tick_boundary",
+        active_run=_load_active_run_with_session_repair(ctx),
+        accepted_context=accepted_context,
+        summary=args.summary,
+        notes=list(notes),
+        changed_files=list(files_touched),
+        observer_action_kinds=list(observer.get("observer_action_kinds") or []),
+        requested_snapshot_kinds=[],
+        requested_publication_candidate_kinds=[],
+    )
     overlay_path = _write_session_overlay(ctx, result, session_id=session_id)
     payload = {
         "subject": ctx,
@@ -4877,6 +5186,7 @@ def cmd_session_tick(args: argparse.Namespace) -> int:
         "reducer": event_info["reducer"],
         "automation": automation,
         "continuity_observer": observer,
+        "artifact_routing": artifact_routing,
     }
     def _emit_session_tick(rendered_payload: dict[str, Any]) -> None:
         run_update_payload = rendered_payload["run_update"]
@@ -4982,16 +5292,29 @@ def cmd_run_finalize(args: argparse.Namespace) -> int:
     result["truth_compile"] = truth_compile
     result["continuity_observer"] = observer
     try:
-        result["snapshot_candidates"] = _refresh_snapshot_candidate_boundary(
+        accepted_context = _accepted_context_snapshot(Path(ctx["data_root"]))
+        artifact_routing = _route_artifact_boundary(
             ctx=ctx,
+            trigger="run-finalize",
             boundary="run-finalize",
-            candidate_kinds=[EOD_KIND],
-            session_id_override=session_id,
-            run_id_override=result.get("run_id"),
+            invoke_reason="run_finalize_boundary",
+            active_run={**active_run, **result, "session_id": session_id},
+            accepted_context=accepted_context,
+            summary=args.summary or f"Finalized run {result.get('run_id')}",
+            observer_action_kinds=list(observer.get("observer_action_kinds") or []),
+            requested_snapshot_kinds=[EOD_KIND],
+            requested_publication_candidate_kinds=list(PUBLICATION_CANDIDATE_KINDS),
         )
-        result["publication_candidates"] = _refresh_publication_candidate_boundary(
-            ctx=ctx,
+        result["artifact_routing"] = artifact_routing
+        result["snapshot_candidates"] = artifact_routing["dispatch"].get("snapshot_candidates") or _snapshot_candidate_boundary_noop(
+            data_root=Path(ctx["data_root"]),
             boundary="run-finalize",
+            reason="router_no_snapshot_dispatch",
+        )
+        result["publication_candidates"] = artifact_routing["dispatch"].get("publication_candidates") or _publication_candidate_boundary_noop(
+            data_root=Path(ctx["data_root"]),
+            boundary="run-finalize",
+            reason="router_no_publication_dispatch",
         )
     except (SnapshotCandidateError, PublicationCandidateError) as exc:
         print(f"FAIL: {exc}")
@@ -7734,14 +8057,27 @@ def cmd_close_turn(args: argparse.Namespace) -> int:
             outputs=outputs,
         )
         event_info = _apply_observer_partial_status(event_info=event_info, observer=observer)
-        snapshot_candidate_result = _refresh_snapshot_candidate_boundary(
+        artifact_routing = _route_artifact_boundary(
             ctx=ctx,
+            trigger="close-turn",
             boundary=args.boundary,
-            session_id_override=_resolved_session_id(args),
+            invoke_reason="close_turn_boundary",
+            active_run=active_run,
+            accepted_context=accepted_context,
+            summary=f"Validated close-turn continuity boundary for {ctx['subject']}.",
+            observer_action_kinds=list(observer.get("observer_action_kinds") or []),
+            requested_snapshot_kinds=None,
+            requested_publication_candidate_kinds=list(PUBLICATION_CANDIDATE_KINDS),
         )
-        publication_candidate_result = _refresh_publication_candidate_boundary(
-            ctx=ctx,
+        snapshot_candidate_result = artifact_routing["dispatch"].get("snapshot_candidates") or _snapshot_candidate_boundary_noop(
+            data_root=Path(ctx["data_root"]),
             boundary=args.boundary,
+            reason="router_no_snapshot_dispatch",
+        )
+        publication_candidate_result = artifact_routing["dispatch"].get("publication_candidates") or _publication_candidate_boundary_noop(
+            data_root=Path(ctx["data_root"]),
+            boundary=args.boundary,
+            reason="router_no_publication_dispatch",
         )
         payload = _close_turn_validation_payload(ctx, boundary=args.boundary)
     except (SnapshotCandidateError, PublicationCandidateError) as exc:
@@ -7751,6 +8087,7 @@ def cmd_close_turn(args: argparse.Namespace) -> int:
         "subject_context": ctx,
         "kernel_posture": _kernel_posture_payload(ctx),
         "continuity_observer": observer,
+        "artifact_routing": artifact_routing,
         "snapshot_candidates": snapshot_candidate_result,
         "publication_candidates": publication_candidate_result,
         **payload,
@@ -7897,6 +8234,7 @@ def cmd_import_continuity(args: argparse.Namespace) -> int:
         "kernel_posture": _kernel_posture_payload(ctx),
         "continuity_observer": observer,
         "import_envelope": parsed,
+        "artifact_routing": followup.get("artifact_routing"),
         "snapshot_candidates": followup["snapshot_candidates"],
         "publication_candidates": followup["publication_candidates"],
         "opened_import_review_obligations": followup["opened_import_review_obligations"],

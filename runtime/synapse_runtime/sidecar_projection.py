@@ -43,11 +43,9 @@ from synapse_runtime.quest_candidates import (
     _candidate_title,
     _load_proposal_records,
     _open_plan_items,
-    _proposal_id,
     _sync_candidate_backlog,
-    _upsert_quest_candidate,
-    _write_proposals,
-    build_operational_proposal_payload,
+    upsert_operational_proposal_from_promotion,
+    upsert_quest_candidate_from_promotion,
 )
 from synapse_runtime.semantic_intake import (
     capture_kinds as semantic_capture_kinds,
@@ -1253,13 +1251,10 @@ def _sync_sidecar(
                 )
         if allowed_proposal_kinds is not None:
             promotions = [promotion for promotion in promotions if promotion.kind in allowed_proposal_kinds]
-        promotion_payloads: list[dict[str, Any]] = []
-        quest_candidate_paths: list[str] = []
         for promotion in promotions:
             source_id = run_id or "NO_RUN"
             if promotion.kind in QUEST_PROPOSAL_KINDS:
-                candidate = _upsert_quest_candidate(
-                    live=live,
+                candidate = upsert_quest_candidate_from_promotion(
                     subject=subject,
                     data_root=data_root,
                     source_id=source_id,
@@ -1270,20 +1265,20 @@ def _sync_sidecar(
                     current_accepted=current_accepted,
                 )
                 if candidate is not None:
-                    quest_candidate_paths.append(str(candidate["path"]))
+                    proposal_paths.append(str(candidate["path"]))
                 continue
 
-            proposal_id = _proposal_id(promotion.kind, source_id, promotion.title)
-            promotion_payload = build_operational_proposal_payload(
+            proposal_receipt = upsert_operational_proposal_from_promotion(
                 subject=subject,
+                data_root=data_root,
                 source_id=source_id,
                 interaction_mode=interaction_mode,
                 promotion=promotion,
                 signal=signal,
                 active_run=active_run,
             )
-            promotion_payload["proposal_id"] = proposal_id
-            promotion_payloads.append(promotion_payload)
+            proposal_id = str(proposal_receipt.get("proposal_id") or "").strip()
+            proposal_path = str(proposal_receipt.get("path") or "").strip()
             if promotion.kind == ProposalKind.GUILD_ORDERS and proposal_id not in order_candidates:
                 order_candidates.append(proposal_id)
             if promotion.kind == ProposalKind.TALENT and proposal_id not in talent_candidates:
@@ -1294,13 +1289,8 @@ def _sync_sidecar(
                 build_manual_candidates.append(proposal_id)
             if promotion.kind == ProposalKind.DISCLOSURE and proposal_id not in disclosure_candidates:
                 disclosure_candidates.append(proposal_id)
-        proposal_paths = quest_candidate_paths + _write_proposals(
-            live=live,
-            subject=subject,
-            source_id=run_id or "NO_RUN",
-            interaction_mode=interaction_mode,
-            promotions=promotion_payloads,
-        )
+            if proposal_path:
+                proposal_paths.append(proposal_path)
 
     proposal_records = _load_proposal_records(live)
     _sync_candidate_backlog(manifold, proposal_records)

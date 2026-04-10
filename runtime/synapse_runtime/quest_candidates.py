@@ -710,9 +710,90 @@ def _write_proposals(
                 source_refs=[],
             ),
         }
-        _write_yaml(proposal_path, payload)
+        existing = _read_yaml(proposal_path) if proposal_path.exists() else {}
+        if isinstance(existing, dict):
+            payload["created_at"] = str(existing.get("created_at") or payload["created_at"] or _now_iso())
+            comparable_existing = dict(existing)
+            comparable_existing.pop("updated_at", None)
+            comparable_payload = dict(payload)
+            comparable_payload.pop("updated_at", None)
+            if comparable_existing != comparable_payload:
+                _write_yaml(proposal_path, payload)
+        else:
+            _write_yaml(proposal_path, payload)
         written.append(str(proposal_path))
     return written
+
+
+def upsert_quest_candidate_from_promotion(
+    *,
+    subject: str,
+    data_root: Path,
+    source_id: str,
+    interaction_mode: str,
+    active_run: dict[str, Any],
+    signal: AmbientSignal,
+    promotion: PromotionRecord,
+    current_accepted: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    live = live_root(data_root)
+    return _upsert_quest_candidate(
+        live=live,
+        subject=subject,
+        data_root=data_root,
+        source_id=source_id,
+        interaction_mode=interaction_mode,
+        active_run=active_run,
+        signal=signal,
+        promotion=promotion,
+        current_accepted=current_accepted,
+    )
+
+
+def upsert_operational_proposal_from_promotion(
+    *,
+    subject: str,
+    data_root: Path,
+    source_id: str,
+    interaction_mode: str,
+    active_run: dict[str, Any],
+    signal: AmbientSignal | None,
+    promotion: PromotionRecord,
+) -> dict[str, Any]:
+    if promotion.kind in QUEST_PROPOSAL_KINDS:
+        raise LiveMemoryError("Quest promotions must use the quest candidate owner.")
+
+    live = live_root(data_root)
+    payload = build_operational_proposal_payload(
+        subject=subject,
+        source_id=source_id,
+        interaction_mode=interaction_mode,
+        promotion=promotion,
+        signal=signal,
+        active_run=active_run,
+    )
+    payload["proposal_id"] = _proposal_id(promotion.kind, source_id, promotion.title)
+    proposal_path = _proposal_path(live, promotion.kind, str(payload["proposal_id"]))
+    before = _read_yaml(proposal_path) if proposal_path.exists() else {}
+    _write_proposals(
+        live=live,
+        subject=subject,
+        source_id=source_id,
+        interaction_mode=interaction_mode,
+        promotions=[payload],
+    )
+    after = _read_yaml(proposal_path)
+    comparable_before = dict(before) if isinstance(before, dict) else {}
+    comparable_before.pop("updated_at", None)
+    comparable_after = dict(after) if isinstance(after, dict) else {}
+    comparable_after.pop("updated_at", None)
+    return {
+        "status": "noop" if comparable_before and comparable_before == comparable_after else "written",
+        "proposal_id": payload["proposal_id"],
+        "kind": promotion.kind.value,
+        "path": str(proposal_path),
+        "payload": comparable_after,
+    }
 
 
 def list_proposals(
