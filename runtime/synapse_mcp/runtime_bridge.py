@@ -504,6 +504,11 @@ def build_current_context_bundle(
         "truth_drafts": truth_drafts_state,
         "operational_proposals": operational_proposals,
         "compaction": compaction_state,
+        "governing_artifacts": dict(manifold_payload.get("governing_artifacts") or state_payload.get("governing_artifacts") or {}),
+        "checkpoint_posture": dict(manifold_payload.get("checkpoint_posture") or state_payload.get("checkpoint_posture") or {}),
+        "current_state_publications": dict(
+            manifold_payload.get("current_state_publications") or state_payload.get("current_state_publications") or {}
+        ),
         "onboarding": onboarding_payload,
         "published_project_model_summary": {
             "path": str(project_model_path) if project_model_path.exists() else None,
@@ -582,6 +587,9 @@ def resource_catalog(*, state: ConnectionState) -> list[dict[str, Any]]:
         {"uri": "synapse://current/draftshot-state.json", "mime_type": "application/json"},
         {"uri": "synapse://current/snapshot-candidates.json", "mime_type": "application/json"},
         {"uri": "synapse://current/publication-candidates.json", "mime_type": "application/json"},
+        {"uri": "synapse://current/governing-artifacts.json", "mime_type": "application/json"},
+        {"uri": "synapse://current/checkpoint-posture.json", "mime_type": "application/json"},
+        {"uri": "synapse://current/current-state-publications.json", "mime_type": "application/json"},
         {"uri": "synapse://current/rehydrate.md", "mime_type": "text/markdown"},
         {"uri": "synapse://current/open-questions.md", "mime_type": "text/markdown"},
         {"uri": "synapse://current/onboarding/status.json", "mime_type": "application/json"},
@@ -678,6 +686,15 @@ def read_resource(*, state: ConnectionState, uri: str) -> tuple[dict[str, Any], 
     if uri == "synapse://current/publication-candidates.json":
         _, bundle = build_current_context_bundle(state=state, context=None, include_rehydrate=False, include_project_story=False)
         return ctx, json.dumps(bundle["context"]["publication_candidates"], indent=2, sort_keys=True) + "\n", "application/json"
+    if uri == "synapse://current/governing-artifacts.json":
+        _, bundle = build_current_context_bundle(state=state, context=None, include_rehydrate=False, include_project_story=False)
+        return ctx, json.dumps(bundle["context"]["governing_artifacts"], indent=2, sort_keys=True) + "\n", "application/json"
+    if uri == "synapse://current/checkpoint-posture.json":
+        _, bundle = build_current_context_bundle(state=state, context=None, include_rehydrate=False, include_project_story=False)
+        return ctx, json.dumps(bundle["context"]["checkpoint_posture"], indent=2, sort_keys=True) + "\n", "application/json"
+    if uri == "synapse://current/current-state-publications.json":
+        _, bundle = build_current_context_bundle(state=state, context=None, include_rehydrate=False, include_project_story=False)
+        return ctx, json.dumps(bundle["context"]["current_state_publications"], indent=2, sort_keys=True) + "\n", "application/json"
     if uri == "synapse://current/publication-candidates/story.md":
         return ctx, load_publication_candidate_body(resolve_publication_candidate(data_root, "story")), "text/markdown"
     if uri == "synapse://current/publication-candidates/vision.md":
@@ -1815,7 +1832,9 @@ def plan_quests_tool(
     out_of_scope: str | None,
     verification_plan: str | None,
     guild_orders_ref: str | None,
+    guild_orders_artifact: str | None,
     dungeon_ref: str | None,
+    dungeon_id: str | None,
     dungeon_coverage: str,
     plan_id: str | None,
     priority: str,
@@ -1844,7 +1863,9 @@ def plan_quests_tool(
             out_of_scope=out_of_scope,
             verification_plan=verification_plan,
             guild_orders_ref=guild_orders_ref,
+            guild_orders_artifact=guild_orders_artifact,
             dungeon_ref=dungeon_ref,
+            dungeon_id=dungeon_id,
             dungeon_coverage=dungeon_coverage,
             plan_id=plan_id,
             priority=priority,
@@ -1874,7 +1895,9 @@ def plan_quests_tool(
         out_of_scope=out_of_scope,
         verification_plan=verification_plan,
         guild_orders_ref=guild_orders_ref,
+        guild_orders_artifact=guild_orders_artifact,
         dungeon_ref=dungeon_ref,
+        dungeon_id=dungeon_id,
         dungeon_coverage=dungeon_coverage,
         plan_id=plan_id,
         priority=priority,

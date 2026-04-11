@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from synapse_runtime.current_state_publication import PUBLICATION_FILENAMES, read_publication_metadata
 from synapse_runtime.accepted_execution_view import (
     load_accepted_quest_details,
     load_completed_quest_details,
@@ -36,7 +37,15 @@ from synapse_runtime.live_memory_common import LiveMemoryError
 from synapse_runtime.provenance import compute_current_provenance_summary, projectable_provenance_summary
 from synapse_runtime.promotion_engine import promote_semantic_events, promotion_summary
 from synapse_runtime.publication_candidates import publication_candidate_summary
+from synapse_runtime.rehydration_pack import inspect_execution_pack_state
 from synapse_runtime.repo_onboarding import onboarding_projection
+from synapse_runtime.repo_onboarding import (
+    canonical_codex_current_path,
+    canonical_codex_future_path,
+    canonical_project_model_path,
+    canonical_project_story_path,
+    canonical_vision_path,
+)
 from synapse_runtime.quest_candidates import (
     QUEST_PROPOSAL_KINDS,
     _candidate_summary,
@@ -920,6 +929,355 @@ def _apply_compaction_projection(
     return summary
 
 
+def _rel_ref(data_root: Path, path: Path | None) -> str | None:
+    if path is None:
+        return None
+    try:
+        return path.resolve().relative_to(data_root.resolve()).as_posix()
+    except Exception:
+        return str(path.resolve())
+
+
+def _latest_artifact_ref(root: Path, data_root: Path) -> str | None:
+    if not root.exists() or not root.is_dir():
+        return None
+    candidates = sorted(path for path in root.iterdir() if path.is_file())
+    if not candidates:
+        return None
+    return _rel_ref(data_root, candidates[-1])
+
+
+def _summary_entry(
+    *,
+    classification: str,
+    status: str,
+    summary: str,
+    refs: list[str] | None = None,
+    **extra: Any,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "classification": classification,
+        "status": status,
+        "summary": summary,
+        "refs": list(refs or []),
+    }
+    payload.update(extra)
+    return payload
+
+
+def _current_state_publication_summary(
+    *,
+    data_root: Path,
+    state: dict[str, Any],
+    manifold: dict[str, Any],
+) -> dict[str, Any]:
+    publications_root = data_root / ".synapse" / "TRUTH" / "PUBLICATIONS"
+    available_paths = [publications_root / filename for filename in PUBLICATION_FILENAMES.values() if (publications_root / filename).exists()]
+    refs = [_rel_ref(data_root, path) for path in available_paths]
+    refs = [ref for ref in refs if ref]
+    compile_cycle_id = str(manifold.get("last_truth_compile_cycle_id") or state.get("last_truth_compile_cycle_id") or "").strip() or None
+    compiled_at = str(manifold.get("last_truth_compile_at") or state.get("last_truth_compile_at") or "").strip() or None
+    metadata_errors: list[str] = []
+    metadata_source = available_paths[0] if available_paths else None
+    if metadata_source is not None:
+        try:
+            metadata = read_publication_metadata(metadata_source)
+            compile_cycle_id = str(metadata.get("compile_cycle_id") or compile_cycle_id or "").strip() or None
+            compiled_at = str(metadata.get("compiled_at") or compiled_at or "").strip() or None
+        except Exception as exc:
+            metadata_errors.append(str(exc))
+    if not refs:
+        return _summary_entry(
+            classification="none",
+            status="none",
+            summary="No compiled current-state publications exist.",
+            refs=[],
+            root=None,
+            compile_cycle_id=compile_cycle_id,
+            compiled_at=compiled_at,
+            available_files=[],
+            expected_files=list(PUBLICATION_FILENAMES.values()),
+            metadata_errors=metadata_errors,
+        )
+    missing_files = [filename for filename in PUBLICATION_FILENAMES.values() if not (publications_root / filename).exists()]
+    status = "available" if not missing_files and not metadata_errors else "partial"
+    summary = f"{len(refs)} compiled current-state publication file(s) available."
+    if missing_files:
+        summary += f" Missing: {', '.join(missing_files)}."
+    if metadata_errors:
+        summary += " Metadata parsing issues detected."
+    return _summary_entry(
+        classification="current_state_publication",
+        status=status,
+        summary=summary,
+        refs=refs,
+        root=_rel_ref(data_root, publications_root) if publications_root.exists() else None,
+        compile_cycle_id=compile_cycle_id,
+        compiled_at=compiled_at,
+        available_files=[path.name for path in available_paths],
+        expected_files=list(PUBLICATION_FILENAMES.values()),
+        metadata_errors=metadata_errors,
+    )
+
+
+def _codex_and_identity_refs_summary(*, data_root: Path) -> dict[str, Any]:
+    canonical_paths = {
+        "project_model": canonical_project_model_path(data_root),
+        "project_story": canonical_project_story_path(data_root),
+        "vision": canonical_vision_path(data_root),
+        "codex_current": canonical_codex_current_path(data_root),
+        "codex_future": canonical_codex_future_path(data_root),
+    }
+    refs_by_kind = {
+        key: _rel_ref(data_root, path) if path.exists() else None
+        for key, path in canonical_paths.items()
+    }
+    refs = [ref for ref in refs_by_kind.values() if ref]
+    if not refs:
+        return _summary_entry(
+            classification="none",
+            status="none",
+            summary="No canonical identity or Codex refs are currently published.",
+            refs=[],
+            refs_by_kind=refs_by_kind,
+        )
+    return _summary_entry(
+        classification="canonical_ref",
+        status="available",
+        summary=f"{len(refs)} canonical identity/Codex ref(s) are published.",
+        refs=refs,
+        refs_by_kind=refs_by_kind,
+    )
+
+
+def _latest_snapshots_summary(*, data_root: Path) -> dict[str, Any]:
+    control_sync = _latest_artifact_ref(data_root / "Snapshots" / "Control Sync", data_root)
+    eod = _latest_artifact_ref(data_root / "Snapshots" / "End of Day", data_root)
+    general = _latest_artifact_ref(data_root / "Snapshots" / "General", data_root)
+    refs = [ref for ref in (control_sync, eod, general) if ref]
+    if not refs:
+        return _summary_entry(
+            classification="none",
+            status="none",
+            summary="No canonical snapshots exist yet.",
+            refs=[],
+            control_sync=None,
+            end_of_day=None,
+            general=None,
+        )
+    return _summary_entry(
+        classification="canonical_ref",
+        status="available",
+        summary="Canonical snapshot refs are available.",
+        refs=refs,
+        control_sync=control_sync,
+        end_of_day=eod,
+        general=general,
+    )
+
+
+def _active_orders_summary(*, data_root: Path) -> dict[str, Any]:
+    active_root = data_root / "Guild Orders" / "ACTIVE"
+    order_paths = sorted(path for path in active_root.iterdir() if path.is_file()) if active_root.exists() else []
+    refs = [_rel_ref(data_root, path) for path in order_paths]
+    refs = [ref for ref in refs if ref]
+    if not refs:
+        return _summary_entry(
+            classification="none",
+            status="none",
+            summary="No active Guild Orders are currently present.",
+            refs=[],
+            count=0,
+        )
+    status = "active" if len(refs) == 1 else "multiple_active"
+    return _summary_entry(
+        classification="canonical_ref",
+        status=status,
+        summary=f"{len(refs)} active Guild Orders artifact(s) present.",
+        refs=refs,
+        count=len(refs),
+    )
+
+
+def _active_accepted_quest_summary(*, subject: str, data_root: Path) -> dict[str, Any]:
+    current = select_current_accepted_quest(load_accepted_quest_details(subject, data_root))
+    if not current:
+        return _summary_entry(
+            classification="none",
+            status="none",
+            summary="No accepted Quest is currently active.",
+            refs=[],
+            quest_id=None,
+        )
+    refs = [
+        item
+        for item in (
+            str(current.get("path") or "").strip() or None,
+            str(current.get("audit_bundle_path") or "").strip() or None,
+        )
+        if item
+    ]
+    return _summary_entry(
+        classification="canonical_ref",
+        status="active",
+        summary=f"{current.get('quest_id')}: {current.get('title')}",
+        refs=refs,
+        quest_id=current.get("quest_id"),
+        audit_state=current.get("audit_state"),
+    )
+
+
+def _active_execution_pack_summary(*, subject: str, data_root: Path) -> dict[str, Any]:
+    try:
+        state = inspect_execution_pack_state(subject=subject, data_root=data_root, engine_root=None)
+    except Exception as exc:
+        return _summary_entry(
+            classification="unresolved",
+            status="blocked",
+            summary=f"Execution Pack posture could not be resolved: {exc}",
+            refs=[],
+            active_source_path=None,
+            active_pointer_path=None,
+            source_signature=None,
+        )
+    active_source = str(state.get("active_source_path") or "").strip() or None
+    active_pointer = str(state.get("active_pointer_path") or "").strip() or None
+    refs = [
+        item
+        for item in (
+            _rel_ref(data_root, Path(active_source)) if active_source else None,
+            _rel_ref(data_root, Path(active_pointer)) if active_pointer else None,
+        )
+        if item
+    ]
+    if not refs:
+        return _summary_entry(
+            classification="none",
+            status="none",
+            summary="No active Execution Pack is currently binding.",
+            refs=[],
+            active_source_path=None,
+            active_pointer_path=None,
+            source_signature=None,
+        )
+    return _summary_entry(
+        classification="canonical_ref",
+        status="active",
+        summary="An active Execution Pack is binding.",
+        refs=refs,
+        active_source_path=_rel_ref(data_root, Path(active_source)) if active_source else None,
+        active_pointer_path=_rel_ref(data_root, Path(active_pointer)) if active_pointer else None,
+        source_signature=state.get("source_signature"),
+    )
+
+
+def _apply_current_state_publication_projection(
+    *,
+    state: dict[str, Any],
+    manifold: dict[str, Any],
+    data_root: Path,
+) -> dict[str, Any]:
+    summary = _current_state_publication_summary(data_root=data_root, state=state, manifold=manifold)
+    state["current_state_publications"] = dict(summary)
+    manifold["current_state_publications"] = dict(summary)
+    return summary
+
+
+def _apply_checkpoint_posture_projection(
+    *,
+    state: dict[str, Any],
+    manifold: dict[str, Any],
+    data_root: Path,
+    latest_snapshots: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    snapshots = dict(latest_snapshots or _latest_snapshots_summary(data_root=data_root))
+    candidate_summary = snapshot_candidate_summary(data_root)
+    pending_reasons: list[str] = []
+    if candidate_summary.get("current_control_sync_candidate_path"):
+        pending_reasons.append("control_sync_candidate_present")
+    if candidate_summary.get("current_eod_candidate_path"):
+        pending_reasons.append("eod_candidate_present")
+    if candidate_summary.get("stale_prior_day_candidate_required"):
+        pending_reasons.append("stale_prior_day_candidate_required")
+    if int(candidate_summary.get("candidate_obligation_count") or 0) > 0:
+        pending_reasons.append("open_snapshot_obligations")
+    if pending_reasons:
+        summary = _summary_entry(
+            classification="derived_view",
+            status="pending",
+            summary="Checkpoint posture requires review before claiming continuity closure.",
+            refs=list(snapshots.get("refs") or []),
+            latest_control_sync_ref=snapshots.get("control_sync"),
+            latest_eod_ref=snapshots.get("end_of_day"),
+            latest_general_ref=snapshots.get("general"),
+            pending_reasons=pending_reasons,
+            control_sync_candidate_path=candidate_summary.get("current_control_sync_candidate_path"),
+            eod_candidate_path=candidate_summary.get("current_eod_candidate_path"),
+            candidate_obligation_count=int(candidate_summary.get("candidate_obligation_count") or 0),
+        )
+    elif snapshots.get("classification") == "canonical_ref":
+        summary = _summary_entry(
+            classification="derived_view",
+            status="clear",
+            summary="Canonical checkpoint refs are present and no snapshot-candidate debt is visible.",
+            refs=list(snapshots.get("refs") or []),
+            latest_control_sync_ref=snapshots.get("control_sync"),
+            latest_eod_ref=snapshots.get("end_of_day"),
+            latest_general_ref=snapshots.get("general"),
+            pending_reasons=[],
+            control_sync_candidate_path=None,
+            eod_candidate_path=None,
+            candidate_obligation_count=0,
+        )
+    else:
+        summary = _summary_entry(
+            classification="none",
+            status="none",
+            summary="No canonical checkpoint refs or snapshot-candidate debt are currently visible.",
+            refs=[],
+            latest_control_sync_ref=None,
+            latest_eod_ref=None,
+            latest_general_ref=None,
+            pending_reasons=[],
+            control_sync_candidate_path=None,
+            eod_candidate_path=None,
+            candidate_obligation_count=0,
+        )
+    state["checkpoint_posture"] = dict(summary)
+    manifold["checkpoint_posture"] = dict(summary)
+    return summary
+
+
+def _apply_governing_artifact_projection(
+    *,
+    subject: str,
+    state: dict[str, Any],
+    manifold: dict[str, Any],
+    data_root: Path,
+    current_state_publications: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    active_orders = _active_orders_summary(data_root=data_root)
+    active_accepted_quest = _active_accepted_quest_summary(subject=subject, data_root=data_root)
+    active_execution_pack = _active_execution_pack_summary(subject=subject, data_root=data_root)
+    latest_snapshots = _latest_snapshots_summary(data_root=data_root)
+    codex_and_identity_refs = _codex_and_identity_refs_summary(data_root=data_root)
+    publication_summary = dict(
+        current_state_publications
+        or _current_state_publication_summary(data_root=data_root, state=state, manifold=manifold)
+    )
+    summary = {
+        "active_orders": active_orders,
+        "active_accepted_quest": active_accepted_quest,
+        "active_execution_pack": active_execution_pack,
+        "latest_snapshots": latest_snapshots,
+        "codex_and_identity_refs": codex_and_identity_refs,
+        "current_state_publications": publication_summary,
+    }
+    state["governing_artifacts"] = dict(summary)
+    manifold["governing_artifacts"] = dict(summary)
+    return summary
+
+
 def refresh_synthesis_projection(*, subject: str, data_root: Path) -> dict[str, Any]:
     live = live_root(data_root)
     state_path = live / "STATE.yaml"
@@ -963,6 +1321,24 @@ def refresh_synthesis_projection(*, subject: str, data_root: Path) -> dict[str, 
         manifold=manifold,
         data_root=data_root,
     )
+    current_state_publications = _apply_current_state_publication_projection(
+        state=state,
+        manifold=manifold,
+        data_root=data_root,
+    )
+    governing_artifacts = _apply_governing_artifact_projection(
+        subject=subject,
+        state=state,
+        manifold=manifold,
+        data_root=data_root,
+        current_state_publications=current_state_publications,
+    )
+    checkpoint_posture = _apply_checkpoint_posture_projection(
+        state=state,
+        manifold=manifold,
+        data_root=data_root,
+        latest_snapshots=dict(governing_artifacts.get("latest_snapshots") or {}),
+    )
     _write_yaml(state_path, state)
     manifold["last_updated_at"] = _now_iso()
     _write_yaml(manifold_path, manifold)
@@ -975,6 +1351,9 @@ def refresh_synthesis_projection(*, subject: str, data_root: Path) -> dict[str, 
         "truth_drafts": truth_drafts,
         "operational_proposals": operational_proposals,
         "compaction": compaction,
+        "governing_artifacts": governing_artifacts,
+        "checkpoint_posture": checkpoint_posture,
+        "current_state_publications": current_state_publications,
     }
 
 
@@ -1185,6 +1564,24 @@ def _sync_sidecar(
         manifold=manifold,
         data_root=data_root,
     )
+    current_state_publications = _apply_current_state_publication_projection(
+        state=state,
+        manifold=manifold,
+        data_root=data_root,
+    )
+    governing_artifacts = _apply_governing_artifact_projection(
+        subject=subject,
+        state=state,
+        manifold=manifold,
+        data_root=data_root,
+        current_state_publications=current_state_publications,
+    )
+    checkpoint_posture = _apply_checkpoint_posture_projection(
+        state=state,
+        manifold=manifold,
+        data_root=data_root,
+        latest_snapshots=dict(governing_artifacts.get("latest_snapshots") or {}),
+    )
 
     accepted_details = load_accepted_quest_details(subject, data_root)
     current_accepted = select_current_accepted_quest(accepted_details)
@@ -1352,6 +1749,9 @@ def _sync_sidecar(
         "truth_drafts": truth_drafts_projection,
         "operational_proposals": operational_proposals_projection,
         "compaction": compaction_projection,
+        "governing_artifacts": governing_artifacts,
+        "checkpoint_posture": checkpoint_posture,
+        "current_state_publications": current_state_publications,
         "interaction_mode": interaction_mode,
         "world_state": world_state.value,
         "active_onboarding_id": onboarding_state.get("active_onboarding_id"),
