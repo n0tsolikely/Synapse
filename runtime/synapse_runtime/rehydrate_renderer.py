@@ -259,6 +259,63 @@ def render_rehydrate(*, subject: str, data_root: Path) -> dict[str, Any]:
         lines.append("- Future codex path: missing")
     lines.append("")
 
+    governing_artifacts = dict(manifold.get("governing_artifacts") or state.get("governing_artifacts") or {})
+    if governing_artifacts:
+        lines.append("## Governing artifact posture")
+        for label, payload in (
+            ("Active Orders", dict(governing_artifacts.get("active_orders") or {})),
+            ("Active accepted quest", dict(governing_artifacts.get("active_accepted_quest") or {})),
+            ("Active Execution Pack", dict(governing_artifacts.get("active_execution_pack") or {})),
+            ("Latest snapshots", dict(governing_artifacts.get("latest_snapshots") or {})),
+            ("Codex and identity refs", dict(governing_artifacts.get("codex_and_identity_refs") or {})),
+        ):
+            classification = str(payload.get("classification") or "none")
+            status = str(payload.get("status") or "unknown")
+            summary = str(payload.get("summary") or "").strip() or "No summary."
+            lines.append(f"- {label}: {classification} / {status}")
+            lines.append(f"  summary={summary}")
+            for ref in list(payload.get("refs") or [])[:5]:
+                lines.append(f"  ref={ref}")
+        lines.append("")
+
+    checkpoint_posture = dict(manifold.get("checkpoint_posture") or state.get("checkpoint_posture") or {})
+    if checkpoint_posture:
+        lines.append("## Checkpoint posture")
+        lines.append(
+            f"- Classification / status: {checkpoint_posture.get('classification') or 'none'} / {checkpoint_posture.get('status') or 'unknown'}"
+        )
+        lines.append(f"- Summary: {checkpoint_posture.get('summary') or 'No checkpoint posture summary.'}")
+        lines.append(
+            f"- Latest Control Sync: {checkpoint_posture.get('latest_control_sync_ref') or 'none'}"
+        )
+        lines.append(f"- Latest EOD: {checkpoint_posture.get('latest_eod_ref') or 'none'}")
+        lines.append(f"- Latest General: {checkpoint_posture.get('latest_general_ref') or 'none'}")
+        pending_reasons = list(checkpoint_posture.get("pending_reasons") or [])
+        lines.append(f"- Pending reasons: {', '.join(pending_reasons) if pending_reasons else 'none'}")
+        if checkpoint_posture.get("control_sync_candidate_path"):
+            lines.append(f"- Control Sync candidate: {checkpoint_posture.get('control_sync_candidate_path')}")
+        if checkpoint_posture.get("eod_candidate_path"):
+            lines.append(f"- EOD candidate: {checkpoint_posture.get('eod_candidate_path')}")
+        lines.append("")
+
+    current_state_publications = dict(
+        manifold.get("current_state_publications") or state.get("current_state_publications") or {}
+    )
+    if current_state_publications:
+        lines.append("## Current-state publications")
+        lines.append(
+            f"- Classification / status: {current_state_publications.get('classification') or 'none'} / {current_state_publications.get('status') or 'unknown'}"
+        )
+        lines.append(
+            f"- Summary: {current_state_publications.get('summary') or 'No current-state publication summary.'}"
+        )
+        lines.append(f"- Root: {current_state_publications.get('root') or 'none'}")
+        lines.append(f"- Compile cycle: {current_state_publications.get('compile_cycle_id') or 'none'}")
+        lines.append(f"- Compiled at: {current_state_publications.get('compiled_at') or 'none'}")
+        for ref in list(current_state_publications.get("refs") or [])[:5]:
+            lines.append(f"  ref={ref}")
+        lines.append("")
+
     if pending_proposals:
         lines.append("## Pending formalizations")
         for proposal in pending_proposals:
