@@ -62,6 +62,7 @@ from synapse_runtime.execution_observer import ExecutionObserverError, record_ra
 from synapse_runtime.governance_pack import resolve_governance_asset, resolve_governance_root, resolve_synapse_root
 from synapse_runtime.governance_inventory import build_governance_inventory, write_governance_inventory
 from synapse_runtime.governance_model import AmbientSignal, ProposalKind, ProposalState
+from synapse_runtime.guild_orders_runtime import formalize_guild_orders_from_proposal
 from synapse_runtime.live_journal import log_decision, log_disclosure, record_quest_acceptance
 from synapse_runtime.live_memory_common import LiveMemoryError
 from synapse_runtime.imported_continuity import (
@@ -7238,132 +7239,28 @@ def _formalize_talent(ctx: dict[str, Any], proposal: dict[str, Any]) -> dict[str
     return {"artifact_path": str(tree_path), "proposal": proposal_receipt, "talent_id": talent_id}
 
 
-def _derive_dungeons(ctx: dict[str, Any], proposal: dict[str, Any]) -> list[dict[str, str]]:
-    roots = [Path(ctx["engine_root"]), Path(ctx["data_root"])]
-    headings: list[str] = []
-    for evidence in proposal.get("evidence") or []:
-        candidate = None
-        for root in roots:
-            probe = Path(str(evidence))
-            if probe.is_absolute() and probe.exists():
-                candidate = probe
-                break
-            local = root / str(evidence)
-            if local.exists():
-                candidate = local
-                break
-        if candidate is None or candidate.suffix.lower() not in {".md", ".txt"}:
-            continue
-        text = candidate.read_text(encoding="utf-8", errors="replace")
-        for raw in text.splitlines():
-            line = raw.strip()
-            if line.startswith("#"):
-                heading = line.lstrip("#").strip()
-            elif line.startswith("- "):
-                heading = line[2:].strip()
-            else:
-                continue
-            if len(heading) < 8 or len(heading) > 96:
-                continue
-            if heading.lower() in {"summary", "notes", "scope", "non-goals", "purpose"}:
-                continue
-            if heading not in headings:
-                headings.append(heading)
-            if len(headings) >= 4:
-                break
-    if not headings:
-        headings.append(str(proposal.get("title") or "Ambient Scope Slice"))
-    return [
-        {
-            "id": f"DUNGEON_{idx:02d}",
-            "title": heading,
-            "objective": str(proposal.get("summary") or heading),
-            "scope": heading,
-            "non_goals": "Anything outside the current ambient proposal scope.",
-            "constraints": str(proposal.get("reason") or "Respect current Codex and runtime constraints."),
-        }
-        for idx, heading in enumerate(headings, start=1)
-    ]
-
-
 def _formalize_guild_orders(ctx: dict[str, Any], proposal: dict[str, Any], *, topic: str | None) -> dict[str, Any]:
     data_root = Path(ctx["data_root"])
-    today = _today_toronto()
-    slug = _slugify(topic or str(proposal.get("title") or "guild-orders"))
-    orders_id = f"GO-{today.replace('-', '')}-{slug}"
-    orders_path = data_root / "Guild Orders" / "PAUSED" / f"{orders_id}.txt"
-    orders_path.parent.mkdir(parents=True, exist_ok=True)
-    dungeons = _derive_dungeons(ctx, proposal)
-
-    lines = [
-        "SYNAPSE GUILD ORDERS",
-        "",
-        f"- Subject: {ctx['subject']}",
-        f"- Guild Orders ID: {orders_id}",
-        "- Status: PAUSED",
-        "- Owner(s): Brains, Hands",
-        f"- Date Opened: {today}",
-        f"- Date Updated: {today}",
-        "",
-        "Scope:",
-        f"- {proposal.get('summary')}",
-        "Non-Goals:",
-        "- Any work outside the ambiently captured scope.",
-        "",
-        "Global Constraints:",
-        f"- {proposal.get('reason')}",
-        "",
-        "Raid Done Definition:",
-        f"- {proposal.get('summary')}",
-        "Raid Verification Method:",
-        "- Raw command output + changed-file receipts + governed artifacts.",
-        "",
-        "Dungeons:",
-    ]
-    for dungeon in dungeons:
-        lines.extend(
-            [
-                "",
-                f"Dungeon ID: {dungeon['id']}",
-                f"- Title: {dungeon['title']}",
-                f"- Objective: {dungeon['objective']}",
-                f"- Scope: {dungeon['scope']}",
-                f"- Non-Goals: {dungeon['non_goals']}",
-                "- Dependencies: None",
-                f"- Constraints: {dungeon['constraints']}",
-                "- Interfaces/Boundaries: derive from proposal evidence",
-                "- Verification:",
-                "  - acceptance criteria derived from proposal evidence",
-                "  - evidence required: receipts + artifact diffs",
-                "- Stop Conditions (block immediately):",
-                "  - contradiction vs codex/invariants",
-                "  - missing required dependency/token/consent",
-                "- Quest decomposition notes:",
-                "  - expected quest families derived from ambient evidence",
-            ]
-        )
-    lines.extend(
-        [
-            "",
-            "Execution Policy:",
-            "- R0/R1: execute automatically in EXECUTE mode.",
-            "- R2+: explicit consent once per batch.",
-            "- No silent scope expansion.",
-            "",
-            "Change Log:",
-            f"- {today} Synapse ambient formalization from proposal {proposal.get('proposal_id')}",
-            "",
-        ]
+    formalized = formalize_guild_orders_from_proposal(
+        subject=str(ctx["subject"]),
+        data_root=data_root,
+        proposal=proposal,
+        topic=topic,
     )
-    orders_path.write_text("\n".join(lines), encoding="utf-8")
     proposal_receipt = mark_proposal_state(
         data_root=data_root,
         proposal_id=str(proposal["proposal_id"]),
         state=ProposalState.FORMALIZED,
-        artifact_path=str(orders_path),
-        note=f"Guild Orders formalized as {orders_id}.",
+        artifact_path=str(formalized["artifact_path"]),
+        note=f"Guild Orders formalized as {formalized['orders_id']}.",
     )
-    return {"artifact_path": str(orders_path), "proposal": proposal_receipt, "orders_id": orders_id}
+    return {
+        "artifact_path": str(formalized["artifact_path"]),
+        "proposal": proposal_receipt,
+        "orders_id": str(formalized["orders_id"]),
+        "operation_receipt": dict(formalized.get("operation_receipt") or {}),
+        "lineage_family_id": str(formalized.get("lineage_family_id") or ""),
+    }
 
 
 def _formalize_disclosure(ctx: dict[str, Any], proposal: dict[str, Any]) -> dict[str, Any]:
