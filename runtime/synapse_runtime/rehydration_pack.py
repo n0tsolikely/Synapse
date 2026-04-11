@@ -421,6 +421,26 @@ def _sync_execution_pack_pointer(subject_state: dict[str, Any], data_root: Path)
     }
 
 
+def inspect_execution_pack_state(*, subject: str, data_root: Path, engine_root: Path | None = None) -> dict[str, Any]:
+    """Return the current active execution-pack source/pointer state without mutation."""
+
+    resolved_data_root = data_root.resolve()
+    resolved_engine_root = (engine_root or resolved_data_root.parent).resolve()
+    subject_state = _load_subject_state(subject, resolved_data_root, resolved_engine_root)
+    active_root, archived_root, mirror_root, mirror_archive_root = _execution_pack_roots(resolved_data_root)
+    active_source = _resolve_active_execution_pack_source(subject_state, resolved_data_root)
+    active_pointer = _resolve_active_execution_pointer(subject_state, resolved_data_root, mirror_root)
+    return {
+        "active_root": str(active_root.resolve()),
+        "archived_root": str(archived_root.resolve()),
+        "mirror_root": str(mirror_root.resolve()),
+        "mirror_archive_root": str(mirror_archive_root.resolve()),
+        "active_source_path": str(active_source.resolve()) if active_source else None,
+        "active_pointer_path": str(active_pointer.resolve()) if active_pointer else None,
+        "source_signature": _path_signature(active_source) if active_source else None,
+    }
+
+
 def _bootstrap_lines(
     *,
     subject: str,

@@ -31,6 +31,7 @@ from synapse_runtime.automation_orchestrator import (
     ready_state_gate_for_mode,
 )
 from synapse_runtime.artifact_router import (
+    EXECUTION_PACK_DISPATCH_KEY,
     GOVERNANCE_PROPOSAL_DISPATCH_KEY,
     NOOP_DISPATCH_KEY,
     PUBLICATION_DISPATCH_KEY,
@@ -49,6 +50,13 @@ from synapse_runtime.conversation_ingest import ConversationIngestError, record_
 from synapse_runtime.cwt import detect_canonical_working_tree
 from synapse_runtime.draftshots import DraftshotError, load_active_draftshot, refresh_draftshot
 from synapse_runtime.doctor import run_doctor
+from synapse_runtime.execution_pack_runtime import (
+    ExecutionPackRuntimeError,
+    archive_execution_pack,
+    evaluate_execution_pack,
+    execution_pack_status,
+    refresh_execution_pack,
+)
 from synapse_runtime.event_log import (
     EventLogError,
     REDUCER_VERSION,
@@ -632,6 +640,29 @@ def build_parser() -> argparse.ArgumentParser:
     continuity_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
     continuity_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
     continuity_parser.add_argument("--json", action="store_true", help="Print JSON output")
+
+    execution_pack_parser = subparsers.add_parser("execution-pack", help="Manage bounded Execution Pack lifecycle")
+    execution_pack_parser.add_argument("action", choices=["status", "evaluate", "refresh", "archive"], help="Execution-pack action")
+    execution_pack_parser.add_argument("--objective", help="Bounded objective for evaluate/refresh")
+    execution_pack_parser.add_argument("--out-of-scope", action="append", default=[], help="Explicitly out-of-scope item (repeatable)")
+    execution_pack_parser.add_argument("--scope-ref", action="append", default=[], help="Lineage or scope reference path/id (repeatable)")
+    execution_pack_parser.add_argument("--prerequisite", action="append", default=[], help="Required prerequisite for the execution window (repeatable)")
+    execution_pack_parser.add_argument("--boundary", action="append", default=[], help="Execution boundary or forbidden change rule (repeatable)")
+    execution_pack_parser.add_argument("--verification", action="append", default=[], help="Required verification item (repeatable)")
+    execution_pack_parser.add_argument("--archive-condition", default="", help="Explicit archive/stop condition")
+    execution_pack_parser.add_argument("--archive-reason", default="archive_requested", help="Reason when archiving the active pack")
+    execution_pack_parser.add_argument("--pack-key", help="Optional stable pack key override")
+    execution_pack_parser.add_argument("--trigger", default="operator_command", help="Trigger label for the pack request")
+    execution_pack_parser.add_argument("--bounded-window", action="store_true", help="Mark the execution window as explicitly bounded")
+    execution_pack_parser.add_argument("--drift-sensitive", action="store_true", help="Mark the work as drift-sensitive")
+    execution_pack_parser.add_argument("--handoff-sensitive", action="store_true", help="Mark the work as handoff-sensitive")
+    execution_pack_parser.add_argument("--force-warrant", action="store_true", help="Override warrant classification when a higher artifact explicitly requires a pack")
+    execution_pack_parser.add_argument("--subject", help="Optional subject override")
+    execution_pack_parser.add_argument("--data-root", help="Override data root path")
+    execution_pack_parser.add_argument("--engine-root", help="Override engine root path")
+    execution_pack_parser.add_argument("--allow-switch", action="store_true", help="Allow switching away from active lock")
+    execution_pack_parser.add_argument("--session-id", help="Session-scoped lock id (or use SYNAPSE_SESSION_ID)")
+    execution_pack_parser.add_argument("--json", action="store_true", help="Print JSON output")
 
     compile_truth_parser = subparsers.add_parser("compile-current-state", help="Compile deterministic current-state truth from runtime evidence")
     compile_truth_parser.add_argument("--subject", help="Optional subject override")
@@ -2094,6 +2125,20 @@ def _apply_artifact_routing_result(
             receipt["metadata"] = dict(intent.metadata or {})
             dispatch_results.append(receipt)
             continue
+        if intent.dispatch_key == EXECUTION_PACK_DISPATCH_KEY:
+            try:
+                execution_pack_result = _run_execution_pack_request(ctx, dict(intent.metadata.get("request") or {}))
+                receipt["status"] = "applied"
+                receipt["result"] = execution_pack_result
+                for key in ("artifact_path", "active_source_path", "active_pointer_path"):
+                    path = str(execution_pack_result.get(key) or "").strip()
+                    if path and path not in changed_artifact_paths:
+                        changed_artifact_paths.append(path)
+            except Exception as exc:
+                receipt["status"] = "blocked"
+                receipt["blocking_reason"] = str(exc)
+            dispatch_results.append(receipt)
+            continue
         if intent.dispatch_key == SNAPSHOT_DISPATCH_KEY:
             snapshot_candidate_result = _refresh_snapshot_candidate_boundary(
                 ctx=ctx,
@@ -2220,6 +2265,7 @@ def _route_artifact_boundary(
     prefer_latest_active_draftshot: bool = False,
     obligation_fallback: bool = True,
     import_profile: dict[str, Any] | None = None,
+    execution_pack_request: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     routing_context = build_artifact_routing_context(
         subject=ctx["subject"],
@@ -2242,6 +2288,7 @@ def _route_artifact_boundary(
         prefer_latest_active_draftshot=prefer_latest_active_draftshot,
         obligation_fallback=obligation_fallback,
         import_profile=import_profile,
+        execution_pack_request=execution_pack_request,
     )
     routing_result = evaluate_artifact_routing(routing_context)
     applied = _apply_artifact_routing_result(
@@ -6400,6 +6447,104 @@ def cmd_refresh_continuity(args: argparse.Namespace) -> int:
     return 0
 
 
+def _execution_pack_request_from_args(args: argparse.Namespace) -> dict[str, Any]:
+    return {
+        "action": str(args.action or "").strip().lower(),
+        "trigger": str(getattr(args, "trigger", None) or "operator_command").strip() or "operator_command",
+        "objective": str(getattr(args, "objective", None) or "").strip(),
+        "out_of_scope": [str(item).strip() for item in getattr(args, "out_of_scope", []) if str(item).strip()],
+        "scope_refs": [str(item).strip() for item in getattr(args, "scope_ref", []) if str(item).strip()],
+        "prerequisites": [str(item).strip() for item in getattr(args, "prerequisite", []) if str(item).strip()],
+        "boundaries": [str(item).strip() for item in getattr(args, "boundary", []) if str(item).strip()],
+        "verification": [str(item).strip() for item in getattr(args, "verification", []) if str(item).strip()],
+        "archive_condition": str(getattr(args, "archive_condition", None) or "").strip(),
+        "archive_reason": str(getattr(args, "archive_reason", None) or "archive_requested").strip() or "archive_requested",
+        "pack_key": str(getattr(args, "pack_key", None) or "").strip() or None,
+        "bounded_window": bool(getattr(args, "bounded_window", False)),
+        "drift_sensitive": bool(getattr(args, "drift_sensitive", False)),
+        "handoff_sensitive": bool(getattr(args, "handoff_sensitive", False)),
+        "force_warrant": bool(getattr(args, "force_warrant", False)),
+    }
+
+
+def _run_execution_pack_request(ctx: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
+    action = str(request.get("action") or "status").strip().lower() or "status"
+    kwargs = {
+        "subject": ctx["subject"],
+        "data_root": Path(ctx["data_root"]),
+        "engine_root": Path(ctx["engine_root"]),
+    }
+    if action == "status":
+        return execution_pack_status(**kwargs)
+    if action == "archive":
+        return archive_execution_pack(
+            **kwargs,
+            archive_reason=str(request.get("archive_reason") or "archive_requested").strip() or "archive_requested",
+        )
+    if action == "evaluate":
+        return evaluate_execution_pack(
+            **kwargs,
+            trigger=str(request.get("trigger") or "operator_command"),
+            objective=str(request.get("objective") or ""),
+            out_of_scope=list(request.get("out_of_scope") or []),
+            scope_refs=list(request.get("scope_refs") or []),
+            prerequisites=list(request.get("prerequisites") or []),
+            boundaries=list(request.get("boundaries") or []),
+            verification=list(request.get("verification") or []),
+            archive_condition=str(request.get("archive_condition") or ""),
+            pack_key=request.get("pack_key"),
+            bounded_window=bool(request.get("bounded_window")),
+            drift_sensitive=bool(request.get("drift_sensitive")),
+            handoff_sensitive=bool(request.get("handoff_sensitive")),
+            force_warrant=bool(request.get("force_warrant")),
+        )
+    if action == "refresh":
+        return refresh_execution_pack(
+            **kwargs,
+            trigger=str(request.get("trigger") or "operator_command"),
+            objective=str(request.get("objective") or ""),
+            out_of_scope=list(request.get("out_of_scope") or []),
+            scope_refs=list(request.get("scope_refs") or []),
+            prerequisites=list(request.get("prerequisites") or []),
+            boundaries=list(request.get("boundaries") or []),
+            verification=list(request.get("verification") or []),
+            archive_condition=str(request.get("archive_condition") or ""),
+            pack_key=request.get("pack_key"),
+            bounded_window=bool(request.get("bounded_window")),
+            drift_sensitive=bool(request.get("drift_sensitive")),
+            handoff_sensitive=bool(request.get("handoff_sensitive")),
+            force_warrant=bool(request.get("force_warrant")),
+        )
+    raise ExecutionPackRuntimeError(f"Unsupported execution-pack action: {action}")
+
+
+def cmd_execution_pack(args: argparse.Namespace) -> int:
+    ctx = _resolve_or_attach_subject_from_args(args)
+    if not ctx:
+        return 2
+
+    try:
+        result = _run_execution_pack_request(ctx, _execution_pack_request_from_args(args))
+    except Exception as exc:
+        print(f"FAIL: {exc}")
+        return 2
+
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return 0
+
+    print("=== EXECUTION PACK ===")
+    print(f"decision: {result.get('decision') or 'status'}")
+    print(f"reason: {result.get('reason') or 'n/a'}")
+    if result.get("artifact_path"):
+        print(f"artifact_path: {result.get('artifact_path')}")
+    if result.get("active_source_path"):
+        print(f"active_source: {result.get('active_source_path')}")
+    if result.get("active_pointer_path"):
+        print(f"active_pointer: {result.get('active_pointer_path')}")
+    return 0
+
+
 def cmd_compile_current_state(args: argparse.Namespace) -> int:
     ctx = _resolve_or_attach_subject_from_args(args)
     if not ctx:
@@ -9122,6 +9267,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_render_rehydrate(args)
     if args.command == "refresh-continuity":
         return cmd_refresh_continuity(args)
+    if args.command == "execution-pack":
+        return cmd_execution_pack(args)
     if args.command == "compile-current-state":
         return cmd_compile_current_state(args)
     if args.command == "accept-quest":

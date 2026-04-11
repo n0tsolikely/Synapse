@@ -183,7 +183,7 @@ class ArtifactRouterTests(unittest.TestCase):
         self.assertEqual(context_one.envelope_fingerprint, context_two.envelope_fingerprint)
         self.assertEqual(evaluate_artifact_routing(context_one).to_dict(), evaluate_artifact_routing(context_two).to_dict())
 
-    def test_missing_execution_pack_owner_is_explicitly_blocked(self) -> None:
+    def test_execution_pack_request_routes_to_explicit_owner(self) -> None:
         context = build_artifact_routing_context(
             subject=self.subject,
             data_root=self.data_root,
@@ -195,11 +195,13 @@ class ArtifactRouterTests(unittest.TestCase):
             requested_snapshot_kinds=[],
             requested_publication_candidate_kinds=[],
             requested_missing_owner_families=["execution_pack"],
+            execution_pack_request={"action": "status"},
         )
         result = evaluate_artifact_routing(context).to_dict()
-        self.assertEqual(result["status"], "blocked")
-        self.assertEqual(result["intents"][0]["intent_kind"], "blocked_missing_owner")
-        self.assertEqual(result["intents"][0]["blocking_reason"], "missing_owner:execution_pack")
+        self.assertEqual(result["status"], "planned")
+        self.assertEqual(result["intents"][0]["intent_kind"], "manage_execution_pack")
+        self.assertEqual(result["intents"][0]["dispatch_key"], "manage_execution_pack")
+        self.assertEqual(result["intents"][0]["metadata"]["request"]["action"], "status")
 
     def test_onboarding_session_blocks_governance_proposal_mutation_but_not_candidate_refresh(self) -> None:
         context = build_artifact_routing_context(

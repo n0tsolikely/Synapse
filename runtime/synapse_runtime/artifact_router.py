@@ -23,6 +23,7 @@ SNAPSHOT_TARGET_FAMILY = "snapshot_candidate"
 PUBLICATION_TARGET_FAMILY = "publication_candidate"
 QUEST_TARGET_FAMILY = "quest_candidate"
 GOVERNANCE_PROPOSAL_TARGET_FAMILY = "governance_proposal"
+EXECUTION_PACK_TARGET_FAMILY = "execution_pack"
 BLOCKED_TARGET_FAMILY = "blocked"
 NOOP_TARGET_FAMILY = "noop"
 
@@ -30,6 +31,7 @@ SNAPSHOT_DISPATCH_KEY = "refresh_snapshot_candidate_boundary"
 PUBLICATION_DISPATCH_KEY = "refresh_publication_candidate_boundary"
 QUEST_DISPATCH_KEY = "upsert_quest_candidate_from_promotion"
 GOVERNANCE_PROPOSAL_DISPATCH_KEY = "upsert_operational_proposal_from_promotion"
+EXECUTION_PACK_DISPATCH_KEY = "manage_execution_pack"
 BLOCKED_DISPATCH_KEY = "blocked"
 NOOP_DISPATCH_KEY = "noop"
 
@@ -42,13 +44,14 @@ SUPPORTED_OPERATIONAL_PROPOSAL_KINDS = {
     ProposalKind.CONTROL_SYNC,
     ProposalKind.TALENT,
 }
-UNSUPPORTED_OWNER_FAMILIES = {"execution_pack"}
+SUPPORTED_EXPLICIT_OWNER_FAMILIES = {"execution_pack"}
 
 TARGET_OWNERS = {
     SNAPSHOT_TARGET_FAMILY: "runtime/synapse_runtime/snapshot_candidates.py",
     PUBLICATION_TARGET_FAMILY: "runtime/synapse_runtime/publication_candidates.py",
     QUEST_TARGET_FAMILY: "runtime/synapse_runtime/quest_candidates.py",
     GOVERNANCE_PROPOSAL_TARGET_FAMILY: "runtime/synapse_runtime/quest_candidates.py",
+    EXECUTION_PACK_TARGET_FAMILY: "runtime/synapse_runtime/execution_pack_runtime.py",
     BLOCKED_TARGET_FAMILY: "unresolved",
     NOOP_TARGET_FAMILY: "none",
 }
@@ -60,6 +63,7 @@ INTENT_PRIORITY = {
     "refresh_publication_candidate": 40,
     "upsert_quest_candidate": 50,
     "upsert_governance_proposal": 60,
+    "manage_execution_pack": 65,
     "blocked_missing_owner": 70,
     "blocked_gate": 80,
     "no_op": 90,
@@ -131,6 +135,7 @@ class ArtifactRoutingContext:
     prefer_latest_active_draftshot: bool
     obligation_fallback: bool
     import_profile: dict[str, Any]
+    execution_pack_request: dict[str, Any]
     current_active_refs: tuple[dict[str, Any], ...]
     draftshot_summary: dict[str, Any]
     snapshot_candidate_summary: dict[str, Any]
@@ -344,6 +349,7 @@ def build_artifact_routing_context(
     prefer_latest_active_draftshot: bool = False,
     obligation_fallback: bool = True,
     import_profile: dict[str, Any] | None = None,
+    execution_pack_request: dict[str, Any] | None = None,
     engine_root: Path | None = None,
 ) -> ArtifactRoutingContext:
     data_root = data_root.resolve()
@@ -413,6 +419,7 @@ def build_artifact_routing_context(
         "snapshot_candidate_kinds": list(snapshot_kinds),
         "publication_candidate_kinds": list(publication_kinds),
         "requested_missing_owner_families": list(missing_owner_families),
+        "execution_pack_request": dict(execution_pack_request or {}),
         "target_day": target_day,
         "promotions": list(promotion_payloads),
         "current_active_refs": [dict(item) for item in current_refs],
@@ -469,6 +476,7 @@ def build_artifact_routing_context(
         prefer_latest_active_draftshot=prefer_latest_active_draftshot,
         obligation_fallback=obligation_fallback,
         import_profile=dict(import_profile or {}),
+        execution_pack_request=dict(execution_pack_request or {}),
         current_active_refs=current_refs,
         draftshot_summary=draftshot_state,
         snapshot_candidate_summary=snapshot_summary,
@@ -674,7 +682,21 @@ def evaluate_artifact_routing(context: ArtifactRoutingContext) -> ArtifactRoutin
                 )
 
     for family in context.requested_missing_owner_families:
-        if family not in UNSUPPORTED_OWNER_FAMILIES:
+        if family in SUPPORTED_EXPLICIT_OWNER_FAMILIES:
+            request = dict(context.execution_pack_request or {})
+            request.setdefault("action", "status")
+            intents.append(
+                _intent(
+                    intent_kind="manage_execution_pack",
+                    target_family=EXECUTION_PACK_TARGET_FAMILY,
+                    target_posture="execution",
+                    dispatch_key=EXECUTION_PACK_DISPATCH_KEY,
+                    supporting_evidence_refs=evidence_refs,
+                    metadata={"requested_family": family, "request": request},
+                    required_prerequisites=("downstream_owner_exists",),
+                    receipt_fields=("decision", "reason", "artifact_path"),
+                )
+            )
             continue
         intents.append(
             _intent(
