@@ -136,9 +136,14 @@ from synapse_runtime.sidecar_store import _read_yaml, ensure_live_scaffold
 from synapse_runtime.snapshot_candidates import (
     CONTROL_SYNC_KIND,
     EOD_KIND,
+    SNAPSHOT_CANDIDATE_KINDS,
     SnapshotCandidateError,
     refresh_snapshot_candidates,
     snapshot_candidate_summary,
+)
+from synapse_runtime.snapshot_checkpoint_policy import (
+    evaluate_snapshot_checkpoint,
+    materialize_snapshot_checkpoint_decision,
 )
 from synapse_runtime.subject_bootstrap import initialize_subject_state, repo_subject_defaults
 from synapse_runtime.subject_bridge import ensure_subject_repo_bridges, install_local_codex_integration
@@ -2420,16 +2425,49 @@ def _refresh_snapshot_candidate_boundary(
             draftshot_error = str(exc)
 
     refresh_synthesis_projection(subject=ctx["subject"], data_root=data_root)
+    summary_before = snapshot_candidate_summary(data_root)
     if candidate_kinds is None:
         required_kinds = list(_snapshot_candidate_required_kinds(ctx))
     else:
         required_kinds = list(candidate_kinds)
+    current_draftshot = load_active_draftshot(data_root, session_id=session_id) if session_id else None
+    if current_draftshot is None and prefer_latest_active_draftshot:
+        current_draftshot = load_active_draftshot(data_root, session_id=None)
+    checkpoint_decision = evaluate_snapshot_checkpoint(
+        boundary=boundary,
+        requested_candidate_kinds=required_kinds,
+        target_day_hint=target_day,
+        current_summary=summary_before,
+        draftshot=current_draftshot,
+        session_anchor_present=bool(session_id),
+    )
+    if checkpoint_decision.blocked_reason == "missing_session_anchor":
+        return _snapshot_candidate_boundary_noop(
+            data_root=data_root,
+            boundary=boundary,
+            reason="missing_session_id",
+            decision=checkpoint_decision.to_dict(),
+        )
+    if checkpoint_decision.blocked_reason == "no_active_draftshot":
+        return _snapshot_candidate_boundary_noop(
+            data_root=data_root,
+            boundary=boundary,
+            reason="no_active_draftshot",
+            decision=checkpoint_decision.to_dict(),
+        )
+    if not checkpoint_decision.required_candidate_kinds:
+        return _snapshot_candidate_boundary_noop(
+            data_root=data_root,
+            boundary=boundary,
+            reason="no_required_candidate_kinds",
+            decision=checkpoint_decision.to_dict(),
+        )
     payload = refresh_snapshot_candidates(
         subject=ctx["subject"],
         data_root=data_root,
         session_id=session_id,
-        candidate_kinds=required_kinds if candidate_kinds is not None else (required_kinds or None),
-        target_day=target_day,
+        candidate_kinds=list(checkpoint_decision.required_candidate_kinds),
+        target_day=checkpoint_decision.target_day,
         prefer_latest_active_draftshot=prefer_latest_active_draftshot,
     )
     projection = _sync_sidecar(
@@ -2440,13 +2478,15 @@ def _refresh_snapshot_candidate_boundary(
     )
     summary = dict(payload.get("summary") or snapshot_candidate_summary(data_root))
     obligation_result = {"opened_obligations": [], "resolved_obligations": []}
-    effective_target_day = str(target_day or payload.get("target_day") or "").strip() or None
-    if obligation_fallback and required_kinds and not effective_target_day:
+    effective_target_day = (
+        str(checkpoint_decision.target_day or payload.get("target_day") or "").strip() or None
+    )
+    if obligation_fallback and checkpoint_decision.required_candidate_kinds and not effective_target_day:
         effective_target_day = kernel_now_iso().split("T", 1)[0]
-    if obligation_fallback and required_kinds and effective_target_day:
+    if obligation_fallback and checkpoint_decision.required_candidate_kinds and effective_target_day:
         obligation_result = _sync_snapshot_candidate_obligations(
             ctx=ctx,
-            required_kinds=required_kinds,
+            required_kinds=list(checkpoint_decision.required_candidate_kinds),
             target_day=effective_target_day,
             summary=summary,
             boundary=boundary,
@@ -2460,10 +2500,17 @@ def _refresh_snapshot_candidate_boundary(
             )
             summary = snapshot_candidate_summary(data_root)
 
+    decision_payload = materialize_snapshot_checkpoint_decision(
+        checkpoint_decision,
+        snapshot_candidate_payload=payload,
+        target_day=effective_target_day,
+        draftshot_error=draftshot_error,
+    )
     return {
         "boundary": boundary,
-        "required_kinds": required_kinds,
+        "required_kinds": list(checkpoint_decision.required_candidate_kinds),
         "target_day": effective_target_day,
+        "decision": decision_payload,
         "draftshot_result": draftshot_result,
         "draftshot_error": draftshot_error,
         "snapshot_candidates": payload,
@@ -2646,12 +2693,14 @@ def _snapshot_candidate_boundary_noop(
     data_root: Path,
     boundary: str,
     reason: str,
+    decision: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     summary = snapshot_candidate_summary(data_root)
     return {
         "boundary": boundary,
         "required_kinds": [],
         "target_day": None,
+        "decision": dict(decision or {}),
         "draftshot_result": None,
         "draftshot_error": None,
         "snapshot_candidates": {
@@ -4860,21 +4909,33 @@ def cmd_session_start(args: argparse.Namespace) -> int:
             boundary="session-start",
             reason="no_stale_prior_day_candidate_required",
         )
-        snapshot_summary = dict(snapshot_candidate_result.get("summary") or {})
-        if snapshot_summary.get("stale_prior_day_candidate_required"):
-            latest_active_draftshot = load_active_draftshot(Path(ctx["data_root"]), session_id=None)
-            stale_target_day = str(latest_active_draftshot.get("refreshed_at") or "").split("T", 1)[0] if latest_active_draftshot else None
-            if stale_target_day:
-                snapshot_candidate_result = _refresh_snapshot_candidate_boundary(
-                    ctx=ctx,
-                    boundary="session-start",
-                    candidate_kinds=[EOD_KIND],
-                    target_day=stale_target_day,
-                    prefer_latest_active_draftshot=True,
-                    refresh_draftshot_first=False,
-                    session_id_override=session_id,
-                    run_id_override=result.get("run_id"),
-                )
+        latest_active_draftshot = load_active_draftshot(Path(ctx["data_root"]), session_id=None)
+        session_start_decision = evaluate_snapshot_checkpoint(
+            boundary="session-start",
+            requested_candidate_kinds=[],
+            target_day_hint=None,
+            current_summary=dict(snapshot_candidate_result.get("summary") or {}),
+            draftshot=latest_active_draftshot,
+            session_anchor_present=bool(session_id),
+        )
+        if session_start_decision.candidate_action == "refresh" and session_start_decision.required_candidate_kinds:
+            snapshot_candidate_result = _refresh_snapshot_candidate_boundary(
+                ctx=ctx,
+                boundary="session-start",
+                candidate_kinds=list(session_start_decision.required_candidate_kinds),
+                target_day=session_start_decision.target_day,
+                prefer_latest_active_draftshot=True,
+                refresh_draftshot_first=False,
+                session_id_override=session_id,
+                run_id_override=result.get("run_id"),
+            )
+        else:
+            snapshot_candidate_result = _snapshot_candidate_boundary_noop(
+                data_root=Path(ctx["data_root"]),
+                boundary="session-start",
+                reason=str(session_start_decision.blocked_reason or "no_stale_prior_day_candidate_required"),
+                decision=session_start_decision.to_dict(),
+            )
         result["snapshot_candidates"] = snapshot_candidate_result
         result["publication_candidates"] = _refresh_publication_candidate_boundary(
             ctx=ctx,
@@ -8487,26 +8548,28 @@ def cmd_refresh_snapshot_candidates(args: argparse.Namespace) -> int:
     active_run = _load_active_run_with_session_repair(ctx)
     session_id = _continuity_session_anchor(ctx, active_run=active_run, session_id=_resolved_session_id(args))
     try:
-        refresh_synthesis_projection(subject=ctx["subject"], data_root=Path(ctx["data_root"]))
-        payload = refresh_snapshot_candidates(
-            subject=ctx["subject"],
-            data_root=Path(ctx["data_root"]),
-            session_id=session_id,
+        payload = _refresh_snapshot_candidate_boundary(
+            ctx=ctx,
+            boundary="refresh-snapshot-candidates",
+            candidate_kinds=list(SNAPSHOT_CANDIDATE_KINDS),
+            session_id_override=session_id,
+            run_id_override=str(active_run.get("run_id") or "").strip() or None,
         )
-        refresh_synthesis_projection(subject=ctx["subject"], data_root=Path(ctx["data_root"]))
     except (SnapshotCandidateError, LiveMemoryError) as exc:
         print(f"FAIL: {exc}")
         return 2
 
+    snapshot_payload = dict(payload.get("snapshot_candidates") or {})
+    summary = dict(payload.get("summary") or {})
     changed_files: list[str] = []
-    for item in list(payload.get("candidates") or []):
+    for item in list(snapshot_payload.get("candidates") or []):
         manifest_path = str(item.get("manifest_path") or "").strip()
         body_path = str(item.get("body_path") or "").strip()
         if manifest_path:
             changed_files.append(manifest_path)
         if body_path:
             changed_files.append(body_path)
-    index_path = str(payload.get("summary", {}).get("index_path") or "").strip()
+    index_path = str(summary.get("index_path") or "").strip()
     if index_path:
         changed_files.append(index_path)
 
@@ -8530,10 +8593,10 @@ def cmd_refresh_snapshot_candidates(args: argparse.Namespace) -> int:
             "uncertainty_present": False,
         },
         outputs={
-            "snapshot_candidate_status": payload.get("status"),
-            "snapshot_candidate_paths": [str(item.get("body_path") or "") for item in list(payload.get("candidates") or [])],
+            "snapshot_candidate_status": snapshot_payload.get("status"),
+            "snapshot_candidate_paths": [str(item.get("body_path") or "") for item in list(snapshot_payload.get("candidates") or [])],
             "snapshot_candidate_manifest_paths": [
-                str(item.get("manifest_path") or "") for item in list(payload.get("candidates") or [])
+                str(item.get("manifest_path") or "") for item in list(snapshot_payload.get("candidates") or [])
             ],
         },
     )
@@ -8547,10 +8610,11 @@ def cmd_refresh_snapshot_candidates(args: argparse.Namespace) -> int:
 
     def _emit_snapshot_candidates(result_payload: dict[str, Any]) -> None:
         summary = dict(result_payload.get("summary") or {})
+        snapshot_payload = dict(result_payload.get("snapshot_candidates") or {})
         print("=== SNAPSHOT CANDIDATE RECEIPT ===")
         print(f"subject: {result_payload['subject_context']['subject']}")
-        print(f"session_id: {result_payload.get('session_id') or 'none'}")
-        print(f"status: {result_payload.get('status')}")
+        print(f"session_id: {snapshot_payload.get('session_id') or 'none'}")
+        print(f"status: {snapshot_payload.get('status')}")
         print(f"current_eod_candidate_path: {summary.get('current_eod_candidate_path')}")
         print(f"current_control_sync_candidate_path: {summary.get('current_control_sync_candidate_path')}")
         print(f"index_path: {summary.get('index_path')}")

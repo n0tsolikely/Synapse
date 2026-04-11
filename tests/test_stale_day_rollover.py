@@ -134,9 +134,16 @@ class StaleDayRolloverTests(unittest.TestCase):
         payload = json.loads(result.stdout)
         snapshot_candidates = payload["run"]["snapshot_candidates"]
         summary = snapshot_candidates["summary"]
+        decision = dict(snapshot_candidates.get("decision") or {})
 
         self.assertEqual(snapshot_candidates["boundary"], "session-start")
         self.assertEqual(snapshot_candidates["target_day"], prior_day)
+        self.assertEqual(decision["trigger_boundary"], "session-start")
+        self.assertEqual(decision["snapshot_kind"], "EOD")
+        self.assertEqual(decision["target_day"], prior_day)
+        self.assertEqual(decision["candidate_action"], "refresh")
+        self.assertEqual(decision["canonical_action"], "defer")
+        self.assertEqual(decision["draftshot_action"], "preserve")
         self.assertTrue(summary["current_eod_candidate_path"])
         self.assertEqual(summary["current_eod_candidate_target_day"], prior_day)
         self.assertFalse(summary["stale_prior_day_candidate_required"])

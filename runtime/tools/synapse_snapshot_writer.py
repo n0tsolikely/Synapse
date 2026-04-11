@@ -34,7 +34,7 @@ import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 SYNAPSE_ROOT = SCRIPT_DIR.parent.parent
@@ -44,6 +44,13 @@ if str(RUNTIME_ROOT) not in sys.path:
 
 from synapse_runtime.subject_resolver import SubjectResolutionError, resolve_subject
 from synapse_runtime.draftshots import DraftshotError, consume_draftshot_for_snapshot, resolve_snapshot_draftshot
+from synapse_runtime.snapshot_candidates import snapshot_candidate_summary
+from synapse_runtime.snapshot_checkpoint_policy import (
+    CONTROL_SYNC_KIND,
+    EOD_KIND,
+    GENERAL_KIND,
+    evaluate_snapshot_checkpoint,
+)
 
 
 # -------------------------
@@ -150,6 +157,31 @@ def _rel_to_data_root(data_root: Path, path: Path) -> str:
         return path.resolve().relative_to(data_root.resolve()).as_posix()
     except Exception:
         return str(path)
+
+
+def _explicit_canonical_checkpoint_receipt(
+    *,
+    data_root: Path,
+    boundary: str,
+    snapshot_kind: str,
+    target_day: str,
+    draftshot_meta: Optional["DraftshotMeta"],
+) -> dict[str, Any]:
+    draftshot_payload = {"refreshed_at": f"{target_day}T00:00:00-04:00"} if draftshot_meta is not None else None
+    decision = evaluate_snapshot_checkpoint(
+        boundary=boundary,
+        requested_candidate_kinds=[],
+        target_day_hint=target_day,
+        current_summary=snapshot_candidate_summary(data_root),
+        draftshot=draftshot_payload,
+        session_anchor_present=True,
+        decision_mode="explicit_canonical",
+        requested_snapshot_kind=snapshot_kind,
+    )
+    payload = decision.to_dict()
+    if payload.get("blocked_reason"):
+        raise RuntimeError(f"snapshot checkpoint blocked: {payload['blocked_reason']}")
+    return payload
 
 
 # -------------------------
@@ -499,6 +531,17 @@ def cmd_control_close(args: argparse.Namespace) -> int:
         return 2
 
     consume_draftshot = bool(draftshot_meta) and (not args.no_consume_draftshot)
+    try:
+        checkpoint_receipt = _explicit_canonical_checkpoint_receipt(
+            data_root=data_root,
+            boundary="control-close",
+            snapshot_kind=CONTROL_SYNC_KIND,
+            target_day=day,
+            draftshot_meta=draftshot_meta,
+        )
+    except RuntimeError as exc:
+        print(f"FAIL: {exc}")
+        return 2
 
     # blocks
     decisions_block = _read_text(Path(args.decisions_file).expanduser().resolve() if args.decisions_file else None)
@@ -551,6 +594,10 @@ def cmd_control_close(args: argparse.Namespace) -> int:
     if draftshot_meta is not None:
         print(f"- draftshot: {draftshot_meta.rel_path} ({draftshot_meta.revision})")
         print(f"- draftshot_consumed: {'YES' if consume_draftshot else 'NO'}")
+    print(
+        f"- checkpoint_policy: {checkpoint_receipt['snapshot_kind']} "
+        f"target_day={checkpoint_receipt['target_day']} writer_command={checkpoint_receipt['writer_command']}"
+    )
     return 0
 
 
@@ -576,6 +623,17 @@ def cmd_eod(args: argparse.Namespace) -> int:
         return 2
 
     consume_draftshot = bool(draftshot_meta) and (not args.no_consume_draftshot)
+    try:
+        checkpoint_receipt = _explicit_canonical_checkpoint_receipt(
+            data_root=data_root,
+            boundary="eod",
+            snapshot_kind=EOD_KIND,
+            target_day=day,
+            draftshot_meta=draftshot_meta,
+        )
+    except RuntimeError as exc:
+        print(f"FAIL: {exc}")
+        return 2
 
     work_block = _read_text(Path(args.work_file).expanduser().resolve() if args.work_file else None)
     completed_block = _read_text(Path(args.completed_file).expanduser().resolve() if args.completed_file else None)
@@ -620,6 +678,10 @@ def cmd_eod(args: argparse.Namespace) -> int:
     if draftshot_meta is not None:
         print(f"- draftshot: {draftshot_meta.rel_path} ({draftshot_meta.revision})")
         print(f"- draftshot_consumed: {'YES' if consume_draftshot else 'NO'}")
+    print(
+        f"- checkpoint_policy: {checkpoint_receipt['snapshot_kind']} "
+        f"target_day={checkpoint_receipt['target_day']} writer_command={checkpoint_receipt['writer_command']}"
+    )
     return 0
 
 
@@ -645,6 +707,17 @@ def cmd_general(args: argparse.Namespace) -> int:
         return 2
 
     consume_draftshot = bool(draftshot_meta) and (not args.no_consume_draftshot)
+    try:
+        checkpoint_receipt = _explicit_canonical_checkpoint_receipt(
+            data_root=data_root,
+            boundary="general",
+            snapshot_kind=GENERAL_KIND,
+            target_day=day,
+            draftshot_meta=draftshot_meta,
+        )
+    except RuntimeError as exc:
+        print(f"FAIL: {exc}")
+        return 2
 
     purpose = _read_text(Path(args.purpose_file).expanduser().resolve() if args.purpose_file else None)
     content = _read_text(Path(args.content_file).expanduser().resolve() if args.content_file else None)
@@ -680,6 +753,10 @@ def cmd_general(args: argparse.Namespace) -> int:
     if draftshot_meta is not None:
         print(f"- draftshot: {draftshot_meta.rel_path} ({draftshot_meta.revision})")
         print(f"- draftshot_consumed: {'YES' if consume_draftshot else 'NO'}")
+    print(
+        f"- checkpoint_policy: {checkpoint_receipt['snapshot_kind']} "
+        f"target_day={checkpoint_receipt['target_day']} writer_command={checkpoint_receipt['writer_command']}"
+    )
     return 0
 
 
