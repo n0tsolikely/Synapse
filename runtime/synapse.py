@@ -165,7 +165,7 @@ from synapse_runtime.publication_candidates import (
     refresh_publication_candidates,
     resolve_publication_candidate,
 )
-from synapse_runtime.quest_plans import persist_execution_plan
+from synapse_runtime.quest_plans import derive_canonical_dungeon_plan_inputs, persist_execution_plan
 from synapse_runtime.subject_resolver import (
     SubjectResolutionError,
     detect_subject_candidates,
@@ -317,7 +317,9 @@ def build_parser() -> argparse.ArgumentParser:
     plan_parser.add_argument("--out-of-scope", help="Explicit out-of-scope statement")
     plan_parser.add_argument("--verification-plan", help="Concrete verification plan text")
     plan_parser.add_argument("--guild-orders-ref", help="Optional parent guild-orders reference")
+    plan_parser.add_argument("--guild-orders-artifact", help="Canonical Guild Orders artifact path for dungeon-derived planning")
     plan_parser.add_argument("--dungeon-ref", help="Optional parent dungeon reference")
+    plan_parser.add_argument("--dungeon-id", help="Dungeon ID inside the canonical Guild Orders artifact")
     plan_parser.add_argument(
         "--dungeon-coverage",
         choices=["FULL_DUNGEON", "PARTIAL_DUNGEON", "N/A"],
@@ -6621,7 +6623,9 @@ def _plan_quests_mutation(
     out_of_scope: str | None,
     verification_plan: str | None,
     guild_orders_ref: str | None,
+    guild_orders_artifact: str | None,
     dungeon_ref: str | None,
+    dungeon_id: str | None,
     dungeon_coverage: str,
     plan_id: str | None,
     priority: str,
@@ -6651,7 +6655,9 @@ def _plan_quests_mutation(
         out_of_scope=out_of_scope,
         verification_plan=verification_plan,
         guild_orders_ref=guild_orders_ref,
+        guild_orders_artifact=guild_orders_artifact,
         dungeon_ref=dungeon_ref,
+        dungeon_id=dungeon_id,
         dungeon_coverage=dungeon_coverage,
         plan_id=plan_id,
         priority=priority,
@@ -8807,7 +8813,9 @@ def _plan_quests_payload(
     out_of_scope: str | None,
     verification_plan: str | None,
     guild_orders_ref: str | None,
+    guild_orders_artifact: str | None,
     dungeon_ref: str | None,
+    dungeon_id: str | None,
     dungeon_coverage: str,
     plan_id: str | None,
     priority: str,
@@ -8833,6 +8841,41 @@ def _plan_quests_payload(
     board_dir = data_root / "Quest Board"
     board_dir.mkdir(parents=True, exist_ok=True)
     active_run = _load_active_run_with_session_repair(ctx)
+    plan_links: list[str] = []
+    lineage_family_id: str | None = None
+
+    if guild_orders_artifact or dungeon_id:
+        if not guild_orders_artifact or not dungeon_id:
+            raise LiveMemoryError("Canonical dungeon-derived planning requires both --guild-orders-artifact and --dungeon-id.")
+        if guild_orders_ref or dungeon_ref:
+            raise LiveMemoryError(
+                "Use either canonical dungeon-derived inputs (--guild-orders-artifact/--dungeon-id) "
+                "or manual lineage inputs (--guild-orders-ref/--dungeon-ref), not both."
+            )
+        try:
+            derived = derive_canonical_dungeon_plan_inputs(
+                data_root=data_root,
+                guild_orders_artifact=guild_orders_artifact,
+                dungeon_id=dungeon_id,
+                items=items,
+                separate_outcomes=separate_outcomes,
+                requested_dungeon_coverage=dungeon_coverage,
+            )
+        except ValueError as exc:
+            raise LiveMemoryError(str(exc)) from exc
+        items = list(derived["items"])
+        title = title or str(derived["title"])
+        goal = goal or str(derived["goal"])
+        coherent_outcome = coherent_outcome or str(derived["coherent_outcome"])
+        closure_statement = closure_statement or str(derived["closure_statement"])
+        out_of_scope = out_of_scope or str(derived["out_of_scope"])
+        verification_plan = verification_plan or str(derived["verification_plan"])
+        guild_orders_ref = str(derived["guild_orders_ref"])
+        dungeon_ref = str(derived["dungeon_ref"])
+        dungeon_coverage = str(derived["dungeon_coverage"])
+        constraints = list(derived.get("constraints") or []) + constraints
+        plan_links = [str(item) for item in derived.get("evidence_links") or []]
+        lineage_family_id = str(derived.get("lineage_family_id") or "").strip() or None
 
     prefix = "QUEST"
     next_id = _next_quest_number(data_root, prefix)
@@ -8909,11 +8952,12 @@ def _plan_quests_payload(
         guild_orders_ref=guild_orders_ref,
         dungeon_ref=dungeon_ref,
         dungeon_coverage=dungeon_coverage,
-        links=[],
+        links=plan_links,
         quest_refs=[entry["path"] for entry in quest_specs],
         related_run_ids=[str(active_run.get("run_id") or "").strip()] if isinstance(active_run, dict) and str(active_run.get("run_id") or "").strip() else [],
         source="plan-quests",
         plan_id=plan_id,
+        lineage_family_id=lineage_family_id,
     )
 
     created_at = dt.datetime.now(tz=ZoneInfo("America/Toronto")).isoformat()
@@ -8997,7 +9041,7 @@ def cmd_plan_quests(args: argparse.Namespace) -> int:
         print(f"FAIL: {exc}")
         return 2
 
-    if not items:
+    if not items and not (getattr(args, "guild_orders_artifact", None) and getattr(args, "dungeon_id", None)):
         print("FAIL: no plan items provided. Use --item or --items-file.")
         return 2
 
@@ -9014,7 +9058,9 @@ def cmd_plan_quests(args: argparse.Namespace) -> int:
             out_of_scope=getattr(args, "out_of_scope", None),
             verification_plan=getattr(args, "verification_plan", None),
             guild_orders_ref=getattr(args, "guild_orders_ref", None),
+            guild_orders_artifact=getattr(args, "guild_orders_artifact", None),
             dungeon_ref=getattr(args, "dungeon_ref", None),
+            dungeon_id=getattr(args, "dungeon_id", None),
             dungeon_coverage=getattr(args, "dungeon_coverage", "N/A"),
             plan_id=getattr(args, "plan_id", None),
             priority=args.priority,

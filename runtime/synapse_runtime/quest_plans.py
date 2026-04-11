@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 
 import yaml
 
+from synapse_runtime.guild_orders_runtime import load_runtime_guild_orders_dungeon
 from synapse_runtime.live_memory_common import _slugify, _unique_strings
 
 
@@ -209,3 +210,54 @@ def parse_plan_artifact_refs(raw: str) -> list[str]:
         if text:
             refs.append(text)
     return refs
+
+
+def derive_canonical_dungeon_plan_inputs(
+    *,
+    data_root: Path,
+    guild_orders_artifact: str,
+    dungeon_id: str,
+    items: Iterable[str],
+    separate_outcomes: Iterable[str],
+    requested_dungeon_coverage: str,
+) -> dict[str, Any]:
+    document, dungeon = load_runtime_guild_orders_dungeon(
+        data_root=data_root,
+        artifact_path=guild_orders_artifact,
+        dungeon_id=dungeon_id,
+    )
+    explicit_items = _normalize_text_list(items)
+    outcome_count = len(_normalize_text_list(separate_outcomes))
+    requested = str(requested_dungeon_coverage or "N/A").strip().upper() or "N/A"
+    coverage = requested
+    if coverage == "N/A":
+        coverage = "PARTIAL_DUNGEON" if outcome_count > 1 else "FULL_DUNGEON"
+    if outcome_count > 1 and coverage != "PARTIAL_DUNGEON":
+        raise ValueError("Canonical dungeon-derived multi-outcome planning requires dungeon_coverage=PARTIAL_DUNGEON.")
+    if coverage not in VALID_DUNGEON_COVERAGE - {"N/A"}:
+        raise ValueError(f"Invalid canonical dungeon coverage: {coverage}")
+
+    relative_orders_ref = _data_relative_ref(data_root, document.path)
+    dungeon_ref = f"{document.orders_id}::{dungeon.dungeon_id}"
+    return {
+        "title": dungeon.title,
+        "goal": dungeon.objective,
+        "coherent_outcome": dungeon.coherent_outcome,
+        "closure_statement": dungeon.closure_statement,
+        "out_of_scope": dungeon.out_of_scope,
+        "verification_plan": dungeon.verification_plan,
+        "guild_orders_ref": relative_orders_ref,
+        "dungeon_ref": dungeon_ref,
+        "dungeon_coverage": coverage,
+        "constraints": list(dungeon.constraints),
+        "items": explicit_items or [dungeon.objective],
+        "lineage_family_id": f"{document.packet.lineage_family_id}::{dungeon.dungeon_id}",
+        "evidence_links": list(dungeon.evidence),
+    }
+
+
+def _data_relative_ref(data_root: Path, path: Path) -> str:
+    try:
+        return path.resolve().relative_to(data_root.resolve()).as_posix()
+    except Exception:
+        return str(path.resolve())

@@ -75,6 +75,16 @@ class GuildOrdersPacket:
 
 
 @dataclass(frozen=True)
+class GuildOrdersDocument:
+    path: Path
+    orders_id: str
+    state: str
+    operation_class: str
+    revision_class: str
+    packet: GuildOrdersPacket
+
+
+@dataclass(frozen=True)
 class GuildOrdersMutationResult:
     ok: bool
     operation: GuildOrdersOperation
@@ -475,6 +485,74 @@ def formalize_guild_orders_from_proposal(
     }
 
 
+def load_runtime_guild_orders_document(*, data_root: Path, artifact_path: str | Path) -> GuildOrdersDocument:
+    path = _resolve_source_path(data_root, artifact_path)
+    if path is None or not path.exists():
+        raise LiveMemoryError(f"Guild Orders artifact not found: {artifact_path}")
+    raw_text = path.read_text(encoding="utf-8", errors="replace")
+    if not raw_text.startswith("GUILD ORDERS"):
+        raise LiveMemoryError(f"Unsupported Guild Orders artifact format: {path}")
+
+    orders_id = _extract_labeled_block(raw_text, "Guild Orders ID")
+    subject = _extract_labeled_block(raw_text, "Subject")
+    state = _extract_labeled_block(raw_text, "Orders State")
+    operation_class = _extract_labeled_block(raw_text, "Operation Class")
+    revision_class = _extract_labeled_block(raw_text, "Revision Class")
+    proposal_id = _extract_labeled_block(raw_text, "Source Proposal ID")
+    title = _extract_labeled_block(raw_text, "Title")
+    summary = _extract_labeled_block(raw_text, "Scope Statement")
+    coherent_outcome = _extract_labeled_block(raw_text, "Raid Coherent Outcome")
+    closure_statement = _extract_labeled_block(raw_text, "Raid Done Definition")
+    out_of_scope = _extract_labeled_block(raw_text, "Out of Scope")
+    verification_plan = _extract_labeled_block(raw_text, "Verification Plan")
+    lineage_family_id = _extract_labeled_block(raw_text, "Lineage Family ID") or f"GOFAMILY__{_slugify(title).upper()}"
+    constraints = tuple(_parse_bullet_block(_extract_labeled_block(raw_text, "Constraints")))
+    evidence = tuple(_parse_bullet_block(_extract_labeled_block(raw_text, "Evidence")))
+    blockers = tuple(_parse_bullet_block(_extract_labeled_block(raw_text, "Blockers / Review")))
+    dungeon_specs = _parse_dungeon_specs(raw_text)
+    if not all((orders_id, subject, title, summary, coherent_outcome, closure_statement)):
+        raise LiveMemoryError(f"Guild Orders artifact is missing required labeled fields: {path}")
+    packet = GuildOrdersPacket(
+        proposal_id=proposal_id or f"MANUAL::{orders_id}",
+        subject=subject,
+        title=title,
+        summary=summary,
+        objective=_extract_labeled_block(raw_text, "Dungeon Objective") or summary,
+        coherent_outcome=coherent_outcome,
+        closure_statement=closure_statement,
+        out_of_scope=out_of_scope or "Any work beyond the bounded Guild Orders proposal.",
+        constraints=constraints,
+        verification_plan=verification_plan or "",
+        evidence=evidence,
+        blockers=blockers,
+        codex_implications=(),
+        lineage_family_id=lineage_family_id,
+        dungeon_specs=dungeon_specs,
+    )
+    return GuildOrdersDocument(
+        path=path,
+        orders_id=orders_id,
+        state=state or "UNKNOWN",
+        operation_class=operation_class or "unknown",
+        revision_class=revision_class or "unknown",
+        packet=packet,
+    )
+
+
+def load_runtime_guild_orders_dungeon(
+    *,
+    data_root: Path,
+    artifact_path: str | Path,
+    dungeon_id: str,
+) -> tuple[GuildOrdersDocument, GuildOrdersDungeonSpec]:
+    document = load_runtime_guild_orders_document(data_root=data_root, artifact_path=artifact_path)
+    requested = _clean_text(dungeon_id).upper()
+    for spec in document.packet.dungeon_specs:
+        if spec.dungeon_id.upper() == requested:
+            return document, spec
+    raise LiveMemoryError(f"Dungeon {dungeon_id} not found in Guild Orders artifact {document.path}")
+
+
 def _normalize_dungeon_specs(
     *,
     data_root: Path,
@@ -560,6 +638,83 @@ def _coerce_operation(value: GuildOrdersOperation | str) -> GuildOrdersOperation
     if isinstance(value, GuildOrdersOperation):
         return value
     return GuildOrdersOperation(str(value))
+
+
+def _looks_like_label(line: str) -> bool:
+    stripped = line.strip()
+    if not stripped or stripped.startswith("#"):
+        return False
+    if stripped.startswith("- ") or stripped.startswith("* "):
+        return False
+    return bool(re.match(r"^[A-Za-z0-9_ /().-]+:\s*(?:.*)?$", stripped))
+
+
+def _extract_labeled_block(text: str, label: str) -> str:
+    needle = f"{label}:"
+    lines = text.splitlines()
+    for idx, raw in enumerate(lines):
+        if raw.strip().startswith(needle):
+            remainder = raw.split(":", 1)[1].strip()
+            values: list[str] = []
+            if remainder:
+                values.append(remainder)
+            j = idx + 1
+            while j < len(lines):
+                candidate = lines[j]
+                stripped = candidate.strip()
+                if not stripped:
+                    if values:
+                        break
+                    j += 1
+                    continue
+                if stripped.startswith("#"):
+                    j += 1
+                    continue
+                if stripped.startswith("==="):
+                    break
+                if _looks_like_label(stripped):
+                    break
+                values.append(stripped)
+                j += 1
+            return "\n".join(values).strip()
+    return ""
+
+
+def _parse_bullet_block(raw: str) -> list[str]:
+    values: list[str] = []
+    for line in str(raw or "").splitlines():
+        text = re.sub(r"^[-*]\s*", "", line.strip())
+        if text and text.lower() != "none":
+            values.append(text)
+    return _unique_strings(values)
+
+
+def _parse_dungeon_specs(raw_text: str) -> tuple[GuildOrdersDungeonSpec, ...]:
+    lines = raw_text.splitlines()
+    specs: list[GuildOrdersDungeonSpec] = []
+    indices = [idx for idx, line in enumerate(lines) if line.strip().startswith("Dungeon ID:")]
+    for index, start in enumerate(indices):
+        end = indices[index + 1] if index + 1 < len(indices) else len(lines)
+        chunk = "\n".join(lines[start:end])
+        dungeon_id = _extract_labeled_block(chunk, "Dungeon ID")
+        if not dungeon_id:
+            continue
+        spec = GuildOrdersDungeonSpec(
+            dungeon_id=dungeon_id,
+            title=_extract_labeled_block(chunk, "Dungeon Title"),
+            objective=_extract_labeled_block(chunk, "Dungeon Objective"),
+            coherent_outcome=_extract_labeled_block(chunk, "Dungeon Coherent Outcome"),
+            closure_statement=_extract_labeled_block(chunk, "Dungeon Done Definition"),
+            out_of_scope=_extract_labeled_block(chunk, "Dungeon Out of Scope"),
+            constraints=tuple(_parse_bullet_block(_extract_labeled_block(chunk, "Dungeon Constraints"))),
+            verification_plan=_extract_labeled_block(chunk, "Dungeon Verification Plan"),
+            evidence=tuple(_parse_bullet_block(_extract_labeled_block(chunk, "Dungeon Evidence"))),
+            blockers=tuple(_parse_bullet_block(_extract_labeled_block(chunk, "Dungeon Blockers / Review"))),
+        )
+        specs.append(spec)
+    if not specs:
+        raise LiveMemoryError("Guild Orders artifact contains no parseable Dungeon specs.")
+    return tuple(specs)
 
 
 def _normalize_evidence(data_root: Path, values: Iterable[Any]) -> list[str]:
