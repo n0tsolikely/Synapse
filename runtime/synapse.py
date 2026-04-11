@@ -165,6 +165,7 @@ from synapse_runtime.publication_candidates import (
     refresh_publication_candidates,
     resolve_publication_candidate,
 )
+from synapse_runtime.codex_runtime import formalize_codex_from_proposal
 from synapse_runtime.quest_plans import derive_canonical_dungeon_plan_inputs, persist_execution_plan
 from synapse_runtime.subject_resolver import (
     SubjectResolutionError,
@@ -6977,92 +6978,22 @@ def _formalize_quest(ctx: dict[str, Any], proposal: dict[str, Any], *, prefix: s
     return {"artifact_path": str(draft["artifact_path"]), "proposal": proposal_receipt}
 
 
-def _ensure_codex_build_state(data_root: Path) -> Path:
-    codex_dir = data_root / "Codex"
-    sections_dir = codex_dir / "Sections"
-    sections_dir.mkdir(parents=True, exist_ok=True)
-    build_state = codex_dir / "CODEX_BUILD_STATE.yaml"
-    if not build_state.exists():
-        build_state.write_text(
-            "schema_version: 1\noverall_status: IN_PROGRESS\nspec_completeness_gate:\n  status: NEEDS_DECISIONS\nconsistency_gate:\n  status: NEEDS_DECISIONS\nsections: []\nnotes: []\n",
-            encoding="utf-8",
-        )
-    return build_state
-
-
 def _formalize_codex(ctx: dict[str, Any], proposal: dict[str, Any]) -> dict[str, Any]:
     data_root = Path(ctx["data_root"])
-    today = _today_toronto()
-    slug = _slugify(str(proposal.get("title") or "codex"))
-    section_path = data_root / "Codex" / "Sections" / f"CANDIDATE__{slug}__{today}.md"
-    section_path.parent.mkdir(parents=True, exist_ok=True)
-    section_path.write_text(
-        "\n".join(
-            [
-                f"# Codex Candidate - {proposal.get('title')}",
-                "",
-                f"- Proposal ID: {proposal.get('proposal_id')}",
-                f"- Formalized On: {today}",
-                "",
-                "## Summary",
-                str(proposal.get("summary") or ""),
-                "",
-                "## Reason",
-                str(proposal.get("reason") or ""),
-                "",
-                "## Codex Implications",
-                *(f"- {item}" for item in proposal.get("codex_implications") or []),
-                "",
-                "## Evidence",
-                *(f"- {item}" for item in proposal.get("evidence") or []),
-                "",
-            ]
-        ).rstrip()
-        + "\n",
-        encoding="utf-8",
-    )
-    build_state_path = _ensure_codex_build_state(data_root)
-    build_state = yaml.safe_load(build_state_path.read_text(encoding="utf-8")) or {}
-    sections = build_state.get("sections")
-    if not isinstance(sections, list):
-        sections = []
-    sections.append(
-        {
-            "section_path": _relative_to_root(data_root, section_path),
-            "status": "PROPOSED_FROM_AMBIENT",
-            "source_proposal_id": proposal.get("proposal_id"),
-            "updated_at": dt.datetime.now().astimezone().isoformat(),
-        }
-    )
-    build_state["sections"] = sections
-    build_state["overall_status"] = "IN_PROGRESS"
-    build_state_path.write_text(yaml.safe_dump(build_state, sort_keys=False), encoding="utf-8")
-    gate_result = _codex_gate(
-        [
-            "--subject",
-            ctx["subject"],
-            "--data-root",
-            str(data_root),
-            "consistency",
-            "--section",
-            str(section_path),
-            "--write-state",
-            "--update-anchor",
-        ]
-    )
-    if gate_result.returncode != 0:
-        raise LiveMemoryError(gate_result.stdout + gate_result.stderr)
+    result = formalize_codex_from_proposal(subject=ctx["subject"], data_root=data_root, proposal=proposal)
     proposal_receipt = mark_proposal_state(
         data_root=data_root,
         proposal_id=str(proposal["proposal_id"]),
         state=ProposalState.FORMALIZED,
-        artifact_path=str(section_path),
-        note="Codex candidate shard written.",
+        artifact_path=str(result["artifact_path"]),
+        note=f"Codex formalization completed with {result['decision']['write_posture']}.",
     )
     return {
-        "artifact_path": str(section_path),
+        "artifact_path": str(result["artifact_path"]),
         "proposal": proposal_receipt,
-        "raw_output": gate_result.stdout + gate_result.stderr,
+        "receipt_path": result.get("receipt_path"),
+        "decision": result.get("decision"),
+        "raw_output": result.get("raw_output", ""),
     }
 
 

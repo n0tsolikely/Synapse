@@ -191,10 +191,11 @@ def cmd_spec(args: argparse.Namespace) -> int:
         print(f"FAIL: {exc}")
         return 2
 
-    toc_path = data_root / "Codex" / "TOC_DRAFT.md"
+    canonical_toc_path = data_root / "Codex" / "TOC.md"
+    draft_toc_path = data_root / "Codex" / "TOC_DRAFT.md"
     build_state_path = data_root / "Codex" / "CODEX_BUILD_STATE.yaml"
 
-    toc_text = _read(toc_path)
+    toc_text = _read(canonical_toc_path) if canonical_toc_path.exists() else _read(draft_toc_path)
     try:
         blocking, continuity_text = _spec_continuity_inputs(data_root)
     except RuntimeError as exc:

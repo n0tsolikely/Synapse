@@ -456,7 +456,7 @@ class LiveMemoryFlowTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
         self.assertTrue(list((self.data_root / "Snapshots" / "End of Day").glob("*.txt")))
-        self.assertTrue(list((self.data_root / "Codex" / "Sections").glob("CANDIDATE__*.md")))
+        self.assertTrue(list((self.data_root / "Codex" / "Candidates").glob("CANDIDATE__*.md")))
         self.assertTrue(list((self.data_root / "Guild Orders" / "PAUSED").glob("GO-*.txt")))
 
     def test_formalize_build_manual_and_disclosure_candidates(self):
